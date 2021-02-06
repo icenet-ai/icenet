@@ -40,6 +40,9 @@ daily_nan_sic_fig_folder = os.path.join(config.folders['figures'], 'daily_sic_na
 if not os.path.exists(daily_nan_sic_fig_folder):
     os.makedirs(daily_nan_sic_fig_folder)
 
+# Path to xarray.DataArray storing all the daily SIC data already downloaded
+da_all_fpath = os.path.join(config.folders['siconca'], 'siconca_all.nc')
+
 land_mask = np.load(os.path.join(config.folders['masks'], config.fnames['land_mask']))
 
 active_grid_cell_masks = {}
@@ -50,9 +53,9 @@ for month in np.arange(1, 13):
 
 tic = time.time()
 
-for year in range(1979, 2021):
+for year_i, year in enumerate(range(1979, 2021)):
 
-    for month in range(1, 13):
+    for month_i, month in enumerate(range(1, 13)):
 
         year_str = '{:04d}'.format(year)
         month_str = '{:02d}'.format(month)
@@ -91,32 +94,32 @@ for year in range(1979, 2021):
         if do_preproc:
             print("Preprocessing {}/{}... ".format(year, month), end='', flush=True)
 
-            for i, path in enumerate(paths_downloaded):
+            for day_i, path in enumerate(paths_downloaded):
                 with xr.open_dataset(path) as ds:
-                    ds = xr.open_dataset(path)
+                    ds_day = xr.open_dataset(path)
 
                     # Remove unneeded variables from the NetCDF
-                    ds = ds.drop(var_remove_list)
+                    ds_day = ds_day.drop(var_remove_list)
 
-                    da = ds['ice_conc']
+                    da_day = ds_day['ice_conc']
 
-                    da.data = np.array(da.data, dtype=np.float32)
+                    da_day.data = np.array(da_day.data, dtype=np.float32)
 
                     # Divide values to fit in range 0-1
-                    da.data = da.data / 100.
+                    da_day.data = da_day.data / 100.
 
-                    da.data[0, ~active_grid_cell_masks[month_str]] = 0.
+                    da_day.data[0, ~active_grid_cell_masks[month_str]] = 0.
 
                     # TEMP: plotting any missing NaN values in figures/ folder while investigating them
-                    if np.sum(np.isnan(da.data)) > 0:
+                    if np.sum(np.isnan(da_day.data)) > 0:
                         import pandas as pd
                         fig, ax = plt.subplots()
-                        ax.imshow(np.isnan(da.data)[0, :], cmap='gray')
+                        ax.imshow(np.isnan(da_day.data)[0, :], cmap='gray')
                         ax.contour(land_mask, colors='white', alpha=.5, linewidths=.1)
                         ax.axes.xaxis.set_visible(False)
                         ax.axes.yaxis.set_visible(False)
 
-                        date_ts = pd.Timestamp(da.time.values[0])  # np.datetime64 --> pd.Timestamp
+                        date_ts = pd.Timestamp(da_day.time.values[0])  # np.datetime64 --> pd.Timestamp
                         plt.savefig(os.path.join(daily_nan_sic_fig_folder,
                                                  '{:04d}_{:02d}_{:02d}.png'.format(date_ts.year, date_ts.month, date_ts.day)),
                                     dpi=300)
@@ -125,15 +128,27 @@ for year in range(1979, 2021):
                         print('Found NaNs in SIC day: {:04d}/{:02d}/{:02d}'.format(date_ts.year, date_ts.month, date_ts.day))
 
                         # TODO: how to deal with the missing values?
-                        # da.data[np.isnan(da.data)] = 0.
+                        # da_day.data[np.isnan(da_day.data)] = 0.
 
                     # TODO: interpolate polar hole
 
-                    # Write to new NetCDF
-                    ds.to_netcdf(paths_after[i], mode='w')
-                    os.remove(path)
+                    # Concat into one xr.DataArray
+                    if (year_i == 0 and month_i == 0 and day_i == 0) and not os.path.exists(da_all_fpath):
+                        # First month of SIC to be downloaded and no existing file
+                        print('\n\n\nNo existing file at {}, instantiating da_all to store all data.\n\n\n'.format(da_all_fpath))
+                        da_all = da_day
+                    elif (year_i == 0 and month_i == 0 and day_i == 0) and os.path.exists(da_all_fpath):
+                        # First month of SIC to be downloaded and existing file
+                        print('\n\n\nFound existing file at {}, loading as starting point for da_all.\n\n\n'.format(da_all_fpath))
+                        da_all = xr.open_dataarray(da_all_fpath)
+                        da_all = xr.concat([da_all, da_day], dim='time')
+                    else:
+                        # Not first month of SIC to be downloaded: `da_all` already in memory
+                        da_all = xr.concat([da_all, da_day], dim='time')
 
-            print("Done.")
+                    da_all.to_netcdf(da_all_fpath, mode='w')
+
+            print("Done processing month.")
 
         if delete_raw_daily_data:
             shutil.rmtree(month_data_folder, ignore_errors=True)
