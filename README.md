@@ -3,11 +3,11 @@
 ### Plan for the repo
 
 ##### Misc
-* [ ] Config script
+* [x] Config script
 
 ##### Downloading data
+* [o] Script to download daily OSI-SAF SIC data and fill missing days appropriately
 * [ ] Script to download hourly era5 data, compute daily averages, and regrid to EASE grid
-* [ ] Script to download daily OSI-SAF SIC data and fill missing days appropriately
 
 ##### Preprocessing data
 * [ ] Class + script to preprocess ERA5 + SIC data into .npy files
