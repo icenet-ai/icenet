@@ -60,7 +60,7 @@ for year in range(1979, 2021):
 
         print("{}/{}, ".format(year, month), end='', flush=True)
 
-        if any([datetime(year, month) == missing_month for missing_month in config.missing_sic_months]):
+        if any([datetime(year, month, 1) == missing_month for missing_month in config.missing_sic_months]):
             print('Skipping missing month.')
             continue
 
