@@ -30,18 +30,15 @@ var_remove_list = ['time_bnds', 'raw_ice_conc_values', 'total_standard_error',
                    'smearing_standard_error', 'algorithm_standard_error',
                    'status_flag', 'Lambert_Azimuthal_Grid']
 
-retrieve_cmd_template_osi450 = 'wget -m -nH --cut-dirs=4 -P {} ' \
+retrieve_cmd_template_osi450 = 'wget -m -nH -nv --cut-dirs=4 -P {} ' \
     'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/ice_conc_nh*'
 
-retrieve_cmd_template_osi430b = 'wget -m -nH --cut-dirs=4 -P {} '\
+retrieve_cmd_template_osi430b = 'wget -m -nH -nv --cut-dirs=4 -P {} '\
     'ftp://osisaf.met.no/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/ice_conc_nh*'
 
 daily_nan_sic_fig_folder = os.path.join(config.folders['figures'], 'daily_sic_nans')
 if not os.path.exists(daily_nan_sic_fig_folder):
     os.makedirs(daily_nan_sic_fig_folder)
-
-# Path to xarray.DataArray storing all the daily SIC data already downloaded
-da_all_fpath = os.path.join(config.folders['siconca'], 'siconca_all.nc')
 
 land_mask = np.load(os.path.join(config.folders['masks'], config.fnames['land_mask']))
 
@@ -54,6 +51,9 @@ for month in np.arange(1, 13):
 tic = time.time()
 
 for year_i, year in enumerate(range(1979, 2021)):
+
+    # Path to xarray.DataArray storing year of daily SIC data already downloaded
+    da_year_path = os.path.join(config.folders['siconca'], 'siconca_{:04d}.nc'.format(year))
 
     for month_i, month in enumerate(range(1, 13)):
 
@@ -131,21 +131,15 @@ for year_i, year in enumerate(range(1979, 2021)):
                         # TODO: how to deal with the missing values?
                         # da_day.data[np.isnan(da_day.data)] = 0.
 
-                    # TODO: interpolate polar hole
+                    # TODO: interpolate polar hole, or do this after downloading?
 
-                    # Concat into one xr.DataArray
-                    if (year_i == 0 and month_i == 0 and day_i == 0) and not os.path.exists(da_all_fpath):
-                        # First month of SIC to be downloaded and no existing file
-                        print('\n\n\nNo existing file at {}, instantiating da_all to store all data.\n\n\n'.format(da_all_fpath))
-                        da_all = da_day
-                    elif (year_i == 0 and month_i == 0 and day_i == 0) and os.path.exists(da_all_fpath):
-                        # First month of SIC to be downloaded and existing file
-                        print('\n\n\nFound existing file at {}, loading as starting point for da_all.\n\n\n'.format(da_all_fpath))
-                        da_all = xr.open_dataarray(da_all_fpath)
-                        da_all = xr.concat([da_all, da_day], dim='time')
+                    # Concat into one xr.DataArray for each year
+                    if (month_i == 0 and day_i == 0):
+                        # First month of SIC to be downloaded from this year
+                        da_year = da_day
                     else:
-                        # Not first month of SIC to be downloaded: `da_all` already in memory
-                        da_all = xr.concat([da_all, da_day], dim='time')
+                        # Not first month of SIC to be downloaded: `da_year` already in memory
+                        da_year = xr.concat([da_year, da_day], dim='time')
 
             print('Done preprocessing month in {:.0f}s.\n\n'.format(time.time()-tic_preproc))
 
@@ -160,19 +154,10 @@ for year_i, year in enumerate(range(1979, 2021)):
                 if len(os.listdir(year_dir)) == 0:
                     os.rmdir(year_dir)
 
-    if (year-1978) % 5 == 0:
-        # Checkpoint every 5 years from start of satellite record
-        print('\n\n\nSaving siconca_all.nc... ', end='', flush=True)
-        tic_save = time.time()
-        da_all.to_netcdf(da_all_fpath, mode='w')
-        print('Done in {:.0f}s.\n\n\n'.format(time.time()-tic_save))
-
-if do_preproc:
-    # Save at the end of satellite record
-    print('\n\nSaving siconca_all.nc... ', end='', flush=True)
+    print('\n\n\nSaving year file... ', end='', flush=True)
     tic_save = time.time()
-    da_all.to_netcdf(da_all_fpath, mode='w')
-    print('Done in {:.0f}s.\n\n'.format(time.time()-tic_save))
+    da_year.to_netcdf(da_year_path, mode='w')
+    print('Done in {:.0f}s.\n\n\n'.format(time.time()-tic_save))
 
 toc = time.time()
 dur = toc - tic
