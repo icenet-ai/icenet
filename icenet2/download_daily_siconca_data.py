@@ -160,7 +160,7 @@ for year_i, year in enumerate(range(1979, 2021)):
                 if len(os.listdir(year_dir)) == 0:
                     os.rmdir(year_dir)
 
-    if year-1978 % 5 == 0:
+    if (year-1978) % 5 == 0:
         # Checkpoint every 5 years from start of satellite record
         print('\n\n\nSaving siconca_all.nc... ', end='', flush=True)
         tic_save = time.time()
