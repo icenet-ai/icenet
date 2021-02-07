@@ -93,6 +93,7 @@ for year_i, year in enumerate(range(1979, 2021)):
 
         if do_preproc:
             print("Preprocessing {}/{}... ".format(year, month), end='', flush=True)
+            tic_preproc = time.time()
 
             for day_i, path in enumerate(paths_downloaded):
                 with xr.open_dataset(path) as ds:
@@ -146,9 +147,7 @@ for year_i, year in enumerate(range(1979, 2021)):
                         # Not first month of SIC to be downloaded: `da_all` already in memory
                         da_all = xr.concat([da_all, da_day], dim='time')
 
-                    da_all.to_netcdf(da_all_fpath, mode='w')
-
-            print("Done processing month.")
+            print('Done preprocessing month in {:.0f}s.\n\n'.format(time.time()-tic_preproc))
 
         if delete_raw_daily_data:
             shutil.rmtree(month_data_folder, ignore_errors=True)
@@ -161,21 +160,19 @@ for year_i, year in enumerate(range(1979, 2021)):
                 if len(os.listdir(year_dir)) == 0:
                     os.rmdir(year_dir)
 
-# Write NetCDF files for the missing months with all NaN data for continuity
-# if do_fill_missing_months:
-#     # Template NetCDF file for missing months
-#     nan_data = np.full((1, 432, 432), np.nan)
-#     ds = xr.open_dataset(os.path.join(config.ice_data_folder, "avg_sic_2019_01.nc"))
-#     ds['ice_conc'].data = nan_data
-#
-#     for missing_month_date in config.missing_dates:
-#         year_str = '{:04d}'.format(missing_month_date.year)
-#         month_str = '{:02d}'.format(missing_month_date.month)
-#
-#         ds = ds.assign_coords({'time': [missing_month_date]})
-#
-#         ds.to_netcdf(os.path.join(config.ice_data_folder,
-#                                   config.sic_monthly_avg_template.format(year_str, month_str)))
+    if year-1978 % 5 == 0:
+        # Checkpoint every 5 years from start of satellite record
+        print('\n\n\nSaving siconca_all.nc... ', end='', flush=True)
+        tic_save = time.time()
+        da_all.to_netcdf(da_all_fpath, mode='w')
+        print('Done in {:.0f}s.\n\n\n'.format(time.time()-tic_save))
+
+if do_preproc:
+    # Save at the end of satellite record
+    print('\n\nSaving siconca_all.nc... ', end='', flush=True)
+    tic_save = time.time()
+    da_all.to_netcdf(da_all_fpath, mode='w')
+    print('Done in {:.0f}s.\n\n'.format(time.time()-tic_save))
 
 toc = time.time()
 dur = toc - tic
