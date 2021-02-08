@@ -25,6 +25,7 @@ delete_raw_daily_data = True  # True: delete the raw daily SIC data after prepro
 do_fill_missing_months = True  # True: create NetCDFs for the missing months with NaN data
 
 do_interp = True  # True: interpolate missing days/values in the downloaded dataset
+gen_interp_video = True  # True: generate video of interpolated dataset (takes ~30 mins)
 
 # Get the daily OSI 450 data of SIC from 01/01/1979 to 31/12/2015 in NetCDF
 #   format (all measurements at 12.00pm)
@@ -38,6 +39,9 @@ for month in np.arange(1, 13):
     month_str = '{:02d}'.format(month)
     active_grid_cell_masks[month_str] = np.load(os.path.join(config.folders['masks'],
                                                 config.formats['active_grid_cell_mask'].format(month_str)))
+
+da_year_folder = os.path.join(config.folders['siconca'], 'raw_yearly_data')
+
 if do_download:
 
     var_remove_list = ['time_bnds', 'raw_ice_conc_values', 'total_standard_error',
@@ -54,13 +58,15 @@ if do_download:
     if not os.path.exists(daily_nan_sic_fig_folder):
         os.makedirs(daily_nan_sic_fig_folder)
 
+    if not os.path.exists(da_year_folder):
+        os.makedirs(da_year_folder)
 
     tic = time.time()
 
     for year_i, year in enumerate(range(1979, 2021)):
 
         # Path to xarray.DataArray storing year of daily SIC data already downloaded
-        da_year_path = os.path.join(config.folders['siconca'], 'siconca_{:04d}.nc'.format(year))
+        da_year_path = os.path.join(da_year_folder, 'siconca_{:04d}.nc'.format(year))
 
         for month_i, month in enumerate(range(1, 13)):
 
@@ -174,7 +180,7 @@ if do_download:
 
 if do_interp:
 
-    p = config.folders['siconca']
+    p = da_year_folder
     siconca_year_fpaths = [os.path.join(p, f) for f in os.listdir(p) if regex.match(f)]
 
     print('\nLoading daily SIC dataset... ', end='', flush=True)
@@ -196,33 +202,46 @@ if do_interp:
     print('Found {} missing days.'.format(len(dates_missing)))
     da_interp = da.copy()
     for i, date in enumerate(dates_missing):
-        print('Fraction completed: {:.0f}%'.format(100*i/len(dates_missing)))
-        sys.stdout.write("\033[F")  # Cursor up one line
+        print('Fraction completed: {:.0f}% \033[F'.format(100*i/len(dates_missing)))
         da_interp = xr.concat([da_interp, da.interp(time=date)], dim='time')
     da_interp = da_interp.sortby('time')
-    print('Done.\n')
+    print('\nDone.\n')
 
-    def make_frame(date, i):
-        print('Fraction completed: {:.0f}%\r'.format(100*i/len(dates_missing)))
-        sys.stdout.write("\033[F")  # Cursor up one line
-        
-        fig, ax = plt.subplots(figsize=(8, 8))
-        ax.imshow(da_interp.sel(time=date))
-        ax.contourf(land_mask, levels=[.5, 1], colors='k')
-        ax.axes.xaxis.set_visible(False)
-        ax.axes.yaxis.set_visible(False)
+    da_interp_path = os.path.join(config.folders['siconca'], 'siconca_all_interp.nc')
+    print('\nSaving interpolated dataset... ', end='', flush=True)
+    tic_save = time.time()
+    da_interp.to_netcdf(da_interp_path, mode='w')
+    print('Done in {:.0f}s.\n\n\n'.format(time.time()-tic_save))
 
-        ax.set_title('{:04d}/{:02d}/{:02d}'.format(date.year, date.month, date.day), fontsize=30)
+    # ---------------- TODO: Fill polar hole and NaN values
 
-        fig.canvas.draw()
-        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    # ---------------- Video
 
-        plt.close()
-        return image
+    # TEMP?
+    da_interp = xr.open_dataarray(da_interp_path)
 
-    print('Making video of interpolated data...')
-    imageio.mimsave('video_all_interp.mp4',
-                    [make_frame(date, i) for i, date in enumerate(dates_all)],
-                    fps=15)
-    print('Done.')
+    if gen_interp_video:
+
+        def make_frame(date, i):
+            print('Fraction completed: {:.0f}% \033[F'.format(100*i/len(dates_all)))
+
+            fig, ax = plt.subplots(figsize=(5, 5))
+            ax.imshow(da_interp.sel(time=date), cmap='Blues_r')
+            ax.contourf(land_mask, levels=[.5, 1], colors='k')
+            ax.axes.xaxis.set_visible(False)
+            ax.axes.yaxis.set_visible(False)
+
+            ax.set_title('{:04d}/{:02d}/{:02d}'.format(date.year, date.month, date.day), fontsize=20)
+
+            fig.canvas.draw()
+            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+            plt.close()
+            return image
+
+        print('Making video of interpolated data...')
+        imageio.mimsave('video_all_interp.mp4',
+                        [make_frame(date, i) for i, date in enumerate(dates_all)],
+                        fps=15)
+        print('Done.')
