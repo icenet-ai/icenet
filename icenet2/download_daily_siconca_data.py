@@ -1,5 +1,6 @@
 import sys
 import os
+from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import imageio
@@ -17,6 +18,17 @@ sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter ker
 import config
 import icenet2_utils
 
+'''
+
+Script to download daily OSI-SAF sea ice concentration (SIC) data from 1979-2020
+and save in yearly NetCDF files (if do_download == True), and interpolate missing days,
+the polar hole, and NaN values and save as a final NetCDF (if do_interp == True).
+
+The full download took me around 14 hours - this may differ depending on download
+speed. The interpolation and saving takes around 10 minutes.
+
+'''
+
 ###############################################################################
 
 do_download = False  # True: download the raw daily data
@@ -25,11 +37,8 @@ delete_raw_daily_data = True  # True: delete the raw daily SIC data after prepro
 do_fill_missing_months = True  # True: create NetCDFs for the missing months with NaN data
 
 do_interp = True  # True: interpolate missing days/values in the downloaded dataset
-gen_interp_video = True  # True: generate video of interpolated dataset (takes ~30 mins)
+gen_interp_video = False  # True: generate video of interpolated dataset (takes ~30 mins)
 
-# Get the daily OSI 450 data of SIC from 01/01/1979 to 31/12/2015 in NetCDF
-#   format (all measurements at 12.00pm)
-# options: mirror, no host directory name, cut the first 4 directories #   from the path, output root is "raw-data/sea-ice"
 regex = re.compile('^.*\.nc$')
 
 land_mask = np.load(os.path.join(config.folders['masks'], config.fnames['land_mask']))
@@ -47,6 +56,12 @@ if do_download:
     var_remove_list = ['time_bnds', 'raw_ice_conc_values', 'total_standard_error',
                        'smearing_standard_error', 'algorithm_standard_error',
                        'status_flag', 'Lambert_Azimuthal_Grid']
+
+    # Get the daily OSI 450 data of SIC from 01/01/1979 to 31/12/2015 in NetCDF
+    #   format (all measurements at 12.00pm)
+
+    # options: mirror, no host directory name, cut the first 4 directories
+    #   from the path, output root is "raw-data/sea-ice"
 
     retrieve_cmd_template_osi450 = 'wget -m -nH -nv --cut-dirs=4 -P {} ' \
         'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/ice_conc_nh*'
@@ -180,6 +195,7 @@ if do_download:
 
 if do_interp:
 
+    # Open the downloaded data (stored in yearly files)
     p = da_year_folder
     siconca_year_fpaths = [os.path.join(p, f) for f in os.listdir(p) if regex.match(f)]
 
@@ -187,8 +203,12 @@ if do_interp:
     da = xr.open_mfdataset(siconca_year_fpaths, combine='by_coords')['ice_conc']
     print('Done.')
 
+    # Remove corrupt day
+    da = da.drop_sel(time=datetime(1984, 9, 14, 12))
+
+    da_interp_path = os.path.join(config.folders['siconca'], 'siconca_all_interp.nc')
+
     # ---------------- Fill missing dates
-    print('\nInterpolating missing days.')
 
     dates_obs = [pd.Timestamp(date).to_pydatetime() for date in da.time.values]
 
@@ -199,39 +219,123 @@ if do_interp:
         if date not in dates_obs:
             dates_missing.append(date)
 
-    print('Found {} missing days.'.format(len(dates_missing)))
+    print('Interpolating {} missing days.\n.'.format(len(dates_missing)))
     da_interp = da.copy()
-    for i, date in enumerate(dates_missing):
-        print('Fraction completed: {:.0f}% \033[F'.format(100*i/len(dates_missing)))
+    for date in tqdm(dates_missing):
         da_interp = xr.concat([da_interp, da.interp(time=date)], dim='time')
     da_interp = da_interp.sortby('time')
     print('\nDone.\n')
 
-    da_interp_path = os.path.join(config.folders['siconca'], 'siconca_all_interp.nc')
+    # ---------------- Fill polar hole and NaN values
+
+    print("Bilinearly interpolating polar hole and any NaNs...")
+
+    da_interp.data = np.array(da_interp.data, dtype=np.float32)
+    x = da_interp['xc'].data
+    y = da_interp['yc'].data
+
+    xx, yy = np.meshgrid(np.arange(432), np.arange(432))
+
+    for date in tqdm(dates_all[1:]):
+
+        skip_interp = False
+        if date <= config.polarhole1_final_date:
+            polarhole_mask = np.load(os.path.join(config.folders['masks'], config.fnames['polarhole1']))
+        elif date <= config.polarhole2_final_date:
+            polarhole_mask = np.load(os.path.join(config.folders['masks'], config.fnames['polarhole2']))
+        else:
+            skip_interp = True
+
+        if not skip_interp:
+
+            da_day = da_interp.sel(time=date)
+
+            # Grid cells outside of polar hole or NaN regions
+            valid = ~np.isnan(da_day.data)
+            valid = valid & ~polarhole_mask
+
+            ### Find grid cell locations surrounding NaN regions for bilinear interpolation
+            nan_mask = np.ma.masked_array(np.full((432, 432), 0.))
+            nan_mask[~valid] = np.ma.masked
+
+            nan_neighbour_arrs = {}
+            for direction in ('horiz', 'vertic'):
+
+                # C-style indexing for horizontal raveling; F-style for vertical raveling
+                if direction == 'horiz':
+                    order = 'C'  # Scan columns fastest
+                elif direction == 'vertic':
+                    order = 'F'  # Scan rows fastest
+
+                # Tuples with starts and ends indexes of masked element chunks
+                slice_ends = np.ma.clump_masked(nan_mask.ravel(order=order))
+
+                nan_neighbour_idxs = []
+                nan_neighbour_idxs.extend([s.start - 1 for s in slice_ends])
+                nan_neighbour_idxs.extend([s.stop for s in slice_ends])
+
+                nan_neighbour_arr_i = np.array(np.full((432, 432), False), order=order)
+                nan_neighbour_arr_i.ravel(order=order)[nan_neighbour_idxs] = True
+                nan_neighbour_arrs[direction] = nan_neighbour_arr_i
+
+            nan_neighbour_arr = nan_neighbour_arrs['horiz'] + nan_neighbour_arrs['vertic']
+            # Remove artefacts along edge of the grid
+            nan_neighbour_arr[:, 0] = nan_neighbour_arr[0, :] = nan_neighbour_arr[:, -1] = nan_neighbour_arr[-1, :] = False
+
+            ### Perform bilinear interpolation
+            x_valid = xx[nan_neighbour_arr]
+            y_valid = yy[nan_neighbour_arr]
+            values = da_day.data[nan_neighbour_arr]
+
+            x_interp = xx[~valid]
+            y_interp = yy[~valid]
+
+            da_day.data[~valid] = interpolate.griddata((x_valid, y_valid), values, (x_interp, y_interp), method='linear')
+
+            da_interp.loc[date, :] = da_day
+
+    print('Done.')
+
+    # ---------------- Save
+
     print('\nSaving interpolated dataset... ', end='', flush=True)
     tic_save = time.time()
     da_interp.to_netcdf(da_interp_path, mode='w')
     print('Done in {:.0f}s.\n\n\n'.format(time.time()-tic_save))
 
-    # ---------------- TODO: Fill polar hole and NaN values
-
     # ---------------- Video
 
-    # TEMP?
-    da_interp = xr.open_dataarray(da_interp_path)
+    # da_interp = xr.open_dataarray(da_interp_path)
+    # for date in tqdm(dates_all):
+    #     fig,ax=plt.subplots(figsize=(20,20))
+    #     ax.imshow(da_interp.sel(time=date).data,cmap='Blues_r')
+    #     ax.contourf(land_mask, levels=[.5, 1], colors='k')
+    #     ax.axes.xaxis.set_visible(False)
+    #     ax.axes.yaxis.set_visible(False)
+    #     plt.savefig(date.strftime('figures/all_siconca_filled/%Y_%m_%d.png'))
+    #     plt.close()
+    #
+    # for date in tqdm(dates_obs):
+    #     fig,ax=plt.subplots(figsize=(20,20))
+    #     ax.imshow(da.sel(time=date).data,cmap='Blues_r')
+    #     ax.contourf(land_mask, levels=[.5, 1], colors='k')
+    #     ax.axes.xaxis.set_visible(False)
+    #     ax.axes.yaxis.set_visible(False)
+    #     plt.savefig(date.strftime('figures/all_siconca_obs/%Y_%m_%d.png'))
+    #     plt.close()
 
     if gen_interp_video:
 
         def make_frame(date, i):
             print('Fraction completed: {:.0f}% \033[F'.format(100*i/len(dates_all)))
 
-            fig, ax = plt.subplots(figsize=(5, 5))
+            fig, ax = plt.subplots(figsize=(15, 15))
             ax.imshow(da_interp.sel(time=date), cmap='Blues_r')
             ax.contourf(land_mask, levels=[.5, 1], colors='k')
             ax.axes.xaxis.set_visible(False)
             ax.axes.yaxis.set_visible(False)
 
-            ax.set_title('{:04d}/{:02d}/{:02d}'.format(date.year, date.month, date.day), fontsize=20)
+            ax.set_title('{:04d}/{:02d}/{:02d}'.format(date.year, date.month, date.day), fontsize=60)
 
             fig.canvas.draw()
             image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
@@ -241,7 +345,7 @@ if do_interp:
             return image
 
         print('Making video of interpolated data...')
-        imageio.mimsave('video_all_interp.mp4',
+        imageio.mimsave('videos/video_all_interp_spatial.mp4',
                         [make_frame(date, i) for i, date in enumerate(dates_all)],
                         fps=15)
         print('Done.')
