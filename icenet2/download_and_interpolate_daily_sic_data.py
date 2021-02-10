@@ -206,7 +206,9 @@ if do_interp:
     # Remove corrupt day
     da = da.drop_sel(time=datetime(1984, 9, 14, 12))
 
-    da_interp_path = os.path.join(config.folders['siconca'], 'siconca_all_interp.nc')
+    # Fill missing 1st Jan 1979 with observed 2nd Jan 1979 for continuity
+    da_1979_01_01 = da.sel(time=[datetime(1979, 1, 2, 12)]).copy().assign_coords({'time': [datetime(1979, 1, 1, 12)]})
+    da = xr.concat([da, da_1979_01_01], dim='time')
 
     # ---------------- Fill missing dates
 
@@ -219,7 +221,7 @@ if do_interp:
         if date not in dates_obs:
             dates_missing.append(date)
 
-    print('Interpolating {} missing days.\n.'.format(len(dates_missing)))
+    print('Interpolating {} missing days.\n'.format(len(dates_missing)))
     da_interp = da.copy()
     for date in tqdm(dates_missing):
         da_interp = xr.concat([da_interp, da.interp(time=date)], dim='time')
@@ -236,7 +238,7 @@ if do_interp:
 
     xx, yy = np.meshgrid(np.arange(432), np.arange(432))
 
-    for date in tqdm(dates_all[1:]):
+    for date in tqdm(dates_all):
 
         skip_interp = False
         if date <= config.polarhole1_final_date:
@@ -300,8 +302,11 @@ if do_interp:
 
     print('\nSaving interpolated dataset... ', end='', flush=True)
     tic_save = time.time()
+    da_interp_path = os.path.join(config.folders['siconca'], 'siconca_all_interp.nc')
     da_interp.to_netcdf(da_interp_path, mode='w')
     print('Done in {:.0f}s.\n\n\n'.format(time.time()-tic_save))
+
+    print('Download/processing of SIC dataset with {} days completed.\n'.format(len(dates_all)))
 
     # ---------------- Video
 
