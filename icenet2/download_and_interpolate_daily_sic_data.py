@@ -9,7 +9,7 @@ import pandas as pd
 import shutil
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 # import plotly.express as px
 from scipy import interpolate
 # sys.path.insert(0, os.path.join(os.getcwd(), 'icenet'))
@@ -37,7 +37,7 @@ delete_raw_daily_data = True  # True: delete the raw daily SIC data after prepro
 do_fill_missing_months = True  # True: create NetCDFs for the missing months with NaN data
 
 do_interp = True  # True: interpolate missing days/values in the downloaded dataset
-gen_interp_video = False  # True: generate video of interpolated dataset (takes ~30 mins)
+gen_interp_video = True  # True: generate video of interpolated dataset (takes ~30 mins)
 
 regex = re.compile('^.*\.nc$')
 
@@ -203,14 +203,31 @@ if do_interp:
     da = xr.open_mfdataset(siconca_year_fpaths, combine='by_coords')['ice_conc']
     print('Done.')
 
-    # Remove corrupt day
-    da = da.drop_sel(time=datetime(1984, 9, 14, 12))
+    # Temporary fix for corrupt latitude field
+    lat_vals = da.lat[0]
+    da = da.assign_coords(lat=(('xc', 'yc'), lat_vals))
+
+    da = da.astype(np.float32)
+
+    # Remove corrupt days with artefacts
+    # da = da.drop_sel(time=datetime(1984, 9, 14, 12))
+    da = da.drop_sel(time=config.corrupt_sic_days)
 
     # Fill missing 1st Jan 1979 with observed 2nd Jan 1979 for continuity
     da_1979_01_01 = da.sel(time=[datetime(1979, 1, 2, 12)]).copy().assign_coords({'time': [datetime(1979, 1, 1, 12)]})
     da = xr.concat([da, da_1979_01_01], dim='time')
+    da = da.sortby('time')
 
-    # ---------------- Fill missing dates
+    # da_arts = da.loc['1979-07-28':'1979-08-28']
+    # for date in tqdm(da_arts.time.values):
+    #     date = pd.Timestamp(date)
+    #     fig, ax = plt.subplots(figsize=(20, 20))
+    #     ax.imshow(da_arts.sel(time=date))
+    #     fname = date.strftime('%Y_%m_%d') + '.png'
+    #     plt.savefig('figures/sic_artefacts/{}'.format(fname))
+    #     plt.close()
+
+    # ---------------- Find missing dates and save CSV of missing gap > thresh # days
 
     dates_obs = [pd.Timestamp(date).to_pydatetime() for date in da.time.values]
 
@@ -221,6 +238,19 @@ if do_interp:
         if date not in dates_obs:
             dates_missing.append(date)
 
+    dates_obs_df = pd.DataFrame(dates_obs, columns=['date'])
+    gaps_df = (dates_obs_df.diff() - timedelta(days=1)).rename(columns={'date': 'gap_from_prev'})
+    gaps_df = pd.concat((dates_obs_df, gaps_df), axis=1)
+    gaps_thresh_df = gaps_df[gaps_df.gap_from_prev >= timedelta(days=5)]
+
+    end = gaps_thresh_df['date'] - timedelta(days=1)
+    start = [row.date - row.gap_from_prev for date, row in gaps_thresh_df.iterrows()]
+    start_end_gap_df = pd.DataFrame({'start': start, 'end': end, 'gap': gaps_thresh_df.gap_from_prev})
+    start_end_gap_df = start_end_gap_df.reset_index().drop(columns='index')
+    start_end_gap_df.to_csv(os.path.join(config.folders['data'], config.fnames['missing_sic_days']))
+
+    # ---------------- Fill missing dates
+
     print('Interpolating {} missing days.\n'.format(len(dates_missing)))
     da_interp = da.copy()
     for date in tqdm(dates_missing):
@@ -230,9 +260,11 @@ if do_interp:
 
     # ---------------- Fill polar hole and NaN values
 
-    print("Bilinearly interpolating polar hole and any NaNs...")
-
+    print("Realising array for interpolation... ", end='', flush=True)
     da_interp.data = np.array(da_interp.data, dtype=np.float32)
+    print('Done.')
+
+    print("Bilinearly interpolating polar hole and any NaNs...")
     x = da_interp['xc'].data
     y = da_interp['yc'].data
 
@@ -303,10 +335,12 @@ if do_interp:
     print('\nSaving interpolated dataset... ', end='', flush=True)
     tic_save = time.time()
     da_interp_path = os.path.join(config.folders['siconca'], 'siconca_all_interp.nc')
+    if os.path.exists(da_interp_path):
+        os.remove(da_interp_path)
     da_interp.to_netcdf(da_interp_path, mode='w')
     print('Done in {:.0f}s.\n\n\n'.format(time.time()-tic_save))
 
-    print('Download/processing of SIC dataset with {} days completed.\n'.format(len(dates_all)))
+    print('Download/processing of SIC dataset containing {} days completed.\n'.format(len(dates_all)))
 
     # ---------------- Video
 
@@ -332,8 +366,6 @@ if do_interp:
     if gen_interp_video:
 
         def make_frame(date, i):
-            print('Fraction completed: {:.0f}% \033[F'.format(100*i/len(dates_all)))
-
             fig, ax = plt.subplots(figsize=(15, 15))
             ax.imshow(da_interp.sel(time=date), cmap='Blues_r')
             ax.contourf(land_mask, levels=[.5, 1], colors='k')
@@ -351,6 +383,6 @@ if do_interp:
 
         print('Making video of interpolated data...')
         imageio.mimsave('videos/video_all_interp_spatial.mp4',
-                        [make_frame(date, i) for i, date in enumerate(dates_all)],
+                        [make_frame(date, i) for i, date in enumerate(tqdm(dates_all))],
                         fps=15)
         print('Done.')
