@@ -1,0 +1,4 @@
+netcdf4
+tensorflow
+tensorflow-datasets
+xarray
