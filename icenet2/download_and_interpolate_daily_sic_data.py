@@ -365,24 +365,10 @@ if do_interp:
 
     if gen_interp_video:
 
-        def make_frame(date, i):
-            fig, ax = plt.subplots(figsize=(15, 15))
-            ax.imshow(da_interp.sel(time=date), cmap='Blues_r')
-            ax.contourf(land_mask, levels=[.5, 1], colors='k')
-            ax.axes.xaxis.set_visible(False)
-            ax.axes.yaxis.set_visible(False)
-
-            ax.set_title('{:04d}/{:02d}/{:02d}'.format(date.year, date.month, date.day), fontsize=60)
-
-            fig.canvas.draw()
-            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-            plt.close()
-            return image
-
         print('Making video of interpolated data...')
-        imageio.mimsave('videos/video_all_interp_spatial.mp4',
-                        [make_frame(date, i) for i, date in enumerate(tqdm(dates_all))],
-                        fps=15)
+        video_path = os.path.join('videos', 'video_all_interp_spatial.mp4')
+        icenet2_utils.xarray_to_video(
+            da_interp, video_path, mask=land_mask, mask_type='contourf',
+            fps=15, cmap='Blues_r', figsize=15
+        )
         print('Done.')
