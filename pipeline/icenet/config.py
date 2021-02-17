@@ -34,10 +34,6 @@ polarhole3_radius = 3
 # overlaps with the 3rd polar hole period.
 use_polarhole3 = False
 
-polarhole1_fname = 'polarhole1_mask.npy'
-polarhole2_fname = 'polarhole2_mask.npy'
-polarhole3_fname = 'polarhole3_mask.npy'
-
 # Final month that each of the polar holes apply
 # NOTE: 1st of the month chosen arbitrarily throughout as always working wit
 #   monthly averages

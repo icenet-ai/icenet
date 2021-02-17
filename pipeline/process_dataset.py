@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow as tf
 
 import icenet.config as config
-from icenet.data import CachingDataLoader
+from icenet.data import CachingProcessor
 from icenet.utils import filled_datetime_array
 
 
@@ -69,59 +69,58 @@ def example_rw():
 
     ### END: Load demo
 
-
-if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
-    args = get_args()
-
+def process_era_dataset():
     # TODO: Move to YAML configuration
+    # TODO: Include/exclude by ommission, it makes code clearer
     input_data = {
         "siconca":
-            {"abs": {"include": True, 'lookbacks': np.arange(0, 12)},
-             "anom": {"include": True, 'lookbacks': np.arange(0, 3)},
+            {"abs": {'lookbacks': np.arange(0, 12)},
+             "anom": {'lookbacks': np.arange(0, 3)},
              "linear_trend": {"include": True}},
         "tas":
-            {"abs": {"include": False, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": True, 'lookbacks': np.arange(0, 3)}},
-        "rsds":
-            {"abs": {"include": True, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": False, 'lookbacks': np.arange(0, 3)}},
+            {  # "abs": {"include": False, 'lookbacks': np.arange(0, 3)},
+                "anom": {'lookbacks': np.arange(0, 3)}},
+        "rsds": {
+            "abs": {'lookbacks': np.arange(0, 3)},
+            # "anom": {"include": False, 'lookbacks': np.arange(0, 3)}
+        },
         "rsus":
-            {"abs": {"include": True, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": False, 'lookbacks': np.arange(0, 3)}},
+            {"abs": {'lookbacks': np.arange(0, 3)},
+             # "anom": {"include": False, 'lookbacks': np.arange(0, 3)}
+             },
         "tos":
-            {"abs": {"include": False, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": True, 'lookbacks': np.arange(0, 3)}},
+            {  # "abs": {"include": False, 'lookbacks': np.arange(0, 3)},
+                "anom": {'lookbacks': np.arange(0, 3)}},
         "psl":
-            {"abs": {"include": False, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": True, 'lookbacks': np.arange(0, 3)}},
+            {  # "abs": {"include": False, 'lookbacks': np.arange(0, 3)},
+                "anom": {'lookbacks': np.arange(0, 3)}},
         "zg500":
-            {"abs": {"include": False, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": True, 'lookbacks': np.arange(0, 3)}},
+            {  # "abs": {"include": False, 'lookbacks': np.arange(0, 3)},
+                "anom": {'lookbacks': np.arange(0, 3)}},
         "zg250":
-            {"abs": {"include": False, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": True, 'lookbacks': np.arange(0, 3)}},
+            {  # "abs": {"include": False, 'lookbacks': np.arange(0, 3)},
+                "anom": {'lookbacks': np.arange(0, 3)}},
         "ua10":
-            {"abs": {"include": True, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": False, 'lookbacks': np.arange(0, 3)}},
+            {"abs": {'lookbacks': np.arange(0, 3)},
+             # "anom": {"include": False, 'lookbacks': np.arange(0, 3)}
+             },
         "uas":
-            {"abs": {"include": True, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": False, 'lookbacks': np.arange(0, 3)}},
+            {"abs": {'lookbacks': np.arange(0, 3)},
+             # "anom": {"include": False, 'lookbacks': np.arange(0, 3)}
+             },
         "vas":
-            {"abs": {"include": True, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": False, 'lookbacks': np.arange(0, 3)}},
+            {"abs": {'lookbacks': np.arange(0, 3)},
+             # "anom": {"include": False, 'lookbacks': np.arange(0, 3)}
+             },
         "sfcWind":
-            {"abs": {"include": True, 'lookbacks': np.arange(0, 3)},
-             "anom": {"include": False, 'lookbacks': np.arange(0, 3)}},
+            {"abs": {'lookbacks': np.arange(0, 3)},
+             # "anom": {"include": False, 'lookbacks': np.arange(0, 3)}
+             },
         "land":
-            {"metadata": True,
-             "include": True},
+            {"metadata": True, },
         "circmonth":
-            {"metadata": True,
-             "include": True},
+            {"metadata": True, },
     }
-
-
 
     # TODO: There were some potential oddities to check with Tom about the boundary calculations for periods (+13? -6?)
     #  Surely these are to be contiguous blocks, but I might be missing something. Regardless, explicit definition
@@ -133,65 +132,60 @@ if __name__ == "__main__":
     combined_dates = np.hstack((obs_train_dates, obs_val_dates, obs_test_dates))
     all_obs_dates = filled_datetime_array(combined_dates.min(), combined_dates.max())
 
-    # TRANSFER LEARNING
-    cmip6_model_names = ['EC-Earth3', 'MRI-ESM2-0']
-
-    # for r1i1p1f1
-    cmip6_start_date_250years = datetime(1850, 1, 1)
-    cmip6_end_date_250years = datetime(2100, 12, 1) - relativedelta(months=args.num_forecast_months)
-    start_date = cmip6_start_date_250years + relativedelta(months=13)
-    all_cmip6_forecast_dates_250years = filled_datetime_array(start_date, cmip6_end_date_250years)
-
-    cmip6_start_date_180years = datetime(1850, 1, 1)
-    cmip6_end_date_180years = datetime(2030, 12, 1) - relativedelta(months=args.num_forecast_months)
-    start_date = cmip6_start_date_180years + relativedelta(months=13)
-    all_cmip6_forecast_dates_180years = filled_datetime_array(start_date, cmip6_end_date_180years)
-
-    cmip6_run_dict = {
-        'EC-Earth3': ('r17i1p1f1', 'r18i1p1f1', 'r19i1p1f1'),
-        'MRI-ESM2-0': ('r2i1p1f1', 'r3i1p1f1', 'r4i1p1f1')
-    }
-
-    cmip6_transfer_train_dict = {}
-    cmip6_transfer_val_dict = {}
-
-    # Set up nested dicts
-    for cmip6_model_name in cmip6_model_names:
-        cmip6_transfer_train_dict[cmip6_model_name] = {}
-        cmip6_transfer_val_dict[cmip6_model_name] = {}
-
-    # No validation:
-    for source_id, member_ids in cmip6_run_dict.items():
-        for member_id in member_ids:
-            if source_id == 'EC-Earth3' or (source_id == 'MRI-ESM2-0' and member_id == 'r1i1p1f1'):
-                cmip6_transfer_train_dict[source_id][member_id] = all_cmip6_forecast_dates_250years
-            else:
-                cmip6_transfer_train_dict[source_id][member_id] = all_cmip6_forecast_dates_180years
-
-            cmip6_transfer_val_dict[source_id][member_id] = []
-
     logging.info("Creating loader")
 
-    dataset_folder = os.path.join(config.results_folder, 'icenet2_linear_trend_input_6runs_absrad')
-    dataloader = CachingDataLoader(input_data=input_data,
-                                   dataset_name='dataset2',
-                                   batch_size=4,
-                                   shuffle=True,
-                                   args.num_forecast_months=args.num_forecast_months,
-                                   obs_train_dates=obs_train_dates,
-                                   obs_val_dates=obs_val_dates,
-                                   obs_test_dates=obs_test_dates,
-                                   verbose_level=2,
-                                   raw_data_shape=(432, 432),
-                                   default_seed=42,
-                                   dtype=np.float32,
-                                   loss_weight_months=True,
-                                   loss_weight_classes=False,
-                                   cmip6_transfer_train_dict=cmip6_transfer_train_dict,
-                                   cmip6_transfer_val_dict=cmip6_transfer_val_dict,
-                                   convlstm=False,
-                                   n_convlstm_input_months=12,
-                                   cache_path=os.path.join(dataset_folder, "cache"))
+    cp = IcenetERAPreprocessor(source=,
+    #                                    name='dataset2',
+    #                                    batch_size=4,
+    #                                    shuffle=True,
+    #                                    num_forecast_months=args.num_forecast_months,
+    #                                    obs_train_dates=obs_train_dates,
+    #                                    obs_val_dates=obs_val_dates,
+    #                                    obs_test_dates=obs_test_dates,
+    #                                    verbose_level=2,
+    #                                    raw_data_shape=(432, 432),
+    #                                    default_seed=42,
+    #                                    dtype=np.float32,
+    #                                    loss_weight_months=True,
+    #                                    loss_weight_classes=False,
+    #                                    cmip6_transfer_train_dict=cmip6_transfer_train_dict,
+    #                                    cmip6_transfer_val_dict=cmip6_transfer_val_dict,
+    #                                    convlstm=False,
+    #                                    n_convlstm_input_months=12,
+    #                                    cache_path=os.path.join(dataset_folder, "cache"))
+
+
+def process_cmip_dataset():
+    pass
+
+if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.INFO)
+    args = get_args()
+
+    process_era_dataset()
+    process_cmip_dataset()
+
+
+#     dataset_folder = os.path.join(config.results_folder, 'icenet2_linear_trend_input_6runs_absrad')
+#     dataloader = CachingDataLoader(input_data=input_data,
+#                                    name='dataset2',
+#                                    batch_size=4,
+#                                    shuffle=True,
+#                                    num_forecast_months=args.num_forecast_months,
+#                                    obs_train_dates=obs_train_dates,
+#                                    obs_val_dates=obs_val_dates,
+#                                    obs_test_dates=obs_test_dates,
+#                                    verbose_level=2,
+#                                    raw_data_shape=(432, 432),
+#                                    default_seed=42,
+#                                    dtype=np.float32,
+#                                    loss_weight_months=True,
+#                                    loss_weight_classes=False,
+#                                    cmip6_transfer_train_dict=cmip6_transfer_train_dict,
+#                                    cmip6_transfer_val_dict=cmip6_transfer_val_dict,
+#                                    convlstm=False,
+#                                    n_convlstm_input_months=12,
+#                                    cache_path=os.path.join(dataset_folder, "cache"))
 
 
     # TODO: We will pickle the DATASET(S), not the loader
