@@ -7,7 +7,7 @@
 
 ##### Downloading data
 * [x] Script to download daily OSI-SAF SIC data and fill missing days appropriately
-* [ ] Script to download hourly era5 data, compute daily averages, and regrid to EASE grid
+* [x] Script to download hourly era5 data, compute daily averages, and regrid to EASE grid
 
 ##### Preprocessing data
 * [ ] Class + script to preprocess ERA5 + SIC data into .npy files
