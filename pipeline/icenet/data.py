@@ -41,7 +41,6 @@ class IcenetCMIPPreprocessor(IcenetDataPreprocessor):
     def __init__(self,
                  train_dates,
                  val_dates,
-                 test_dates,
                  *args, **kwargs):
         super(IcenetCMIPPreprocessor, self).__init__(*args, **kwargs)
 
@@ -51,7 +50,9 @@ class IcenetERAPreprocessor(IcenetDataPreprocessor):
                  train_dates,
                  val_dates,
                  test_dates,
-                 *args, **kwargs):
+                 *args,
+                 use_polarhole3=False,
+                 **kwargs):
         super(IcenetERAPreprocessor, self).__init__(*args, **kwargs)
 
         self._inputs = collections.defaultdict(dict)
@@ -62,7 +63,7 @@ class IcenetERAPreprocessor(IcenetDataPreprocessor):
 
         self._set_inputs()
         self._set_metadata()
-        self._load_polarholes()
+        self._load_polarholes(use_polarhole3)
 
     def _set_inputs(self):
         logging.debug('Setting up the variable paths and channels for {}... '.format(self._name))
@@ -89,7 +90,7 @@ class IcenetERAPreprocessor(IcenetDataPreprocessor):
 
         logging.debug("Done")
 
-    def _load_polarholes(self):
+    def _load_polarholes(self, use_polarhole3):
         """
         This method loads the polar holes.
         """
@@ -99,7 +100,7 @@ class IcenetERAPreprocessor(IcenetDataPreprocessor):
         # Zero is none
         self._polarhole_masks.append(np.full((432, 432), False))
 
-        num = 2 if not config.use_polarhole3 else 3
+        num = 2 if not use_polarhole3 else 3
         for i in range(1, num+1):
             self._polarhole_masks.append(np.load(os.path.join(config.mask_data_folder, "polarhole{}_mask".format(i))))
 
