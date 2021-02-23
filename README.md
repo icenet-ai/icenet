@@ -10,7 +10,7 @@
 * [x] Script to download hourly era5 data, compute daily averages, and regrid to EASE grid
 
 ##### Preprocessing data
-* [ ] Class + script to preprocess ERA5 + SIC data into .npy files
+* [x] Class + script to preprocess ERA5 + SIC data into .npy files
 * [ ] Class + pickling script to instantiate daily data loader
 
 ##### Training IceNet2
