@@ -29,6 +29,40 @@ A command line input dictates which variable is downloaded and allows this scrip
 to be run in parallel for different variables.
 """
 
+# land_mask = np.load(os.path.join(config.folders['masks'], config.fnames['land_mask']))
+# vars = ['tas', 'tos', 'psl', 'ta500', 'zg250', 'zg500']
+# cmaps = ['Reds', 'Reds', 'bone', 'Reds', 'bone', 'bone']
+# for var, cmap in zip(vars, cmaps):
+#     # var='tos'
+#     print('\n{}:'.format(var))
+#     # var='ta500'
+#     ds = xr.open_mfdataset([os.path.join('data/{}'.format(var), f) for f in sorted(os.listdir('data/{}'.format(var)))], combine='by_coords')
+#     da = next(iter(ds.data_vars.values()))
+#     # da.time.values[15305]
+#     # px.imshow(da.isel(time=15060))
+#     # px.imshow(da.isel(time=15061))
+#     # px.imshow(da.isel(time=15305))
+#     # np.unique(np.where(da > 1e35)[0])
+#     climatology = da.groupby('time.dayofyear', restore_coord_dims=True).mean()
+#     # anom = (da.groupby('time.dayofyear') - climatology).compute()
+#     # cmap = 'seismic'
+#     # anom = anom.sel(time=slice('2012-01-01', '2012-12-31'))
+#
+#     # vpath = 'videos/era5/{}_2012.mp4'.format(var)
+#     # vpath = 'videos/era5/{}.mp4'.format(var)
+#     # icenet2_utils.xarray_to_video(anom, vpath, 15, land_mask, data_type='anom', cmap=cmap, figsize=15)
+#
+#     vpath = 'videos/era5/{}_climatology.mp4'.format(var)
+#     # vpath = 'videos/era5/{}.mp4'.format(var)
+#     climatology = climatology.assign_coords({'dayofyear': icenet2_utils.filled_daily_dates(datetime(2012,1,1), datetime(2013,1,1))})
+#     climatology = climatology.rename({'dayofyear': 'time'})
+#     climatology.data = np.array(climatology.data)
+#     uniq = np.unique(climatology.data)
+#     clim = [uniq[1], uniq[-1]]
+#     icenet2_utils.xarray_to_video(climatology, vpath, 15, land_mask, clim=clim, data_type='abs', cmap=cmap, figsize=15)
+#
+# raise ValueError('breaking here to stop running')
+
 ################################################################################
 
 parser = argparse.ArgumentParser()
@@ -36,8 +70,6 @@ parser.add_argument('--var', default='tas')
 args = parser.parse_args()
 
 variable = args.var
-
-# variable = 'zg500'
 
 ################################################################################
 
@@ -51,10 +83,39 @@ def assignLatLonCoordSystem(cube):
     return cube
 
 
-################################################################################
+def fix_near_real_time_era5_coords(da):
 
-# Whether to skip variables that have already been downloaded or regridded
-overwrite = True
+    '''
+    ERA5 data within several months of the present date is considered as a
+    separate system, ERA5T. Downloads that contain both ERA5 and ERA5T data
+    produce datasets with a length-2 'expver' dimension along axis 1, taking a value
+    of 1 for ERA5 and a value of 5 for ERA5. This results in all-NaN values
+    along latitude & longitude outside of the valid expver time span. This function
+    finds the ERA5 and ERA5T time indexes and removes the expver dimension
+    by concatenating the sub-arrays where the data is not NaN.
+    '''
+
+    if 'expver' in da.coords:
+        # Find invalid time indexes in expver == 1 (ERA5) dataset
+        arr = da.sel(expver=1).data
+        arr = arr.reshape(arr.shape[0], -1)
+        arr = np.sort(arr, axis=1)
+        era5t_time_idxs = (arr[:, 1:] != arr[:, :-1]).sum(axis=1)+1 == 1
+        era5t_time_idxs = (era5t_time_idxs) | (np.isnan(arr[:, 0]))
+
+        era5_time_idxs = ~era5t_time_idxs
+
+        da = xr.concat((da[era5_time_idxs, 0, :], da[era5t_time_idxs, 1, :]), dim='time')
+
+        da = da.reset_coords('expver', drop=True)
+
+        return da
+
+    else:
+        raise ValueError("'expver' not found in dataset.")
+
+
+################################################################################
 
 area = [90, -180, 0, 180]  # Latitude/longitude boundaries to download
 
@@ -116,9 +177,6 @@ times = [
     '21:00', '22:00', '23:00',
 ]
 
-# Download contains ERA5T with 'expver' coord -- remove 'expver' dim and concatenate into one array
-# fix_near_real_time_era5_coords = True
-#
 # plot_wind_before_and_after_rot = True  # Save quiver plot of before and after wind rotation to EASE
 # verify_wind_magnitude = True  # Check wind magnitude before and after is the same
 
@@ -152,6 +210,8 @@ var_dict = variables[variable]
 
 cds = cdsapi.Client()
 
+# year_chunk = years[-1]
+
 for year_chunk in years:
 
     year_start = year_chunk[0]
@@ -162,6 +222,14 @@ for year_chunk in years:
     var_folder = os.path.join(config.folders['data'], variable)
     if not os.path.exists(var_folder):
         os.makedirs(var_folder)
+
+    download_path = os.path.join(var_folder, '{}_latlon_hourly_{}_{}.nc'.format(variable, year_start, year_end))
+    daily_fpath = os.path.join(var_folder, '{}_latlon_{}_{}.nc'.format(variable, year_start, year_end))
+    daily_ease_fpath = os.path.join(var_folder, '{}_{}_{}.nc'.format(variable, year_start, year_end))
+
+    if os.path.exists(daily_ease_fpath):
+        print('Skipping this year chunk due to existing file at: {}'.format(daily_ease_fpath))
+        continue
 
     retrieve_dict = {
         'product_type': 'reanalysis',
@@ -181,18 +249,11 @@ for year_chunk in years:
         dataset_str = 'reanalysis-era5-pressure-levels'
         retrieve_dict['pressure_level'] = var_dict['plevel']
 
-    download_path = os.path.join(var_folder,
-                                 '{}_latlon_hourly_{}_{}.nc'.format(variable, year_start, year_end))
-
     print("\nDownloading data for {}...\n".format(variable))
 
     if os.path.exists(download_path):
-        if not overwrite:
-            print("Skipping due to existing file: {}". format(download_path))
-            continue
-        else:
-            print("Removing pre-existing NetCDF file at {}". format(download_path))
-            os.remove(download_path)
+        print("Removing pre-existing NetCDF file at {}". format(download_path))
+        os.remove(download_path)
 
     # ---------------- Download
 
@@ -201,13 +262,15 @@ for year_chunk in years:
 
     # ---------------- Compute daily average
 
-    # TODO: augment filename by year_chunk
     print('\n\nComputing daily averages... ', end='', flush=True)
     da = xr.open_dataarray(download_path)
+
+    if 'expver' in da.coords:
+        da = fix_near_real_time_era5_coords(da)
+
     da_daily = da.resample(time='1D').reduce(np.mean)
 
     print('saving new daily year file... ', end='', flush=True)
-    daily_fpath = os.path.join(var_folder, '{}_latlon_{}_{}.nc'.format(variable, year_start, year_end))
     da_daily.to_netcdf(daily_fpath)
     os.remove(download_path)
     print('Done.')
@@ -245,14 +308,17 @@ for year_chunk in years:
     cube_ease = cube.regrid(sic_EASE_cube, iris.analysis.Linear())
 
     if variable == 'zg500' or variable == 'zg250':
-        print('Converting geopotential to geopotential height... ', end='', flush=True)
         cube_ease = cube_ease / 9.80665
+
+    if variable == 'tos':
+        cube_ease[cube_ease > 1000.] = 0.
 
     toc = time.time()
     print("Done in {:.3f}s.".format(toc - tic))
 
     print("Saving regridded data... ", end='', flush=True)
-    daily_ease_fpath = os.path.join(var_folder, '{}_{}_{}.nc'.format(variable, year_start, year_end))
+    if os.path.exists(daily_ease_fpath):
+        os.remove(daily_ease_fpath)
     iris.save(cube_ease, daily_ease_fpath)
     os.remove(daily_fpath)
     print("Done.")
