@@ -14,6 +14,9 @@ from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, \
     Input, TimeDistributed, ConvLSTM2D
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import backend as K
+import wandb
+from wandb.keras import WandbCallback
 import xarray as xr
 import pandas as pd
 import regex as re
@@ -27,13 +30,166 @@ from tqdm import tqdm
 ############### LOSS FUNCTIONS
 ###############################################################################
 
-# TODO
+
+def RMSE(y_true, y_pred):
+    ''' Custom keras loss/metric for root mean squared error
+
+    Parameters:
+    y_true (ndarray): Ground truth outputs
+    y_pred (ndarray): Network predictions
+
+    Returns:
+    Root mean squared error of SIC (%) (float)
+    '''
+
+    sample_weight = y_true[:, :, :, :, 1]
+    y_true = y_true[:, :, :, :, 0]
+
+    err = y_true - y_pred
+
+    return 100*K.sqrt(K.mean(K.square(err)*sample_weight))
+
 
 ###############################################################################
 ############### METRICS
 ###############################################################################
 
 # TODO
+
+###############################################################################
+############### CALLBACKS
+###############################################################################
+
+class IceNetPreTrainingEvaluator(tf.keras.callbacks.Callback):
+    """
+    Custom tf.keras callback to update the `logs` dict used by all other callbacks
+    with the validation set metrics. The callback is executed every
+    `validation_frequency` batches.
+
+    This can be used in conjuction with the BatchwiseModelCheckpoint callback to
+    perform a model checkpoint based on validation data every N batches - ensure
+    the `save_frequency` input to BatchwiseModelCheckpoint is also set to
+    `validation_frequency`.
+
+    Also ensure that the callbacks list past to Model.fit() contains this
+    callback before any other callbacks that need the validation metrics.
+
+    Also use Weights and Biases to log the training and validation metrics.
+    """
+
+    def __init__(self, validation_frequency, val_dataloader, sample_at_zero=False):
+        self.validation_frequency = validation_frequency
+        self.sample_at_zero = sample_at_zero
+        self.val_dataloader = val_dataloader
+
+    def on_train_batch_end(self, batch, logs=None):
+
+        if (batch == 0 and self.sample_at_zero) or (batch + 1) % self.validation_frequency == 0:
+            val_logs = self.model.evaluate(self.val_dataloader, verbose=0, return_dict=True)
+            val_logs = {'val_' + name: val for name, val in val_logs.items()}
+            logs.update(val_logs)
+            # wandb.log(logs)
+            [print('\n' + k + ' {:.2f}'.format(v)) for k, v in logs.items()]
+            print('\n')
+
+
+class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
+    """
+    Docstring TODO
+    """
+
+    def __init__(self, batch_frequency, log_weights=True,
+                 log_figure=False, dataloader=None,
+                 sample_at_zero=False):
+        self.batch_frequency = batch_frequency
+        self.log_weights = log_weights
+        self.log_figure = log_figure
+        self.dataloader = dataloader
+        self.sample_at_zero = sample_at_zero
+
+        if log_figure:
+            self.land_mask = np.load(os.path.join(config.folders['masks'],
+                                                  config.fnames['land_mask']))
+
+    def on_train_batch_end(self, batch, logs=None):
+
+        if (batch == 0 and self.sample_at_zero) or (batch + 1) % self.batch_frequency == 0:
+            wandb.log(logs)
+
+            if self.log_figure:
+                X, y = self.dataloader.data_generation(np.array([datetime(2012, 9, 1)]))
+                pred = self.model.predict(X)
+                mask = y[:, :, :, :, 1] == 0
+                pred[mask] = 0
+
+                err = 100*(pred[0] - y[0, :, :, :, 0])[:, :, 15]
+
+                fig, ax = plt.subplots(figsize=(10, 10))
+                im = ax.imshow(err, cmap='seismic', clim=(-100, 100))
+                ax.contour(self.land_mask, levels=[.5], colors='k')
+                fig.colorbar(im)
+                wandb.log({'batch': batch, 'val_case_study_err_map': fig})
+                plt.close()
+
+            if self.log_weights:
+                # Taken from
+                metrics = {}
+                for layer in self.model.layers:
+                    weights = layer.get_weights()
+                    if len(weights) == 1:
+                        metrics["parameters/" + layer.name +
+                                ".weights"] = wandb.Histogram(weights[0])
+                    elif len(weights) == 2:
+                        metrics["parameters/" + layer.name +
+                                ".weights"] = wandb.Histogram(weights[0])
+                        metrics["parameters/" + layer.name +
+                                ".bias"] = wandb.Histogram(weights[1])
+                wandb.log(metrics, commit=False)
+
+
+class BatchwiseModelCheckpoint(tf.keras.callbacks.Callback):
+    """
+    Docstring TODO
+    """
+
+    def __init__(self, save_frequency, model_path, mode, monitor, prev_best=None, sample_at_zero=False):
+        self.save_frequency = save_frequency
+        self.model_path = model_path
+        self.mode = mode
+        self.monitor = monitor
+        self.sample_at_zero = sample_at_zero
+
+        if prev_best is not None:
+            self.best = prev_best
+
+        else:
+            if self.mode == 'max':
+                self.best = -np.Inf
+            elif self.mode == 'min':
+                self.best = np.Inf
+
+    def on_train_batch_end(self, batch, logs=None):
+
+        if (batch == 0 and self.sample_at_zero) or (batch + 1) % self.save_frequency == 0:
+            if self.mode == 'max' and logs[self.monitor] > self.best:
+                save = True
+
+            elif self.mode == 'min' and logs[self.monitor] < self.best:
+                save = True
+
+            else:
+                save = False
+
+            if save:
+                print('\n{} improved from {:.3f} to {:.3f}. Saving model to {}.\n'.
+                      format(self.monitor, self.best, logs[self.monitor], self.model_path))
+
+                self.best = logs[self.monitor]
+
+                self.model.save(self.model_path, overwrite=True)
+            else:
+                print('\n{}={:.3f} did not improve from {:.3f}\n'.format(self.monitor, logs[self.monitor], self.best))
+
 
 ###############################################################################
 ############### ARCHITECTURES
@@ -92,15 +248,13 @@ def unet_batchnorm(input_shape, loss, metrics, learning_rate=1e-4, filter_size=3
     conv9 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
     conv9 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
 
-    final_layer = [(Conv2D(3, 1, activation='sigmoid')(conv9)) for i in range(n_forecast_days)]
+    final_layer = Conv2D(n_forecast_days, kernel_size=1, activation='sigmoid')(conv9)
 
     model = Model(inputs, final_layer)
 
     model.compile(optimizer=Adam(lr=learning_rate), loss=loss, metrics=metrics)
 
     return model
-
-
 
 
 ###############################################################################
@@ -473,14 +627,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         with open(data_loader_config_path, 'r') as readfile:
             self.config = json.load(readfile)
 
-        forecast_start_date_ends = [
-            pd.Timestamp(date).to_pydatetime() for date in self.config['obs_train_dates']
-        ]
-
-        self.all_forecast_start_dates = icenet2_utils.filled_daily_dates(
-            forecast_start_date_ends[0],
-            forecast_start_date_ends[1])
-
+        self.set_forecast_start_dates(dataset='train')
         self.load_missing_dates()
         self.remove_missing_dates()
         self.set_variable_path_formats()
@@ -492,6 +639,21 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
 
         if self.config['verbose_level'] >= 1:
             print("Setup complete.\n")
+
+    def set_forecast_start_dates(self, dataset='train'):
+        """
+        Build up a list of forecast initialisation dates for the train, val, or
+        test sets based on the configuration JSON file start & end points for
+        each dataset.
+        """
+        forecast_start_date_ends = [
+            pd.Timestamp(date).to_pydatetime() for date in
+            self.config['obs_{}_dates'.format(dataset)]
+        ]
+
+        self.all_forecast_start_dates = icenet2_utils.filled_daily_dates(
+            forecast_start_date_ends[0],
+            forecast_start_date_ends[1])
 
     def set_variable_path_formats(self):
 
@@ -800,7 +962,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         validation months defined by `self.obs_val_dates`.
         """
 
-        self.all_forecast_start_dates = self.obs_val_dates
+        self.set_forecast_start_dates(dataset='val')
         self.remove_missing_dates()
 
     def convert_to_test_data_loader(self):
@@ -809,7 +971,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         As above but for the testing months defined by `self.obs_test_dates`
         """
 
-        self.all_forecast_start_dates = self.obs_test_dates
+        self.set_forecast_start_dates(dataset='test')
         self.remove_missing_dates()
 
     def data_generation(self, forecast_start_dates):
