@@ -11,11 +11,11 @@
 
 ##### Preprocessing data
 * [x] Class + script to preprocess ERA5 + SIC data into .npy files
-* [ ] Class + pickling script to instantiate daily data loader
+* [x] Class for daily data loader
 
 ##### Training IceNet2
-* [ ] Script to define loss function, validation metric, and IceNet2 architecture
-* [ ] Script to train IceNet2
+* [x] Script to define loss function, validation metric, and IceNet2 architecture
+* [x] Script to train IceNet2
 
 ##### Validating IceNet2
 * [ ] Script to validate IceNet2 and produce plots
