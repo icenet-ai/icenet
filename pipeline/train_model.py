@@ -68,6 +68,12 @@ def load_dataset(input, batch_size=1):
         fns[round(len(fns) * 0.8) + 1:round(len(fns) * 0.9)], \
         fns[round(len(fns) * 0.9) + 1:]
 
+    counts = {
+        'train': len(train_fns),
+        'test': len(test_fns),
+        'val': len(val_fns),
+    }
+
     train_ds, test_ds, val_ds = \
         tf.data.TFRecordDataset(train_fns), \
         tf.data.TFRecordDataset(test_fns), \
@@ -76,14 +82,14 @@ def load_dataset(input, batch_size=1):
     #TODO: Further optimisations available, input pipeline again the bottleneck with DS in place
     #TODO: Comparitive/profiling runs
     #TODO: parallel for batch size while that's small
-    train_ds = train_ds.map(decode_item, num_parallel_calls=batch_size).batch(batch_size).shuffle(batch_size)
+    train_ds = train_ds.map(decode_item, num_parallel_calls=batch_size).batch(batch_size)# .shuffle(batch_size)
     test_ds = test_ds.map(decode_item, num_parallel_calls=batch_size).batch(batch_size)
     val_ds = val_ds.map(decode_item, num_parallel_calls=batch_size).batch(batch_size)
 
-    return train_ds, test_ds, val_ds
+    return train_ds, test_ds, val_ds, counts
 
 
-def train(cfg, train, val, batch_size=1, epochs=1):
+def train(cfg, train, val, counts, batch_size=1, epochs=1):
     strategy = tf.distribute.experimental.CentralStorageStrategy()
 
     # TODO: We'll have to diverge here
@@ -108,8 +114,8 @@ def train(cfg, train, val, batch_size=1, epochs=1):
 
         model_history = network.fit(train,
                                     epochs=epochs,
-                                    steps_per_epoch=len(train)/batch_size,
-                                    validation_steps=len(val)/batch_size,
+                                    steps_per_epoch=counts['train']/batch_size,
+                                    validation_steps=counts['val']/batch_size,
                                     validation_data=val,)
 
 
@@ -120,7 +126,8 @@ if __name__ == "__main__":
     logging.info("Training UNET")
 
     init()
-    train_ds, test_ds, val_ds = load_dataset(args.input, batch_size=args.batch)
-    train(config(), train_ds, val_ds, batch_size=args.batch, epochs=args.epoch)
+    #TODO: Clean these up
+    train_ds, test_ds, val_ds, counts = load_dataset(args.input, batch_size=args.batch)
+    train(config(), train_ds, val_ds, counts, batch_size=args.batch, epochs=args.epoch)
 
 
