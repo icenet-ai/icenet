@@ -9,6 +9,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import tensorflow as tf
 
+##python convert_dataset.py -s 5 /users/jambyr/hpc/icenet.testing/results/icenet2_linear_trend_input_6runs_absrad/cache output
 
 def get_args():
     a = argparse.ArgumentParser()

@@ -3,12 +3,10 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import \
     Conv2D, BatchNormalization, UpSampling2D, concatenate, MaxPooling2D, Input
-from tensorflow.keras.optimizers import Adam
 
 
-def unet_batchnorm(input_shape, loss, metrics, learning_rate=1e-4, filter_size=3,
-                   n_filters_factor=1, n_forecast_months=1, **kwargs):
-    inputs = Input(shape=input_shape)
+def unet_batchnorm(input_shape, filter_size=3, n_filters_factor=1, n_forecast_months=1):
+    inputs = Input(name='x', shape=input_shape)
 
     conv1 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
     conv1 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
@@ -58,11 +56,12 @@ def unet_batchnorm(input_shape, loss, metrics, learning_rate=1e-4, filter_size=3
     conv9 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
     conv9 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
 
-    final_layer = [Conv2D(3, 1, activation='softmax')(conv9) for i in range(n_forecast_months)]
-    final_layer = tf.stack(final_layer, axis=-1)
+    #FIXME: Disagreement between the pickled dataset and number of filters?
+    #final_layer = [Conv2D(3, 1, activation='softmax')(conv9) for _ in range(n_forecast_months)]
+    final_layer = [Conv2D(4, 1, activation='softmax')(conv9) for _ in range(n_forecast_months)]
+    final_layer = tf.stack(final_layer, axis=-1, name='y')
 
     model = Model(inputs, final_layer)
 
-    model.compile(optimizer=Adam(lr=learning_rate), loss=loss, metrics=metrics)
-
+    # We don't compile model here, for varying losses and metrics better to assign independently of the model arch
     return model

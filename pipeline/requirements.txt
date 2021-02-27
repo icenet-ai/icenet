@@ -1,4 +1,1 @@
-netcdf4
-tensorflow
-tensorflow-datasets
-xarray
+tensorflow-gpu==2.2.0 # Done via conda
