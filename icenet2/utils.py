@@ -5,18 +5,10 @@ import numpy as np
 from datetime import datetime
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
 import config
-import icenet2_utils
+import utils
 from dateutil.relativedelta import relativedelta
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, \
-    Conv2D, BatchNormalization, UpSampling2D, concatenate, MaxPooling2D, \
-    Input, TimeDistributed, ConvLSTM2D
-from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras import backend as K
-import wandb
-from wandb.keras import WandbCallback
 import xarray as xr
 import pandas as pd
 import regex as re
@@ -25,237 +17,6 @@ import imageio
 import matplotlib.pyplot as plt
 import time
 from tqdm import tqdm
-
-###############################################################################
-############### LOSS FUNCTIONS
-###############################################################################
-
-
-def RMSE(y_true, y_pred):
-    ''' Custom keras loss/metric for root mean squared error
-
-    Parameters:
-    y_true (ndarray): Ground truth outputs
-    y_pred (ndarray): Network predictions
-
-    Returns:
-    Root mean squared error of SIC (%) (float)
-    '''
-
-    sample_weight = y_true[:, :, :, :, 1]
-    y_true = y_true[:, :, :, :, 0]
-
-    err = y_true - y_pred
-
-    return 100*K.sqrt(K.mean(K.square(err)*sample_weight))
-
-
-###############################################################################
-############### METRICS
-###############################################################################
-
-# TODO
-
-###############################################################################
-############### CALLBACKS
-###############################################################################
-
-class IceNetPreTrainingEvaluator(tf.keras.callbacks.Callback):
-    """
-    Custom tf.keras callback to update the `logs` dict used by all other callbacks
-    with the validation set metrics. The callback is executed every
-    `validation_frequency` batches.
-
-    This can be used in conjuction with the BatchwiseModelCheckpoint callback to
-    perform a model checkpoint based on validation data every N batches - ensure
-    the `save_frequency` input to BatchwiseModelCheckpoint is also set to
-    `validation_frequency`.
-
-    Also ensure that the callbacks list past to Model.fit() contains this
-    callback before any other callbacks that need the validation metrics.
-
-    Also use Weights and Biases to log the training and validation metrics.
-    """
-
-    def __init__(self, validation_frequency, val_dataloader, sample_at_zero=False):
-        self.validation_frequency = validation_frequency
-        self.sample_at_zero = sample_at_zero
-        self.val_dataloader = val_dataloader
-
-    def on_train_batch_end(self, batch, logs=None):
-
-        if (batch == 0 and self.sample_at_zero) or (batch + 1) % self.validation_frequency == 0:
-            val_logs = self.model.evaluate(self.val_dataloader, verbose=0, return_dict=True)
-            val_logs = {'val_' + name: val for name, val in val_logs.items()}
-            logs.update(val_logs)
-            # wandb.log(logs)
-            [print('\n' + k + ' {:.2f}'.format(v)) for k, v in logs.items()]
-            print('\n')
-
-
-class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
-    """
-    Docstring TODO
-    """
-
-    def __init__(self, batch_frequency, log_weights=True,
-                 log_figure=False, dataloader=None,
-                 sample_at_zero=False):
-        self.batch_frequency = batch_frequency
-        self.log_weights = log_weights
-        self.log_figure = log_figure
-        self.dataloader = dataloader
-        self.sample_at_zero = sample_at_zero
-
-        if log_figure:
-            self.land_mask = np.load(os.path.join(config.folders['masks'],
-                                                  config.fnames['land_mask']))
-
-    def on_train_batch_end(self, batch, logs=None):
-
-        if (batch == 0 and self.sample_at_zero) or (batch + 1) % self.batch_frequency == 0:
-            wandb.log(logs)
-
-            if self.log_figure:
-                X, y = self.dataloader.data_generation(np.array([datetime(2012, 9, 1)]))
-                pred = self.model.predict(X)
-                mask = y[:, :, :, :, 1] == 0
-                pred[mask] = 0
-
-                err = 100*(pred[0] - y[0, :, :, :, 0])[:, :, 15]
-
-                fig, ax = plt.subplots(figsize=(10, 10))
-                im = ax.imshow(err, cmap='seismic', clim=(-100, 100))
-                ax.contour(self.land_mask, levels=[.5], colors='k')
-                fig.colorbar(im)
-                wandb.log({'batch': batch, 'val_case_study_err_map': fig})
-                plt.close()
-
-            if self.log_weights:
-                # Taken from
-                metrics = {}
-                for layer in self.model.layers:
-                    weights = layer.get_weights()
-                    if len(weights) == 1:
-                        metrics["parameters/" + layer.name +
-                                ".weights"] = wandb.Histogram(weights[0])
-                    elif len(weights) == 2:
-                        metrics["parameters/" + layer.name +
-                                ".weights"] = wandb.Histogram(weights[0])
-                        metrics["parameters/" + layer.name +
-                                ".bias"] = wandb.Histogram(weights[1])
-                wandb.log(metrics, commit=False)
-
-
-class BatchwiseModelCheckpoint(tf.keras.callbacks.Callback):
-    """
-    Docstring TODO
-    """
-
-    def __init__(self, save_frequency, model_path, mode, monitor, prev_best=None, sample_at_zero=False):
-        self.save_frequency = save_frequency
-        self.model_path = model_path
-        self.mode = mode
-        self.monitor = monitor
-        self.sample_at_zero = sample_at_zero
-
-        if prev_best is not None:
-            self.best = prev_best
-
-        else:
-            if self.mode == 'max':
-                self.best = -np.Inf
-            elif self.mode == 'min':
-                self.best = np.Inf
-
-    def on_train_batch_end(self, batch, logs=None):
-
-        if (batch == 0 and self.sample_at_zero) or (batch + 1) % self.save_frequency == 0:
-            if self.mode == 'max' and logs[self.monitor] > self.best:
-                save = True
-
-            elif self.mode == 'min' and logs[self.monitor] < self.best:
-                save = True
-
-            else:
-                save = False
-
-            if save:
-                print('\n{} improved from {:.3f} to {:.3f}. Saving model to {}.\n'.
-                      format(self.monitor, self.best, logs[self.monitor], self.model_path))
-
-                self.best = logs[self.monitor]
-
-                self.model.save(self.model_path, overwrite=True)
-            else:
-                print('\n{}={:.3f} did not improve from {:.3f}\n'.format(self.monitor, logs[self.monitor], self.best))
-
-
-###############################################################################
-############### ARCHITECTURES
-###############################################################################
-
-
-def unet_batchnorm(input_shape, loss, metrics, learning_rate=1e-4, filter_size=3,
-                   n_filters_factor=1, n_forecast_days=1, **kwargs):
-    inputs = Input(shape=input_shape)
-
-    conv1 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
-    conv1 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
-    bn1 = BatchNormalization(axis=-1)(conv1)
-    pool1 = MaxPooling2D(pool_size=(2, 2))(bn1)
-
-    conv2 = Conv2D(np.int(128*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(pool1)
-    conv2 = Conv2D(np.int(128*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv2)
-    bn2 = BatchNormalization(axis=-1)(conv2)
-    pool2 = MaxPooling2D(pool_size=(2, 2))(bn2)
-
-    conv3 = Conv2D(np.int(256*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(pool2)
-    conv3 = Conv2D(np.int(256*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv3)
-    bn3 = BatchNormalization(axis=-1)(conv3)
-    pool3 = MaxPooling2D(pool_size=(2, 2))(bn3)
-
-    conv4 = Conv2D(np.int(256*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(pool3)
-    conv4 = Conv2D(np.int(256*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv4)
-    bn4 = BatchNormalization(axis=-1)(conv4)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(bn4)
-
-    conv5 = Conv2D(np.int(512*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(pool4)
-    conv5 = Conv2D(np.int(512*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv5)
-    bn5 = BatchNormalization(axis=-1)(conv5)
-
-    up6 = Conv2D(np.int(256*n_filters_factor), 2, activation='relu', padding='same', kernel_initializer='he_normal')(UpSampling2D(size=(2,2), interpolation='nearest')(bn5))
-    merge6 = concatenate([bn4, up6], axis=3)
-    conv6 = Conv2D(np.int(256*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(merge6)
-    conv6 = Conv2D(np.int(256*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv6)
-    bn6 = BatchNormalization(axis=-1)(conv6)
-
-    up7 = Conv2D(np.int(256*n_filters_factor), 2, activation='relu', padding='same', kernel_initializer='he_normal')(UpSampling2D(size=(2,2), interpolation='nearest')(bn6))
-    merge7 = concatenate([bn3,up7], axis=3)
-    conv7 = Conv2D(np.int(256*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(merge7)
-    conv7 = Conv2D(np.int(256*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv7)
-    bn7 = BatchNormalization(axis=-1)(conv7)
-
-    up8 = Conv2D(np.int(128*n_filters_factor), 2, activation='relu', padding='same', kernel_initializer='he_normal')(UpSampling2D(size=(2,2), interpolation='nearest')(bn7))
-    merge8 = concatenate([bn2,up8], axis=3)
-    conv8 = Conv2D(np.int(128*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(merge8)
-    conv8 = Conv2D(np.int(128*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv8)
-    bn8 = BatchNormalization(axis=-1)(conv8)
-
-    up9 = Conv2D(np.int(64*n_filters_factor), 2, activation='relu', padding='same', kernel_initializer='he_normal')(UpSampling2D(size=(2,2), interpolation='nearest')(bn8))
-    merge9 = concatenate([conv1,up9], axis=3)
-    conv9 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(merge9)
-    conv9 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
-    conv9 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
-
-    final_layer = Conv2D(n_forecast_days, kernel_size=1, activation='sigmoid')(conv9)
-
-    model = Model(inputs, final_layer)
-
-    model.compile(optimizer=Adam(lr=learning_rate), loss=loss, metrics=metrics)
-
-    return model
-
 
 ###############################################################################
 ############### DATA PROCESSING & LOADING
@@ -651,7 +412,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
             self.config['obs_{}_dates'.format(dataset)]
         ]
 
-        self.all_forecast_start_dates = icenet2_utils.filled_daily_dates(
+        self.all_forecast_start_dates = utils.filled_daily_dates(
             forecast_start_date_ends[0],
             forecast_start_date_ends[1])
 
@@ -845,7 +606,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
             start = pd.Timestamp(row['start']).to_pydatetime().replace(hour=0)
             end = pd.Timestamp(row['end']).to_pydatetime().replace(hour=0)
             self.missing_dates.extend(
-                icenet2_utils.filled_daily_dates(start, end, include_end=True)
+                utils.filled_daily_dates(start, end, include_end=True)
             )
 
     def remove_missing_dates(self):
