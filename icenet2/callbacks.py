@@ -70,7 +70,6 @@ class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
     def on_train_batch_end(self, batch, logs=None):
 
         if (batch == 0 and self.sample_at_zero) or (batch + 1) % self.batch_frequency == 0:
-            logs['batch'] = batch
             wandb.log(logs)
 
             if self.log_figure:
@@ -117,7 +116,7 @@ class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
                     ax.axes.yaxis.set_visible(False)
                 plt.tight_layout()
 
-                wandb.log({'batch': batch, 'val_case_study_err_map': fig})
+                wandb.log({'val_case_study_err_map': fig})
                 plt.close()
 
             if self.log_weights:
@@ -133,7 +132,6 @@ class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
                                 ".weights"] = wandb.Histogram(weights[0])
                         metrics["parameters/" + layer.name +
                                 ".bias"] = wandb.Histogram(weights[1])
-                metrics['batch'] = batch
                 wandb.log(metrics)
 
 
@@ -181,22 +179,18 @@ class WandbGradientUpdateLogger(tf.keras.callbacks.Callback):
         # Log layerwise gradient updates to wandb
         if self.log_weight_update_hists:
             weight_update_hist_dict = {k: wandb.Histogram(vals) for k, vals in weight_updates_this_batch.items()}
-            weight_update_hist_dict['batch'] = batch
             wandb.log(weight_update_hist_dict)
 
         if self.log_layerwise_weight_hists:
-            weights_dict_this_batch['batch'] = batch
             wandb.log(weights_dict_this_batch)
 
         # Log ALL gradient updates to wandb
         all_weight_updates = [val for vals in weight_updates_this_batch.values() for val in vals]
         if self.log_weight_update_hists:
             all_weight_updates_hist_dict = {'all_weight_updates_hist': wandb.Histogram(all_weight_updates)}
-            all_weight_updates_hist_dict['batch'] = batch
             wandb.log(all_weight_updates_hist_dict)
         if self.log_weight_update_norm:
             all_weight_updates_norm_dict = {'all_weight_updates_norm': np.linalg.norm(all_weight_updates)}
-            all_weight_updates_norm_dict['batch'] = batch
             wandb.log(all_weight_updates_norm_dict)
 
         # Reset previous weights dict
