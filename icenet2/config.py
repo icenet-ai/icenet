@@ -3,6 +3,7 @@ from datetime import datetime
 
 folders = {
     'data': 'data',
+    'results': 'results',
     'masks': os.path.join('data', 'masks'),
     'siconca': os.path.join('data', 'siconca'),
     'figures': 'figures',
