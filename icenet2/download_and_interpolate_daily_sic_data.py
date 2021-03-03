@@ -10,13 +10,13 @@ import shutil
 import re
 import time
 from datetime import datetime, timedelta
-# import plotly.express as px
+import plotly.express as px
 from scipy import interpolate
 # sys.path.insert(0, os.path.join(os.getcwd(), 'icenet'))
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
 # sys.path.insert(0, os.path.abspath(os.path.join(__file__, os.pardir)))
 import config
-import icenet2_utils
+import utils
 
 '''
 
@@ -231,7 +231,7 @@ if do_interp:
 
     dates_obs = [pd.Timestamp(date).to_pydatetime() for date in da.time.values]
 
-    dates_all = icenet2_utils.filled_daily_dates(datetime(1979, 1, 1, 12), datetime(2021, 1, 1, 12))
+    dates_all = utils.filled_daily_dates(datetime(1979, 1, 1, 12), datetime(2021, 1, 1, 12))
 
     dates_missing = []
     for date in dates_all:
@@ -367,7 +367,7 @@ if do_interp:
 
         print('Making video of interpolated data...')
         video_path = os.path.join('videos', 'video_all_interp_spatial.mp4')
-        icenet2_utils.xarray_to_video(
+        utils.xarray_to_video(
             da_interp, video_path, mask=land_mask, mask_type='contourf',
             fps=15, cmap='Blues_r', figsize=15
         )

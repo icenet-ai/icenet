@@ -11,7 +11,7 @@ import warnings
 import numpy as np
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
 import config
-import icenet2_utils
+import utils
 import argparse
 
 """
@@ -50,16 +50,16 @@ to be run in parallel for different variables.
 #
 #     # vpath = 'videos/era5/{}_2012.mp4'.format(var)
 #     # vpath = 'videos/era5/{}.mp4'.format(var)
-#     # icenet2_utils.xarray_to_video(anom, vpath, 15, land_mask, data_type='anom', cmap=cmap, figsize=15)
+#     # utils.xarray_to_video(anom, vpath, 15, land_mask, data_type='anom', cmap=cmap, figsize=15)
 #
 #     vpath = 'videos/era5/{}_climatology.mp4'.format(var)
 #     # vpath = 'videos/era5/{}.mp4'.format(var)
-#     climatology = climatology.assign_coords({'dayofyear': icenet2_utils.filled_daily_dates(datetime(2012,1,1), datetime(2013,1,1))})
+#     climatology = climatology.assign_coords({'dayofyear': utils.filled_daily_dates(datetime(2012,1,1), datetime(2013,1,1))})
 #     climatology = climatology.rename({'dayofyear': 'time'})
 #     climatology.data = np.array(climatology.data)
 #     uniq = np.unique(climatology.data)
 #     clim = [uniq[1], uniq[-1]]
-#     icenet2_utils.xarray_to_video(climatology, vpath, 15, land_mask, clim=clim, data_type='abs', cmap=cmap, figsize=15)
+#     utils.xarray_to_video(climatology, vpath, 15, land_mask, clim=clim, data_type='abs', cmap=cmap, figsize=15)
 #
 # raise ValueError('breaking here to stop running')
 
@@ -120,19 +120,6 @@ def fix_near_real_time_era5_coords(da):
 area = [90, -180, 0, 180]  # Latitude/longitude boundaries to download
 
 # Which years to download
-years = [
-    ['1979', '1980', '1981', '1982', '1983',
-     '1984', '1985', '1986', '1987', '1988'],
-    ['1989', '1990', '1991', '1992', '1993',
-     '1994', '1995', '1996', '1997', '1998'],
-    ['1999', '2000', '2001', '2002', '2003',
-     '2004', '2005', '2006', '2007', '2008'],
-    ['2009', '2010', '2011', '2012', '2013',
-     '2014', '2015', '2016', '2017', '2018',
-     '2019', '2020']
-]
-
-# TEMP yearwise download
 years = [
     '1979', '1980', '1981', '1982', '1983',
     '1984', '1985', '1986', '1987', '1988',
@@ -209,8 +196,6 @@ var_dict = variables[variable]
 # ---------------- Download
 
 cds = cdsapi.Client()
-
-# year_chunk = years[-1]
 
 for year_chunk in years:
 
