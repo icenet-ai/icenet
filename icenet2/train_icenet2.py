@@ -10,7 +10,7 @@ import callbacks
 import tensorflow as tf
 import numpy as np
 import wandb
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint  #, LearningRateScheduler
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, LearningRateScheduler
 from wandb.keras import WandbCallback
 
 wandb.init(project="icenet2")  #, config=defaults)
@@ -120,6 +120,12 @@ callbacks_list.append(
         monitor=checkpoint_monitor,
         mode=checkpoint_mode,
         save_model=False
+    ))
+
+# Learning rate schedule with exponential decay
+callbacks_list.append(
+    LearningRateScheduler(
+        utils.make_exp_decay_lr_schedule(rate=0.1)
     ))
 
 #### Define model

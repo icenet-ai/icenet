@@ -936,6 +936,28 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
 
 
 ###############################################################################
+############### LEARNING RATE SCHEDULER
+###############################################################################
+
+
+def make_exp_decay_lr_schedule(rate):
+
+    ''' Returns an exponential learning rate function that multiplies by
+    exp(-rate) each epoch. '''
+
+    def lr_scheduler_exp_decay(epoch, lr, verbose=True):
+        ''' Learning rate scheduler for fine tuning. Exponential decrease. '''
+
+        lr = lr * np.math.exp(-rate)
+
+        if verbose:
+            print('\nSetting learning rate to: {}\n'.format(lr))
+
+        return lr
+    return lr_scheduler_exp_decay
+
+
+###############################################################################
 ############### MISC
 ###############################################################################
 
