@@ -23,11 +23,11 @@ Running the commands below in the root of the repository will set up the conda e
 
 ### 2) Download data
 
+- Generate masks: `python3 icenet2/gen_masks.py`. This obtains masks for land, the polar holes, and monthly maximum ice extent.
+
 - Get OSI-SAF SIC data: `python3 icenet2/download_and_interpolate_daily_sic_data.py`. This downloads daily SIC data, linearly interpolates missing days, and bilinearly interpolates missing grid cells (e.g. polar hole). Probably best to run overnight.
 
 - Get ERA5 reanalysis data: `./download_and_regrid_era5_data_in_parallel.sh`. This runs multiple `python3 icenet2/download_and_regrid_daily_era5_data.py` commands to acquire multiple variables in parallel. This downloads the raw hourly-averaged ERA5 data in global latitude-longitude format, computes daily averages, and regrids to the EASE grid that OSI-SAF SIC data lies on.
-
-- Generate masks: `python3 icenet2/gen_masks.py`. This obtains masks for land, the polar holes, and monthly maximum ice extent.
 
 ### 3) Normalise data and set up data loader configuration
 
