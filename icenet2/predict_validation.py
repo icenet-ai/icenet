@@ -65,7 +65,7 @@ all_forecast_target_dates = utils.filled_daily_dates(
 )
 
 all_forecast_start_dates = utils.filled_daily_dates(
-    start_date=all_forecast_target_dates[0] - relativedelta(days=n_forecast_days),
+    start_date=all_forecast_target_dates[0] - relativedelta(days=n_forecast_days-1),
     end_date=all_forecast_target_dates[-1],
     include_end=True)
 
@@ -100,14 +100,12 @@ for year in np.arange(2012, 2020+1):
 #### Build up forecasts
 ####################################################################
 
-# TODO: make this save in inidiv yearly xarray datasets according to target date
-
 leadtimes = np.arange(1, n_forecast_days+1)
 
 # TODO: don't hard code
 year_to_save = 2012
 
-# forecast_start_date = forecast_start_dates[0]
+# forecast_start_date = all_forecast_start_dates[0]
 print('Building up forecast DataArrays...\n')
 for forecast_start_date in tqdm(all_forecast_start_dates):
 
@@ -119,7 +117,7 @@ for forecast_start_date in tqdm(all_forecast_start_dates):
 
     forecast_target_dates = utils.filled_daily_dates(
         start_date=forecast_start_date,
-        end_date=forecast_start_date + relativedelta(days=n_forecast_days),
+        end_date=forecast_start_date + relativedelta(days=n_forecast_days-1),
         include_end=True
     )
 
@@ -132,12 +130,11 @@ for forecast_start_date in tqdm(all_forecast_start_dates):
     # End of year reached - save completed yearly NetCDF
     if forecast_start_date == datetime(year_to_save, 12, 31):
         print('Saving forecast NetCDF for {}'.format(year_to_save), end='', flush=True)
-        yearly_forecast_da_dict[year].to_netcdf(
+        yearly_forecast_da_dict[year_to_save].to_netcdf(
             os.path.join(validation_forecast_folder, '{:04d}.nc'.format(year_to_save))
         )
         print('Done.')
 
-        # TODO: check this stops memory growing
         del(yearly_forecast_da_dict[year_to_save])  # Does this do with memory management anything?
 
         year_to_save += 1
