@@ -14,6 +14,13 @@ from icenet.utils import construct_custom_categorical_accuracy, categorical_foca
 # Post strategy on 4x GPU sys, batch size 8
 # 100/100 [==============================] - 259s 3s/step - loss: 0.0317 - val_loss: 0.0518
 
+# bslws06 (ws02.log) 1 x 2
+# 1273/1272 [==============================] - 1571s 1s/step - loss: 0.0380 - val_loss: 0.0569
+# bslws06 (ws02.2.log) - 5 x 2
+#
+# node022 - 5 x 8
+#
+
 
 def get_args():
     a = argparse.ArgumentParser()
