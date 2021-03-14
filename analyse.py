@@ -45,7 +45,7 @@ if __name__ == '__main__':
     n_forecast_days = dataloader_config['n_forecast_days']
 
     ## TEMP
-    chunking = dict(time=1, leadtime=n_forecast_days)
+    chunking = dict(time=100, leadtime=n_forecast_days)
 
     ### Monthly masks
     ####################################################################
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     print("abs err DA")
     print(abs_err_da.shape)
 
-    print('Computing MAE.')
+    print('Setting up MAE.')
     tic = time()
 
     months = [pd.Timestamp(date).month-1 for date in abs_err_da.time.values]
@@ -129,6 +129,7 @@ if __name__ == '__main__':
 
     abs_weighted = abs_err_da.weighted(mask_arr)
     mae_da = (abs_weighted.mean(['yc', 'xc']) * 100)
+    print("Computing")
     with ProgressBar():
         mae = mae_da.compute()
 

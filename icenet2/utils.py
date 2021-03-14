@@ -5,18 +5,18 @@ import numpy as np
 from datetime import datetime
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
 import config
-import utils
+#import utils
 from dateutil.relativedelta import relativedelta
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+#from mpl_toolkits.axes_grid1 import make_axes_locatable
 import tensorflow as tf
 import xarray as xr
 import pandas as pd
-import regex as re
+import re
 import json
-import imageio
-import matplotlib.pyplot as plt
+#import imageio
+#import matplotlib.pyplot as plt
 import time
-from tqdm import tqdm
+#from tqdm import tqdm
 
 ###############################################################################
 ############### DATA PROCESSING & LOADING
