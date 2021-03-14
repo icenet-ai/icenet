@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -13,7 +14,7 @@ import dask
 import dask.array as da
 import dask.dataframe as df
 from dask import delayed
-from dask.diagnostics import ProgressBar
+from distributed.diagnostics.progressbar import progress
 
 import pandas as pd
 
@@ -22,14 +23,20 @@ import icenet2.utils as utils
 
 from distributed import Client
 
-### TEMP: map_funcs
+
 ####################################################################
+def parse_args():
+    a = argparse.ArgumentParser()
+    a.add_argument("-t", "--time", default=8, type=int)
+    return a.parse_args()
 
 
 # TODO: Context, where should this be run icenet2 or icenet2/icenet2 (import config)
 if __name__ == '__main__':
+    args = parse_args()
+
     dask.config.set(temporary_directory=os.path.expandvars("/tmp/$USER/dask-tmp"))
-    client = Client(n_workers=16)
+    client = Client(n_workers=8)
 
     ####################################################################
     icenet2_name = 'unet_batchnorm'
@@ -43,9 +50,10 @@ if __name__ == '__main__':
         dataloader_config = json.load(f)
 
     n_forecast_days = dataloader_config['n_forecast_days']
+    print("Forecast days: {}".format(n_forecast_days))
 
     ## TEMP
-    chunking = dict(time=100, leadtime=n_forecast_days)
+    chunking = dict(time=args.time, leadtime=n_forecast_days)
 
     ### Monthly masks
     ####################################################################
@@ -56,7 +64,6 @@ if __name__ == '__main__':
     mask_da = xr.DataArray(np.array(
         [np.load(mask_fpath_format.format('{:02d}'.format(month))) for month in np.arange(1, 12+1)],
     ))
-    # dask.array<array, shape=(12, 432, 432), dtype=bool, chunksize=(12, 432, 432), chunktype=numpy.ndarray>
 
     ### IceNet2 validation predictions
     ####################################################################
@@ -65,20 +72,28 @@ if __name__ == '__main__':
         #config.folders['results'], dataloader_name, icenet2_name, 'validation'
         "/data/hpcdata/users/tomand/code/icenet2/results/", dataloader_name, icenet2_name, 'validation'
     )
+
+    #/data/hpcdata/users/tomand/code/icenet2/results/2021_03_03_1928_icenet2_init/unet_batchnorm/validation/2012.nc (48G)
+    # Reduce to selected dates for any prod version?
     validation_prediction_fpaths = [
         os.path.join(validation_forecast_folder, f) for f in os.listdir(validation_forecast_folder)
     ]
 
     forecast_target_dates = utils.filled_daily_dates(
+        #start_date=datetime(2012, 1, 1), end_date=datetime(2018, 1, 1)
         start_date=datetime(2012, 1, 1), end_date=datetime(2018, 1, 1)
     )
 
-    #/data/hpcdata/users/tomand/code/icenet2/results/2021_03_03_1928_icenet2_init/unet_batchnorm/validation/2012.nc (48G)
-    forecast_da = xr.open_mfdataset(
-        validation_prediction_fpaths, chunks=dict(time=1, leadtime=1)
+    print(validation_prediction_fpaths)
+
+    forecast_ds = xr.open_mfdataset(
+        validation_prediction_fpaths, chunks=dict(time=args.time, leadtime=n_forecast_days)
     )
-    forecast_da = forecast_da.to_array()[0].drop('variable')
-    forecast_da = forecast_da.sel(time=forecast_target_dates)
+    # Just realised what this might be, don't delete!
+    #forecast_da = forecast_da.to_array()[0].drop('variable')
+    forecast_ds = forecast_ds.sel(time=forecast_target_dates)
+
+    #    dask.visualize(forecast_da, format='svg', filename="test")
 
     # <xarray.DataArray 'stack-3c744aedb18a4507d557016ee243bcc2' (time: 2192, yc: 432, xc: 432, leadtime: 186)>
     # dask.array<getitem, shape=(2192, 432, 432, 186), dtype=float32, chunksize=(1, 432, 432, 1), chunktype=numpy.ndarray>
@@ -88,8 +103,8 @@ if __name__ == '__main__':
     #   * xc        (xc) float64 -5.388e+03 -5.362e+03 ... 5.362e+03 5.388e+03
     #   * leadtime  (leadtime) int64 1 2 3 4 5 6 7 8 ... 180 181 182 183 184 185 186
 
-    print("Forecast DA")
-    print(forecast_da.shape)
+    print("Forecast DS")
+    forecast_ds.info()
 
     ### True SIC
     ####################################################################
@@ -108,10 +123,11 @@ if __name__ == '__main__':
     ### Compute
     ####################################################################
 
-    abs_err_da = xr.ufuncs.fabs(forecast_da - true_sic_da)
+    err_da = forecast_ds - true_sic_da
+    abs_err_da = da.fabs(err_da)
 
     print("abs err DA")
-    print(abs_err_da.shape)
+    abs_err_da.info()
 
     print('Setting up MAE.')
     tic = time()
@@ -129,11 +145,20 @@ if __name__ == '__main__':
 
     abs_weighted = abs_err_da.weighted(mask_arr)
     mae_da = (abs_weighted.mean(['yc', 'xc']) * 100)
-    print("Computing")
-    with ProgressBar():
-        mae = mae_da.compute()
 
-    # >>> mae_da
+
+    #print("Visualising")
+    #dask.visualize(mae_da, format='svg', filename="test")
+    #client.close()
+    #sys.exit(0)
+
+    print("Computing")
+
+    mae = mae_da.persist()
+    progress(mae)
+    mae.compute()
+
+    # >>> mae_da # TEST
     # <xarray.DataArray (time: 9, leadtime: 186)>
     # dask.array<mul, shape=(9, 186), dtype=float64, chunksize=(1, 1), chunktype=numpy.ndarray>
     # Coordinates:
@@ -161,10 +186,11 @@ if __name__ == '__main__':
     dur = time() - tic
     print("Done in {}m:{:.0f}s.\n\n ".format(np.floor(dur / 60), dur % 60))
 
-    mae_df = mae.to_dataframe(name='mae')
+    mae_df = mae.to_dataframe()
+    mae_df.info()
     mae_df.to_csv('temp.csv')
 
-
+    client.close()
 
 
 

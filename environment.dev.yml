@@ -1,0 +1,20 @@
+name: icenet2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - bokeh
+  - dask
+  - distributed
+  - h5py
+  - hdf4
+  - hdf5
+  - pip==21.0.1
+  - plotly
+  - python==3.6.13
+  - tensorboard
+  - tensorflow
+  - xarray
+  - pip:
+    - dm-tree
+    - tensorflow-probability
