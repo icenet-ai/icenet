@@ -125,7 +125,7 @@ callbacks_list.append(
 # Learning rate schedule with exponential decay
 callbacks_list.append(
     LearningRateScheduler(
-        utils.make_exp_decay_lr_schedule(rate=0.1)
+        utils.make_exp_decay_lr_schedule(rate=0.15)
     ))
 
 #### Define model

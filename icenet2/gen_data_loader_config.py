@@ -86,23 +86,23 @@ dataloder_config = {
              "anom": {"include": False, 'max_lag': 31},
              "linear_trend": {"include": False}},
         "tas":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "ta500":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "tos":
             {"abs": {"include": False, 'max_lag': 31*3},
              "anom": {"include": True, 'max_lag': 31*3}},
         "psl":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "zg500":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "zg250":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "land":
             {"metadata": True,
              "include": True},
