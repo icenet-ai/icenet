@@ -8,16 +8,17 @@ from datetime import datetime
 import numpy as np
 import xarray as xr
 import dask
+import dask.array as da
 from dask.diagnostics import ProgressBar
 from time import time
 import pandas as pd
 import plotly.express as px
 import matplotlib.pyplot as plt
-from dask.distributed import Client, progress
+from distributed import Client, progress
 import seaborn as sns
 
-use_local_distributed_cluster = False
-use_multiprocessing_scheduler = True
+use_local_distributed_cluster = True
+use_multiprocessing_scheduler = False
 
 if (
     (use_local_distributed_cluster and use_multiprocessing_scheduler) or
@@ -27,8 +28,13 @@ if (
                      'at the beginning of the script.')
 
 if __name__ == '__main__':
+
+    dask.config.set(temporary_directory=os.path.expandvars("/tmp/$USER/dask-tmp"))
+
     if use_local_distributed_cluster:
-        client = Client(asynchronous=True, n_workers=16, threads_per_worker=8)
+        # client = Client(n_workers=8, threads_per_worker=3)
+        client = Client(n_workers=8)
+        # client = Client(n_workers=16)
         # client = Client(n_workers=16, threads_per_worker=8)
         # client = Client()
         print(client)
@@ -53,7 +59,8 @@ if __name__ == '__main__':
     chunking = dict(time=31, leadtime=n_forecast_days)
 
     # TEMP
-    chunking = dict(time=7, leadtime=int(n_forecast_days/4))
+    chunking = dict(time=8, leadtime=n_forecast_days)
+    # chunking = dict(time=7, leadtime=int(n_forecast_days/4))
 
     # TEMP
     # chunking = dict(time=1, leadtime=3)
@@ -65,64 +72,9 @@ if __name__ == '__main__':
     mask_fpath_format = os.path.join(config.folders['masks'],
                                      config.formats['active_grid_cell_mask'])
 
-    mask_dict = {}
-    for month in np.arange(1, 12+1):
-        month_str = '{:02d}'.format(month)
-        mask_dict[month] = np.load(mask_fpath_format.format(month_str))
-
-    ### TEMP: map_funcs
-    ####################################################################
-
-    def get_masks(da):
-        '''
-        Returns a boolean mask array of shape (n_dates, n_x, n_y) of month-wise masks
-        for computing the accuracy over.
-        '''
-
-        months = [pd.Timestamp(date).month for date in da.time.values]
-
-        mask_arr = np.array([mask_dict[month] for month in months])
-
-        return mask_arr
-
-    # TODO: generic chunk processing function to return any metric
-    # TODO: logic for preloading results_df and determining if already computed
-    def chunk_mae_func(abs_err_chunk):
-        '''
-        Compute of forecast SIC data MAE over a chunk of a Dask array of
-        absolute errors. MAE is computed over an active grid cell area
-        that is dependent on the forecast month.
-
-        TODO: this needs to return one MAE value per time and leadtime
-
-        Parameters:
-        abs_err_chunk (xr.DataArray): Subset of (time, yc, xc, leadtime) dimensional
-        DataArray.
-
-        Returns:
-        mae (np.float32): Mean absolute error over the active grid cell area.
-        '''
-
-        # TODO: if this is computing bin acc, chunk is error bits
-        # TODO: if this is computing some func of error, chunk is error reals
-
-        # Get the month-wise masks to compute accuracy over
-        mask_da = xr.DataArray(
-            data=get_masks(abs_err_chunk),
-            dims=('time', 'yc', 'xc'),
-            coords={
-                'time': abs_err_chunk.time.values,
-                'yc': abs_err_chunk.yc.values,
-                'xc': abs_err_chunk.xc.values,
-            }
-        )
-
-        # Computed weighted MAE
-        # TODO: is this a dask array?
-        chunk_weighted = abs_err_chunk.weighted(mask_da)
-        mae = chunk_weighted.mean(dim=('yc', 'xc'))
-
-        return mae
+    mask_da = xr.DataArray(np.array(
+        [np.load(mask_fpath_format.format('{:02d}'.format(month))) for month in np.arange(1, 12+1)],
+    ))
 
     ### Initialise results dataframe
     ####################################################################
@@ -153,11 +105,10 @@ if __name__ == '__main__':
     validation_prediction_fpaths = [
         os.path.join(validation_forecast_folder, f) for f in os.listdir(validation_forecast_folder)
     ]
-    forecast_da = xr.open_mfdataset(
+    forecast_ds = xr.open_mfdataset(
         validation_prediction_fpaths, chunks=chunking
     )
-    forecast_da = forecast_da.to_array()[0].drop('variable')  # Convert to DataArray
-    forecast_da = forecast_da.sel(time=forecast_target_dates)
+    forecast_ds = forecast_ds.sel(time=forecast_target_dates)
 
     ### True SIC
     ####################################################################
@@ -173,26 +124,24 @@ if __name__ == '__main__':
     ### Compute
     ####################################################################
 
-    abs_err_da = xr.ufuncs.fabs(forecast_da - true_sic_da)
+    err_da = forecast_ds - true_sic_da
 
-    abs_err_da = abs_err_da.chunk(chunking)
+    abs_err_da = da.fabs(err_da)
 
-    # TEMP decreasing dataset size for debugging
-    # abs_err_da = abs_err_da.sel(time=slice('2012-1-1', '2012-1-31'))
-    # abs_err_da = abs_err_da.sel(time=slice('2012-1-1', '2012-1-1'),
-    #                             leadtime=[1])
-
-    template_da = xr.DataArray(
-        np.zeros((len(abs_err_da.time.values), len(abs_err_da.leadtime.values))),
-        dims=('time', 'leadtime'),
+    months = [pd.Timestamp(date).month-1 for date in abs_err_da.time.values]
+    mask_arr = xr.DataArray(
+        [mask_da[month] for month in months],
+        dims=('time', 'yc', 'xc'),
         coords={
             'time': abs_err_da.time.values,
-            'leadtime': abs_err_da.leadtime.values,
-        },
-    ).chunk(chunking)
+            'yc': abs_err_da.yc.values,
+            'xc': abs_err_da.xc.values,
+        }
+    )
 
-    mae_da = abs_err_da.map_blocks(chunk_mae_func, template=template_da)
-    mae_da *= 100  # Convert to SIC (%)
+    # Computed weighted MAE
+    abs_weighted = abs_err_da.weighted(mask_arr)
+    mae_da = (abs_weighted.mean(dim=['yc', 'xc']) * 100)
 
     # print('visualising')
     # g = mae_da.data.__dask_graph__()
@@ -206,20 +155,24 @@ if __name__ == '__main__':
     if use_local_distributed_cluster:
         mae_da = mae_da.persist()
         progress(mae_da)
-        mae_da = mae_da.compute()
+        mae_da.compute()
 
     if use_multiprocessing_scheduler:
         with ProgressBar():  # Does this not work with local distributed client?
-            with dask.config.set(num_workers=32):
+            with dask.config.set(num_workers=8):
                 mae_da = mae_da.compute(scheduler='processes')
 
     dur = time() - tic
     print("Done in {}m:{:.0f}s.\n\n ".format(np.floor(dur / 60), dur % 60))
 
-    df = mae_da.to_dataframe(name='mae_da')
+    mae_df = mae_da.to_dataframe()
+    # mae_df = mae_da.to_dataframe(name='mae_da')
+
+    if use_local_distributed_cluster:
+        client.close()
 
     # TEMP saving
-    df.to_csv('temp.csv')
+    mae_df.to_csv('temp.csv')
 
     mae_df = pd.read_csv('temp.csv')
     mae_df.time = [pd.Timestamp(date) for date in mae_df.time]
