@@ -7,6 +7,7 @@ import metrics
 import losses
 import numpy as np
 import xarray as xr
+import pandas as pd
 from tqdm import tqdm
 import plotly.express as px
 from datetime import datetime
@@ -18,7 +19,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 ####################################################################
 
-# TODO: user options for which models to run validation predictions for
+models = ['IceNet2', 'Day_persistence']
+models = ['Day_persistence']  # TEMP
 
 # TODO: generic predict functions for the different models that take init date
 #   as input?
@@ -28,32 +30,56 @@ dataloader_name = '2021_03_03_1928_icenet2_init'
 
 seed = 42
 
+verbose = False
+
 #### Load network and dataloader
 ####################################################################
 
-network_folder = os.path.join(config.folders['results'], dataloader_name, icenet2_name, 'networks')
-if not os.path.exists(network_folder):
-    os.makedirs(network_folder)
-network_fpath = os.path.join(network_folder, 'network_{}.h5'.format(seed))
+if 'IceNet2' in models:
 
-network = load_model(
-    network_fpath,
-    custom_objects={
-        'weighted_MSE': losses.weighted_MSE,
-        'weighted_RMSE': metrics.weighted_RMSE
-    }
-)
+    network_folder = os.path.join(config.folders['results'], dataloader_name, icenet2_name, 'networks')
+    if not os.path.exists(network_folder):
+        os.makedirs(network_folder)
+    network_fpath = os.path.join(network_folder, 'network_{}.h5'.format(seed))
+
+    network = load_model(
+        network_fpath,
+        custom_objects={
+            'weighted_MSE': losses.weighted_MSE,
+            'weighted_RMSE': metrics.weighted_RMSE
+        }
+    )
 
 dataloader_config_fpath = os.path.join('dataloader_configs', dataloader_name+'.json')
 
 dataloader = utils.IceNet2DataLoader(dataloader_config_fpath)
 
-validation_forecast_folder = os.path.join(config.folders['results'], dataloader_name,
-                                          icenet2_name, 'validation')
-if not os.path.exists(validation_forecast_folder):
-    os.makedirs(validation_forecast_folder)
+forecast_folders_dict = {}
 
-#### Set up DataArray of forecasts
+for model in models:
+
+    if model == 'IceNet2':
+        forecast_folders_dict[model] = os.path.join(
+            config.folders['data'], 'forecasts', 'icenet2', dataloader_name, icenet2_name)
+
+    else:
+        forecast_folders_dict[model] = os.path.join(
+            config.folders['data'], 'forecasts', model)
+
+    if not os.path.exists(forecast_folders_dict[model]):
+        os.makedirs(forecast_folders_dict[model])
+
+#### Load ground truth SIC for statistical model benchmarks
+####################################################################
+
+true_sic_fpath = os.path.join(config.folders['data'], 'siconca', 'siconca_all_interp.nc')
+true_sic_da = xr.open_dataarray(true_sic_fpath)
+
+# Replace 12:00 hour with 00:00 hour by convention
+dates = [pd.Timestamp(date).to_pydatetime().replace(hour=0) for date in true_sic_da.time.values]
+true_sic_da = true_sic_da.assign_coords(dict(time=dates))
+
+#### Set up DataArrays for forecasts
 ####################################################################
 
 n_forecast_days = dataloader.config['n_forecast_days']
@@ -71,135 +97,99 @@ all_forecast_start_dates = utils.filled_daily_dates(
 
 da_with_coords = xr.open_dataarray('data/siconca/raw_yearly_data/siconca_1979.nc')
 
-# TODO: make this a dataset with ground turth (time xc yx) as well?
-yearly_forecast_da_dict = {}
+model_forecast_dict = {}
+for model in models:
 
-# TODO: don't hard code
-for year in np.arange(2012, 2020+1):
+    yearly_forecast_da_dict = {}
 
-    year_forecast_target_dates = utils.filled_daily_dates(
-        start_date=datetime(year, 1, 1), end_date=datetime(year, 12, 31),
-        include_end=True
-    )
+    # TODO: don't hard code years
+    for year in np.arange(2012, 2020+1):
 
-    shape = (len(year_forecast_target_dates), *dataloader.config['raw_data_shape'], n_forecast_days)
+        year_forecast_target_dates = utils.filled_daily_dates(
+            start_date=datetime(year, 1, 1), end_date=datetime(year, 12, 31),
+            include_end=True
+        )
 
-    yearly_forecast_da_dict[year] = xr.DataArray(
-        data=np.zeros(shape, dtype=np.float32),
-        dims=('time', 'xc', 'yc', 'leadtime'),
-        coords={
-            'time': year_forecast_target_dates,  # To be sliced to target dates
-            'xc': da_with_coords.coords['xc'],
-            'yc': da_with_coords.coords['yc'],
-            # 'lon': (['yc, xc'], da_with_coords.coords['lon'].values),
-            # 'lat': (['yc, xc'], da_with_coords.coords['lat'].values),
-            'leadtime': np.arange(1, n_forecast_days+1)
-        }
-    )
+        shape = (len(year_forecast_target_dates), *dataloader.config['raw_data_shape'], n_forecast_days)
+
+        yearly_forecast_da_dict[year] = xr.DataArray(
+            data=np.zeros(shape, dtype=np.float32),
+            dims=('time', 'yc', 'xc', 'leadtime'),
+            coords={
+                'time': year_forecast_target_dates,  # To be sliced to target dates
+                'yc': da_with_coords.coords['yc'],
+                'xc': da_with_coords.coords['xc'],
+                # 'lon': (['yc, xc'], da_with_coords.coords['lon'].values),
+                # 'lat': (['yc, xc'], da_with_coords.coords['lat'].values),
+                'leadtime': np.arange(1, n_forecast_days+1)
+            }
+        )
+
+    model_forecast_dict[model] = yearly_forecast_da_dict
 
 #### Build up forecasts
 ####################################################################
 
 leadtimes = np.arange(1, n_forecast_days+1)
 
-# TODO: don't hard code
+# TODO: don't hard code start year
 year_to_save = 2012
 
 # forecast_start_date = all_forecast_start_dates[0]
 print('Building up forecast DataArrays...\n')
-for forecast_start_date in tqdm(all_forecast_start_dates):
 
-    X, y = dataloader.data_generation(np.array([forecast_start_date]))
-    mask = y[0, :, :, :, 1] == 0
+for model in models:
 
-    pred = network.predict(X)[0]
-    pred[mask] = 0.
+    print(model + ':\n')
 
-    forecast_target_dates = utils.filled_daily_dates(
-        start_date=forecast_start_date,
-        end_date=forecast_start_date + relativedelta(days=n_forecast_days-1),
-        include_end=True
-    )
+    for forecast_start_date in tqdm(all_forecast_start_dates):
 
-    for i, (forecast_target_date, leadtime) in enumerate(zip(forecast_target_dates, leadtimes)):
-        if forecast_target_date in all_forecast_target_dates:
-            year = forecast_target_date.year
-            yearly_forecast_da_dict[year].\
-                loc[forecast_target_date, :, :, leadtime] = pred[:, :, i]
+        if model == 'IceNet2':
 
-    # End of year reached - save completed yearly NetCDF
-    if forecast_start_date == datetime(year_to_save, 12, 31):
-        print('Saving forecast NetCDF for {}'.format(year_to_save), end='', flush=True)
-        yearly_forecast_da_dict[year_to_save].to_netcdf(
-            os.path.join(validation_forecast_folder, '{:04d}.nc'.format(year_to_save))
+            X, y = dataloader.data_generation(np.array([forecast_start_date]))
+            mask = y[0, :, :, :, 1] == 0
+
+            pred = network.predict(X)[0]
+            pred[mask] = 0.
+
+        if model == 'Day_persistence':
+
+            # Date for most recent SIC observation to persist
+            persistence_date = forecast_start_date - relativedelta(days=1)
+            pred = true_sic_da.sel(time=persistence_date).data
+
+        forecast_target_dates = utils.filled_daily_dates(
+            start_date=forecast_start_date,
+            end_date=forecast_start_date + relativedelta(days=n_forecast_days-1),
+            include_end=True
         )
-        print('Done.')
 
-        del(yearly_forecast_da_dict[year_to_save])  # Does this do with memory management anything?
+        for i, (forecast_target_date, leadtime) in enumerate(zip(forecast_target_dates, leadtimes)):
+            if forecast_target_date in all_forecast_target_dates:
+                year = forecast_target_date.year
 
-        year_to_save += 1
+                if model == 'Day_persistence':
+                    # Same forecast at each lead time
+                    yearly_forecast_da_dict[year].\
+                        loc[forecast_target_date, :, :, leadtime] = pred
+
+                else:
+                    yearly_forecast_da_dict[year].\
+                        loc[forecast_target_date, :, :, leadtime] = pred[:, :, i]
+
+        # End of year reached - save completed yearly NetCDF
+        if forecast_start_date == datetime(year_to_save, 12, 31):
+            if verbose:
+                print('Saving forecast NetCDF for {}... '.format(year_to_save), end='', flush=True)
+            yearly_forecast_fpath = os.path.join(forecast_folders_dict[model], '{:04d}.nc'.format(year_to_save))
+            if os.path.exists(yearly_forecast_fpath):
+                os.remove(yearly_forecast_fpath)
+            yearly_forecast_da_dict[year_to_save].to_netcdf(yearly_forecast_fpath)
+            if verbose:
+                print('Done.')
+
+            del(yearly_forecast_da_dict[year_to_save])  # Does this do with memory management anything?
+
+            year_to_save += 1
+
 print('Done.')
-
-
-# from tqdm import tqdm
-# land_mask = np.load(os.path.join(config.folders['masks'], config.fnames['land_mask']))
-# accs = []
-#
-# for year in tqdm(np.arange(2012,2021)):
-#     print(year)
-#     for month in np.arange(1, 13):
-#         print(month)
-#         X, y = dataloader.data_generation(np.array([datetime(year,month,1)]))
-#         y*=100
-#         pred = 100*network.predict(X)
-#
-#         pred_monthly_mean = np.mean(pred[0], axis=-1)
-#         y_monthly_mean = np.mean(y[0, :, :, :, 0], axis=-1)
-#         mask = y[0, :, :, 0, 1] == 0
-#         pred_monthly_mean[mask] = 0
-#
-#         err = pred_monthly_mean - y_monthly_mean
-#
-#         mae = np.mean(np.abs(err[~mask]))
-#
-#         fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(20, 6))
-#
-#         ax = axes[0]
-#         im = ax.imshow(y_monthly_mean, cmap='Blues_r', clim=(0, 100))
-#         ax.contour(land_mask, levels=[.5], colors='k')
-#         divider = make_axes_locatable(ax)
-#         cax = divider.append_axes('right', size='5%', pad=0.05)
-#         fig.colorbar(im, cax)
-#         ax.set_title('True map', fontsize=20)
-#
-#         ax = axes[1]
-#         im = ax.imshow(pred_monthly_mean, cmap='Blues_r', clim=(0, 100))
-#         ax.contour(land_mask, levels=[.5], colors='k')
-#         divider = make_axes_locatable(ax)
-#         cax = divider.append_axes('right', size='5%', pad=0.05)
-#         fig.colorbar(im, cax)
-#         ax.set_title('IceNet2 prediction, MAE: {:.2f}%'.format(mae), fontsize=20)
-#
-#         ax = axes[2]
-#         im = ax.imshow(err, cmap='seismic', clim=(-100, 100))
-#         ax.contour(land_mask, levels=[.5], colors='k')
-#         divider = make_axes_locatable(ax)
-#         cax = divider.append_axes('right', size='5%', pad=0.05)
-#         fig.colorbar(im, cax)
-#         ax.set_title('Prediction minus true', fontsize=20)
-#
-#         # for ax in axes:
-#         #     ax.axes.xaxis.set_visible(False)
-#         #     ax.axes.yaxis.set_visible(False)
-#         plt.tight_layout()
-#
-#         plt.savefig('init_validation/{:04d}_{:02d}.png'.format(year, month), facecolor='white', dpi=300)
-#         plt.close()
-#
-#         acc = accuracy_score(y_monthly_mean[~mask]>15, pred_monthly_mean[~mask]>15)
-#         accs.append(acc)
-#
-# accs = np.array(accs)*100
-# print(np.mean(accs))
-#
-# # px.line(y=accs)
