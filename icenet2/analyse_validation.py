@@ -17,6 +17,11 @@ import plotly.express as px
 import matplotlib.pyplot as plt
 from distributed import Client, progress
 import seaborn as sns
+import matplotlib
+matplotlib.rcParams.update({
+    'figure.facecolor': 'w',
+    'figure.dpi': 300
+})
 
 use_local_distributed_cluster = True
 use_multiprocessing_scheduler = False
@@ -48,10 +53,27 @@ if __name__ == '__main__':
 
     ####################################################################
 
-    icenet2_name = 'unet_batchnorm'
+    network_name = 'unet_batchnorm'
     dataloader_name = '2021_03_03_1928_icenet2_init'
 
-    # TODO model list e.g. ['IceNet2', 'Persistence', 'SEAS5']
+    # Format for storing different IceNet2 results in one dataframe
+    icenet2_name = 'IceNet2__{}__{}'.format(dataloader_name, network_name)
+
+    pre_load_results_df = True
+
+    # What to compute
+    model_compute_list = ['Year_persistence', 'Day_persistence', icenet2_name]
+    # TODO: what about adding a new model for which none of the metrics have been done?
+    # TODO: what about icenet2 results changing but benchmarks not changing?
+    # TODO: compute_dict of model: metric pairs determined from loaded results_df?
+
+    # metric_compute_list = ['MAE', 'RMSE', 'MSE']
+    # metric_compute_list = ['Binary_accuracy', 'MAE']
+    # metric_compute_list = ['Binary_accuracy']
+    # metric_compute_list = ['Binary_accuracy', 'foo']
+    metric_compute_list = ['RMSE']
+
+    do_plotting = True
 
     ### Dataloader
     ####################################################################
@@ -75,12 +97,12 @@ if __name__ == '__main__':
     ### Monthly masks
     ####################################################################
 
-    config.folders['masks']
     mask_fpath_format = os.path.join(config.folders['masks'],
                                      config.formats['active_grid_cell_mask'])
 
-    mask_da = xr.DataArray(np.array(
-        [np.load(mask_fpath_format.format('{:02d}'.format(month))) for month in np.arange(1, 12+1)],
+    month_mask_da = xr.DataArray(np.array(
+        [np.load(mask_fpath_format.format('{:02d}'.format(month))) for
+         month in np.arange(1, 12+1)],
     ))
 
     ### Initialise results dataframe
@@ -92,34 +114,72 @@ if __name__ == '__main__':
         start_date=datetime(2012, 1, 1), end_date=datetime(2018, 1, 1)
     )
 
-    model_list = ['Year_persistence', 'Day_persistence', 'IceNet2']
-
-    # metric_list = ['MAE', 'RMSE', 'MSE']
-    metric_list = ['MAE']
-
-    multi_index = pd.MultiIndex.from_product(
-        [leadtimes, forecast_target_dates, model_list],
-        names=['Leadtime', 'Forecast date', 'Model'])
-    results_df = pd.DataFrame(index=multi_index, columns=metric_list)
-    results_df = pd.concat([results_df, pd.DataFrame(columns=metric_list)], axis=1)
+    # results_df_fpath = os.path.join(
+    #     config.folders['results'], dataloader_name, network_name, 'results.csv'
+    # )
 
     results_df_fpath = os.path.join(
-        config.folders['results'], dataloader_name, icenet2_name, 'results.csv'
+        config.folders['results'], 'results.csv'
     )
+
+    if pre_load_results_df:
+        results_df = pd.read_csv(results_df_fpath)
+        # results_df = results_df.drop('Unnamed: 0', axis=1)  # Drop spurious index column
+        results_df['Forecast date'] = [pd.Timestamp(date) for date in results_df['Forecast date']]
+
+        existing_models = results_df.Model.unique()
+        results_df = results_df.set_index(['Leadtime', 'Forecast date', 'Model'])
+        existing_metrics = results_df.columns
+
+        new_models = [model for model in model_compute_list if model not in existing_models]
+        new_metrics = [metric for metric in metric_compute_list if metric not in existing_metrics]
+
+        compute_dict = {}
+        for new_model in new_models:
+            # Compute all metrics for new models
+            compute_dict[new_model] = metric_compute_list
+
+        # Add new metrics to the dataframe
+        if len(new_metrics) > 0:
+            for existing_model in existing_models:
+                # Compute new metrics for existing models
+                compute_dict[existing_model] = new_metrics
+
+            results_df = pd.concat(
+                [results_df, pd.DataFrame(columns=new_metrics)], axis=1)
+
+        # Add new models to the dataframe
+        if len(new_models) > 0:
+            new_index = pd.MultiIndex.from_product(
+                [leadtimes, forecast_target_dates, new_models],
+                names=['Leadtime', 'Forecast date', 'Model'])
+            results_df = results_df.append(pd.DataFrame(index=new_index)).sort_index()
+
+    else:
+        # Instantiate new results dataframe
+        multi_index = pd.MultiIndex.from_product(
+            [leadtimes, forecast_target_dates, model_compute_list],
+            names=['Leadtime', 'Forecast date', 'Model'])
+        results_df = pd.DataFrame(index=multi_index, columns=metric_compute_list)
+
+        compute_dict = {
+            model: metric_compute_list for model in model_compute_list
+        }
 
     ### Load forecasts
     ####################################################################
 
-    # TODO loop through model_list
-    # TODO only need to run on statistical benchmarks once technically???
-
     validation_forecasts_dict = {}
 
-    for model in model_list:
+    for model in compute_dict.keys():
 
-        if model == 'IceNet2':
+        if model == 'Year_persistence':
+            # Forecasts computed locally in this script as they are so simple
+            continue
+
+        if model == icenet2_name:
             validation_forecast_folder = os.path.join(
-                config.folders['data'], 'forecasts', 'icenet2', dataloader_name, icenet2_name
+                config.folders['data'], 'forecasts', 'icenet2', dataloader_name, network_name
             )
         else:
             validation_forecast_folder = os.path.join(
@@ -128,22 +188,24 @@ if __name__ == '__main__':
         validation_prediction_fpaths = [
             os.path.join(validation_forecast_folder, f) for f in os.listdir(validation_forecast_folder)
         ]
-        forecast_ds = xr.open_mfdataset(
-            validation_prediction_fpaths, chunks=chunking
-        )
-        validation_forecasts_dict[model] = forecast_ds.sel(time=forecast_target_dates)
+        with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+            forecast_ds = xr.open_mfdataset(
+                validation_prediction_fpaths, chunks=chunking
+            )
+            validation_forecasts_dict[model] = forecast_ds.sel(time=forecast_target_dates)
 
     ### True SIC
     ####################################################################
 
     true_sic_fpath = os.path.join(config.folders['data'], 'siconca', 'siconca_all_interp.nc')
-    true_sic_da = xr.open_dataarray(true_sic_fpath)
+    true_sic_da = xr.open_dataarray(true_sic_fpath,
+                                    chunks=dict(time=chunking['time']))
 
     # Replace 12:00 hour with 00:00 hour by convention
     dates = [pd.Timestamp(date).to_pydatetime().replace(hour=0) for date in true_sic_da.time.values]
     true_sic_da = true_sic_da.assign_coords(dict(time=dates))
 
-    if 'Year_persistence' in model_list:
+    if 'Year_persistence' in model_compute_list:
         persistence_forecast_da = true_sic_da.copy()
         dates = [pd.Timestamp(date) + relativedelta(days=365) for date in persistence_forecast_da.time.values]
         persistence_forecast_da = persistence_forecast_da.assign_coords(dict(time=dates))
@@ -152,14 +214,31 @@ if __name__ == '__main__':
 
     true_sic_da = true_sic_da.sel(time=forecast_target_dates)
 
+    if 'Binary_accuracy' in metric_compute_list:
+        true_sic_binary_da = true_sic_da > 0.15
+
+    ### Monthwise masks
+    ####################################################################
+
+    months = [pd.Timestamp(date).month-1 for date in true_sic_da.time.values]
+    mask_da = xr.DataArray(
+        [month_mask_da[month] for month in months],
+        dims=('time', 'yc', 'xc'),
+        coords={
+            'time': true_sic_da.time.values,
+            'yc': true_sic_da.yc.values,
+            'xc': true_sic_da.xc.values,
+        }
+    )
+
     ### Compute
     ####################################################################
 
-    for model in model_list:
+    for model, model_metric_compute_list in compute_dict.items():
 
         print(model)
 
-        for metric in metric_list:
+        for metric in model_metric_compute_list:
 
             if metric == 'MAE':
 
@@ -167,26 +246,36 @@ if __name__ == '__main__':
 
                 abs_err_da = da.fabs(err_da)
 
-                months = [pd.Timestamp(date).month-1 for date in abs_err_da.time.values]
-                mask_arr = xr.DataArray(
-                    [mask_da[month] for month in months],
-                    dims=('time', 'yc', 'xc'),
-                    coords={
-                        'time': abs_err_da.time.values,
-                        'yc': abs_err_da.yc.values,
-                        'xc': abs_err_da.xc.values,
-                    }
-                )
-
-                # Computed weighted MAE
-                abs_weighted = abs_err_da.weighted(mask_arr)
-                compute_da = (abs_weighted.mean(dim=['yc', 'xc']) * 100)
+                # Compute weighted MAE
+                abs_weighted_da = abs_err_da.weighted(mask_da)
+                compute_da = (abs_weighted_da.mean(dim=['yc', 'xc']) * 100)
 
                 # print('visualising')
                 # g = compute_da.data.__dask_graph__()
                 # g.visualize(filename='graph.pdf', rankdir='LR')
                 # # compute_da.data.visualize(filename='graph.pdf')
                 # print('done')
+
+            if metric == 'RMSE':
+
+                # TODO: save compute if doing MSE and RMSE
+
+                err_da = validation_forecasts_dict[model] - true_sic_da
+
+                square_err_da = err_da**2
+
+                # Computed weighted RMSE
+                abs_weighted_da = square_err_da.weighted(mask_da)
+                compute_da = da.sqrt(abs_weighted_da.mean(dim=['yc', 'xc'])) * 100
+
+            if metric == 'Binary_accuracy':
+                forecast_binary_da = validation_forecasts_dict[model] > 0.15
+                binary_correct_da = (forecast_binary_da == true_sic_binary_da).astype(np.float32)
+                binary_correct_weighted_da = binary_correct_da.weighted(mask_da)
+
+                # Mean percentage of correct classifications over the active
+                #   grid cell area
+                compute_da = (binary_correct_weighted_da.mean(dim=['yc', 'xc']) * 100)
 
             print('Computing {}.'.format(metric))
             tic = time()
@@ -205,137 +294,21 @@ if __name__ == '__main__':
             print("Done in {}m:{:.0f}s.\n\n ".format(np.floor(dur / 60), dur % 60))
 
             compute_df = compute_da.to_dataframe()
-            # compute_df = compute_da.to_dataframe(name='compute_da')
 
+            idx = pd.IndexSlice
             if model == 'Year_persistence':
                 # Not a function of lead time
                 for leadtime in leadtimes:
-                    results_df.loc[leadtime, :, model] = \
+                    results_df.loc[idx[leadtime, :, model], metric] = \
                         compute_df.values
             else:
-                results_df.loc[:, :, model] = \
+                results_df.loc[idx[:, :, model], metric] = \
                     compute_df.values
 
     if use_local_distributed_cluster:
         client.close()
 
+    # Make sure index names are correct
+    results_df.index = results_df.index.rename(['Leadtime', 'Forecast date', 'Model'])
+
     results_df.to_csv(results_df_fpath)
-
-    # TEMP plotting
-    results_df = pd.read_csv(results_df_fpath)
-    results_df['Forecast date'] = [pd.Timestamp(date) for date in results_df['Forecast date']]
-    results_df['dayofyear'] = results_df['Forecast date'].dt.dayofyear
-    results_df = results_df.set_index(['Model', 'Leadtime', 'Forecast date'])
-
-    # results_df = results_df.rename(columns={'__xarray_dataarray_variable__': 'MAE'})
-
-    heatmap_dfs = {}
-    for model in model_list:
-        heatmap_dfs[model] = results_df.loc[model].groupby(['dayofyear', 'Leadtime']).mean().reset_index().\
-            pivot('dayofyear', 'Leadtime', 'MAE')
-
-        heatmap_dfs[model].index = pd.to_datetime(heatmap_df.index, unit='D', origin='2012-01-01') - pd.Timedelta(days=1)
-
-    heatmap_dfs['Day_persistence'] - heatmap_dfs['IceNet2']
-
-    import matplotlib
-    matplotlib.rcParams.update({
-        'figure.facecolor': 'w',
-        'figure.dpi': 300
-    })
-
-    for model in model_list:
-        fig, ax = plt.subplots(figsize=(6, 6))
-        sns.heatmap(
-            data=heatmap_dfs[model],
-            ax=ax,
-            cbar_kws=dict(label='SIC MAE (%)')
-        )
-        ax.yaxis.set_major_locator(matplotlib.dates.DayLocator(bymonthday=15))
-        ax.tick_params(axis='y', which='major',length=0)
-        ax.yaxis.set_major_formatter(matplotlib.dates.DateFormatter('%m'))
-        ax.yaxis.set_minor_locator(matplotlib.dates.DayLocator(bymonthday=1))
-        ax.set_xticks(np.arange(30, n_forecast_days, 30))
-        ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
-        ax.set_title('{} MAE'.format(model))
-        ax.set_ylabel('Calendar month')
-        ax.set_xlabel('Lead time (days)')
-        plt.tight_layout()
-        plt.savefig('mae_heatmap_{}.png'.format(model.lower()))
-        plt.close()
-
-    for model in ['Day_persistence', 'Year_persistence']:
-
-        heatmap_df_diff = heatmap_dfs['IceNet2'] - heatmap_dfs[model]
-        max = np.max(np.abs(heatmap_df_diff.values))
-
-        fig, ax = plt.subplots(figsize=(6, 6))
-        sns.heatmap(
-            data=heatmap_df_diff,
-            cmap='seismic',
-            ax=ax,
-            vmax=max,
-            vmin=-max,
-            cbar_kws=dict(label='SIC MAE (%)')
-        )
-
-        ax.yaxis.set_major_locator(matplotlib.dates.DayLocator(bymonthday=15))
-        ax.tick_params(axis='y', which='major',length=0)
-        ax.yaxis.set_major_formatter(matplotlib.dates.DateFormatter('%m'))
-        ax.yaxis.set_minor_locator(matplotlib.dates.DayLocator(bymonthday=1))
-        ax.set_xticks(np.arange(30, n_forecast_days, 30))
-        ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
-        ax.set_title('IceNet2 MAE improvement over {}'.format(model))
-        ax.set_ylabel('Calendar month')
-        ax.set_xlabel('Lead time (days)')
-        plt.tight_layout()
-        plt.savefig('diff_mae_heatmap_{}.png'.format(model.lower()))
-        plt.close()
-
-    fig, ax = plt.subplots()
-    sns.lineplot(
-        x='Leadtime',
-        y='MAE',
-        ci=None,
-        hue='Model',
-        data=results_df,
-        ax=ax
-    )
-    ax.set_ylabel('MAE (%)')
-    plt.tight_layout()
-    plt.savefig('mae_vs_leadtime.png')
-    ax.set_xticks(np.arange(30, n_forecast_days, 30))
-    ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
-    plt.close()
-
-    fig, ax = plt.subplots()
-    sns.lineplot(
-        x='Leadtime',
-        y='MAE',
-        hue='Model',
-        data=results_df.loc[:, :, datetime(2012,9,15)],
-        ax=ax
-    )
-    ax.set_ylabel('MAE (%)')
-    ax.set_xticks(np.arange(30, n_forecast_days, 30))
-    ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
-    plt.tight_layout()
-    plt.savefig('mae_vs_leadtime_2012_09_15.png')
-    plt.close()
-
-    fig, ax = plt.subplots()
-    sns.lineplot(
-        x='Forecast date',
-        y='MAE',
-        data=results_df[results_df.Leadtime.isin([1, 30, 60, 90])],
-        hue='Leadtime',
-        ax=ax
-    )
-    ax.set_ylabel('MAE (%)')
-    ax.set_xlabel('Forecast date')
-    plt.tight_layout()
-    plt.savefig('mae_vs_forecast_date.png')
-    plt.close()
-
-    # TODO: assign values to results_df pandas DataFrame
-    # results_df.loc[:, :, 'IceNet2'].MAE = df.values  # ???
