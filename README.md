@@ -41,7 +41,9 @@ Running the commands below in the root of the repository will set up the conda e
 
 ### 5) Run validation
 
-- `python3 icenet2/validate_icenet2`
+- Save daily predictions in yearly NetCDFs for IceNet2 and benchmarks: `python3 icenet2/predict_validation`
+- Load the forecast data and efficiently compute forecast metrics using dask, storing results in a global pands DataFrame: `python3 icenet2/analyse_validation`
+- Plot results using seaborn: `python3 icenet2/plot_validation`
 
 ## Repo TODO list
 
@@ -61,4 +63,4 @@ Running the commands below in the root of the repository will set up the conda e
 * [x] Script to train IceNet2
 
 ##### Validating IceNet2
-* [ ] Script to validate IceNet2 and produce plots
+* [x] Script to validate IceNet2 and produce plots
