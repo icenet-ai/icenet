@@ -3,6 +3,7 @@ import sys
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))
 import config
 import utils
+import misc
 import metrics
 import losses
 import numpy as np
@@ -85,12 +86,12 @@ true_sic_da = true_sic_da.assign_coords(dict(time=dates))
 n_forecast_days = dataloader.config['n_forecast_days']
 
 # TODO: get this from dataloader config?
-all_forecast_target_dates = utils.filled_daily_dates(
+all_forecast_target_dates = misc.filled_daily_dates(
     start_date=datetime(2012, 1, 1), end_date=datetime(2020, 12, 31),
     include_end=True
 )
 
-all_forecast_start_dates = utils.filled_daily_dates(
+all_forecast_start_dates = misc.filled_daily_dates(
     start_date=all_forecast_target_dates[0] - relativedelta(days=n_forecast_days-1),
     end_date=all_forecast_target_dates[-1],
     include_end=True)
@@ -105,7 +106,7 @@ for model in models:
     # TODO: don't hard code years
     for year in np.arange(2012, 2020+1):
 
-        year_forecast_target_dates = utils.filled_daily_dates(
+        year_forecast_target_dates = misc.filled_daily_dates(
             start_date=datetime(year, 1, 1), end_date=datetime(year, 12, 31),
             include_end=True
         )
@@ -158,7 +159,7 @@ for model in models:
             persistence_date = forecast_start_date - relativedelta(days=1)
             pred = true_sic_da.sel(time=persistence_date).data
 
-        forecast_target_dates = utils.filled_daily_dates(
+        forecast_target_dates = misc.filled_daily_dates(
             start_date=forecast_start_date,
             end_date=forecast_start_date + relativedelta(days=n_forecast_days-1),
             include_end=True

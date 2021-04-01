@@ -17,6 +17,8 @@ sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter ker
 # sys.path.insert(0, os.path.abspath(os.path.join(__file__, os.pardir)))
 import config
 import utils
+import misc
+import argparse
 
 '''
 
@@ -29,27 +31,57 @@ speed. The interpolation and saving takes around 10 minutes.
 
 '''
 
+################################################################################
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--hemisphere', default='nh', type=str)
+args = parser.parse_args()
+
+# hemisphere='sh'
+
+hemisphere = args.hemisphere
+
+print('HEMISPHERE: {}\n\n'.format(hemisphere.upper()))
+
 ###############################################################################
 
 do_download = False  # True: download the raw daily data
 do_preproc = True  # True: also preprocess the raw daily data and save in yearly NetCDF files
 delete_raw_daily_data = True  # True: delete the raw daily SIC data after preprocessing
-do_fill_missing_months = True  # True: create NetCDFs for the missing months with NaN data
 
 do_interp = True  # True: interpolate missing days/values in the downloaded dataset
 gen_interp_video = True  # True: generate video of interpolated dataset (takes ~30 mins)
+                         # NOTE: loads all data into RAM
+gen_raw_daily_images = False
 
 regex = re.compile('^.*\.nc$')
 
-land_mask = np.load(os.path.join(config.folders['masks'], config.fnames['land_mask']))
+mask_folder = os.path.join(
+    'data', hemisphere, 'masks'
+)
+
+land_mask = np.load(os.path.join(
+    mask_folder, config.fnames['land_mask']
+))
 
 active_grid_cell_masks = {}
 for month in np.arange(1, 13):
     month_str = '{:02d}'.format(month)
-    active_grid_cell_masks[month_str] = np.load(os.path.join(config.folders['masks'],
-                                                config.formats['active_grid_cell_mask'].format(month_str)))
+    active_grid_cell_masks[month_str] = np.load(os.path.join(
+        mask_folder, config.formats['active_grid_cell_mask'].format(month_str)))
 
-da_year_folder = os.path.join(config.folders['siconca'], 'raw_yearly_data')
+siconca_data_folder = os.path.join('data', hemisphere, 'siconca')
+if not os.path.exists(siconca_data_folder):
+    os.makedirs(siconca_data_folder)
+
+da_year_folder = os.path.join(siconca_data_folder, 'raw_yearly_data')
+if not os.path.exists(da_year_folder):
+    os.makedirs(da_year_folder)
+
+missing_sic_day_csv_fpath = os.path.join(
+    'data', hemisphere, config.fnames['missing_sic_days'])
+
+da_interp_path = os.path.join(siconca_data_folder, 'siconca_all_interp.nc')
 
 if do_download:
 
@@ -59,22 +91,18 @@ if do_download:
 
     # Get the daily OSI 450 data of SIC from 01/01/1979 to 31/12/2015 in NetCDF
     #   format (all measurements at 12.00pm)
-
     # options: mirror, no host directory name, cut the first 4 directories
     #   from the path, output root is "raw-data/sea-ice"
 
     retrieve_cmd_template_osi450 = 'wget -m -nH -nv --cut-dirs=4 -P {} ' \
-        'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/ice_conc_nh*'
-
+        'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/ice_conc_{}*'
     retrieve_cmd_template_osi430b = 'wget -m -nH -nv --cut-dirs=4 -P {} '\
-        'ftp://osisaf.met.no/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/ice_conc_nh*'
+        'ftp://osisaf.met.no/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/ice_conc_{}*'
 
-    daily_nan_sic_fig_folder = os.path.join(config.folders['figures'], 'daily_sic_nans')
+    daily_nan_sic_fig_folder = os.path.join(
+        config.folders['figures'], 'daily_sic_nans', hemisphere)
     if not os.path.exists(daily_nan_sic_fig_folder):
         os.makedirs(daily_nan_sic_fig_folder)
-
-    if not os.path.exists(da_year_folder):
-        os.makedirs(da_year_folder)
 
     tic = time.time()
 
@@ -98,13 +126,17 @@ if do_download:
             # Download the data if not already downloaded
             if do_download:
                 if year <= 2015:
-                    os.system(retrieve_cmd_template_osi450.format(config.folders['siconca'], year, month))
+                    os.system(retrieve_cmd_template_osi450.format(
+                        siconca_data_folder, year, month, hemisphere
+                    ))
                 else:
-                    os.system(retrieve_cmd_template_osi430b.format(config.folders['siconca'], year, month))
+                    os.system(retrieve_cmd_template_osi430b.format(
+                        siconca_data_folder, year, month, hemisphere
+                    ))
 
             if do_download or do_preproc:
                 # Folder the daily data was downloaded to
-                month_data_folder = os.path.join(config.folders['siconca'], year_str, month_str)
+                month_data_folder = os.path.join(siconca_data_folder, year_str, month_str)
 
                 filenames_downloaded = sorted(os.listdir(month_data_folder))  # List of files in month folder
                 filenames_downloaded = [filename for filename in filenames_downloaded if regex.match(filename)]
@@ -117,7 +149,7 @@ if do_download:
                     # Save cleaned files in year_month_day format
                     filenames_cleaned.append('{}_{}_{}.nc'.format(match[1], match[2], match[3]))
 
-                paths_after = [os.path.join(config.folders['siconca'], filename_a) for filename_a in filenames_cleaned]
+                paths_after = [os.path.join(siconca_data_folder, filename_a) for filename_a in filenames_cleaned]
 
             if do_preproc:
                 print("Preprocessing {}/{}... ".format(year, month), end='', flush=True)
@@ -137,6 +169,7 @@ if do_download:
                         # Divide values to fit in range 0-1
                         da_day.data = da_day.data / 100.
 
+                        # Set SIC outside of active grid cell area to zero
                         da_day.data[0, ~active_grid_cell_masks[month_str]] = 0.
 
                         # TEMP: plotting any missing NaN values in figures/ folder while investigating them
@@ -177,7 +210,7 @@ if do_download:
             if do_download:
                 # Remove year folder once the year is fully processed
                 if month == 12 or [year, month] == [1987, 11]:
-                    year_dir = os.path.join(config.folders['siconca'], '{}'.format(year))
+                    year_dir = os.path.join(siconca_data_folder, '{}'.format(year))
                     if len(os.listdir(year_dir)) == 0:
                         os.rmdir(year_dir)
 
@@ -211,7 +244,7 @@ if do_interp:
 
     # Remove corrupt days with artefacts
     # da = da.drop_sel(time=datetime(1984, 9, 14, 12))
-    da = da.drop_sel(time=config.corrupt_sic_days)
+    da = da.drop_sel(time=config.corrupt_sic_days[hemisphere], errors='ignore')
 
     # Fill missing 1st Jan 1979 with observed 2nd Jan 1979 for continuity
     da_1979_01_01 = da.sel(time=[datetime(1979, 1, 2, 12)]).copy().assign_coords({'time': [datetime(1979, 1, 1, 12)]})
@@ -231,7 +264,7 @@ if do_interp:
 
     dates_obs = [pd.Timestamp(date).to_pydatetime() for date in da.time.values]
 
-    dates_all = utils.filled_daily_dates(datetime(1979, 1, 1, 12), datetime(2021, 1, 1, 12))
+    dates_all = misc.filled_daily_dates(datetime(1979, 1, 1, 12), datetime(2021, 1, 1, 12))
 
     dates_missing = []
     for date in dates_all:
@@ -247,11 +280,11 @@ if do_interp:
     start = [row.date - row.gap_from_prev for date, row in gaps_thresh_df.iterrows()]
     start_end_gap_df = pd.DataFrame({'start': start, 'end': end, 'gap': gaps_thresh_df.gap_from_prev})
     start_end_gap_df = start_end_gap_df.reset_index().drop(columns='index')
-    start_end_gap_df.to_csv(os.path.join(config.folders['data'], config.fnames['missing_sic_days']))
+    start_end_gap_df.to_csv(missing_sic_day_csv_fpath)
 
     # ---------------- Fill missing dates
 
-    print('Interpolating {} missing days.\n'.format(len(dates_missing)))
+    print('Temporal linear interpolation of {} missing days...\n'.format(len(dates_missing)))
     da_interp = da.copy()
     for date in tqdm(dates_missing):
         da_interp = xr.concat([da_interp, da.interp(time=date)], dim='time')
@@ -260,11 +293,11 @@ if do_interp:
 
     # ---------------- Fill polar hole and NaN values
 
-    print("Realising array for interpolation... ", end='', flush=True)
+    print("Realising array for bilinear spatial interpolation... ", end='', flush=True)
     da_interp.data = np.array(da_interp.data, dtype=np.float32)
     print('Done.')
 
-    print("Bilinearly interpolating polar hole and any NaNs...")
+    print("Bilinearly interpolating any polar hole and or NaNs grid cells...")
     x = da_interp['xc'].data
     y = da_interp['yc'].data
 
@@ -272,21 +305,29 @@ if do_interp:
 
     for date in tqdm(dates_all):
 
-        skip_interp = False
-        if date <= config.polarhole1_final_date:
-            polarhole_mask = np.load(os.path.join(config.folders['masks'], config.fnames['polarhole1']))
-        elif date <= config.polarhole2_final_date:
-            polarhole_mask = np.load(os.path.join(config.folders['masks'], config.fnames['polarhole2']))
-        else:
-            skip_interp = True
+        da_day = da_interp.sel(time=date)
 
-        if not skip_interp:
+        if hemisphere == 'sh':
+            polarhole = False  # No polar hole over Antactic sea ice
+        if hemisphere == 'nh':
+            polarhole = True
+            if date <= config.polarhole1_final_date:
+                polarhole_mask = np.load(
+                    os.path.join('data', hemisphere, 'masks', config.fnames['polarhole1']))
+            elif date <= config.polarhole2_final_date:
+                polarhole_mask = np.load(
+                    os.path.join('data', hemisphere, 'masks', config.fnames['polarhole2']))
+            else:
+                polarhole = False
 
-            da_day = da_interp.sel(time=date)
+        # Grid cells outside of polar hole or NaN regions
+        valid = ~np.isnan(da_day.data)
 
-            # Grid cells outside of polar hole or NaN regions
-            valid = ~np.isnan(da_day.data)
+        if polarhole:
             valid = valid & ~polarhole_mask
+
+        # Interpolate if there is more than one missing grid cell
+        if np.sum(~valid) >= 1:
 
             ### Find grid cell locations surrounding NaN regions for bilinear interpolation
             nan_mask = np.ma.masked_array(np.full((432, 432), 0.))
@@ -334,7 +375,6 @@ if do_interp:
 
     print('\nSaving interpolated dataset... ', end='', flush=True)
     tic_save = time.time()
-    da_interp_path = os.path.join(config.folders['siconca'], 'siconca_all_interp.nc')
     if os.path.exists(da_interp_path):
         os.remove(da_interp_path)
     da_interp.to_netcdf(da_interp_path, mode='w')
@@ -363,12 +403,49 @@ if do_interp:
     #     plt.savefig(date.strftime('figures/all_siconca_obs/%Y_%m_%d.png'))
     #     plt.close()
 
-    if gen_interp_video:
+if gen_interp_video:
 
-        print('Making video of interpolated data...')
-        video_path = os.path.join('videos', 'video_all_interp_spatial.mp4')
-        utils.xarray_to_video(
-            da_interp, video_path, mask=land_mask, mask_type='contourf',
-            fps=15, cmap='Blues_r', figsize=15
-        )
-        print('Done.')
+    print('Making video of interpolated data...')
+
+    da_interp = xr.open_dataarray(da_interp_path)
+    # da_interp = xr.open_dataarray(da_interp_path).sel(time=slice('2020-07-01', '2020-12-31'))
+
+    # crop = [(50, 200), (50, 200)]
+    crop = None
+
+    video_folder = os.path.join('videos', hemisphere)
+    if not os.path.exists(video_folder):
+        os.makedirs(video_folder)
+    video_path = os.path.join(video_folder, 'video_all_interp_spatial.mp4')
+    misc.xarray_to_video(
+        da_interp, video_path, mask=land_mask, mask_type='contourf',
+        crop=crop, fps=15, cmap='Blues_r', figsize=15
+    )
+    print('Done.')
+
+if gen_raw_daily_images:
+    # Open the downloaded data (stored in yearly files)
+    p = da_year_folder
+    siconca_year_fpaths = [os.path.join(p, f) for f in os.listdir(p) if regex.match(f)]
+
+    print('\nLoading daily SIC dataset... ', end='', flush=True)
+    da = xr.open_mfdataset(siconca_year_fpaths, combine='by_coords')['ice_conc']
+    print('Done.')
+
+    daily_images_folder = os.path.join('figures', 'all_siconca_obs', hemisphere)
+    if not os.path.exists(daily_images_folder):
+        os.makedirs(daily_images_folder)
+
+    print('Generating daily images...')
+
+    for date in tqdm(da.time.values):
+        date = pd.Timestamp(date)
+        fig, ax = plt.subplots(figsize=(3, 3))
+        ax.imshow(da.sel(time=date), cmap='Blues_r')
+        ax.contourf(land_mask, levels=[.5, 1], colors='k')
+        ax.set_title(date.strftime('%Y_%m_%d'))
+        ax.axes.xaxis.set_visible(False)
+        ax.axes.yaxis.set_visible(False)
+        fpath = os.path.join(daily_images_folder, date.strftime('%Y_%m_%d.png'))
+        plt.savefig(fpath, dpi=300)
+        plt.close()

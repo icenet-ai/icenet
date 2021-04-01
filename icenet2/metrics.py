@@ -26,7 +26,7 @@ def weighted_RMSE(y_true, y_pred):
     return K.sqrt(K.mean(K.square(err)*sample_weight))
 
 
-def MAE(y_true, y_pred):
+def weighted_MAE(y_true, y_pred):
     ''' Custom keras loss/metric for root mean squared error
 
     Parameters:

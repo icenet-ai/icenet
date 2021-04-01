@@ -1,6 +1,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
+import misc
 import utils
 import numpy as np
 from datetime import datetime
@@ -23,17 +24,19 @@ preproc_vars = {
     'siconca': {'anom': False, 'abs': False},
     'tas': {'anom': False, 'abs': False},
     'ta500': {'anom': False, 'abs': False},
-    'tos': {'anom': False, 'abs': False},
+    'tos': {'anom': True, 'abs': False},
     'psl': {'anom': False, 'abs': False},
     'zg500': {'anom': False, 'abs': False},
     'zg250': {'anom': False, 'abs': False},
-    'land': {'metadata': True, 'include': True},
-    'circday': {'metadata': True, 'include': True}
+    'land': {'metadata': True, 'include': False},
+    'circday': {'metadata': True, 'include': False}
 }
+
+preproc_hemispheres = ['sh']
 
 start_date = datetime(1979, 1, 1)
 end_date = datetime(2012, 1, 1)
-obs_train_dates = utils.filled_daily_dates(start_date, end_date)
+obs_train_dates = misc.filled_daily_dates(start_date, end_date)
 
 minmax = False
 
@@ -43,9 +46,10 @@ raw_data_shape = (432, 432)
 
 dtype = np.float32
 
-dpp = utils.IceNet2DataPreProcessor(
+utils.IceNet2DataPreProcessor(
     dataset_name=dataset_name,
     preproc_vars=preproc_vars,
+    preproc_hemispheres=preproc_hemispheres,
     obs_train_dates=obs_train_dates,
     minmax=minmax,
     verbose_level=verbose_level,

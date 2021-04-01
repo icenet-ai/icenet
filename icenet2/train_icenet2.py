@@ -6,26 +6,51 @@ import utils
 import models
 import losses
 import metrics
-import callbacks
 import tensorflow as tf
 import numpy as np
-import wandb
+import argparse
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, LearningRateScheduler
+import matplotlib.pyplot as plt
+
+#### Commandline args
+####################################################################
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--seed', default=42, type=int)
+args = parser.parse_args()
+
+seed = args.seed
+
+print('SEED: {}\n\n'.format(seed))
+
+#### Weights and Biases
+####################################################################
+
+os.environ['WANDB_DIR'] = '/data/hpcdata/users/tomand/code'
+os.environ['WANDB_CONFIG_DIR'] = '/data/hpcdata/users/tomand/code'
+os.environ['WANDB_API_KEY'] = '812e7529d63e68066174e3ce97fffe94e1887893'
+
+import wandb
+import callbacks  # Uses wandb so env variables must be set
 from wandb.keras import WandbCallback
 
-wandb.init(project="icenet2")  #, config=defaults)
+wandb.init(project='icenet2',
+           entity='tomandersson',
+           dir='/data/hpcdata/users/tomand/code/icenet2')  #, config=defaults)
 
 #### User input
 ####################################################################
 
 icenet2_name = 'unet_batchnorm'
-dataloader_name = '2021_03_03_1928_icenet2_init'
+# dataloader_name = '2021_03_03_1928_icenet2_init'
+dataloader_name = '2021_03_29_1437_icenet2_nh_sh'
 
-seed = 42
+n_epochs = 40
 
 early_stopping_patience = 5  # No of epochs without improvement before training is aborted
 
-checkpoint_monitor = 'val_weighted_RMSE'
+# checkpoint_monitor = 'val_weighted_RMSE'
+checkpoint_monitor = 'val_weighted_MAE'
 checkpoint_mode = 'min'
 
 # Miscellaneous callback inputs
@@ -33,6 +58,12 @@ checkpoint_mode = 'min'
 # sample_callbacks_at_zero = True
 # wandb_log_figure = True
 # wandb_log_weights = True
+
+max_queue_size = 5
+workers = 5
+use_multiprocessing = False
+
+training_verbosity = 0
 
 # Data loaders; set up paths
 ####################################################################
@@ -54,13 +85,11 @@ input_shape = (*dataloader.config['raw_data_shape'], dataloader.tot_num_channels
 #### Loss, metrics, and callbacks
 ####################################################################
 
-# TODO: early stopping
-
 # Loss
 loss = losses.weighted_MSE
 
 # Metrics
-metrics = [metrics.MAE, metrics.weighted_RMSE, losses.weighted_MSE]
+metrics = [metrics.weighted_MAE, metrics.weighted_RMSE, losses.weighted_MSE]
 
 # Callbacks
 callbacks_list = []
@@ -125,7 +154,7 @@ callbacks_list.append(
 # Learning rate schedule with exponential decay
 callbacks_list.append(
     LearningRateScheduler(
-        utils.make_exp_decay_lr_schedule(rate=0.1)
+        utils.make_exp_decay_lr_schedule(rate=0.15)
     ))
 
 #### Define model
@@ -154,11 +183,17 @@ tf.config.experimental_run_functions_eagerly(True)
 print('\n\nTraining IceNet2:\n')
 history = network.fit(
     dataloader,
-    epochs=10,
-    verbose=1,
+    epochs=n_epochs,
+    verbose=training_verbosity,
     callbacks=callbacks_list,
     validation_data=val_dataloader,
-    max_queue_size=5,
-    workers=5,
-    use_multiprocessing=True
+    max_queue_size=max_queue_size,
+    workers=workers,
+    use_multiprocessing=use_multiprocessing
 )
+
+fig, ax = plt.subplots()
+ax.plot(history.history['val_weighted_MAE'], label='val')
+ax.plot(history.history['weighted_MAE'], label='train')
+ax.legend(loc='best')
+plt.savefig(os.path.join(network_folder, 'network_{}_history.png'.format(seed)))

@@ -51,10 +51,11 @@ class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
     Docstring TODO
     """
 
-    def __init__(self, batch_frequency, log_weights=True,
-                 log_figure=False, dataloader=None,
+    def __init__(self, batch_frequency, log_metrics=True,
+                 log_weights=False, log_figure=False, dataloader=None,
                  sample_at_zero=False):
         self.batch_frequency = batch_frequency
+        self.log_metrics = log_metrics
         self.log_weights = log_weights
         self.log_figure = log_figure
         self.dataloader = dataloader
@@ -64,16 +65,17 @@ class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
         self.log_figure_lead_days = 31
 
         if log_figure:
-            self.land_mask = np.load(os.path.join(config.folders['masks'],
+            self.land_mask = np.load(os.path.join('data', 'nh', 'masks',
                                                   config.fnames['land_mask']))
 
     def on_train_batch_end(self, batch, logs=None):
 
         if (batch == 0 and self.sample_at_zero) or (batch + 1) % self.batch_frequency == 0:
-            wandb.log(logs)
+            if self.log_metrics:
+                wandb.log(logs)
 
             if self.log_figure:
-                X, y = self.dataloader.data_generation(np.array([self.log_figure_init_date]))
+                X, y = self.dataloader.data_generation([('nh', self.log_figure_init_date)])
                 pred = self.model.predict(X)
                 mask = y[:, :, :, :, 1] == 0
                 pred[mask] = 0

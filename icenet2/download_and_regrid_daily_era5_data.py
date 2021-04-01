@@ -10,8 +10,6 @@ from datetime import datetime
 import warnings
 import numpy as np
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
-import config
-import utils
 import argparse
 
 """
@@ -67,9 +65,12 @@ to be run in parallel for different variables.
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--var', default='tas')
+parser.add_argument('--hemisphere', default='nh')
 args = parser.parse_args()
 
-variable = args.var
+################################################################################
+
+overwrite = False  # Whether to skip yearly files already downloaded/regridded
 
 ################################################################################
 
@@ -117,7 +118,11 @@ def fix_near_real_time_era5_coords(da):
 
 ################################################################################
 
-area = [90, -180, 0, 180]  # Latitude/longitude boundaries to download
+# Latitude/longitude boundaries to download
+if args.hemisphere == 'nh':
+    area = [90, -180, 0, 180]
+elif args.hemisphere == 'sh':
+    area = [-90, -180, 0, 180]
 
 # Which years to download
 years = [
@@ -191,7 +196,7 @@ variables = {
     },
 }
 
-var_dict = variables[variable]
+var_dict = variables[args.var]
 
 # ---------------- Download
 
@@ -204,15 +209,15 @@ for year_chunk in years:
 
     print('\n\n' + year_start + '-' + year_end + '\n\n')
 
-    var_folder = os.path.join(config.folders['data'], variable)
+    var_folder = os.path.join('data', args.hemisphere, args.var)
     if not os.path.exists(var_folder):
         os.makedirs(var_folder)
 
-    download_path = os.path.join(var_folder, '{}_latlon_hourly_{}_{}.nc'.format(variable, year_start, year_end))
-    daily_fpath = os.path.join(var_folder, '{}_latlon_{}_{}.nc'.format(variable, year_start, year_end))
-    daily_ease_fpath = os.path.join(var_folder, '{}_{}_{}.nc'.format(variable, year_start, year_end))
+    download_path = os.path.join(var_folder, '{}_latlon_hourly_{}_{}.nc'.format(args.var, year_start, year_end))
+    daily_fpath = os.path.join(var_folder, '{}_latlon_{}_{}.nc'.format(args.var, year_start, year_end))
+    daily_ease_fpath = os.path.join(var_folder, '{}_{}_{}.nc'.format(args.var, year_start, year_end))
 
-    if os.path.exists(daily_ease_fpath):
+    if os.path.exists(daily_ease_fpath) and not overwrite:
         print('Skipping this year chunk due to existing file at: {}'.format(daily_ease_fpath))
         continue
 
@@ -234,7 +239,7 @@ for year_chunk in years:
         dataset_str = 'reanalysis-era5-pressure-levels'
         retrieve_dict['pressure_level'] = var_dict['plevel']
 
-    print("\nDownloading data for {}...\n".format(variable))
+    print("\nDownloading data for {}...\n".format(args.var))
 
     if os.path.exists(download_path):
         print("Removing pre-existing NetCDF file at {}". format(download_path))
@@ -255,6 +260,14 @@ for year_chunk in years:
 
     da_daily = da.resample(time='1D').reduce(np.mean)
 
+    if args.var == 'zg500' or args.var == 'zg250':
+        da_daily = da_daily / 9.80665
+
+    if args.var == 'tos':
+        # Replace every value outside of SST < 1000 with zeros (the ERA5 masked values)
+        da_daily = da_daily.where(da_daily < 1000., 0)
+
+    print(np.unique(da_daily.data)[[0, -1]])  # TEMP
     print('saving new daily year file... ', end='', flush=True)
     da_daily.to_netcdf(daily_fpath)
     os.remove(download_path)
@@ -262,7 +275,9 @@ for year_chunk in years:
 
     # ---------------- Regrid & save
 
-    sic_day_fpath = os.path.join(config.folders['data'], 'ice_conc_nh_ease2-250_cdr-v2p0_197901021200.nc')
+    sic_day_folder = os.path.join('data', 'siconca', args.hemisphere)
+    sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'.format(args.hemisphere)
+    sic_day_fpath = os.path.join(sic_day_folder, sic_day_fname)
 
     if not os.path.exists(sic_day_fpath):
         print("\nDownloading single daily SIC netCDF file for regridding ERA5 data to EASE grid...\n")
@@ -271,8 +286,8 @@ for year_chunk in years:
         warnings.simplefilter("ignore", UserWarning)
 
         retrieve_sic_day_cmd = 'wget -m -nH --cut-dirs=6 -P {} ' \
-            'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/1979/01/ice_conc_nh_ease2-250_cdr-v2p0_197901021200.nc'
-        os.system(retrieve_sic_day_cmd.format(config.folders['data']))
+            'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/1979/01/{}'
+        os.system(retrieve_sic_day_cmd.format(sic_day_folder, sic_day_fname))
 
         print('Done.')
 
@@ -283,7 +298,7 @@ for year_chunk in years:
     sic_EASE_cube.coord('projection_x_coordinate').convert_units('meters')
     sic_EASE_cube.coord('projection_y_coordinate').convert_units('meters')
 
-    print("\nRegridding and saving {} reanalysis data... ".format(variable), end='', flush=True)
+    print("\nRegridding and saving {} reanalysis data... ".format(args.var), end='', flush=True)
     tic = time.time()
 
     cube = iris.load_cube(daily_fpath)
@@ -292,17 +307,11 @@ for year_chunk in years:
     # regrid onto the EASE grid
     cube_ease = cube.regrid(sic_EASE_cube, iris.analysis.Linear())
 
-    if variable == 'zg500' or variable == 'zg250':
-        cube_ease = cube_ease / 9.80665
-
-    if variable == 'tos':
-        cube_ease[cube_ease > 1000.] = 0.
-
     toc = time.time()
     print("Done in {:.3f}s.".format(toc - tic))
 
     print("Saving regridded data... ", end='', flush=True)
-    if os.path.exists(daily_ease_fpath):
+    if os.path.exists(daily_ease_fpath) and overwrite:
         os.remove(daily_ease_fpath)
     iris.save(cube_ease, daily_ease_fpath)
     os.remove(daily_fpath)

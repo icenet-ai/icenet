@@ -5,18 +5,15 @@ import numpy as np
 from datetime import datetime
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
 import config
-import utils
+import misc
 from dateutil.relativedelta import relativedelta
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import tensorflow as tf
 import xarray as xr
 import pandas as pd
 import regex as re
 import json
-import imageio
-import matplotlib.pyplot as plt
 import time
-from tqdm import tqdm
+
 
 ###############################################################################
 ############### DATA PROCESSING & LOADING
@@ -32,7 +29,7 @@ class IceNet2DataPreProcessor(object):
      - data/network_datasets/dataset_name/obs/tas/2006_04_12.npy
     """
 
-    def __init__(self, dataset_name, preproc_vars, obs_train_dates,
+    def __init__(self, dataset_name, preproc_vars, preproc_hemispheres, obs_train_dates,
                  minmax, verbose_level, raw_data_shape,
                  dtype=np.float32):
         """
@@ -59,6 +56,9 @@ class IceNet2DataPreProcessor(object):
                     'circday': {'metadata': True, 'include': True}
                 }
 
+        preproc_hemispheres (list): Which hemispheres to preprocess
+        options: ('nh' and 'sh')
+
         obs_train_dates (tuple): Tuple of months (stored as datetimes)
         to be used for the training set by the data loader.
 
@@ -73,6 +73,7 @@ class IceNet2DataPreProcessor(object):
 
         """
         self.dataset_name = dataset_name
+        self.preproc_hemispheres = preproc_hemispheres
         self.preproc_vars = preproc_vars
         self.obs_train_dates = obs_train_dates
         self.minmax = minmax
@@ -97,39 +98,43 @@ class IceNet2DataPreProcessor(object):
                   end='', flush=True)
 
         # Root folder for this dataset
-        self.dataset_path = os.path.join(config.folders['data'], 'network_datasets', self.dataset_name)
+        self.dataset_path = os.path.join('data', 'network_datasets', self.dataset_name)
 
         # Dictionary data structure to store folder paths
         self.paths = {}
 
-        # Set up the folder hierarchy
-        self.paths['obs'] = {}
+        for hemisphere in self.preproc_hemispheres:
 
-        for varname, vardict in self.preproc_vars.items():
+            self.paths[hemisphere] = {}
 
-            if 'metadata' not in vardict.keys():
-                self.paths['obs'][varname] = {}
+            # Set up the folder hierarchy
+            self.paths[hemisphere]['obs'] = {}
 
-                for data_format in vardict.keys():
+            for varname, vardict in self.preproc_vars.items():
 
-                    if vardict[data_format] is True:
-                        path = os.path.join(self.dataset_path, 'obs',
-                                            varname, data_format)
+                if 'metadata' not in vardict.keys():
+                    self.paths[hemisphere]['obs'][varname] = {}
 
-                        self.paths['obs'][varname][data_format] = path
+                    for data_format in vardict.keys():
+
+                        if vardict[data_format] is True:
+                            path = os.path.join(self.dataset_path, hemisphere, 'obs',
+                                                varname, data_format)
+
+                            self.paths[hemisphere]['obs'][varname][data_format] = path
+
+                            if not os.path.exists(path):
+                                os.makedirs(path)
+
+                elif 'metadata' in vardict.keys():
+
+                    if vardict['include'] is True:
+                        path = os.path.join(self.dataset_path, hemisphere, 'meta')
+
+                        self.paths[hemisphere]['meta'] = path
 
                         if not os.path.exists(path):
                             os.makedirs(path)
-
-            elif 'metadata' in vardict.keys():
-
-                if vardict['include'] is True:
-                    path = os.path.join(self.dataset_path, 'meta')
-
-                    self.paths['meta'] = path
-
-                    if not os.path.exists(path):
-                        os.makedirs(path)
 
         if self.verbose_level >= 1:
             print('Done.')
@@ -209,7 +214,7 @@ class IceNet2DataPreProcessor(object):
         elif not minmax:
             return new_da, mean, std
 
-    def save_xarray_in_daily_averages(self, da, dataset_type, varname, data_format,
+    def save_xarray_in_daily_averages(self, da, dataset_type, hemisphere, varname, data_format,
                                       member_id=None):
 
         """
@@ -237,13 +242,57 @@ class IceNet2DataPreProcessor(object):
             fname = date_datetime.strftime('%Y_%m_%d.npy')
 
             if dataset_type == 'obs':
-                np.save(os.path.join(self.paths[dataset_type][varname][data_format], fname),
+                np.save(os.path.join(self.paths[hemisphere][dataset_type][varname][data_format], fname),
                         slice)
 
         if self.verbose_level >= 2:
             print('Done.')
 
-    def save_variable(self, varname, data_format, dates=None):
+    def open_dataarray_from_files(self, hemisphere, varname, data_format):
+
+        """
+        Open the yearly xarray files, accounting for some ERA5 variables that have
+        erroneous 'unknown' NetCDF variable names which prevents concatentation.
+        """
+
+        daily_folder = os.path.join('data', hemisphere, varname)
+
+        # Open all the NetCDF files in the given variable folder
+        netcdf_regex = re.compile('^.*\\.nc$'.format(varname))
+        filenames = sorted(os.listdir(daily_folder))  # List of files in month folder
+        filenames = [filename for filename in filenames if netcdf_regex.match(filename)]
+        paths = [os.path.join(daily_folder, filename) for filename in filenames]
+
+        ds_list = [xr.open_dataset(path) for path in paths]
+
+        # Set of variables names
+        varset = set([next(iter(xr.open_dataset(path).data_vars.values())).name for path in paths])
+        if 'unknown' in list(varset):
+            warnings.warn('warning: renaming erroneous "unknown" variable for concatenation')
+
+            varset.remove('unknown')
+            real_varname = next(iter(varset))
+
+            renamed_ds_list = []
+            for ds in ds_list:
+                varnames = [da.name for da in iter(ds.data_vars.values())]
+                if 'unknown' in varnames:
+                    ds = ds.rename({'unknown': real_varname})
+                renamed_ds_list.append(ds)
+
+            ds_list = renamed_ds_list
+
+        ds = xr.combine_nested(ds_list, concat_dim='time')
+
+        da = next(iter(ds.data_vars.values()))
+        if len(ds.data_vars) > 1:
+            warnings.warn('warning: there is more than one variable in the netcdf '
+                          'file, but it is assumed that there is only one.')
+            print('the loaded variable is: {}'.format(da.name))
+
+        return da
+
+    def save_variable(self, hemisphere, varname, data_format, dates=None):
 
         """
         Save a normalised 3-dimensional satellite/reanalysis dataset as daily
@@ -253,6 +302,8 @@ class IceNet2DataPreProcessor(object):
         This method assumes there is only one variable stored in the NetCDF files.
 
         Parameters:
+        hemisphere (str): 'nh' or 'sh'
+
         varname (str): Name of the variable to load & save
 
         data_format (str): 'abs' for absolute values, or 'anom' to compute the
@@ -271,24 +322,12 @@ class IceNet2DataPreProcessor(object):
         ########################################################################
 
         if self.verbose_level >= 2:
-            print("Preprocessing {} data for {}...  ".format(data_format, varname), end='', flush=True)
+            print("Preprocessing {} hemisphere data for {} in {} format...  ".
+                  format(hemisphere, varname, data_format), end='', flush=True)
             tic2 = time.time()
 
-        daily_folder = os.path.join(config.folders['data'], varname)
-
-        # Open all the NetCDF files in the given variable folder
-        netcdf_regex = re.compile('^.*\\.nc$'.format(varname))
-        filenames = sorted(os.listdir(daily_folder))  # List of files in month folder
-        filenames = [filename for filename in filenames if netcdf_regex.match(filename)]
-        paths = [os.path.join(daily_folder, filename) for filename in filenames]
-
         # Extract the first DataArray in the dataset
-        with xr.open_mfdataset(paths, concat_dim='time', combine='nested') as ds:
-            da = next(iter(ds.data_vars.values()))
-            if len(ds.data_vars) > 1:
-                warnings.warn('warning: there is more than one variable in the netcdf '
-                              'file, but it is assumed that there is only one.')
-                print('the loaded variable is: {}'.format(da.name))
+        da = self.open_dataarray_from_files(hemisphere, varname, data_format)
 
         if data_format == 'anom':
             climatology = da.sel(time=dates).groupby('time.dayofyear', restore_coord_dims=True).mean()
@@ -310,7 +349,7 @@ class IceNet2DataPreProcessor(object):
 
         da.data[np.isnan(da.data)] = 0.  # Convert any NaNs to zeros
 
-        self.save_xarray_in_daily_averages(da, 'obs', varname, data_format)
+        self.save_xarray_in_daily_averages(da, 'obs', hemisphere, varname, data_format)
 
         if self.verbose_level >= 2:
             print("Done in {:.3f}s.\n".format(time.time() - tic2))
@@ -318,54 +357,62 @@ class IceNet2DataPreProcessor(object):
     def preproc_and_save_icenet_data(self):
 
         '''
-        Docstring TODO
+        Loop through all the desired variables, preprocessing and saving in the
+        network dataset folder.
         '''
 
         if self.verbose_level == 1:
             print("Loading and normalising the raw input maps... ", end='', flush=True)
             tic = time.time()
 
-        for varname, vardict in self.preproc_vars.items():
+        for hemisphere in self.preproc_hemispheres:
 
-            if 'metadata' not in vardict.keys():
+            for varname, vardict in self.preproc_vars.items():
 
-                for data_format in vardict.keys():
+                if 'metadata' not in vardict.keys():
 
-                    if vardict[data_format] is True:
+                    for data_format in vardict.keys():
 
-                        self.save_variable(varname, data_format)
+                        if vardict[data_format] is True:
 
-            elif 'metadata' in vardict.keys():
+                            self.save_variable(hemisphere, varname, data_format)
 
-                if vardict['include']:
-                    if varname == 'land':
-                        if self.verbose_level >= 2:
-                            print("Setting up the land map: ", end='', flush=True)
+                elif 'metadata' in vardict.keys():
 
-                        land_mask = np.load(os.path.join(config.folders['masks'], config.fnames['land_mask']))
-                        land_map = np.ones(self.raw_data_shape, self.dtype)
-                        land_map[~land_mask] = -1.
+                    if vardict['include']:
+                        if varname == 'land':
+                            if self.verbose_level >= 2:
+                                print("Setting up the land map: ", end='', flush=True)
 
-                        np.save(os.path.join(self.paths['meta'], 'land.npy'), land_map)
+                            land_mask = np.load(os.path.join('data', hemisphere, 'masks', config.fnames['land_mask']))
+                            land_map = np.ones(self.raw_data_shape, self.dtype)
+                            land_map[~land_mask] = -1.
 
-                        print('\n')
+                            np.save(os.path.join(self.paths[hemisphere]['meta'], 'land.npy'), land_map)
 
-                    elif varname == 'circday':
-                        if self.verbose_level >= 2:
-                            print("Computing circular day values... ", end='', flush=True)
-                            tic2 = time.time()
+                            print('\n')
 
-                        # 2012 used arbitrarily as leap year
-                        for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
+                        elif varname == 'circday':
+                            if self.verbose_level >= 2:
+                                print("Computing circular day values... ", end='', flush=True)
+                                tic2 = time.time()
 
-                            cos_month = np.cos(2 * np.pi * date.dayofyear / 366, dtype=self.dtype)
-                            sin_month = np.sin(2 * np.pi * date.dayofyear / 366, dtype=self.dtype)
+                            # 2012 used arbitrarily as leap year
+                            for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
 
-                            np.save(os.path.join(self.paths['meta'], date.strftime('cos_month_%m_%d.npy')), cos_month)
-                            np.save(os.path.join(self.paths['meta'], date.strftime('sin_month_%m_%d.npy')), sin_month)
+                                if hemisphere == 'nh':
+                                    circday = date.dayofyear
+                                elif hemisphere == 'sh':
+                                    circday = date.dayofyear + 365.25/2
 
-                        if self.verbose_level >= 2:
-                            print("Done in {:.3f}s.\n".format(time.time() - tic2))
+                                cos_month = np.cos(2 * np.pi * circday / 366, dtype=self.dtype)
+                                sin_month = np.sin(2 * np.pi * circday / 366, dtype=self.dtype)
+
+                                np.save(os.path.join(self.paths[hemisphere]['meta'], date.strftime('cos_month_%m_%d.npy')), cos_month)
+                                np.save(os.path.join(self.paths[hemisphere]['meta'], date.strftime('sin_month_%m_%d.npy')), sin_month)
+
+                            if self.verbose_level >= 2:
+                                print("Done in {:.3f}s.\n".format(time.time() - tic2))
 
         if self.verbose_level == 1:
             print("Done in {:.3f}s.\n".format(time.time() - tic))
@@ -388,7 +435,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         with open(data_loader_config_path, 'r') as readfile:
             self.config = json.load(readfile)
 
-        self.set_forecast_start_dates(dataset='train')
+        self.set_forecast_IDs(dataset='train')
         self.load_missing_dates()
         self.remove_missing_dates()
         self.set_variable_path_formats()
@@ -401,28 +448,37 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         if self.config['verbose_level'] >= 1:
             print("Setup complete.\n")
 
-    def set_forecast_start_dates(self, dataset='train'):
+    def set_forecast_IDs(self, dataset='train'):
         """
         Build up a list of forecast initialisation dates for the train, val, or
         test sets based on the configuration JSON file start & end points for
         each dataset.
         """
-        forecast_start_date_ends = [
-            pd.Timestamp(date).to_pydatetime() for date in
-            self.config['obs_{}_dates'.format(dataset)]
-        ]
 
-        self.all_forecast_start_dates = utils.filled_daily_dates(
-            forecast_start_date_ends[0],
-            forecast_start_date_ends[1])
+        self.all_forecast_IDs = []
+
+        for hemisphere, sample_ID_dict in self.config['sample_IDs'].items():
+            forecast_start_date_ends = sample_ID_dict['obs_{}_dates'.format(dataset)]
+
+            if forecast_start_date_ends is not None:
+                # Convert to Pandas Timestamps
+                forecast_start_date_ends = [
+                    pd.Timestamp(date).to_pydatetime() for date in forecast_start_date_ends
+                ]
+
+                forecast_start_dates = misc.filled_daily_dates(
+                    forecast_start_date_ends[0],
+                    forecast_start_date_ends[1])
+
+                self.all_forecast_IDs.extend([
+                    (hemisphere, start_date) for start_date in forecast_start_dates]
+                )
 
     def set_variable_path_formats(self):
 
         """
         Initialise the paths to the .npy files of each variable based on
-        `self.config['input_data']`. If `self.do_transfer_learning` is True (as set by
-        IceNet2DataLoader.turn_on_transfer_learning), then the paths to the
-        CMIP6 .npy files will be used instead.
+        `self.config['input_data']`.
         """
 
         if self.config['verbose_level'] >= 1:
@@ -430,37 +486,39 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
                   end='', flush=True)
 
         # Parent folder for this dataset
-        self.dataset_path = os.path.join(config.folders['data'], 'network_datasets', self.config['dataset_name'])
+        self.dataset_path = os.path.join('data', 'network_datasets', self.config['dataset_name'])
 
-        # Dictionary data structure to store image variable_paths
+        # Dictionary data structure to store image variable paths
         self.variable_paths = {}
 
-        for varname, vardict in self.config['input_data'].items():
+        for hemisphere in ['sh', 'nh']:
+            self.variable_paths[hemisphere] = {}
+            for varname, vardict in self.config['input_data'].items():
 
-            if 'metadata' not in vardict.keys():
-                self.variable_paths[varname] = {}
+                if 'metadata' not in vardict.keys():
+                    self.variable_paths[hemisphere][varname] = {}
 
-                for data_format in vardict.keys():
+                    for data_format in vardict.keys():
 
-                    if vardict[data_format]['include'] is True:
+                        if vardict[data_format]['include'] is True:
 
-                        path = os.path.join(self.dataset_path, 'obs',
-                                            varname, data_format, '{:04d}_{:02d}_{:02d}.npy')
+                            path = os.path.join(self.dataset_path, hemisphere, 'obs',
+                                                varname, data_format, '{:04d}_{:02d}_{:02d}.npy')
 
-                        self.variable_paths[varname][data_format] = path
+                            self.variable_paths[hemisphere][varname][data_format] = path
 
-            elif 'metadata' in vardict.keys():
+                elif 'metadata' in vardict.keys():
 
-                if vardict['include'] is True:
+                    if vardict['include'] is True:
 
-                    if varname == 'land':
-                        path = os.path.join(self.dataset_path, 'meta', 'land.npy')
-                        self.variable_paths['land'] = path
+                        if varname == 'land':
+                            path = os.path.join(self.dataset_path, hemisphere, 'meta', 'land.npy')
+                            self.variable_paths[hemisphere]['land'] = path
 
-                    elif varname == 'circday':
-                        path = os.path.join(self.dataset_path, 'meta',
-                                            '{}_month_{:02d}_{:02d}.npy')
-                        self.variable_paths['circday'] = path
+                        elif varname == 'circday':
+                            path = os.path.join(self.dataset_path, hemisphere, 'meta',
+                                                '{}_month_{:02d}_{:02d}.npy')
+                            self.variable_paths[hemisphere]['circday'] = path
 
         if self.config['verbose_level'] >= 1:
             print('Done.')
@@ -572,10 +630,10 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
 
         return input_dates
 
-    def check_for_missing_date(self, forecast_start_date):
+    def check_for_missing_date_dependence(self, hemisphere, forecast_start_date):
         """
-        Return a bool used to block out forecast_start_dates
-        if any of the input SIC maps are missing.
+        Check a forecast ID and return a bool for whether any of the input SIC maps
+        are missing. Used to remove forecast IDs that depend on missing SIC data.
 
         Note: If one of the _forecast_ dates are missing but not _input_ dates,
         the sample weight matrix for that date will be all zeroes so that the
@@ -587,8 +645,9 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         input_dates = self.all_sic_input_dates_from_forecast_start_date(forecast_start_date)
 
         for input_date in input_dates:
-            if any([input_date == missing_date for missing_date in self.missing_dates]):
+            if any([input_date == missing_date for missing_date in self.missing_dates[hemisphere]]):
                 contains_missing_date = True
+                break
 
         return contains_missing_date
 
@@ -599,15 +658,19 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         missing days
         '''
 
-        missing_date_df = pd.read_csv(os.path.join(config.folders['data'], config.fnames['missing_sic_days']))
-        self.missing_dates = []
-        for idx, row in missing_date_df.iterrows():
-            # Ensure hour = 0 convention for daily dates
-            start = pd.Timestamp(row['start']).to_pydatetime().replace(hour=0)
-            end = pd.Timestamp(row['end']).to_pydatetime().replace(hour=0)
-            self.missing_dates.extend(
-                utils.filled_daily_dates(start, end, include_end=True)
-            )
+        self.missing_dates = {}
+
+        for hemisphere in ['nh', 'sh']:
+            self.missing_dates[hemisphere] = []
+            missing_date_df = pd.read_csv(
+                os.path.join('data', hemisphere, config.fnames['missing_sic_days']))
+            for idx, row in missing_date_df.iterrows():
+                # Ensure hour = 0 convention for daily dates
+                start = pd.Timestamp(row['start']).to_pydatetime().replace(hour=0)
+                end = pd.Timestamp(row['end']).to_pydatetime().replace(hour=0)
+                self.missing_dates[hemisphere].extend(
+                    misc.filled_daily_dates(start, end, include_end=True)
+                )
 
     def remove_missing_dates(self):
 
@@ -619,16 +682,16 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         if self.config['verbose_level'] >= 2:
             print('Checking forecast start dates for missing SIC dates... ', end='', flush=True)
 
-        new_all_forecast_start_dates = []
-        for idx, forecast_start_date in enumerate(self.all_forecast_start_dates):
-            if self.check_for_missing_date(forecast_start_date):
+        new_all_forecast_IDs = []
+        for idx, (hemisphere, forecast_start_date) in enumerate(self.all_forecast_IDs):
+            if self.check_for_missing_date_dependence(hemisphere, forecast_start_date):
                 if self.config['verbose_level'] >= 3:
                     print('Removing {}, '.format(forecast_start_date.strftime('%Y_%m_%d')), end='', flush=True)
 
             else:
-                new_all_forecast_start_dates.append(forecast_start_date)
+                new_all_forecast_IDs.append((hemisphere, forecast_start_date))
 
-        self.all_forecast_start_dates = np.array(new_all_forecast_start_dates)
+        self.all_forecast_IDs = new_all_forecast_IDs
 
     def load_polarholes(self):
         """
@@ -639,10 +702,10 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
             tic = time.time()
             print("Loading and augmenting the polar holes... ", end='', flush=True)
 
-        polarhole_path = os.path.join(config.folders['masks'], config.fnames['polarhole1'])
+        polarhole_path = os.path.join('data', 'nh', 'masks', config.fnames['polarhole1'])
         self.polarhole1_mask = np.load(polarhole_path)
 
-        polarhole_path = os.path.join(config.folders['masks'], config.fnames['polarhole2'])
+        polarhole_path = os.path.join('data', 'nh', 'masks', config.fnames['polarhole2'])
         self.polarhole2_mask = np.load(polarhole_path)
 
         self.nopolarhole_mask = np.full((432, 432), False)
@@ -650,7 +713,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         if self.config['verbose_level'] >= 1:
             print("Done in {:.3f}s.\n".format(time.time() - tic))
 
-    def determine_polar_hole_mask(self, forecast_date):
+    def determine_polar_hole_mask(self, hemisphere, forecast_start_date):
         """
         Determine which polar hole mask to use (if any) by finding the oldest SIC
         input month based on the current output month. The polar hole active for
@@ -659,37 +722,45 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         the input data).
 
         Parameters:
-        forecast_date (datetime): Month timepoint for the output date being
-        predicted in (year, month, 1) format.
+        hemisphere (str): 'sh' or 'nh'
+
+        forecast_start_date (datetime): Timepoint for the forecast initialialisation.
 
         Returns:
         polarhole_mask: Mask array with NaNs on polar hole grid cells and 1s
         elsewhere.
         """
 
-        oldest_input_date = min(self.all_sic_input_dates_from_forecast_start_date(forecast_date))
-
-        if oldest_input_date <= config.polarhole1_final_date:
-            polarhole_mask = self.polarhole1_mask
-            if self.config['verbose_level'] >= 3:
-                print("Output date: {}, polar hole: {}".format(
-                    forecast_date.strftime("%Y_%m"), 1))
-
-        elif oldest_input_date <= config.polarhole2_final_date:
-            polarhole_mask = self.polarhole2_mask
-            if self.config['verbose_level'] >= 3:
-                print("Output date: {}, polar hole: {}".format(
-                    forecast_date.strftime("%Y_%m"), 2))
-
-        else:
+        if hemisphere == 'sh':
             polarhole_mask = self.nopolarhole_mask
             if self.config['verbose_level'] >= 3:
-                print("Output date: {}, polar hole: {}".format(
-                    forecast_date.strftime("%Y_%m"), "none"))
+                print("Forecast start date: {}, polar hole: {}".format(
+                    forecast_start_date.strftime("%Y_%m"), "none"))
+
+        if hemisphere == 'nh':
+            oldest_input_date = min(self.all_sic_input_dates_from_forecast_start_date(forecast_start_date))
+
+            if oldest_input_date <= config.polarhole1_final_date:
+                polarhole_mask = self.polarhole1_mask
+                if self.config['verbose_level'] >= 3:
+                    print("Forecast start date: {}, polar hole: {}".format(
+                        forecast_start_date.strftime("%Y_%m"), 1))
+
+            elif oldest_input_date <= config.polarhole2_final_date:
+                polarhole_mask = self.polarhole2_mask
+                if self.config['verbose_level'] >= 3:
+                    print("Forecast start date: {}, polar hole: {}".format(
+                        forecast_start_date.strftime("%Y_%m"), 2))
+
+            else:
+                polarhole_mask = self.nopolarhole_mask
+                if self.config['verbose_level'] >= 3:
+                    print("Forecast start date: {}, polar hole: {}".format(
+                        forecast_start_date.strftime("%Y_%m"), "none"))
 
         return polarhole_mask
 
-    def determine_active_grid_cell_mask(self, forecast_date):
+    def determine_active_grid_cell_mask(self, hemisphere, forecast_date):
         """
         Determine which active grid cell mask to use (a boolean array with
         True on active cells and False on inactive cells). The cells with 'True'
@@ -704,12 +775,12 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         output_month_str = '{:02d}'.format(forecast_date.month)
         output_active_grid_cell_mask_fname = config.formats['active_grid_cell_mask']. \
             format(output_month_str)
-        output_active_grid_cell_mask_path = os.path.join(config.folders['masks'],
+        output_active_grid_cell_mask_path = os.path.join('data', hemisphere, 'masks',
                                                          output_active_grid_cell_mask_fname)
         output_active_grid_cell_mask = np.load(output_active_grid_cell_mask_path)
 
         # Only use the polar hole mask if predicting observational data
-        polarhole_mask = self.determine_polar_hole_mask(forecast_date)
+        polarhole_mask = self.determine_polar_hole_mask(hemisphere, forecast_date)
 
         # Add the polar hole mask to that land/ocean mask for the current month
         output_active_grid_cell_mask[polarhole_mask] = False
@@ -723,7 +794,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         validation months defined by `self.obs_val_dates`.
         """
 
-        self.set_forecast_start_dates(dataset='val')
+        self.set_forecast_IDs(dataset='val')
         self.remove_missing_dates()
 
     def convert_to_test_data_loader(self):
@@ -732,28 +803,29 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         As above but for the testing months defined by `self.obs_test_dates`
         """
 
-        self.set_forecast_start_dates(dataset='test')
+        self.set_forecast_IDs(dataset='test')
         self.remove_missing_dates()
 
-    def data_generation(self, forecast_start_dates):
+    def data_generation(self, forecast_IDs):
         """
         Generate input-output data for IceNet at defined indexes into the SIC
         satellite array.
 
         Parameters:
-        forecast_start_dates (ndarray): If self.do_transfer_learning is False, this is
-        an (N_samps,) array of datetime objects corresponding to the output (forecast) months.
-        If self.do_transfer_learning is True, this is an (N_samps, 3) object array of tuples
-        of the form (cmip6_model_name, member_id, forecast_start_date).
+        forecast_IDs (list): an (N_samps,) array of tuples. The
+        first element corresponds to the hemisphere of the forecast (either
+        'nh' for the Arctic or 'sh' for the Antarctic), and the second element
+        is a datetime object corresponding to the forecast initialisation date.
 
         Returns:
         X (ndarray): Set of input 3D volumes.
 
-        y (ndarray): Set of categorical segmented output maps with pixel
+        y (ndarray): Set of ground truth output SIC maps with loss function pixel
         weighting as first channel.
 
         """
-        current_batch_size = forecast_start_dates.shape[0]
+
+        current_batch_size = len(forecast_IDs)
 
         ########################################################################
         # OUTPUT LABELS
@@ -765,28 +837,28 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         # To become array of shape (N_samps, *self.config['raw_data_shape'], self.config['n_forecast_days'])
         batch_sic_list = []
 
-        for sample_idx, forecast_date in enumerate(forecast_start_dates):
+        for sample_idx, (hemisphere, forecast_start_date) in enumerate(forecast_IDs):
 
             # To become array of shape (*config['raw_data_shape'], config['n_forecast_days'])
             sample_sic_list = []
 
             for forecast_leadtime_idx in range(self.config['n_forecast_days']):
 
-                forecast_date = forecast_start_dates[sample_idx] + relativedelta(days=forecast_leadtime_idx)
+                forecast_target_date = forecast_start_date + relativedelta(days=forecast_leadtime_idx)
 
                 if not os.path.exists(
-                    self.variable_paths['siconca']['abs'].format(
-                        forecast_date.year,
-                        forecast_date.month,
-                        forecast_date.day)):
+                    self.variable_paths[hemisphere]['siconca']['abs'].format(
+                        forecast_target_date.year,
+                        forecast_target_date.month,
+                        forecast_target_date.day)):
                     # Output file does not exist - fill it with NaNs
                     sample_sic_list.append(np.full(self.config['raw_data_shape'], np.nan))
 
                 else:
                     # Output file exists
                     sample_sic_list.append(
-                        np.load(self.variable_paths['siconca']['abs'].format(
-                            forecast_date.year, forecast_date.month, forecast_date.day))
+                        np.load(self.variable_paths[hemisphere]['siconca']['abs'].format(
+                            forecast_target_date.year, forecast_target_date.month, forecast_target_date.day))
                     )
 
             batch_sic_list.append(np.stack(sample_sic_list, axis=0))
@@ -806,18 +878,18 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
 
         y[:, :, :, :, 0] = batch_sic
 
-        for sample_idx, forecast_date in enumerate(forecast_start_dates):
+        for sample_idx, (hemisphere, forecast_start_date) in enumerate(forecast_IDs):
 
             for forecast_leadtime_idx in range(self.config['n_forecast_days']):
 
-                forecast_date = forecast_start_dates[sample_idx] + relativedelta(days=forecast_leadtime_idx)
+                forecast_target_date = forecast_start_date + relativedelta(days=forecast_leadtime_idx)
 
-                if any([forecast_date == missing_date for missing_date in self.missing_dates]):
+                if any([forecast_target_date == missing_date for missing_date in self.missing_dates[hemisphere]]):
                     sample_weight = np.zeros(self.config['raw_data_shape'], np.float32)
 
                 else:
                     # Zero loss outside of 'active grid cells'
-                    sample_weight = self.determine_active_grid_cell_mask(forecast_date)
+                    sample_weight = self.determine_active_grid_cell_mask(hemisphere, forecast_target_date)
                     sample_weight = sample_weight.astype(np.float32)
 
                     # Scale the loss for each month s.t. March is
@@ -836,7 +908,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
                      dtype=np.float32)
 
         # Build up the batch of inputs
-        for sample_idx, forecast_start_date in enumerate(forecast_start_dates):
+        for sample_idx, (hemisphere, forecast_start_date) in enumerate(forecast_IDs):
 
             present_date = forecast_start_date - relativedelta(days=1)
 
@@ -865,7 +937,7 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
                             variable_idx2 += self.num_input_channels_dict[varname_format]
 
                             X[sample_idx, :, :, variable_idx1:variable_idx2] = \
-                                np.stack([np.load(self.variable_paths[varname][data_format].format(
+                                np.stack([np.load(self.variable_paths[hemisphere][varname][data_format].format(
                                           date.year, date.month, date.day))
                                           for date in input_months], axis=-1)
 
@@ -876,17 +948,17 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
                     variable_idx2 += self.num_input_channels_dict[varname]
 
                     if varname == 'land':
-                        X[sample_idx, :, :, variable_idx1] = np.load(self.variable_paths['land'])
+                        X[sample_idx, :, :, variable_idx1] = np.load(self.variable_paths[hemisphere]['land'])
 
                     elif varname == 'circday':
                         # Broadcast along row and col dimensions
                         X[sample_idx, :, :, variable_idx1] = \
-                            np.load(self.variable_paths['circday'].format(
+                            np.load(self.variable_paths[hemisphere]['circday'].format(
                                 'cos',
                                 forecast_start_date.month,
                                 forecast_start_date.day))
                         X[sample_idx, :, :, variable_idx1 + 1] = \
-                            np.load(self.variable_paths['circday'].format(
+                            np.load(self.variable_paths[hemisphere]['circday'].format(
                                 'sin',
                                 forecast_start_date.month,
                                 forecast_start_date.day))
@@ -895,19 +967,23 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
 
         return X, y
 
-    def __getitem__(self, index):
+    def __getitem__(self, batch_idx):
         '''
-        Generate one batch of data of size `batch_size` at index `index`
+        Generate one batch of data of size `batch_size` at batch index `batch_idx`
         into the set of batches in the epoch.
         '''
-        batch_forecast_start_dates = \
-            self.all_forecast_start_dates[index*self.config['batch_size']:(index+1)*self.config['batch_size']]
 
-        return self.data_generation(batch_forecast_start_dates)
+        batch_start = batch_idx * self.config['batch_size']
+        batch_end = np.min([(batch_idx + 1) * self.config['batch_size'], len(self.all_forecast_IDs)])
+
+        sample_idxs = np.arange(batch_start, batch_end)
+        batch_IDs = [self.all_forecast_IDs[sample_idx] for sample_idx in sample_idxs]
+
+        return self.data_generation(batch_IDs)
 
     def __len__(self):
         ''' Returns the number of batches per training epoch. '''
-        return int(np.ceil(self.all_forecast_start_dates.shape[0] / self.config['batch_size']))
+        return int(np.ceil(len(self.all_forecast_IDs) / self.config['batch_size']))
 
     def on_epoch_end(self):
         """ Randomly shuffles training samples after each epoch. """
@@ -915,8 +991,8 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
         if self.config['verbose_level'] >= 2:
             print("on_epoch_end called")
 
-        # Randomly shuffle the output months in-place
-        self.rng.shuffle(self.all_forecast_start_dates)
+        # Randomly shuffle the forecast IDs in-place
+        self.rng.shuffle(self.all_forecast_IDs)
 
     def time_batch_generation(self, num_batches):
         """ Print the time taken to generate `num_batches` batches """
@@ -946,149 +1022,14 @@ def make_exp_decay_lr_schedule(rate):
     exp(-rate) each epoch. '''
 
     def lr_scheduler_exp_decay(epoch, lr, verbose=True):
-        ''' Learning rate scheduler for fine tuning. Exponential decrease. '''
+        ''' Learning rate scheduler for fine tuning.
+        Exponential decrease after first epoch. '''
 
-        lr = lr * np.math.exp(-rate)
+        if epoch > 1:
+            lr = lr * np.math.exp(-rate)
 
         if verbose:
             print('\nSetting learning rate to: {}\n'.format(lr))
 
         return lr
     return lr_scheduler_exp_decay
-
-
-###############################################################################
-############### MISC
-###############################################################################
-
-
-def filled_daily_dates(start_date, end_date, include_end=False):
-    """
-    Return a numpy array of datetimes, incrementing daily, starting at start_date and
-    going up to (but not including) end_date.
-    """
-
-    daily_list = []
-    date = start_date
-
-    if include_end:
-        end_date += relativedelta(days=1)
-
-    while date < end_date:
-        daily_list.append(date)
-        date += relativedelta(days=1)
-
-    return np.array(daily_list)
-
-
-def gen_frame_func(da, mask=None, mask_type='contour', data_type='abs',
-                   clim=None, cmap='viridis', figsize=15):
-
-    '''
-    Create imageio frame function for xarray.DataArray visualisation.
-
-    Parameters:
-    da (xr.DataArray): Dataset to create video of.
-
-    mask (np.ndarray): Boolean mask with True over masked elements to overlay
-    as a contour or filled contour. Defaults to None (no mask plotting).
-
-    mask_type (str): 'contour' or 'contourf' dictating whether the mask is overlaid
-    as a contour line or a filled contour.
-
-    data_type (str): 'abs' or 'anom' describing whether the data is in absolute
-    or anomaly format. If anomaly, the colorbar is centred on 0.
-
-    cmap (str): Matplotlib colormap.
-
-    figsize (int or float): Figure size in inches.
-
-    Returns:
-    make_frame (function): Function to return a frame for imageio to
-    turn into a video.
-    '''
-
-    if clim is not None:
-        min = clim[0]
-        max = clim[1]
-    elif clim is None:
-        max = da.max().values
-        min = da.min().values
-
-        if data_type == 'anom':
-            if np.abs(max) > np.abs(min):
-                min = -max
-            elif np.abs(min) > np.abs(max):
-                max = -min
-
-    def make_frame(date):
-        fig, ax = plt.subplots(figsize=(figsize, figsize))
-        im = ax.imshow(da.sel(time=date), cmap=cmap, clim=(min, max))
-        if mask is not None:
-            if mask_type == 'contour':
-                ax.contour(mask, levels=[.5, 1], colors='k')
-            elif mask_type == 'contourf':
-                ax.contourf(mask, levels=[.5, 1], colors='k')
-        ax.axes.xaxis.set_visible(False)
-        ax.axes.yaxis.set_visible(False)
-
-        ax.set_title('{:04d}/{:02d}/{:02d}'.format(date.year, date.month, date.day), fontsize=figsize*4)
-
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        plt.colorbar(im, cax)
-
-        # TEMP crop to image
-        # fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
-
-        fig.canvas.draw()
-        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-        plt.close()
-        return image
-
-    return make_frame
-
-
-def xarray_to_video(da, video_path, fps, mask=None, mask_type='contour', clim=None,
-                    data_type='abs', video_dates=None, cmap='viridis', figsize=15):
-
-    '''
-    Generate video of an xarray.DataArray. Optionally input a list of
-    `video_dates` to show, otherwise the full set of time coordiantes
-    of the dataset is used.
-
-    Parameters:
-    da (xr.DataArray): Dataset to create video of.
-
-    video_path (str): Path to save the video to.
-
-    fps (int): Frames per second of the video.
-
-    mask (np.ndarray): Boolean mask with True over masked elements to overlay
-    as a contour or filled contour. Defaults to None (no mask plotting).
-
-    mask_type (str): 'contour' or 'contourf' dictating whether the mask is overlaid
-    as a contour line or a filled contour.
-
-    data_type (str): 'abs' or 'anom' describing whether the data is in absolute
-    or anomaly format. If anomaly, the colorbar is centred on 0.
-
-    video_dates (list): List of Pandas Timestamps or datetime.datetime objects
-    to plot video from the dataset.
-
-    cmap (str): Matplotlib colormap.
-
-    figsize (int or float): Figure size in inches.
-    '''
-
-    if video_dates is None:
-        video_dates = [pd.Timestamp(date).to_pydatetime() for date in da.time.values]
-
-    make_frame = gen_frame_func(da=da, mask=mask, mask_type=mask_type, clim=clim,
-                                data_type=data_type, cmap=cmap, figsize=figsize)
-
-    imageio.mimsave(video_path,
-                    [make_frame(date) for date in tqdm(video_dates)],
-                    fps=fps)

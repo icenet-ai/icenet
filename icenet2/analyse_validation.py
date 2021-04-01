@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))
 import config
-import utils
+import misc
 import json
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -110,7 +110,7 @@ if __name__ == '__main__':
 
     leadtimes = np.arange(1, dataloader_config['n_forecast_days']+1)
 
-    forecast_target_dates = utils.filled_daily_dates(
+    forecast_target_dates = misc.filled_daily_dates(
         start_date=datetime(2012, 1, 1), end_date=datetime(2018, 1, 1)
     )
 

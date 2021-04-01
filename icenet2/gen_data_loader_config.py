@@ -78,7 +78,7 @@ a dictionary. The dictionary settings are:
 """
 
 dataloder_config = {
-    'dataloader_name': 'icenet2_init',
+    'dataloader_name': 'icenet2_nh_sh',
     'dataset_name': 'dataset1',
     'input_data': {
         "siconca":
@@ -86,23 +86,23 @@ dataloder_config = {
              "anom": {"include": False, 'max_lag': 31},
              "linear_trend": {"include": False}},
         "tas":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "ta500":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "tos":
             {"abs": {"include": False, 'max_lag': 31*3},
              "anom": {"include": True, 'max_lag': 31*3}},
         "psl":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "zg500":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "zg250":
-            {"abs": {"include": False, 'max_lag': 15},
-             "anom": {"include": True, 'max_lag': 15}},
+            {"abs": {"include": False, 'max_lag': 31*1},
+             "anom": {"include": True, 'max_lag': 31*1}},
         "land":
             {"metadata": True,
              "include": True},
@@ -112,9 +112,18 @@ dataloder_config = {
     },
     'batch_size': 2,
     'n_forecast_days': 31*6,
-    'obs_train_dates': ('1979-6-1', '2011-6-1'),
-    'obs_val_dates': ('2012-1-1', '2017-6-1'),
-    'obs_test_dates': ('2018-1-1', '2019-6-1'),
+    'sample_IDs': {
+        'nh': {
+            'obs_train_dates': ('1979-6-1', '2011-6-1'),
+            'obs_val_dates': ('2012-1-1', '2017-6-1'),
+            'obs_test_dates': ('2018-1-1', '2019-6-1'),
+        },
+        'sh': {
+            'obs_train_dates': ('1979-6-1', '2014-12-31'),
+            'obs_val_dates': None,
+            'obs_test_dates': None,
+        },
+    },
     'raw_data_shape': (432, 432),
     'default_seed': 42,
     'loss_weight_months': True,
@@ -131,4 +140,5 @@ if not os.path.exists(folder):
 with open(fpath, 'w') as outfile:
     json.dump(dataloder_config, outfile)
 
-print('Data loader config saved to {}'.format(fpath))
+print('Data loader config saved to {}\n'.format(fpath))
+print('Data loader name: {}'.format(fname[:-5]))

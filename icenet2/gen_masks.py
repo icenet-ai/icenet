@@ -6,21 +6,38 @@ import sys, os
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
 import config
 import matplotlib.pyplot as plt
+import argparse
+
+################################################################################
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--hemisphere', default='nh', type=str)
+args = parser.parse_args()
+
+print('HEMISPHERE: {}\n\n'.format(args.hemisphere.upper()))
 
 ###############################################################################
 
 save_land_mask = True  # Save the land mask (constant across months)
-save_polarhole_masks = True  # Save the polarhole masks
+save_polarhole_masks = False  # Save the polarhole masks
 save_figures = True  # Figures of the max extent masks
 
 if save_figures:
-    fig_folder = os.path.join('figures', 'max_extent_masks')
+    fig_folder = os.path.join('figures', 'max_extent_masks', args.hemisphere)
     if not os.path.exists(fig_folder):
         os.makedirs(fig_folder)
 
-retrieve_cmd_template_osi450 = 'wget -m -nH --cut-dirs=4 -P ' + config.folders['siconca'] + \
+siconca_data_folder = os.path.join('data', args.hemisphere, 'siconca')
+if not os.path.exists(siconca_data_folder):
+    os.makedirs(siconca_data_folder)
+
+mask_folder = os.path.join('data', args.hemisphere, 'masks')
+if not os.path.exists(mask_folder):
+    os.makedirs(mask_folder)
+
+retrieve_cmd_template_osi450 = 'wget -m -nH --cut-dirs=4 -P ' + siconca_data_folder + \
     ' ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/' + '{}'
-filename_template_osi450 = 'ice_conc_nh_ease2-250_cdr-v2p0_{:04d}{:02d}021200.nc'
+filename_template_osi450 = 'ice_conc_{}_ease2-250_cdr-v2p0_{:04d}{:02d}021200.nc'
 
 ###############################################################################
 
@@ -32,12 +49,12 @@ year = 2000
 for month in range(1, 13):
 
     # Download the data if not already downloaded
-    filename_osi450 = filename_template_osi450.format(year, month)
+    filename_osi450 = filename_template_osi450.format(args.hemisphere, year, month)
     os.system(retrieve_cmd_template_osi450.format(year, month, filename_osi450))
 
     year_str = '{:04d}'.format(year)
     month_str = '{:02d}'.format(month)
-    month_folder = os.path.join(config.folders['siconca'], year_str, month_str)
+    month_folder = os.path.join(siconca_data_folder, year_str, month_str)
 
     day_path = os.path.join(month_folder, filename_osi450)
 
@@ -54,13 +71,13 @@ for month in range(1, 13):
         max_extent_mask[325:386, 317:380] = False  # Remove Caspian and Black seas
 
     mask_filename = config.formats['active_grid_cell_mask'].format(month_str)
-    mask_path = os.path.join(config.folders['masks'], mask_filename)
+    mask_path = os.path.join(mask_folder, mask_filename)
     np.save(mask_path, max_extent_mask)
 
     if save_land_mask and month == 1:
         land_mask = np.sum(binary[:, :, [7, 6]], axis=2).reshape(432, 432) >= 1
 
-        land_mask_path = os.path.join(config.folders['masks'], config.fnames['land_mask'])
+        land_mask_path = os.path.join(mask_folder, config.fnames['land_mask'])
         np.save(land_mask_path, land_mask)
 
     if save_figures:
@@ -71,7 +88,7 @@ for month in range(1, 13):
         plt.close()
 
 # Delete the data/siconca/2000 folder holding the temporary daily files
-shutil.rmtree(os.path.join(config.folders['siconca'], year_str))
+shutil.rmtree(os.path.join(siconca_data_folder, year_str))
 
 if save_polarhole_masks:
     #### Generate the polar hole masks
