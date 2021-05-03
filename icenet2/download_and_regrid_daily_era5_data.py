@@ -10,6 +10,7 @@ from datetime import datetime
 import warnings
 import numpy as np
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
+import utils
 import argparse
 
 """
@@ -27,94 +28,25 @@ A command line input dictates which variable is downloaded and allows this scrip
 to be run in parallel for different variables.
 """
 
-# land_mask = np.load(os.path.join(config.folders['masks'], config.fnames['land_mask']))
-# vars = ['tas', 'tos', 'psl', 'ta500', 'zg250', 'zg500']
-# cmaps = ['Reds', 'Reds', 'bone', 'Reds', 'bone', 'bone']
-# for var, cmap in zip(vars, cmaps):
-#     # var='tos'
-#     print('\n{}:'.format(var))
-#     # var='ta500'
-#     ds = xr.open_mfdataset([os.path.join('data/{}'.format(var), f) for f in sorted(os.listdir('data/{}'.format(var)))], combine='by_coords')
-#     da = next(iter(ds.data_vars.values()))
-#     # da.time.values[15305]
-#     # px.imshow(da.isel(time=15060))
-#     # px.imshow(da.isel(time=15061))
-#     # px.imshow(da.isel(time=15305))
-#     # np.unique(np.where(da > 1e35)[0])
-#     climatology = da.groupby('time.dayofyear', restore_coord_dims=True).mean()
-#     # anom = (da.groupby('time.dayofyear') - climatology).compute()
-#     # cmap = 'seismic'
-#     # anom = anom.sel(time=slice('2012-01-01', '2012-12-31'))
-#
-#     # vpath = 'videos/era5/{}_2012.mp4'.format(var)
-#     # vpath = 'videos/era5/{}.mp4'.format(var)
-#     # utils.xarray_to_video(anom, vpath, 15, land_mask, data_type='anom', cmap=cmap, figsize=15)
-#
-#     vpath = 'videos/era5/{}_climatology.mp4'.format(var)
-#     # vpath = 'videos/era5/{}.mp4'.format(var)
-#     climatology = climatology.assign_coords({'dayofyear': utils.filled_daily_dates(datetime(2012,1,1), datetime(2013,1,1))})
-#     climatology = climatology.rename({'dayofyear': 'time'})
-#     climatology.data = np.array(climatology.data)
-#     uniq = np.unique(climatology.data)
-#     clim = [uniq[1], uniq[-1]]
-#     utils.xarray_to_video(climatology, vpath, 15, land_mask, clim=clim, data_type='abs', cmap=cmap, figsize=15)
-#
-# raise ValueError('breaking here to stop running')
-
 ################################################################################
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--var', default='tas')
+# OPTIONS:
+#   'nh': Northern Hemisphere (Arctic) only
+#   'sh': Southern Hemisphere (Antarctic) only
+#   'nh_sh': both Arctic and Antarctic
 parser.add_argument('--hemisphere', default='nh')
 args = parser.parse_args()
+
+if args.hemisphere == 'nh' or args.hemisphere == 'sh':
+    hemispheres = [args.hemisphere]
+elif args.hemisphere == 'nh_sh':
+    hemispheres = ['nh', 'sh']
 
 ################################################################################
 
 overwrite = False  # Whether to skip yearly files already downloaded/regridded
-
-################################################################################
-
-
-def assignLatLonCoordSystem(cube):
-    ''' Assign coordinate system to iris cube to allow regridding. '''
-
-    cube.coord('latitude').coord_system = iris.coord_systems.GeogCS(6367470.0)
-    cube.coord('longitude').coord_system = iris.coord_systems.GeogCS(6367470.0)
-
-    return cube
-
-
-def fix_near_real_time_era5_coords(da):
-
-    '''
-    ERA5 data within several months of the present date is considered as a
-    separate system, ERA5T. Downloads that contain both ERA5 and ERA5T data
-    produce datasets with a length-2 'expver' dimension along axis 1, taking a value
-    of 1 for ERA5 and a value of 5 for ERA5. This results in all-NaN values
-    along latitude & longitude outside of the valid expver time span. This function
-    finds the ERA5 and ERA5T time indexes and removes the expver dimension
-    by concatenating the sub-arrays where the data is not NaN.
-    '''
-
-    if 'expver' in da.coords:
-        # Find invalid time indexes in expver == 1 (ERA5) dataset
-        arr = da.sel(expver=1).data
-        arr = arr.reshape(arr.shape[0], -1)
-        arr = np.sort(arr, axis=1)
-        era5t_time_idxs = (arr[:, 1:] != arr[:, :-1]).sum(axis=1)+1 == 1
-        era5t_time_idxs = (era5t_time_idxs) | (np.isnan(arr[:, 0]))
-
-        era5_time_idxs = ~era5t_time_idxs
-
-        da = xr.concat((da[era5_time_idxs, 0, :], da[era5t_time_idxs, 1, :]), dim='time')
-
-        da = da.reset_coords('expver', drop=True)
-
-        return da
-
-    else:
-        raise ValueError("'expver' not found in dataset.")
-
 
 ################################################################################
 
@@ -123,6 +55,8 @@ if args.hemisphere == 'nh':
     area = [90, -180, 0, 180]
 elif args.hemisphere == 'sh':
     area = [-90, -180, 0, 180]
+elif args.hemisphere == 'nh_sh':
+    area = [-90, -180, 90, 180]
 
 # Which years to download
 years = [
@@ -169,9 +103,6 @@ times = [
     '21:00', '22:00', '23:00',
 ]
 
-# plot_wind_before_and_after_rot = True  # Save quiver plot of before and after wind rotation to EASE
-# verify_wind_magnitude = True  # Check wind magnitude before and after is the same
-
 variables = {
     'tas': {
         'cdi_name': '2m_temperature',
@@ -194,6 +125,27 @@ variables = {
         'plevel': '500',
         'cdi_name': 'geopotential',
     },
+    'hus1000': {
+        'plevel': '1000',
+        'cdi_name': 'specific_humidity',
+    },
+    'rlds': {
+        'cdi_name': 'surface_thermal_radiation_downwards',
+    },
+    'rsds': {
+        'cdi_name': 'surface_solar_radiation_downwards',
+    },
+    'uas': {
+        'cdi_name': '10m_u_component_of_wind',
+    },
+    'vas': {
+        'cdi_name': '10m_v_component_of_wind',
+    },
+    # NOTE: uas and vas must both be downloaded in lat/lon form before regridding,
+    #   because they must be regridded together (due to the rotation needed).
+    'uas_and_vas': {
+        'cdi_name': '10m_v_component_of_wind',
+    },
 }
 
 var_dict = variables[args.var]
@@ -209,16 +161,28 @@ for year_chunk in years:
 
     print('\n\n' + year_start + '-' + year_end + '\n\n')
 
+    skipyear = False
     var_folder = os.path.join('data', args.hemisphere, args.var)
     if not os.path.exists(var_folder):
         os.makedirs(var_folder)
 
     download_path = os.path.join(var_folder, '{}_latlon_hourly_{}_{}.nc'.format(args.var, year_start, year_end))
     daily_fpath = os.path.join(var_folder, '{}_latlon_{}_{}.nc'.format(args.var, year_start, year_end))
-    daily_ease_fpath = os.path.join(var_folder, '{}_{}_{}.nc'.format(args.var, year_start, year_end))
 
-    if os.path.exists(daily_ease_fpath) and not overwrite:
-        print('Skipping this year chunk due to existing file at: {}'.format(daily_ease_fpath))
+    daily_ease_fpath = {}
+    for hemisphere in hemispheres:
+        var_hem_folder = os.path.join('data', hemisphere, args.var)
+        if not os.path.exists(var_hem_folder):
+            os.makedirs(var_hem_folder)
+
+        daily_ease_fpath[hemisphere] = os.path.join(
+            var_hem_folder, '{}_{}_{}.nc'.format(args.var, year_start, year_end))
+
+        if os.path.exists(daily_ease_fpath[hemisphere]) and not overwrite:
+            print('Skipping this year chunk due to existing file at: {}'.format(daily_ease_fpath[hemisphere]))
+            skipyear = True
+
+    if skipyear is True:
         continue
 
     retrieve_dict = {
@@ -239,80 +203,87 @@ for year_chunk in years:
         dataset_str = 'reanalysis-era5-pressure-levels'
         retrieve_dict['pressure_level'] = var_dict['plevel']
 
-    print("\nDownloading data for {}...\n".format(args.var))
+    # ---------------- Download hourly data and compute daily average
 
-    if os.path.exists(download_path):
-        print("Removing pre-existing NetCDF file at {}". format(download_path))
+    # If daily data file already exists, skip downloading & averaging
+    if not os.path.exists(daily_fpath):
+
+        print("\nDownloading data for {}...\n".format(args.var))
+
+        if os.path.exists(download_path):
+            print("Removing pre-existing NetCDF file at {}". format(download_path))
+            os.remove(download_path)
+
+        cds.retrieve(dataset_str, retrieve_dict, download_path)
+        print('\n\nDownload completed.')
+
+        print('\n\nComputing daily averages... ', end='', flush=True)
+        da = xr.open_dataarray(download_path)
+
+        if 'expver' in da.coords:
+            da = utils.fix_near_real_time_era5_coords(da)
+
+        da_daily = da.resample(time='1D').reduce(np.mean)
+
+        if args.var == 'zg500' or args.var == 'zg250':
+            da_daily = da_daily / 9.80665
+
+        if args.var == 'tos':
+            # Replace every value outside of SST < 1000 with zeros (the ERA5 masked values)
+            da_daily = da_daily.where(da_daily < 1000., 0)
+
+        print(np.unique(da_daily.data)[[0, -1]])  # TEMP
+        print('saving new daily year file... ', end='', flush=True)
+        da_daily.to_netcdf(daily_fpath)
         os.remove(download_path)
-
-    # ---------------- Download
-
-    cds.retrieve(dataset_str, retrieve_dict, download_path)
-    print('\n\nDownload completed.')
-
-    # ---------------- Compute daily average
-
-    print('\n\nComputing daily averages... ', end='', flush=True)
-    da = xr.open_dataarray(download_path)
-
-    if 'expver' in da.coords:
-        da = fix_near_real_time_era5_coords(da)
-
-    da_daily = da.resample(time='1D').reduce(np.mean)
-
-    if args.var == 'zg500' or args.var == 'zg250':
-        da_daily = da_daily / 9.80665
-
-    if args.var == 'tos':
-        # Replace every value outside of SST < 1000 with zeros (the ERA5 masked values)
-        da_daily = da_daily.where(da_daily < 1000., 0)
-
-    print(np.unique(da_daily.data)[[0, -1]])  # TEMP
-    print('saving new daily year file... ', end='', flush=True)
-    da_daily.to_netcdf(daily_fpath)
-    os.remove(download_path)
-    print('Done.')
+        print('Done.')
 
     # ---------------- Regrid & save
 
-    sic_day_folder = os.path.join('data', 'siconca', args.hemisphere)
-    sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'.format(args.hemisphere)
-    sic_day_fpath = os.path.join(sic_day_folder, sic_day_fname)
+    # For wind data, use a separate script for rotating and regridding
+    if args.var != 'uas' and args.var != 'vas':
 
-    if not os.path.exists(sic_day_fpath):
-        print("\nDownloading single daily SIC netCDF file for regridding ERA5 data to EASE grid...\n")
+        for hemisphere in hemispheres:
 
-        # Ignore "Missing CF-netCDF ancially data variable 'status_flag'" warning
-        warnings.simplefilter("ignore", UserWarning)
+            sic_day_folder = os.path.join('data', 'siconca', hemisphere)
+            sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'.format(hemisphere)
+            sic_day_fpath = os.path.join(sic_day_folder, sic_day_fname)
 
-        retrieve_sic_day_cmd = 'wget -m -nH --cut-dirs=6 -P {} ' \
-            'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/1979/01/{}'
-        os.system(retrieve_sic_day_cmd.format(sic_day_folder, sic_day_fname))
+            if not os.path.exists(sic_day_fpath):
+                print("\nDownloading single daily SIC netCDF file for regridding ERA5 data to EASE grid...\n")
 
-        print('Done.')
+                # Ignore "Missing CF-netCDF ancially data variable 'status_flag'" warning
+                warnings.simplefilter("ignore", UserWarning)
 
-    # Load a single SIC map to obtain the EASE grid for regridding ERA data
-    sic_EASE_cube = iris.load_cube(sic_day_fpath, 'sea_ice_area_fraction')
+                retrieve_sic_day_cmd = 'wget -m -nH --cut-dirs=6 -P {} ' \
+                    'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/1979/01/{}'
+                os.system(retrieve_sic_day_cmd.format(sic_day_folder, sic_day_fname))
 
-    # Convert EASE coord units to metres for regridding
-    sic_EASE_cube.coord('projection_x_coordinate').convert_units('meters')
-    sic_EASE_cube.coord('projection_y_coordinate').convert_units('meters')
+                print('Done.')
 
-    print("\nRegridding and saving {} reanalysis data... ".format(args.var), end='', flush=True)
-    tic = time.time()
+            # Load a single SIC map to obtain the EASE grid for regridding ERA data
+            sic_EASE_cube = iris.load_cube(sic_day_fpath, 'sea_ice_area_fraction')
 
-    cube = iris.load_cube(daily_fpath)
-    cube = assignLatLonCoordSystem(cube)
+            # Convert EASE coord units to metres for regridding
+            sic_EASE_cube.coord('projection_x_coordinate').convert_units('meters')
+            sic_EASE_cube.coord('projection_y_coordinate').convert_units('meters')
 
-    # regrid onto the EASE grid
-    cube_ease = cube.regrid(sic_EASE_cube, iris.analysis.Linear())
+            print("\nRegridding and saving {} {} reanalysis data... ".format(hemisphere, args.var), end='', flush=True)
+            tic = time.time()
 
-    toc = time.time()
-    print("Done in {:.3f}s.".format(toc - tic))
+            cube = iris.load_cube(daily_fpath)
+            cube = utils.assignLatLonCoordSystem(cube)
 
-    print("Saving regridded data... ", end='', flush=True)
-    if os.path.exists(daily_ease_fpath) and overwrite:
-        os.remove(daily_ease_fpath)
-    iris.save(cube_ease, daily_ease_fpath)
-    os.remove(daily_fpath)
-    print("Done.")
+            # regrid onto the EASE grid
+            cube_ease = cube.regrid(sic_EASE_cube, iris.analysis.Linear())
+
+            toc = time.time()
+            print("Done in {:.3f}s.".format(toc - tic))
+
+            print("Saving {} regridded data... ".format(hemisphere), end='', flush=True)
+            if os.path.exists(daily_ease_fpath[hemisphere]) and overwrite:
+                os.remove(daily_ease_fpath[hemisphere])
+            iris.save(cube_ease, daily_ease_fpath[hemisphere])
+            print("Done.")
+
+        os.remove(daily_fpath)
