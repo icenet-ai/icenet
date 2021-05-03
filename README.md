@@ -67,24 +67,26 @@ After cloning the repo, run the commands below in the root of the repository to 
 
 ### 2) Download data
 
-- Generate masks: `python3 icenet2/gen_masks.py`. This obtains masks for land, the polar holes, and monthly maximum ice extent.
+- `python3 icenet2/gen_masks.py`. This obtains masks for land, the polar holes, and monthly maximum ice extent.
 
-- Get OSI-SAF SIC data: `python3 icenet2/download_and_interpolate_daily_sic_data.py`. This downloads daily SIC data, linearly interpolates missing days, and bilinearly interpolates missing grid cells (e.g. polar hole). Probably best to run overnight.
+- `python3 icenet2/download_and_interpolate_daily_sic_data.py`. Gets OSI-SAF SIC data.
+This downloads daily SIC data, linearly interpolates missing days, and bilinearly interpolates missing grid cells (e.g. polar hole).
+Probably best to run overnight.
 
-- Get ERA5 reanalysis data: `./download_and_regrid_era5_data_in_parallel.sh`.
+- `./download_and_regrid_era5_data_in_parallel.sh`. Gets ERA5 reanalysis data.
 This runs multiple `python3 icenet2/download_and_regrid_daily_era5_data.py` commands to acquire multiple variables in parallel.
 This downloads the raw hourly-averaged ERA5 data in global latitude-longitude format, computes daily averages, and regrids to the EASE grid that OSI-SAF SIC data lies on.
-To obtain ERA5 surface wind vector fields, use `icenet2/rotate_and_regrid_era5_wind_vector_data.py`.
+To rotate and regrid ERA5 surface wind vector fields, use `icenet2/rotate_and_regrid_era5_wind_vector_data.py`.
 
 ### 3) Normalise data and set up data loader configuration
 
-- Normalise the data and save in daily NumPy files: `python3 icenet2/preproc_icenet2_data.py`
+- `python3 icenet2/preproc_icenet2_data.py`. Normalises the data and save in daily NumPy files.
 
-- Set up data loader: `python3 icenet2/gen_data_loader_config.py`
+- `python3 icenet2/gen_data_loader_config.py`. Sets up data loader.
 
 ### 4) Train IceNet2
 
-- `python3 icenet2/train_icenet2.py`
+- `python3 icenet2/train_icenet2.py`, or submit via SLURM with `sbatch slurm_train_script.sh`. Both take hyperameter settings as command line inputs. Run multiple times with different settings of the `seed` hyperparameter to train an ensemble.
 
 ### 5) Run validation
 
@@ -94,7 +96,7 @@ To obtain ERA5 surface wind vector fields, use `icenet2/rotate_and_regrid_era5_w
 
 ### Misc
 
-- `icenet2/config.py` defines various globals.
+- `icenet2/config.py` defines globals.
 - `icenet2/losses.py` defines loss functions.
 - `icenet2/callbacks.py` defines training callbacks.
 - `icenet2/metrics.py` defines training metrics.
