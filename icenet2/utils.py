@@ -9,6 +9,8 @@ import misc
 from dateutil.relativedelta import relativedelta
 import tensorflow as tf
 import xarray as xr
+import iris
+import cartopy.crs as ccrs
 import pandas as pd
 import regex as re
 import json
@@ -430,16 +432,19 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
 
     """
 
-    def __init__(self, data_loader_config_path):
+    def __init__(self, data_loader_config_path, seed=None):
 
         with open(data_loader_config_path, 'r') as readfile:
             self.config = json.load(readfile)
 
+        if seed is None:
+            self.set_seed(self.config['default_seed'])
+        else:
+            self.set_seed(seed)
         self.set_forecast_IDs(dataset='train')
         self.load_missing_dates()
         self.remove_missing_dates()
         self.set_variable_path_formats()
-        self.set_seed(self.config['default_seed'])
         self.set_number_of_input_channels_for_each_input_variable()
         self.load_polarholes()
         self.determine_tot_num_channels()
@@ -473,6 +478,23 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
                 self.all_forecast_IDs.extend([
                     (hemisphere, start_date) for start_date in forecast_start_dates]
                 )
+
+        if dataset == 'train' or dataset == 'val':
+            if '{}_sample_thin_factor'.format(dataset) in self.config.keys():
+                if self.config['{}_sample_thin_factor'.format(dataset)] is not None:
+                    reduce = self.config['{}_sample_thin_factor'.format(dataset)]
+                    prev_n_samps = len(self.all_forecast_IDs)
+                    new_n_samps = int(prev_n_samps / reduce)
+
+                    self.all_forecast_IDs = self.rng.choice(
+                        a=self.all_forecast_IDs,
+                        size=new_n_samps,
+                        replace=False
+                    )
+
+                    if self.config['verbose_level'] >= 1:
+                        print('Number of {} samples thinned from {} '
+                              'to {}.'.format(dataset, prev_n_samps, len(self.all_forecast_IDs)))
 
     def set_variable_path_formats(self):
 
@@ -1016,20 +1038,184 @@ class IceNet2DataLoader(tf.keras.utils.Sequence):
 ###############################################################################
 
 
-def make_exp_decay_lr_schedule(rate):
+def make_exp_decay_lr_schedule(rate, start_epoch=1, end_epoch=np.inf):
 
     ''' Returns an exponential learning rate function that multiplies by
-    exp(-rate) each epoch. '''
+    exp(-rate) each epoch after `start_epoch`. '''
 
     def lr_scheduler_exp_decay(epoch, lr, verbose=True):
         ''' Learning rate scheduler for fine tuning.
-        Exponential decrease after first epoch. '''
+        Exponential decrease after start_epoch until end_epoch. '''
 
-        if epoch > 1:
+        if epoch >= start_epoch and epoch < end_epoch:
             lr = lr * np.math.exp(-rate)
 
         if verbose:
             print('\nSetting learning rate to: {}\n'.format(lr))
 
         return lr
+
     return lr_scheduler_exp_decay
+
+
+###############################################################################
+############### ERA5
+###############################################################################
+
+
+def assignLatLonCoordSystem(cube):
+    ''' Assign coordinate system to iris cube to allow regridding. '''
+
+    cube.coord('latitude').coord_system = iris.coord_systems.GeogCS(6367470.0)
+    cube.coord('longitude').coord_system = iris.coord_systems.GeogCS(6367470.0)
+
+    return cube
+
+
+def fix_near_real_time_era5_coords(da):
+
+    '''
+    ERA5 data within several months of the present date is considered as a
+    separate system, ERA5T. Downloads that contain both ERA5 and ERA5T data
+    produce datasets with a length-2 'expver' dimension along axis 1, taking a value
+    of 1 for ERA5 and a value of 5 for ERA5. This results in all-NaN values
+    along latitude & longitude outside of the valid expver time span. This function
+    finds the ERA5 and ERA5T time indexes and removes the expver dimension
+    by concatenating the sub-arrays where the data is not NaN.
+    '''
+
+    if 'expver' in da.coords:
+        # Find invalid time indexes in expver == 1 (ERA5) dataset
+        arr = da.sel(expver=1).data
+        arr = arr.reshape(arr.shape[0], -1)
+        arr = np.sort(arr, axis=1)
+        era5t_time_idxs = (arr[:, 1:] != arr[:, :-1]).sum(axis=1)+1 == 1
+        era5t_time_idxs = (era5t_time_idxs) | (np.isnan(arr[:, 0]))
+
+        era5_time_idxs = ~era5t_time_idxs
+
+        da = xr.concat((da[era5_time_idxs, 0, :], da[era5t_time_idxs, 1, :]), dim='time')
+
+        da = da.reset_coords('expver', drop=True)
+
+        return da
+
+    else:
+        raise ValueError("'expver' not found in dataset.")
+
+
+###############################################################################
+############### ERA5 WIND VECTOR ROTATION
+###############################################################################
+
+
+def gridcell_angles_from_dim_coords(cube):
+    """
+    Author: Tony Phillips (BAS)
+
+    Wrapper for :func:`~iris.analysis.cartography.gridcell_angles`
+    that derives the 2D X and Y lon/lat coordinates from 1D X and Y
+    coordinates identifiable as 'x' and 'y' axes
+
+    The provided cube must have a coordinate system so that its
+    X and Y coordinate bounds (which are derived if necessary)
+    can be converted to lons and lats
+    """
+
+    # get the X and Y dimension coordinates for the cube
+    x_coord = cube.coord(axis='x', dim_coords=True)
+    y_coord = cube.coord(axis='y', dim_coords=True)
+
+    # add bounds if necessary
+    if not x_coord.has_bounds():
+        x_coord = x_coord.copy()
+        x_coord.guess_bounds()
+    if not y_coord.has_bounds():
+        y_coord = y_coord.copy()
+        y_coord.guess_bounds()
+
+    # get the grid cell bounds
+    x_bounds = x_coord.bounds
+    y_bounds = y_coord.bounds
+    nx = x_bounds.shape[0]
+    ny = y_bounds.shape[0]
+
+    # make arrays to hold the ordered X and Y bound coordinates
+    x = np.zeros((ny, nx, 4))
+    y = np.zeros((ny, nx, 4))
+
+    # iterate over the bounds (in order BL, BR, TL, TR), mesh them and
+    # put them into the X and Y bound coordinates (in order BL, BR, TR, TL)
+    c = [0, 1, 3, 2]
+    cind = 0
+    for yi in [0, 1]:
+        for xi in [0, 1]:
+            xy = np.meshgrid(x_bounds[:, xi], y_bounds[:, yi])
+            x[:,:,c[cind]] = xy[0]
+            y[:,:,c[cind]] = xy[1]
+            cind += 1
+
+    # convert the X and Y coordinates to longitudes and latitudes
+    source_crs = cube.coord_system().as_cartopy_crs()
+    target_crs = ccrs.PlateCarree()
+    pts = target_crs.transform_points(source_crs, x.flatten(), y.flatten())
+    lons = pts[:, 0].reshape(x.shape)
+    lats = pts[:, 1].reshape(x.shape)
+
+    # get the angles
+    angles = iris.analysis.cartography.gridcell_angles(lons, lats)
+
+    # add the X and Y dimension coordinates from the cube to the angles cube
+    angles.add_dim_coord(y_coord, 0)
+    angles.add_dim_coord(x_coord, 1)
+
+    # if the cube's X dimension preceeds its Y dimension
+    # transpose the angles to match
+    if cube.coord_dims(x_coord)[0] < cube.coord_dims(y_coord)[0]:
+        angles.transpose()
+
+    return angles
+
+
+def invert_gridcell_angles(angles):
+    """
+    Author: Tony Phillips (BAS)
+
+    Negate a cube of gridcell angles in place, transforming
+    gridcell_angle_from_true_east <--> true_east_from_gridcell_angle
+    """
+    angles.data *= -1
+
+    names = ['true_east_from_gridcell_angle', 'gridcell_angle_from_true_east']
+    name = angles.name()
+    if name in names:
+        angles.rename(names[1 - names.index(name)])
+
+
+def rotate_grid_vectors(u_cube, v_cube, angles):
+    """
+    Author: Tony Phillips (BAS)
+
+    Wrapper for :func:`~iris.analysis.cartography.rotate_grid_vectors`
+    that can rotate multiple masked spatial fields in one go by iterating
+    over the horizontal spatial axes in slices
+    """
+    # lists to hold slices of rotated vectors
+    u_r_all = iris.cube.CubeList()
+    v_r_all = iris.cube.CubeList()
+
+    # get the X and Y dimension coordinates for each source cube
+    u_xy_coords = [u_cube.coord(axis='x', dim_coords=True),
+                   u_cube.coord(axis='y', dim_coords=True)]
+    v_xy_coords = [v_cube.coord(axis='x', dim_coords=True),
+                   v_cube.coord(axis='y', dim_coords=True)]
+
+    # iterate over X, Y slices of the source cubes, rotating each in turn
+    for u, v in zip(u_cube.slices(u_xy_coords, ordered=False),
+                    v_cube.slices(v_xy_coords, ordered=False)):
+        u_r, v_r = iris.analysis.cartography.rotate_grid_vectors(u, v, angles)
+        u_r_all.append(u_r)
+        v_r_all.append(v_r)
+
+    # return the slices, merged back together into a pair of cubes
+    return (u_r_all.merge_cube(), v_r_all.merge_cube())
