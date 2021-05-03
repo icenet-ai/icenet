@@ -17,6 +17,9 @@ preproc_vars = {
     'zg500': {'anom': True, 'abs': False},
     'zg250': {'anom': True, 'abs': False},
     'land': {'metadata': True, 'include': True},
+    'rsds': {'anom': True, 'abs': False},
+    'rlds': {'anom': True, 'abs': False},
+    'hus1000': {'anom': True, 'abs': False},
     'circday': {'metadata': True, 'include': True}
 }
 
@@ -24,15 +27,20 @@ preproc_vars = {
     'siconca': {'anom': False, 'abs': False},
     'tas': {'anom': False, 'abs': False},
     'ta500': {'anom': False, 'abs': False},
-    'tos': {'anom': True, 'abs': False},
+    'tos': {'anom': False, 'abs': False},
     'psl': {'anom': False, 'abs': False},
     'zg500': {'anom': False, 'abs': False},
     'zg250': {'anom': False, 'abs': False},
-    'land': {'metadata': True, 'include': False},
-    'circday': {'metadata': True, 'include': False}
+    'rsds': {'anom': False, 'abs': False},
+    'rlds': {'anom': False, 'abs': False},
+    'hus1000': {'anom': False, 'abs': False},
+    'uas': {'anom': False, 'abs': True},
+    'vas': {'anom': False, 'abs': True},
+    'land': {'metadata': False, 'include': False},
+    'circday': {'metadata': False, 'include': False}
 }
 
-preproc_hemispheres = ['sh']
+preproc_hemispheres = ['nh', 'sh']
 
 start_date = datetime(1979, 1, 1)
 end_date = datetime(2012, 1, 1)
