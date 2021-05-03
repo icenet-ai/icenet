@@ -6,30 +6,29 @@ import utils
 import misc
 import metrics
 import losses
+import re
 import numpy as np
 import xarray as xr
 import pandas as pd
 from tqdm import tqdm
-import plotly.express as px
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from tensorflow.keras.models import load_model
-from sklearn.metrics import accuracy_score
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 ####################################################################
 
-models = ['IceNet2', 'Day_persistence']
-models = ['Day_persistence']  # TEMP
+# models = ['IceNet2', 'Day_persistence']
+models = ['IceNet2']
 
 # TODO: generic predict functions for the different models that take init date
 #   as input?
 
 icenet2_name = 'unet_batchnorm'
-dataloader_name = '2021_03_03_1928_icenet2_init'
-
-seed = 42
+# dataloader_name = '2021_04_03_1421_icenet2_nh_sh_thinned5_weeklyinput'
+# dataloader_name = '2021_04_25_1351_icenet2_nh_thinned7_weeklyinput_wind_3month'
+dataloader_name = '2021_04_08_1205_icenet2_nh_sh_thinned5_weeklyinput_wind_3month'
+seed = 'ensemble'
+# TODO ensembling option
 
 verbose = False
 
@@ -39,17 +38,42 @@ verbose = False
 if 'IceNet2' in models:
 
     network_folder = os.path.join(config.folders['results'], dataloader_name, icenet2_name, 'networks')
-    if not os.path.exists(network_folder):
-        os.makedirs(network_folder)
     network_fpath = os.path.join(network_folder, 'network_{}.h5'.format(seed))
 
-    network = load_model(
-        network_fpath,
-        custom_objects={
-            'weighted_MSE': losses.weighted_MSE,
-            'weighted_RMSE': metrics.weighted_RMSE
-        }
-    )
+    custom_objects = {
+        'weighted_MAE_corrected': metrics.weighted_MAE_corrected,
+        'weighted_MSE_corrected': metrics.weighted_MAE_corrected,
+        'weighted_RMSE_corrected': metrics.weighted_MAE_corrected,
+        # Older models used these uncorrected metrics
+        'weighted_MAE': metrics.weighted_MAE,
+        'weighted_MSE': losses.weighted_MSE,
+        'weighted_RMSE': metrics.weighted_RMSE
+    }
+
+    if seed != 'ensemble':
+        network_fpath = os.path.join(network_folder, 'network_{}.h5'.format(seed))
+
+        print('\nLoading model from {}... '.format(network_fpath), end='', flush=True)
+        network = load_model(
+            network_fpath,
+            custom_objects=custom_objects,
+        )
+        print('Done.')
+
+    elif seed == 'ensemble':
+
+        network_regex = re.compile('^.*.h5$')
+        network_fpaths = [os.path.join(network_folder, f) for f in
+                          os.listdir(network_folder) if network_regex.match(f)]
+
+        networks = []
+        for network_fpath in network_fpaths:
+            print('\nLoading model from {}... '.format(network_fpath), end='', flush=True)
+            networks.append(load_model(
+                network_fpath,
+                custom_objects=custom_objects,
+            ))
+            print('Done.')
 
 dataloader_config_fpath = os.path.join('dataloader_configs', dataloader_name+'.json')
 
@@ -61,7 +85,7 @@ for model in models:
 
     if model == 'IceNet2':
         forecast_folders_dict[model] = os.path.join(
-            config.folders['data'], 'forecasts', 'icenet2', dataloader_name, icenet2_name)
+            config.folders['data'], 'forecasts', 'icenet2', dataloader_name, icenet2_name, seed)
 
     else:
         forecast_folders_dict[model] = os.path.join(
@@ -73,7 +97,7 @@ for model in models:
 #### Load ground truth SIC for statistical model benchmarks
 ####################################################################
 
-true_sic_fpath = os.path.join(config.folders['data'], 'siconca', 'siconca_all_interp.nc')
+true_sic_fpath = os.path.join(config.folders['data'], 'nh', 'siconca', 'siconca_all_interp.nc')
 true_sic_da = xr.open_dataarray(true_sic_fpath)
 
 # Replace 12:00 hour with 00:00 hour by convention
@@ -96,7 +120,7 @@ all_forecast_start_dates = misc.filled_daily_dates(
     end_date=all_forecast_target_dates[-1],
     include_end=True)
 
-da_with_coords = xr.open_dataarray('data/siconca/raw_yearly_data/siconca_1979.nc')
+da_with_coords = xr.open_dataarray('data/nh/siconca/raw_yearly_data/siconca_1979.nc')
 
 model_forecast_dict = {}
 for model in models:
@@ -147,10 +171,20 @@ for model in models:
 
         if model == 'IceNet2':
 
-            X, y = dataloader.data_generation(np.array([forecast_start_date]))
+            X, y = dataloader.data_generation([('nh', forecast_start_date)])
             mask = y[0, :, :, :, 1] == 0
 
-            pred = network.predict(X)[0]
+            if seed != 'ensemble':
+                pred = network.predict(X)[0]
+            elif seed == 'ensemble':
+                preds = []
+                for network in networks:
+                    network_pred = network.predict(X)[0]
+                    if len(network_pred.shape) == 4:
+                        # extra final dimension
+                        network_pred = network_pred[..., 0]
+                    preds.append(network_pred)
+                pred = np.mean(preds, axis=0)  # Take ensemble mean
             pred[mask] = 0.
 
         if model == 'Day_persistence':
