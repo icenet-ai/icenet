@@ -7,30 +7,26 @@ import json
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import numpy as np
+import regex as re
 import xarray as xr
 import dask
 import dask.array as da
 from dask.diagnostics import ProgressBar
 from time import time
 import pandas as pd
-import plotly.express as px
-import matplotlib.pyplot as plt
 from distributed import Client, progress
-import seaborn as sns
 import matplotlib
 matplotlib.rcParams.update({
     'figure.facecolor': 'w',
     'figure.dpi': 300
 })
 
-use_local_distributed_cluster = True
+compute_in_memory = True  # Not recomended unless you have lots of RAM!
+use_local_distributed_cluster = False
 use_multiprocessing_scheduler = False
 
-if (
-    (use_local_distributed_cluster and use_multiprocessing_scheduler) or
-    not (use_local_distributed_cluster or use_multiprocessing_scheduler)
-    ):
-    raise ValueError('You must specify a single Dask parallelisation strategy '
+if np.sum([compute_in_memory, use_local_distributed_cluster, use_multiprocessing_scheduler]) != 1:
+    raise ValueError('You must specify a single compute strategy '
                      'at the beginning of the script.')
 
 # temp_dir = 'tmp_dask'
@@ -40,64 +36,58 @@ if not os.path.exists(temp_dir):
 
 if __name__ == '__main__':
 
-    # dask.config.set(temporary_directory=os.path.expandvars("/tmp/$USER/dask-tmp"))
-    dask.config.set(temporary_directory=os.path.expandvars(temp_dir))
+    n_workers = 8
+    # n_workers = 32
+    threads_per_worker = 2
 
-    if use_local_distributed_cluster:
-        # client = Client(n_workers=8, threads_per_worker=3)
-        client = Client(n_workers=8)
-        # client = Client(n_workers=16)
-        # client = Client(n_workers=16, threads_per_worker=8)
-        # client = Client()
-        print(client)
+    dask.config.set(temporary_directory=os.path.expandvars(temp_dir))
 
     ####################################################################
 
     network_name = 'unet_batchnorm'
-    dataloader_name = '2021_03_03_1928_icenet2_init'
+    # dataloader_name = '2021_04_03_1421_icenet2_nh_sh_thinned5_weeklyinput'
+    # dataloader_name = '2021_04_25_1351_icenet2_nh_thinned7_weeklyinput_wind_3month'
+    # dataloader_name = '2021_04_08_1205_icenet2_nh_sh_thinned5_weeklyinput_wind_3month'
+    dataloader_name = 'icenet2_10ensemble'
+    seed = 'ensemble'
+
+    # None if you want to determine from dataloader config
+    n_forecast_days = 93
 
     # Format for storing different IceNet2 results in one dataframe
-    icenet2_name = 'IceNet2__{}__{}'.format(dataloader_name, network_name)
+    icenet2_name = 'IceNet2__{}__{}__{}'.format(dataloader_name, network_name, seed)
 
     pre_load_results_df = True
 
     # What to compute
-    model_compute_list = ['Year_persistence', 'Day_persistence', icenet2_name]
-    # TODO: what about adding a new model for which none of the metrics have been done?
-    # TODO: what about icenet2 results changing but benchmarks not changing?
-    # TODO: compute_dict of model: metric pairs determined from loaded results_df?
+    # model_compute_list = ['Year_persistence', 'Day_persistence', icenet2_name]
+    model_compute_list = [icenet2_name]
 
-    # metric_compute_list = ['MAE', 'RMSE', 'MSE']
-    # metric_compute_list = ['Binary_accuracy', 'MAE']
-    # metric_compute_list = ['Binary_accuracy']
-    # metric_compute_list = ['Binary_accuracy', 'foo']
-    metric_compute_list = ['RMSE']
-
-    do_plotting = True
+    # OPTIONS: ['MAE', 'MSE', 'RMSE', 'Binary_accuracy']
+    #   Note: ensure RMSE is after MSE
+    # metric_compute_list = ['MAE', 'MSE', 'RMSE']
+    # metric_compute_list = ['MAE', 'MSE', 'RMSE', 'Binary_accuracy']
+    metric_compute_list = ['MAE', 'RMSE', 'Binary_accuracy']
 
     ### Dataloader
     ####################################################################
 
-    dataloader_config_fpath = os.path.join('dataloader_configs', dataloader_name+'.json')
-    with open(dataloader_config_fpath, 'r') as f:
-        dataloader_config = json.load(f)
+    if n_forecast_days is None:
+        dataloader_config_fpath = os.path.join('dataloader_configs', dataloader_name+'.json')
+        with open(dataloader_config_fpath, 'r') as f:
+            dataloader_config = json.load(f)
 
-    n_forecast_days = dataloader_config['n_forecast_days']
+        n_forecast_days = dataloader_config['n_forecast_days']
 
-    # TODO: work out optimal chunking
-    chunking = dict(time=31, leadtime=n_forecast_days)
-
-    # TEMP
-    chunking = dict(time=8, leadtime=n_forecast_days)
-    # chunking = dict(time=7, leadtime=int(n_forecast_days/4))
-
-    # TEMP
-    # chunking = dict(time=1, leadtime=3)
+    # chunking = dict(time=7, leadtime=n_forecast_days)
+    # chunking = dict(time=2, leadtime=n_forecast_days/2)
+    # chunking = dict(time=14, leadtime=n_forecast_days)
+    chunking = dict(time=20, leadtime=n_forecast_days)
 
     ### Monthly masks
     ####################################################################
 
-    mask_fpath_format = os.path.join(config.folders['masks'],
+    mask_fpath_format = os.path.join('data', 'nh', 'masks',
                                      config.formats['active_grid_cell_mask'])
 
     month_mask_da = xr.DataArray(np.array(
@@ -108,23 +98,33 @@ if __name__ == '__main__':
     ### Initialise results dataframe
     ####################################################################
 
-    leadtimes = np.arange(1, dataloader_config['n_forecast_days']+1)
+    leadtimes = np.arange(1, n_forecast_days+1)
 
     forecast_target_dates = misc.filled_daily_dates(
         start_date=datetime(2012, 1, 1), end_date=datetime(2018, 1, 1)
     )
 
-    # results_df_fpath = os.path.join(
-    #     config.folders['results'], dataloader_name, network_name, 'results.csv'
+    # # TEMP
+    # forecast_target_dates = misc.filled_daily_dates(
+    #     start_date=datetime(2012, 1, 1), end_date=datetime(2014, 1, 1)
     # )
 
-    results_df_fpath = os.path.join(
-        config.folders['results'], 'results.csv'
-    )
+    results_df_fnames = sorted([f for f in os.listdir('results') if re.compile('.*.csv').match(f)])
+    if len(results_df_fnames) >= 1:
+        old_results_df_fname = results_df_fnames[-1]
+        old_results_df_fpath = os.path.join('results', old_results_df_fname)
+        print('\n\nLoading previous results dataset from {}'.format(old_results_df_fpath))
+
+    now = pd.Timestamp.now()
+    new_results_df_fname = now.strftime('%Y_%m_%d_%H%M%S_results.csv')
+    new_results_df_fpath = os.path.join('results', new_results_df_fname)
+
+    print('New results will be saved to {}\n\n'.format(new_results_df_fpath))
 
     if pre_load_results_df:
-        results_df = pd.read_csv(results_df_fpath)
-        # results_df = results_df.drop('Unnamed: 0', axis=1)  # Drop spurious index column
+        results_df = pd.read_csv(old_results_df_fpath)
+        # Drop spurious index column if present
+        results_df = results_df.drop('Unnamed: 0', axis=1, errors='ignore')
         results_df['Forecast date'] = [pd.Timestamp(date) for date in results_df['Forecast date']]
 
         existing_models = results_df.Model.unique()
@@ -166,25 +166,42 @@ if __name__ == '__main__':
             model: metric_compute_list for model in model_compute_list
         }
 
+    print('COMPUTATIONS:')
+    print(compute_dict)
+    print('\n\n')
+
     ### Load forecasts
     ####################################################################
 
     validation_forecasts_dict = {}
 
+    remove_models = []  # Models for which no forecast data is found
+
     for model in compute_dict.keys():
 
         if model == 'Year_persistence':
-            # Forecasts computed locally in this script as they are so simple
+            # Forecasts computed locally in this script because they are so simple
             continue
 
-        if model == icenet2_name:
+        matchobj = re.compile('^IceNet2__(.*)__(.*)__(.*)$').match(model)
+        if matchobj:
+            dataloader_name = matchobj[1]
+            network_name = matchobj[2]
+            seed = matchobj[3]
             validation_forecast_folder = os.path.join(
-                config.folders['data'], 'forecasts', 'icenet2', dataloader_name, network_name
+                'data', 'forecasts', 'icenet2', dataloader_name, network_name, seed
             )
         else:
             validation_forecast_folder = os.path.join(
-                config.folders['data'], 'forecasts', model
+                'data', 'forecasts', model
             )
+
+        if not os.path.exists(validation_forecast_folder) or len(os.listdir(validation_forecast_folder)) == 0:
+            # No forecast data - do not compute
+            print('Could not find forecast data for {} -- removing from computations.'.format(model))
+            remove_models.append(model)
+            continue
+
         validation_prediction_fpaths = [
             os.path.join(validation_forecast_folder, f) for f in os.listdir(validation_forecast_folder)
         ]
@@ -192,12 +209,16 @@ if __name__ == '__main__':
             forecast_ds = xr.open_mfdataset(
                 validation_prediction_fpaths, chunks=chunking
             )
+            forecast_ds = next(iter(forecast_ds.data_vars.values()))  # Convert to DataArray
             validation_forecasts_dict[model] = forecast_ds.sel(time=forecast_target_dates)
+
+    for model in remove_models:
+        del(compute_dict[model])
 
     ### True SIC
     ####################################################################
 
-    true_sic_fpath = os.path.join(config.folders['data'], 'siconca', 'siconca_all_interp.nc')
+    true_sic_fpath = os.path.join('data', 'nh', 'siconca', 'siconca_all_interp.nc')
     true_sic_da = xr.open_dataarray(true_sic_fpath,
                                     chunks=dict(time=chunking['time']))
 
@@ -205,7 +226,7 @@ if __name__ == '__main__':
     dates = [pd.Timestamp(date).to_pydatetime().replace(hour=0) for date in true_sic_da.time.values]
     true_sic_da = true_sic_da.assign_coords(dict(time=dates))
 
-    if 'Year_persistence' in model_compute_list:
+    if 'Year_persistence' in compute_dict.keys():
         persistence_forecast_da = true_sic_da.copy()
         dates = [pd.Timestamp(date) + relativedelta(days=365) for date in persistence_forecast_da.time.values]
         persistence_forecast_da = persistence_forecast_da.assign_coords(dict(time=dates))
@@ -234,81 +255,123 @@ if __name__ == '__main__':
     ### Compute
     ####################################################################
 
+    print('\n\n\n')
+
+    # Metrics based on raw SIC error
+    sic_err_metrics = ['MAE', 'MSE', 'RMSE']
+
     for model, model_metric_compute_list in compute_dict.items():
 
-        print(model)
+        if use_local_distributed_cluster:
+            client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker)
+            print(client)
 
-        for metric in model_metric_compute_list:
+        compute_sic_err_metrics = [metric for metric in model_metric_compute_list if metric in sic_err_metrics]
+        compute_non_sic_err_metrics = [metric for metric in model_metric_compute_list if metric not in sic_err_metrics]
 
-            if metric == 'MAE':
+        if len(compute_sic_err_metrics) >= 1:
 
-                err_da = validation_forecasts_dict[model] - true_sic_da
+            # Absolute SIC errors
+            err_da = (validation_forecasts_dict[model] - true_sic_da) * 100
+            abs_err_da = da.fabs(err_da)
+            abs_weighted_da = abs_err_da.weighted(mask_da)
 
-                abs_err_da = da.fabs(err_da)
+            # Squared errors
+            square_err_da = err_da**2
+            square_weighted_da = square_err_da.weighted(mask_da)
 
-                # Compute weighted MAE
-                abs_weighted_da = abs_err_da.weighted(mask_da)
-                compute_da = (abs_weighted_da.mean(dim=['yc', 'xc']) * 100)
+            compute_ds = xr.Dataset()
+            for metric in compute_sic_err_metrics:
 
-                # print('visualising')
-                # g = compute_da.data.__dask_graph__()
-                # g.visualize(filename='graph.pdf', rankdir='LR')
-                # # compute_da.data.visualize(filename='graph.pdf')
-                # print('done')
+                if metric == 'MAE':
+                    ds_mae = abs_weighted_da.mean(dim=['yc', 'xc'])
+                    # compute_ds[metric] = next(iter(ds_mae.data_vars.values()))
+                    compute_ds[metric] = ds_mae
 
-            if metric == 'RMSE':
+                elif metric == 'MSE':
 
-                # TODO: save compute if doing MSE and RMSE
+                    ds_mse = square_weighted_da.mean(dim=['yc', 'xc'])
+                    # compute_ds[metric] = next(iter(ds_mse.data_vars.values()))
+                    compute_ds[metric] = ds_mse
 
-                err_da = validation_forecasts_dict[model] - true_sic_da
+                elif metric == 'RMSE':
 
-                square_err_da = err_da**2
+                    if 'MSE' not in compute_sic_err_metrics:
+                        ds_mse = square_weighted_da.mean(dim=['yc', 'xc'])
 
-                # Computed weighted RMSE
-                abs_weighted_da = square_err_da.weighted(mask_da)
-                compute_da = da.sqrt(abs_weighted_da.mean(dim=['yc', 'xc'])) * 100
+                    ds_rmse = da.sqrt(ds_mse)
+                    # compute_ds[metric] = next(iter(ds_rmse.data_vars.values()))
+                    compute_ds[metric] = ds_rmse
 
-            if metric == 'Binary_accuracy':
-                forecast_binary_da = validation_forecasts_dict[model] > 0.15
-                binary_correct_da = (forecast_binary_da == true_sic_binary_da).astype(np.float32)
-                binary_correct_weighted_da = binary_correct_da.weighted(mask_da)
+        if len(compute_non_sic_err_metrics) >= 1:
 
-                # Mean percentage of correct classifications over the active
-                #   grid cell area
-                compute_da = (binary_correct_weighted_da.mean(dim=['yc', 'xc']) * 100)
+            for metric in compute_non_sic_err_metrics:
 
-            print('Computing {}.'.format(metric))
-            tic = time()
+                if metric == 'Binary_accuracy':
+                    forecast_binary_da = validation_forecasts_dict[model] > 0.15
+                    binary_correct_da = (forecast_binary_da == true_sic_binary_da).astype(np.float32)
+                    binary_correct_weighted_da = binary_correct_da.weighted(mask_da)
 
-            if use_local_distributed_cluster:
-                compute_da = compute_da.persist()
-                progress(compute_da)
-                compute_da.compute()
+                    # Mean percentage of correct classifications over the active
+                    #   grid cell area
+                    ds_binacc = (binary_correct_weighted_da.mean(dim=['yc', 'xc']) * 100)
+                    # Compute_ds[metric] = next(iter(ds_binacc.data_vars.values()))
+                    compute_ds[metric] = ds_binacc
 
-            if use_multiprocessing_scheduler:
-                with ProgressBar():  # Does this not work with local distributed client?
-                    with dask.config.set(num_workers=8):
-                        compute_da = compute_da.compute(scheduler='processes')
+        print('Computing all metrics:')
+        print(model_metric_compute_list)
+        tic = time()
 
-            dur = time() - tic
-            print("Done in {}m:{:.0f}s.\n\n ".format(np.floor(dur / 60), dur % 60))
+        # TEMP: loading all into memory
+        if compute_in_memory:
+            compute_ds = compute_ds.compute()
 
-            compute_df = compute_da.to_dataframe()
+        if use_local_distributed_cluster:
+            compute_ds = compute_ds.persist()
+            progress(compute_ds)
+            compute_ds = compute_ds.compute()
 
-            idx = pd.IndexSlice
-            if model == 'Year_persistence':
-                # Not a function of lead time
-                for leadtime in leadtimes:
-                    results_df.loc[idx[leadtime, :, model], metric] = \
-                        compute_df.values
-            else:
-                results_df.loc[idx[:, :, model], metric] = \
-                    compute_df.values
+            # print('\nRestarting client... ', end='', flush=True)
+            # client.restart()
+            # print('Done.')
 
-    if use_local_distributed_cluster:
-        client.close()
+            print('\nClosing client... ', end='', flush=True)
+            client.close()
+            print('Done.')
 
-    # Make sure index names are correct
-    results_df.index = results_df.index.rename(['Leadtime', 'Forecast date', 'Model'])
+        if use_multiprocessing_scheduler:
+            with ProgressBar():  # Does this not work with local distributed client?
+                with dask.config.set(num_workers=8):
+                    compute_ds = compute_ds.compute(scheduler='processes')
 
-    results_df.to_csv(results_df_fpath)
+        dur = time() - tic
+        print("Computations finished in {}m:{:.0f}s.\n\n ".format(np.floor(dur / 60), dur % 60))
+        # print(compute_ds)
+
+        if model == 'Year_persistence':
+            compute_ds = compute_ds.expand_dims({'leadtime': leadtimes})
+
+        mapping = {'leadtime': 'Leadtime', 'time': 'Forecast date'}
+
+        compute_df = compute_ds.to_dataframe().reset_index().rename(columns=mapping).\
+            assign(Model=model).set_index(['Leadtime', 'Forecast date', 'Model'])
+
+        print('Writing to results dataset (this can take a minute)...')
+        tic = time()
+        results_df.loc[pd.IndexSlice[leadtimes, forecast_target_dates, model], compute_df.columns] = \
+            compute_df.values
+        dur = time() - tic
+        print("Done in {}m:{:.0f}s.\n\n ".format(np.floor(dur / 60), dur % 60))
+
+        ### Checkpoint results
+        print('\nCheckpointing results dataset... ', end='', flush=True)
+        tic = time()
+        results_df.index = results_df.index.rename(['Leadtime', 'Forecast date', 'Model'])
+        results_df.to_csv(new_results_df_fpath)
+        dur = time() - tic
+        print("Done in {}m:{:.0f}s.\n\n ".format(np.floor(dur / 60), dur % 60))
+
+    print('\n\nNEW RESULTS: ')
+    print(results_df.head(10))
+    print('\n...\n')
+    print(results_df.tail(10))
