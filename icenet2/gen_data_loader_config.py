@@ -57,12 +57,29 @@ a dictionary. The dictionary settings are:
 
     n_forecast_days (int): Total number of days ahead to predict.
 
-    obs_train_dates (tuple): Tuple of start and end initialisation date for
-    training (storedas strings, e.g '1979-9-1')
+    sample_IDs (dict): Dictionary of dictionaries storing the train-val-test
+    set splits for the Northern and Southern hemispheres. Splits are defined in
+    terms of start & end dates for the forecast initialisation dates
+    used to define sampled IDs. If None, that hemisphere does not contribute
+    to the given dataset split.
 
-    obs_val_dates (tuple): As above but for the validation set.
+        Example:
+            'sample_IDs': {
+                'nh': {
+                    'obs_train_dates': ('1979-6-1', '2011-6-1'),
+                    'obs_val_dates': ('2012-1-1', '2017-6-1'),
+                    'obs_test_dates': ('2018-1-1', '2019-6-1'),
+                },
+                'sh': {
+                    'obs_train_dates': ('1979-6-1', '2014-12-31'),
+                    'obs_val_dates': None,
+                    'obs_test_dates': None,
+                },
+            },
 
-    obs_test_dates (tuple): As above but for the test set.
+    training_sample_thin_factor (int): Factor by which to downsample the training
+    samples due to high correlation between days. For training efficiency during model
+    improvement phase.
 
     raw_data_shape (tuple): Shape of input satellite data as (rows, cols).
 
@@ -78,31 +95,46 @@ a dictionary. The dictionary settings are:
 """
 
 dataloder_config = {
-    'dataloader_name': 'icenet2_nh_sh',
+    'dataloader_name': 'icenet2_nh_thinned7_weeklyinput_wind_3month',
     'dataset_name': 'dataset1',
     'input_data': {
         "siconca":
-            {"abs": {"include": True, 'max_lag': 31*3},
-             "anom": {"include": False, 'max_lag': 31},
+            {"abs": {"include": True, 'max_lag': 7*1},
+             "anom": {"include": False, 'max_lag': 7*1},
              "linear_trend": {"include": False}},
         "tas":
-            {"abs": {"include": False, 'max_lag': 31*1},
-             "anom": {"include": True, 'max_lag': 31*1}},
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
         "ta500":
-            {"abs": {"include": False, 'max_lag': 31*1},
-             "anom": {"include": True, 'max_lag': 31*1}},
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
         "tos":
-            {"abs": {"include": False, 'max_lag': 31*3},
-             "anom": {"include": True, 'max_lag': 31*3}},
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
         "psl":
-            {"abs": {"include": False, 'max_lag': 31*1},
-             "anom": {"include": True, 'max_lag': 31*1}},
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
         "zg500":
-            {"abs": {"include": False, 'max_lag': 31*1},
-             "anom": {"include": True, 'max_lag': 31*1}},
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
         "zg250":
-            {"abs": {"include": False, 'max_lag': 31*1},
-             "anom": {"include": True, 'max_lag': 31*1}},
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
+        "rsds":
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
+        "rlds":
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
+        "hus1000":
+            {"abs": {"include": False, 'max_lag': 7*1},
+             "anom": {"include": True, 'max_lag': 7*1}},
+        "uas":
+            {"abs": {"include": True, 'max_lag': 7*1},
+             "anom": {"include": False, 'max_lag': 7*1}},
+        "vas":
+            {"abs": {"include": True, 'max_lag': 7*1},
+             "anom": {"include": False, 'max_lag': 7*1}},
         "land":
             {"metadata": True,
              "include": True},
@@ -111,7 +143,7 @@ dataloder_config = {
              "include": True},
     },
     'batch_size': 2,
-    'n_forecast_days': 31*6,
+    'n_forecast_days': 31*3,
     'sample_IDs': {
         'nh': {
             'obs_train_dates': ('1979-6-1', '2011-6-1'),
@@ -119,11 +151,14 @@ dataloder_config = {
             'obs_test_dates': ('2018-1-1', '2019-6-1'),
         },
         'sh': {
-            'obs_train_dates': ('1979-6-1', '2014-12-31'),
+            # 'obs_train_dates': ('1979-6-1', '2014-12-31'),
+            'obs_train_dates': None,
             'obs_val_dates': None,
             'obs_test_dates': None,
         },
     },
+    'train_sample_thin_factor': 7,
+    'val_sample_thin_factor': 7,
     'raw_data_shape': (432, 432),
     'default_seed': 42,
     'loss_weight_months': True,
