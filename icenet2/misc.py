@@ -170,7 +170,8 @@ class StretchOutNormalize(plt.Normalize):
 
 
 def gen_forecast_video(video_fpath, forecast_folder_path, forecast_date, n_forecast_days,
-                       fps, video_format='fixed_init', third_axis='sic_error', day_error_map=None,
+                       fps, video_format='fixed_init', crop=None,
+                       third_axis='sic_error', day_error_map=None,
                        init_pause=10, mask=None, figsize=(15, 5), dpi=300):
 
     '''
@@ -201,6 +202,10 @@ def gen_forecast_video(video_fpath, forecast_folder_path, forecast_date, n_forec
             initialisation date with growing lead time, or a
             fixed target date with shrinking lead time.
 
+        crop (tuple): Tuple of ints form (a, b, c, d), which crops the video
+            using array = array[a:b, c:d]. If None is passed, no cropping is
+            applied. Default: None.
+
         third_axis (str): 'sic_error' for a forecast SIC error video, 'day_error' for
             static break up dat plot (not yet implemented).
 
@@ -226,6 +231,7 @@ def gen_forecast_video(video_fpath, forecast_folder_path, forecast_date, n_forec
             n_forecast_days=31*3,
             fps=4,
             video_format='fixed_init',
+            crop=(100, 200, 75, 186),
             third_axis='sic_error',
             day_error_map=None,
             init_pause=10,
@@ -333,6 +339,12 @@ def gen_forecast_video(video_fpath, forecast_folder_path, forecast_date, n_forec
             pred = forecast_da.sel(leadtime=leadtime)
         true = true_sic_da.sel(time=date)
 
+        if crop is not None:
+            a, b, c, d = crop
+            pred = pred[a:b, c:d]
+            true = true[a:b, c:d]
+            # TODO: crop Ellie's sea ice transition map
+
         # Forecast
         ax = axes[0]
         ax.set_title('Forecast')
@@ -392,13 +404,17 @@ def gen_forecast_video(video_fpath, forecast_folder_path, forecast_date, n_forec
                     fps=fps)
     print('\nVideo saved to {}'.format(video_fpath))
 
+# video_folder='videos/forecast_videos/2021_04_25_1351_icenet2_nh_thinned7_weeklyinput_wind_3month/'
+# if not os.path.exists(video_folder):
+#     os.makedirs(video_folder)
+# video_fpath = os.path.join(video_folder, 'fixed_init_2015_11_01.mp4')
 # gen_forecast_video(
-#     video_fpath='fixed_target_2012.mp4',
-#     forecast_folder_path='data/forecasts/icenet2/2021_04_03_1421_icenet2_nh_sh_thinned5_weeklyinput/unet_batchnorm/42/',
-#     forecast_date=pd.Timestamp('2012-09-15'),
+#     video_fpath=video_fpath,
+#     forecast_folder_path='data/forecasts/icenet2/2021_04_25_1351_icenet2_nh_thinned7_weeklyinput_wind_3month/unet_batchnorm/ensemble/',
+#     forecast_date=pd.Timestamp('2015-11-01'),
 #     n_forecast_days=31*3,
 #     fps=3,
-#     video_format='fixed_target',
+#     video_format='fixed_init',
 #     third_axis='sic_error',
 #     day_error_map=None,
 #     init_pause=10,
