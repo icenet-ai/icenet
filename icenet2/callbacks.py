@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 sys.path.insert(0, os.path.join(os.getcwd(), 'icenet2'))  # if using jupyter kernel
 import config
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -61,8 +62,18 @@ class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
         self.dataloader = dataloader
         self.sample_at_zero = sample_at_zero
 
-        self.log_figure_init_date = datetime(2012, 10, 1)
-        self.log_figure_lead_days = 31
+        self.log_figure_init_dates = [
+            datetime(2012, 10, 1),
+            datetime(2014, 8, 1),
+            datetime(2015, 5, 1),
+            datetime(2017, 10, 15)
+        ]
+        self.log_figure_leadtimes = [
+            31,
+            30+15,
+            7,
+            25
+        ]
 
         if log_figure:
             self.land_mask = np.load(os.path.join('data', 'nh', 'masks',
@@ -75,45 +86,51 @@ class BatchwiseWandbLogger(tf.keras.callbacks.Callback):
                 wandb.log(logs)
 
             if self.log_figure:
-                X, y = self.dataloader.data_generation([('nh', self.log_figure_init_date)])
-                pred = self.model.predict(X)
-                mask = y[:, :, :, :, 1] == 0
-                pred[mask] = 0
 
-                pred_case_study = 100*pred[0, :, :, self.log_figure_lead_days-1]
-                y_true_case_study = 100*y[0, :, :, self.log_figure_lead_days-1, 0]
+                 # TODO: don't hard code min/max crop values
 
-                err = pred_case_study - y_true_case_study
+                fig, axes = plt.subplots(nrows=4, ncols=3, figsize=(10, 4*4))
 
-                mae = np.mean(np.abs(err[~mask[0, :, :, self.log_figure_lead_days-1]]))
+                for i, (date, leadtime) in enumerate(zip(self.log_figure_init_dates, self.log_figure_leadtimes)):
+                    target_date = date + relativedelta(days=leadtime-1)
 
-                fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(10, 5))
+                    X, y = self.dataloader.data_generation([('nh', date)])
+                    pred = self.model.predict(X)
+                    mask = y[:, :, :, :, 1] == 0
+                    pred[mask] = 0
 
-                ax = axes[0]
-                im = ax.imshow(y_true_case_study[75:325, 75:325], cmap='Blues_r', clim=(0, 100))
-                ax.contour(self.land_mask[75:325, 75:325], levels=[.5], colors='k')
-                divider = make_axes_locatable(ax)
-                cax = divider.append_axes('right', size='5%', pad=0.05)
-                fig.colorbar(im, cax)
-                ax.set_title('True map')
+                    pred_case_study = 100*pred[0, :, :, leadtime]
+                    y_true_case_study = 100*y[0, :, :, leadtime, 0]
 
-                ax = axes[1]
-                im = ax.imshow(pred_case_study[75:325, 75:325], cmap='Blues_r', clim=(0, 100))
-                ax.contour(self.land_mask[75:325, 75:325], levels=[.5], colors='k')
-                divider = make_axes_locatable(ax)
-                cax = divider.append_axes('right', size='5%', pad=0.05)
-                fig.colorbar(im, cax)
-                ax.set_title('IceNet2 prediction, MAE: {:.2f}%'.format(mae))
+                    err = pred_case_study - y_true_case_study
 
-                ax = axes[2]
-                im = ax.imshow(err[75:325, 75:325], cmap='seismic', clim=(-100, 100))
-                ax.contour(self.land_mask[75:325, 75:325], levels=[.5], colors='k')
-                divider = make_axes_locatable(ax)
-                cax = divider.append_axes('right', size='5%', pad=0.05)
-                fig.colorbar(im, cax)
-                ax.set_title('Prediction minus true')
+                    mae = np.mean(np.abs(err[~mask[0, :, :, leadtime]]))
 
-                for ax in axes:
+                    ax = axes[i, 0]
+                    im = ax.imshow(y_true_case_study[75:325, 75:325], cmap='Blues_r', clim=(0, 100))
+                    ax.contour(self.land_mask[75:325, 75:325], levels=[.5], colors='k')
+                    divider = make_axes_locatable(ax)
+                    cax = divider.append_axes('right', size='5%', pad=0.05)
+                    fig.colorbar(im, cax)
+                    ax.set_title('True map {}'.format(target_date.strftime('%Y/%m/%d')))
+
+                    ax = axes[i, 1]
+                    im = ax.imshow(pred_case_study[75:325, 75:325], cmap='Blues_r', clim=(0, 100))
+                    ax.contour(self.land_mask[75:325, 75:325], levels=[.5], colors='k')
+                    divider = make_axes_locatable(ax)
+                    cax = divider.append_axes('right', size='5%', pad=0.05)
+                    fig.colorbar(im, cax)
+                    ax.set_title('IceNet2 prediction\n(lead {} days), MAE: {:.2f}%'.format(leadtime, mae))
+
+                    ax = axes[i, 2]
+                    im = ax.imshow(err[75:325, 75:325], cmap='seismic', clim=(-100, 100))
+                    ax.contour(self.land_mask[75:325, 75:325], levels=[.5], colors='k')
+                    divider = make_axes_locatable(ax)
+                    cax = divider.append_axes('right', size='5%', pad=0.05)
+                    fig.colorbar(im, cax)
+                    ax.set_title('Prediction minus true')
+
+                for ax in axes.ravel():
                     ax.axes.xaxis.set_visible(False)
                     ax.axes.yaxis.set_visible(False)
                 plt.tight_layout()
