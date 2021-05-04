@@ -1,6 +1,6 @@
 # IceNet2: A daily to seasonal sea ice forecasting AI
 
-TODO: add some plots.
+TODO: add some results plots.
 
 Codebase to train IceNet2, an ensemble of `M` U-Net neural networks for forecasting maps of daily-averaged Arctic sea ice `1, 2, ..., N` days into the future.
 A flexible data loader class is provided to dictate which map variables are input to the networks (e.g. past sea ice and other climate variables), how far they look back into the past, and how far ahead to forecast.
