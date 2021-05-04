@@ -96,6 +96,7 @@ To rotate and regrid ERA5 surface wind vector fields, use `icenet2/rotate_and_re
 
 ### Misc
 
+- `icenet2/models.py` defines network architectures.
 - `icenet2/config.py` defines globals.
 - `icenet2/losses.py` defines loss functions.
 - `icenet2/callbacks.py` defines training callbacks.
