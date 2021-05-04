@@ -7,6 +7,8 @@ A flexible data loader class is provided to dictate which map variables are inpu
 
 This is an extension of the paper [Seasonal Arctic sea ice forecasting with probabilistic deep learning](https://doi.org/10.31223/X5430P) to operate on a daily timescale (rather than monthly) and perform probabilistic regression (rather than probabilistic classification).
 
+![](architecture.png)
+
 The guidelines below assume you're working on a Unix-like machine with a GPU.
 
 #### Example folder structure
