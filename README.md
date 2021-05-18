@@ -25,7 +25,6 @@ The guidelines below assume you're working on a Unix-like machine with a GPU.
 |---------unet_batchnorm/
 |-----------ensemble/
 |-----seas5/
-
 |---forecasts_monthly/ (as above but for monthly averages)
 |---nh/ (northern hemisphere data)
 |---sh/ (sourthern hemisphere data)
