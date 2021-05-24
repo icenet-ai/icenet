@@ -18,23 +18,32 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--init_date', default='2012-01-01')
+parser.add_argument('--calib', default=False, action='store_true')
 args = parser.parse_args()
 
 init_date = args.init_date
+# Whether to store data in a seas5_calibration folder for bias correction
+calib = args.calib
 
 # USER INPUT SECTION
 ################################################################################
 
-download_folder = os.path.join('data', 'forecasts', 'seas5', 'latlon')
+if not calib:
+    folder = 'seas5'
+elif calib:
+    folder = 'seas5_calibration'
+
+download_folder = os.path.join('data', 'forecasts', folder, 'latlon')
 if not os.path.exists(download_folder):
     os.makedirs(download_folder)
 
-EASE_folder = os.path.join('data', 'forecasts', 'seas5', 'EASE')
+EASE_folder = os.path.join('data', 'forecasts', folder, 'EASE')
 if not os.path.exists(EASE_folder):
     os.makedirs(EASE_folder)
 
 do_download = True  # Download the ECMWF C-3S historical SIC forecasts
 do_regrid = True  # Convert from GRIB to NetCDF and regrid from lat/lon to 19km NH EASE
+delete_after_regridding = True  # Delete large lat-lon data after regridding (recommended for space)
 do_video = True  # Produce video of forecast
 
 overwrite = False
@@ -159,6 +168,9 @@ if do_regrid:
         if os.path.exists(EASE_path):
             os.remove(EASE_path)
         iris.save(cube, EASE_path)
+
+        if delete_after_regridding:
+            os.remove(download_path)
 
         # TODO: convert hours to days?
 
