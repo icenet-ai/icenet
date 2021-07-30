@@ -32,10 +32,15 @@ setup(
             # Data retrieval
             "gen_masks=icenet2.data.masks:generate",
             "download_sic_data=icenet2.data.sic:download",
-            # TODO: reflect to appropriate module, not direct i/f to era5?
-            "download_forecast_data=icenet2.data.climate:download",
-            "regrid_forecast_data=icenet2.data.climate:regrid_data",
-            "regrid_wind_data=icenet2.data.climate:regrid_wind_data",
+            # TODO: reflect to appropriate module?
+            "download_era5=icenet2.data.climate.era5:download",
+            "regrid_era5=icenet2.data.climate.era5:regrid_data",
+            "regrid_era5_wind=icenet2.data.climate.era5:regrid_wind_data",
+            "rotate_era5_wind=icenet2.data.climate.era5:rotate_wind_data",
+            "download_cmip6=icenet2.data.climate.cmip6:download",
+            "regrid_cmip6=icenet2.data.climate.cmip6:regrid_data",
+            "regrid_cmip6_wind=icenet2.data.climate.cmip6:regrid_wind_data",
+            "rotate_cmip6_wind=icenet2.data.climate.cmip6:rotate_wind_data",
 
             # Data loader / configuration
             #"preprocess=icenet2.data.loader:generate"

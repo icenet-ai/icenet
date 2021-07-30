@@ -24,6 +24,7 @@ import numpy as np
 import xarray as xr
 
 from icenet2.constants import *
+from icenet2.data.utils import assign_lat_lon_coord_system
 from icenet2.utils import get_folder, run_command
 
 
@@ -163,11 +164,7 @@ def regrid_data(files,
                 'projection_y_coordinate').convert_units('meters')
 
         logging.info("Regridding {}".format(datafile))
-        cube = iris.load_cube(datafile)
-        cube.coord('latitude').coord_system = \
-            iris.coord_systems.GeogCS(6367470.0)
-        cube.coord('longitude').coord_system = \
-            iris.coord_systems.GeogCS(6367470.0)
+        cube = assign_lat_lon_coord_system(iris.load_cube(datafile))
 
         # regrid onto the EASE grid
         cube_ease = cube.regrid(sic_ease_cubes[hemisphere],
@@ -185,185 +182,92 @@ def regrid_data(files,
 
 def regrid_wind_data(files,
                      remove_original=False):
-    # TODO: Refactor - check this is the right version
-    def gridcell_angles_from_dim_coords(cube):
-        """
-        Wrapper for :func:`~iris.analysis.cartography.gridcell_angles`
-        that derives the 2D X and Y lon/lat coordinates from 1D X and Y
-        coordinates identifiable as 'x' and 'y' axes
+    pass
 
-        The provided cube must have a coordinate system so that its
-        X and Y coordinate bounds (which are derived if necessary)
-        can be converted to lons and lats
-        """
 
-        # get the X and Y dimension coordinates for the cube
-        x_coord = cube.coord(axis='x', dim_coords=True)
-        y_coord = cube.coord(axis='y', dim_coords=True)
+# TODO: refactor
+def rotate_wind_data(files,
+                     remove_original=False):
+    sic_day_fpath = os.path.join(config.obs_data_folder,
+                                 'ice_conc_nh_ease2-250_cdr-v2p0_197901021200.nc')
 
-        # add bounds if necessary
-        if not x_coord.has_bounds():
-            x_coord = x_coord.copy()
-            x_coord.guess_bounds()
-        if not y_coord.has_bounds():
-            y_coord = y_coord.copy()
-            y_coord.guess_bounds()
+    if not os.path.exists(sic_day_fpath):
+        print(
+            "Downloading single daily SIC netCDF file for regridding ERA5 data to EASE grid...\n\n")
 
-        # get the grid cell bounds
-        x_bounds = x_coord.bounds
-        y_bounds = y_coord.bounds
-        nx = x_bounds.shape[0]
-        ny = y_bounds.shape[0]
+        # Ignore "Missing CF-netCDF ancially data variable 'status_flag'" warning
+        warnings.simplefilter("ignore", UserWarning)
 
-        # make arrays to hold the ordered X and Y bound coordinates
-        x = np.zeros((ny, nx, 4))
-        y = np.zeros((ny, nx, 4))
+        retrieve_sic_day_cmd = 'wget -m -nH --cut-dirs=6 -P {} ' \
+                               'ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/1979/01/ice_conc_nh_ease2-250_cdr-v2p0_197901021200.nc'
+        os.system(retrieve_sic_day_cmd.format(config.obs_data_folder))
 
-        # iterate over the bounds (in order BL, BR, TL, TR), mesh them and
-        # put them into the X and Y bound coordinates (in order BL, BR, TR, TL)
-        c = [0, 1, 3, 2]
-        cind = 0
-        for yi in [0, 1]:
-            for xi in [0, 1]:
-                xy = np.meshgrid(x_bounds[:, xi], y_bounds[:, yi])
-                x[:, :, c[cind]] = xy[0]
-                y[:, :, c[cind]] = xy[1]
-                cind += 1
+        print('Done.')
 
-        # convert the X and Y coordinates to longitudes and latitudes
-        source_crs = cube.coord_system().as_cartopy_crs()
-        target_crs = ccrs.PlateCarree()
-        pts = target_crs.transform_points(source_crs, x.flatten(), y.flatten())
-        lons = pts[:, 0].reshape(x.shape)
-        lats = pts[:, 1].reshape(x.shape)
+    # Load a single SIC map to obtain the EASE grid for regridding ERA data
+    sic_EASE_cube = iris.load_cube(sic_day_fpath, 'sea_ice_area_fraction')
 
-        # get the angles
-        angles = iris.analysis.cartography.gridcell_angles(lons, lats)
+    # Convert EASE coord units to metres for regridding
+    sic_EASE_cube.coord('projection_x_coordinate').convert_units('meters')
+    sic_EASE_cube.coord('projection_y_coordinate').convert_units('meters')
 
-        # add the X and Y dimension coordinates from the cube to the angles cube
-        angles.add_dim_coord(y_coord, 0)
-        angles.add_dim_coord(x_coord, 1)
-
-        # if the cube's X dimension preceeds its Y dimension
-        # transpose the angles to match
-        if cube.coord_dims(x_coord)[0] < cube.coord_dims(y_coord)[0]:
-            angles.transpose()
-
-        return angles
-
-    def invert_gridcell_angles(angles):
-        """
-        Negate a cube of gridcell angles in place, transforming
-        gridcell_angle_from_true_east <--> true_east_from_gridcell_angle
-        """
-        angles.data *= -1
-
-        names = ['true_east_from_gridcell_angle',
-                 'gridcell_angle_from_true_east']
-        name = angles.name()
-        if name in names:
-            angles.rename(names[1 - names.index(name)])
-
-    def rotate_grid_vectors(u_cube, v_cube, angles):
-        """
-        Wrapper for :func:`~iris.analysis.cartography.rotate_grid_vectors`
-        that can rotate multiple masked spatial fields in one go by iterating
-        over the horizontal spatial axes in slices
-        """
-        # lists to hold slices of rotated vectors
-        u_r_all = iris.cube.CubeList()
-        v_r_all = iris.cube.CubeList()
-
-        # get the X and Y dimension coordinates for each source cube
-        u_xy_coords = [u_cube.coord(axis='x', dim_coords=True),
-                       u_cube.coord(axis='y', dim_coords=True)]
-        v_xy_coords = [v_cube.coord(axis='x', dim_coords=True),
-                       v_cube.coord(axis='y', dim_coords=True)]
-
-        # iterate over X, Y slices of the source cubes, rotating each in turn
-        for u, v in zip(u_cube.slices(u_xy_coords, ordered=False),
-                        v_cube.slices(v_xy_coords, ordered=False)):
-            u_r, v_r = iris.analysis.cartography.rotate_grid_vectors(u, v,
-                                                                     angles)
-            u_r_all.append(u_r)
-            v_r_all.append(v_r)
-
-        # return the slices, merged back together into a pair of cubes
-        return (u_r_all.merge_cube(), v_r_all.merge_cube())
-
-    # read ERA5 UV10 for the NH
-    u10 = iris.load_cube(config.u10_latlon_path)
-    v10 = iris.load_cube(config.v10_latlon_path)
-
-    # read EASE-grid sea ice
-    # sic = iris.load_cube('ice_conc_nh_ease2-250_icdr_v2p0_202002.nc',
-    #                      iris.Constraint(cube_func=lambda cube:cube.name() == 'sea_ice_area_fraction'))
-
-    sic = iris.load_cube(
-        os.path.join(config.ice_data_folder, 'avg_sic_1979_01.nc'),
-        'sea_ice_area_fraction')
-    for coord in ['x', 'y']:
-        sic.coord('projection_{}_coordinate'.format(coord)).convert_units(
-            'm')
-
-    for cube in [u10, v10]:
-        cube.coord('latitude').coord_system = iris.coord_systems.GeogCS(
-            6367470.0)
-        cube.coord('longitude').coord_system = iris.coord_systems.GeogCS(
-            6367470.0)
-
-    # regrid the winds onto the EASE grid
-    u10_ease = u10.regrid(sic, iris.analysis.Linear())
-    v10_ease = v10.regrid(sic, iris.analysis.Linear())
+    land_mask = np.load(
+        os.path.join(config.mask_data_folder, config.land_mask_filename))
 
     # get the gridcell angles
-    angles = gridcell_angles_from_dim_coords(sic)
+    angles = utils.gridcell_angles_from_dim_coords(sic_EASE_cube)
 
     # invert the angles
-    invert_gridcell_angles(angles)
+    utils.invert_gridcell_angles(angles)
+
+    # Rotate, regrid, and save
+    ################################################################################
+
+    tic = time.time()
+
+    print(f'\nRotating wind data in {wind_data_folder}')
+    wind_cubes = {}
+    for var in ['uas', 'vas']:
+        EASE_path = os.path.join(wind_data_folder, f'{var}{fname_suffix}')
+        wind_cubes[var] = iris.load_cube(EASE_path)
 
     # rotate the winds using the angles
-    u10_ease_r, v10_ease_r = rotate_grid_vectors(u10_ease, v10_ease, angles)
+    wind_cubes_r = {}
+    wind_cubes_r['uas'], wind_cubes_r['vas'] = utils.rotate_grid_vectors(
+        wind_cubes['uas'], wind_cubes['vas'], angles)
 
-    # save the regridded winds
-    iris.save(u10_ease, 'era5_monthly_u10_2018_ease_grid_unrotated.nc')
-    iris.save(v10_ease, 'era5_monthly_v10_2018_ease_grid_unrotated.nc')
+    # save the new cube
+    for var, cube_ease_r in wind_cubes_r.items():
+        EASE_path = os.path.join(wind_data_folder, f'{var}{fname_suffix}')
 
-    # save the rotated winds
-    iris.save(u10_ease_r, 'era5_monthly_u10_2018_ease_grid.nc')
-    iris.save(v10_ease_r, 'era5_monthly_v10_2018_ease_grid.nc')
+        if os.path.exists(EASE_path) and overwrite:
+            print("Removing existing file: {}".format(EASE_path))
+            os.remove(EASE_path)
+        elif os.path.exists(EASE_path) and not overwrite:
+            print("Skipping due to existing file: {}".format(EASE_path))
+            sys.exit()
 
-    # are the wind speeds the same after rotation?
-    print('Are the wind speeds the same after rotation?: {}'.format(
-        np.all(np.isclose(ws_ease.data, ws_ease_r.data))))
+        iris.save(cube_ease_r, EASE_path)
 
-    # project idealised data
-    u10 = u10[0]
-    v10 = v10[0]
+    if gen_video:
+        for var in ['uas', 'vas']:
+            print(f'generating video for {var}')
+            EASE_path = os.path.join(wind_data_folder, f'{var}{fname_suffix}')
 
-    u10.data.fill(1)
-    v10.data.fill(0)
-    u10_ease = u10.regrid(sic, iris.analysis.Linear())
-    v10_ease = v10.regrid(sic, iris.analysis.Linear())
-    u10_ease_r, v10_ease_r = iris.analysis.cartography.rotate_grid_vectors(
-        u10_ease, v10_ease, angles)
-    iris.save(u10_ease_r, 'era5_monthly_u10_ease_grid_u_only.nc')
-    iris.save(v10_ease_r, 'era5_monthly_v10_ease_grid_u_only.nc')
+            video_folder = os.path.join('videos', 'wind')
+            if not os.path.exists(video_folder):
+                os.makedirs(video_folder)
+            fname = '{}_{}.mp4'.format(wind_data_folder.replace('/', '_'), var)
+            video_path = os.path.join(video_folder, fname)
 
-    u10.data.fill(0)
-    v10.data.fill(1)
-    u10_ease = u10.regrid(sic, iris.analysis.Linear())
-    v10_ease = v10.regrid(sic, iris.analysis.Linear())
-    u10_ease_r, v10_ease_r = iris.analysis.cartography.rotate_grid_vectors(
-        u10_ease, v10_ease, angles)
-    iris.save(u10_ease_r, 'era5_monthly_u10_ease_grid_v_only.nc')
-    iris.save(v10_ease_r, 'era5_monthly_v10_ease_grid_v_only.nc')
+            utils.xarray_to_video(
+                da=next(iter(xr.open_dataset(EASE_path).data_vars.values())),
+                video_path=video_path,
+                fps=6,
+                mask=land_mask,
+                figsize=7,
+                dpi=100,
+            )
 
-    u10.data.fill(1)
-    v10.data.fill(1)
-    u10_ease = u10.regrid(sic, iris.analysis.Linear())
-    v10_ease = v10.regrid(sic, iris.analysis.Linear())
-    u10_ease_r, v10_ease_r = iris.analysis.cartography.rotate_grid_vectors(
-        u10_ease, v10_ease, angles)
-    iris.save(u10_ease_r, 'era5_monthly_u10_ease_grid_uv.nc')
-    iris.save(v10_ease_r, 'era5_monthly_v10_ease_grid_uv.nc')
+    toc = time.time()
+    print("Done in {:.3f}s.".format(toc - tic))

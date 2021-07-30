@@ -2,7 +2,6 @@ import logging
 import os
 import subprocess as sp
 
-
 from .constants import *
 
 
