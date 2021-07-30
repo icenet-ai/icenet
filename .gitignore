@@ -2,9 +2,7 @@ __pycache__/
 *.pyc
 *.nc
 .idea/
-data/
 icesync.sh
 logs/
-results/
 orig/
 venv/
