@@ -9,11 +9,14 @@ dependencies:
   - h5py
   - hdf4
   - hdf5
+  - netcdf4
   - plotly
   - python>=3.7
   - tensorboard
   - tensorflow
   - xarray
   - pip:
+    - cdsapi
     - dm-tree
+    - iris
     - tensorflow-probability
