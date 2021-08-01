@@ -1,8 +1,9 @@
 __pycache__/
 *.pyc
 *.nc
+*.egg-info/
 .idea/
-icesync.sh
-logs/
-orig/
-venv/
+./icesync.sh
+./logs/
+./orig/
+./venv/
