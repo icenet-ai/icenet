@@ -28,6 +28,7 @@ setup(
         "Development Status :: 3 - Alpha",
     ],
     entry_points={
+        # TODO: refactor to single entry point using click
         "console_scripts": [
             # 1. Pipeline used for provisioning
             # 2. Data retrieval
@@ -54,14 +55,14 @@ setup(
             # 3. Process data loader / configuration
             # - get_configuration can use module instantiated caching to
             #   generate the configuration used for the dataloader
-            "configure_icenet=icenet2.data.loader:get_configuration",
+            "configure_icenet=icenet2.data.loader:cli",
             # - the data loader, be it tfrecord or numpy based
-            "preprocess_icenet=icenet2.data.loader:preprocess",
+            "preprocess_icenet=icenet2.data.loader:cli",
 
             # 4 and 5. Use the model
             # TODO: discussion around use of wandb, avoiding this dependency
-            "train_icenet=icenet2.model.train:train_model",
-            "predict_icenet=icenet2.model.predict:predict_forecast",
+            "train_icenet=icenet2.model.train:cli",
+            "predict_icenet=icenet2.model.predict:cli",
 
             # 6. Miscellaneous tools
             # TODO: plotting/analysis tools will be included here
