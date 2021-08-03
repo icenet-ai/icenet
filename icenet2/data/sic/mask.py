@@ -9,14 +9,12 @@ import numpy as np
 import xarray as xr
 
 from icenet2.data.producers import Generator
-from icenet2.utils import Hemisphere, HemisphereMixin, run_command
+from icenet2.utils import Hemisphere, run_command
 
 
-class Masks(Generator, HemisphereMixin):
-    def __init__(self, *args, hemisphere, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._hemisphere = hemisphere
+class Masks(Generator):
 
+    # TODO: refactor
     def generate(self,
                  year=2000,
                  save_land_mask=True,

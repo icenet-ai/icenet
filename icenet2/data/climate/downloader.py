@@ -3,24 +3,19 @@ import os
 import re
 
 from abc import abstractmethod
-from datetime import date
-from enum import Flag, auto
 
-from icenet2.constants import *
 from icenet2.data.producers import Downloader
 from icenet2.data.utils import assign_lat_lon_coord_system
-from icenet2.utils import Hemisphere, HemisphereMixin, run_command
+from icenet2.utils import Hemisphere, run_command
 
 import iris
 import numpy as np
 
 
-class ClimateDownloader(Downloader, HemisphereMixin):
+class ClimateDownloader(Downloader):
 
     @abstractmethod
     def __init__(self, *args,
-                 north=True,
-                 south=False,
                  var_names=(),
                  pressure_levels=(),
                  dates=(),
@@ -29,14 +24,12 @@ class ClimateDownloader(Downloader, HemisphereMixin):
 
         self._sic_ease_cubes = dict()
         self._files_downloaded = []
-        self._hemisphere = (Hemisphere.NORTH if north else Hemisphere.NONE) & \
-                           (Hemisphere.SOUTH if south else Hemisphere.NONE)
+
 
         self._var_names = list(var_names)
         self._pressure_levels = list(pressure_levels)
         self._dates = list(dates)
 
-        assert self._hemisphere != Hemisphere.NONE, "No hemispheres selected"
         assert len(self._var_names), "No variables requested"
         assert len(self._pressure_levels) != len(self._var_names), \
             "# of pressures must match # vars"
@@ -45,11 +38,11 @@ class ClimateDownloader(Downloader, HemisphereMixin):
         self._validate_config()
 
     def _validate_config(self):
-        for h_str in self.hemisphere_str:
-            if h_str in os.path.split(self.base_path):
-                raise RuntimeError("Don't include hemisphere string {} in "
-                                   "base path".format(h_str))
+        if self.hemisphere_str in os.path.split(self.base_path):
+            raise RuntimeError("Don't include hemisphere string {} in "
+                               "base path".format(self.hemisphere_str))
 
+    # TODO: refactor
     def get_sic_ease_cube(self, hemisphere):
         if hemisphere not in self._sic_ease_cubes:
             sic_day_folder = os.path.join(, "siconca")
@@ -80,6 +73,7 @@ class ClimateDownloader(Downloader, HemisphereMixin):
                 'projection_y_coordinate').convert_units('meters')
         return self._sic_ease_cubes[hemisphere]
 
+    # TODO: refactor
     def regrid(self,
                remove_original=False):
         # TODO: this is a bit messy to account for compatibility with existing
@@ -150,12 +144,4 @@ class ClimateDownloader(Downloader, HemisphereMixin):
 
         print("Done in {:.3f}s.".format(toc - tic))
 
-    def get_data_var_folder(self, var, hemisphere=None):
-        if not hemisphere:
-            hemisphere = "_".join(self.hemisphere_str)
-
-        var_path = os.path.join(self.base_path, hemisphere, var)
-        if not os.path.exists(var_path):
-            os.mkdir(var_path)
-        return var_path
 
