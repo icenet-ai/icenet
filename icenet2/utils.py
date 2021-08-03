@@ -2,27 +2,42 @@ import logging
 import os
 import subprocess as sp
 
-from .constants import *
+from enum import Flag, auto
 
 
-def get_folder(name, *args):
-    """Grab the path under the data directory ensuring it's made first
+class Hemisphere(Flag):
+    NONE = 0
+    NORTH = auto()
+    SOUTH = auto()
+    BOTH = NORTH & SOUTH
 
-    Args:
-        name (str): the folder prefix
-        *args: the path segments to join
-    Returns:
-        retcode (int): the path prefixed with the config entry folder
-    """
-    # TODO: Config
-    if name not in FOLDERS:
-        raise AttributeError("The requested top level folder doesn't exist: "
-                             "{}".format(name))
 
-    path = os.path.join(FOLDERS[name], *args)
+class HemisphereMixin:
+    _hemisphere = Hemisphere.NONE
 
-    os.makedirs(path, exist_ok=True)
-    return path
+    @property
+    def hemisphere_str(self):
+        return ["nh"] if self.north else \
+               ["sh"] if self.south else \
+               ["nh", "sh"]
+
+    @property
+    def hemisphere_loc(self):
+        return [90, -180, 0, 180] if self.north else \
+               [-90, -180, 0, 180] if self.south else \
+               [-90, -180, 90, 180]
+
+    @property
+    def north(self):
+        return self._hemisphere & Hemisphere.NORTH
+
+    @property
+    def south(self):
+        return self._hemisphere & Hemisphere.SOUTH
+
+    @property
+    def both(self):
+        return self._hemisphere & Hemisphere.BOTH
 
 
 def run_command(commandstr):

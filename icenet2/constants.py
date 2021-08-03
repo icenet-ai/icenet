@@ -1,18 +1,5 @@
 import os
 
-NORTH = 0
-SOUTH = 1
-BOTH = 2
-
-HEMISPHERE_STRINGS = (
-    "nh", "sh",  # "nh_sh"
-)
-HEMISPHERE_LOCATIONS = (
-    [90, -180, 0, 180],
-    [-90, -180, 0, 180],
-    [-90, -180, 90, 180]
-)
-
 ACTIVE_GRID_CELL_MASK_FORMAT = "active_grid_cell_mask_{:02d}.npy"
 
 FOLDERS = {
@@ -31,7 +18,6 @@ FILENAMES = {
 
 
 __all__ = [
-    "NORTH", "SOUTH", "BOTH", "HEMISPHERE_LOCATIONS", "HEMISPHERE_STRINGS",
     "ACTIVE_GRID_CELL_MASK_FORMAT",
     "FILENAMES", "FOLDERS"
 ]
