@@ -1,7 +1,5 @@
 import os
 
-ACTIVE_GRID_CELL_MASK_FORMAT = "active_grid_cell_mask_{:02d}.npy"
-
 FOLDERS = {
     # TODO: add cache - data is not really the dataset for the model
     'data': 'data',

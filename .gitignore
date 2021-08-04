@@ -3,7 +3,8 @@ __pycache__/
 *.nc
 *.egg-info/
 .idea/
-./icesync.sh
-./logs/
-./orig/
-./venv/
+data/
+icesync.sh
+logs/
+orig/
+venv/

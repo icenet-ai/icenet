@@ -9,7 +9,7 @@ class Hemisphere(Flag):
     NONE = 0
     NORTH = auto()
     SOUTH = auto()
-    BOTH = NORTH & SOUTH
+    BOTH = NORTH | SOUTH
 
 
 class HemisphereMixin:
@@ -56,10 +56,12 @@ def run_command(commandstr, dry=False):
         logging.info("Skipping dry commaand: {}".format(commandstr))
         return 0
 
-    retcode = sp.call(commandstr, shell=True)
-    if retcode < 0:
-        logging.warning("Child was terminated by signal", -retcode)
+    ret = sp.run(commandstr, shell=True)
+    if ret.returncode < 0:
+        logging.warning("Child was terminated by signal: {}".
+                        format(-ret.returncode))
     else:
-        logging.info("Child returned", retcode)
+        logging.info("Child returned: {}".
+                     format(-ret.returncode))
 
-    return retcode
+    return ret.returncode
