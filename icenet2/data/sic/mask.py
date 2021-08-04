@@ -31,7 +31,6 @@ class Masks(Generator):
         """
 
         siconca_folder = self.get_data_var_folder("siconca")
-        mask_folder = self.get_data_var_folder("masks")
 
         # FIXME: cut-dirs can be nasty, better use -O, changed from 4 to 5
         retrieve_cmd_template_osi450 = \
@@ -73,13 +72,13 @@ class Masks(Generator):
                 # FIXME: Remove Caspian and Black seas - should we do this sh?
                 max_extent_mask[325:386, 317:380] = False
 
-            mask_path = os.path.join(mask_folder,
+            mask_path = os.path.join(self.base_path,
                                      "active_grid_cell_mask_{:02d}.npy".
                                      format(month))
             logging.info("Saving {}".format(mask_path))
             np.save(mask_path, max_extent_mask)
 
-            land_mask_path = os.path.join(mask_folder,
+            land_mask_path = os.path.join(self.base_path,
                                           Masks.LAND_MASK_FILENAME)
 
             if save_land_mask and \
@@ -113,6 +112,16 @@ class Masks(Generator):
                                               format(i+1))
                 logging.info("Saving polarhole {}".format(polarhole_path))
                 np.save(polarhole_path, polarhole)
+
+    # TODO: caching?
+    def get_land_mask(self, land_mask_filename=LAND_MASK_FILENAME):
+        mask_path = os.path.join(self.base_path, land_mask_filename)
+
+        if not os.path.exists(mask_path):
+            raise RuntimeError("Masks have not been generated, this is not "
+                               "done automatically so you might want to "
+                               "address this!")
+        return np.load(mask_path)
 
 
 if __name__ == "__main__":

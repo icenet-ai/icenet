@@ -54,97 +54,86 @@ class ERA5Downloader(ClimateDownloader):
         self.client = cds.Client()
         self._cdi_map = cdi_map
 
-    def download(self):
+    def _single_download(self, var_prefix, pressure, req_date):
         # FIXME: confirmed, but the year start year end naming is a bit weird,
         #  hang up from the icenet port but we might want to consider relevance,
         #  it remains purely for compatibility with existing data
 
         # TODO: This is download and average for dailies, but could be easily
         #  abstracted for different temporal averaging
-        logging.info("Building request(s), downloading and daily averaging "
-                     "from CDS API")
+        year = req_date
+        var = var_prefix if not pressure else \
+            "{}{}".format(var_prefix, pressure)
+        var_folder = self.get_data_var_folder(var)
 
-        for idx, var_name in enumerate(self.var_names):
-            pressures = [None] if not self.pressure_levels[idx] else \
-                self._pressure_levels[idx]
+        logging.debug("Processing var {} for year {}".format(var, year))
 
-            dates = sorted(self._dates)
-            date_range = pd.date_range(dates[0], dates[-1])
-            years = date_range.year.unique()
+        download_path = os.path.join(var_folder,
+                                     "{}_latlon_download_{}.nc".
+                                     format(var, year))
+        daily_path = os.path.join(var_folder,
+                                  "{}_latlon_{}.nc".
+                                  format(var, year))
+        regridded_name = re.sub(r'_latlon_', '_', daily_path)
 
-            for var_prefix, pressure, year in \
-                    product([var_name], pressures, years):
+        # FIXME: at the moment we just download all the data for each
+        #  year, the export of the configuration applies the _dates
+        retrieve_dict = {
+            'product_type': 'reanalysis',
+            'variable': self._cdi_map[var_prefix],
+            'year': year,
+            'month': ["{:02d}".format(m) for m in range(0, 13)],
+            'day': ["{:02d}".format(m) for m in range(0, 32)],
+            'time': ["{:02d}:00".format(h) for h in range(0, 24)],
+            'format': 'netcdf',
+            'area': self.hemisphere_loc
+        }
 
-                var = var_prefix if not pressure else \
-                    "{}{}".format(var_prefix, pressure)
-                var_folder = self.get_data_var_folder(var)
+        dataset = 'reanalysis-era5-single-levels'
 
-                logging.debug("Processing var {} for year {}".format(
-                    var, year))
+        if pressure:
+            dataset = 'reanalysis-era5-pressure-levels'
+            retrieve_dict['pressure_level'] = pressure
 
-                download_path = os.path.join(var_folder,
-                                             "{}_latlon_download_{}.nc".
-                                             format(var, year))
-                daily_path = os.path.join(var_folder,
-                                          "{}_latlon_{}.nc".
-                                          format(var, year))
-                regridded_name = re.sub(r'_latlon_', '_', daily_path)
+        if not os.path.exists(regridded_name) and \
+                not os.path.exists(daily_path):
+            logging.info("Downloading data for {}...".format(var_name))
 
-                # FIXME: at the moment we just download all the data for each
-                #  year, the export of the configuration applies the _dates
-                retrieve_dict = {
-                    'product_type': 'reanalysis',
-                    'variable': self._cdi_map[var_prefix],
-                    'year': year,
-                    'month': ["{:02d}".format(m) for m in range(0, 13)],
-                    'day': ["{:02d}".format(m) for m in range(0, 32)],
-                    'time': ["{:02d}:00".format(h) for h in range(0, 24)],
-                    'format': 'netcdf',
-                    'area': self.hemisphere_loc
-                }
+            if self.dry:
+                logging.info("DRY RUN: skipping CDS request: "
+                             "{}".format(retrieve_dict))
+            else:
+                self.client.retrieve(dataset, retrieve_dict,
+                                     download_path)
+                logging.debug('Download completed.')
 
-                dataset = 'reanalysis-era5-single-levels'
+                logging.debug('Computing daily averages...')
+                da = xr.open_dataarray(download_path)
 
-                if pressure:
-                    dataset = 'reanalysis-era5-pressure-levels'
-                    retrieve_dict['pressure_level'] = pressure
+                if 'expver' in da.coords:
+                    raise RuntimeError("fix_near_real_time_era5_coords "
+                                       "no longer exists in the "
+                                       "codebase for expver in "
+                                       "coordinates")
 
-                if not os.path.exists(regridded_name) and \
-                        not os.path.exists(daily_path):
-                    logging.info("Downloading data for {}...".format(var_name))
+                da_daily = da.resample(time='1D').reduce(np.mean)
 
-                    if self.dry:
-                        logging.info("DRY RUN: skipping CDS request: "
-                                     "{}".format(retrieve_dict))
-                    else:
-                        self.client.retrieve(dataset, retrieve_dict,
-                                             download_path)
-                        logging.debug('Download completed.')
+                logging.debug("Saving new daily file")
+                da_daily.to_netcdf(daily_path)
+            self._files_downloaded.append(daily_path)
 
-                        logging.debug('Computing daily averages...')
-                        da = xr.open_dataarray(download_path)
+            if not self.dry:
+                os.remove(download_path)
+        # TODO: check this is a reliable method for picking up
+        #  ungridded files
+        elif os.path.exists(daily_path):
+            self._files_downloaded.append(daily_path)
 
-                        if 'expver' in da.coords:
-                            raise RuntimeError("fix_near_real_time_era5_coords "
-                                               "no longer exists in the "
-                                               "codebase for expver in "
-                                               "coordinates")
-
-                        da_daily = da.resample(time='1D').reduce(np.mean)
-
-                        logging.debug("Saving new daily file")
-                        da_daily.to_netcdf(daily_path)
-                    self._files_downloaded.append(daily_path)
-
-                    if not self.dry:
-                        os.remove(download_path)
-                # TODO: check this is a reliable method for picking up
-                #  ungridded files
-                elif os.path.exists(daily_path):
-                    self._files_downloaded.append(daily_path)
-
-        logging.info("{} daily files downloaded".
-                     format(len(self._files_downloaded)))
+    def _get_dates_for_request(self):
+        dates = sorted(self._dates)
+        date_range = pd.date_range(dates[0], dates[-1])
+        years = date_range.year.unique()
+        return years
 
     def additional_regrid_processing(self, datafile, cube_ease):
         (datafile_path, datafile_name) = os.path.split(datafile)
@@ -160,16 +149,14 @@ class ERA5Downloader(ClimateDownloader):
         #     da_daily = da_daily.where(da_daily < 1000., 0)
 
         if var_name == 'tos':
-            land_mask = np.load(os.path.join(
-                self.get_data_var_folder("masks"), self.get_land_mask()))
-
             # Overwrite maksed values with zeros
             cube_ease.data[cube_ease.data > 500.] = 0.
             cube_ease.data[cube_ease.data < 0.] = 0.
 
-            cube_ease.data[:, land_mask] = 0.
+            cube_ease.data[:, self.get_land_mask()] = 0.
 
-            cube_ease.data = cube_ease.data.data  # Remove mask from masked array
+            # Remove mask from masked array
+            cube_ease.data = cube_ease.data.data
         elif var_name in ['zg500', 'zg250']:
             # Convert from geopotential to geopotential height
             cube_ease /= 9.80665

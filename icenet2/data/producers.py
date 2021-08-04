@@ -22,7 +22,7 @@ class DataProducer(HemisphereMixin):
         self.overwrite = overwrite
 
         self._identifier = identifier
-        self._path = path
+        self._path = os.path.join(path, identifier)
         self._hemisphere = (Hemisphere.NORTH if north else Hemisphere.NONE) | \
                            (Hemisphere.SOUTH if south else Hemisphere.NONE)
 
@@ -37,13 +37,13 @@ class DataProducer(HemisphereMixin):
         # hemisphere per instance
         assert self._hemisphere != Hemisphere.BOTH, "Both hemispheres selected"
 
-    @abstractmethod
-    def load_config(self, filename):
-        raise NotImplementedError("{} is abstract".format(__name__))
-
     @property
     def base_path(self):
         return self._path
+
+    @base_path.setter
+    def base_path(self, path):
+        self._path = path
 
     @property
     def identifier(self):

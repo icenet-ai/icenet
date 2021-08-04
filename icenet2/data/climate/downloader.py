@@ -1,18 +1,18 @@
 import logging
 import os
 import re
-import shutil
 import tempfile
 
 from abc import abstractmethod
+from itertools import product
 
+from icenet2.data.sic.mask import Masks
 from icenet2.data.producers import Downloader
 from icenet2.data.utils import assign_lat_lon_coord_system, \
     gridcell_angles_from_dim_coords, invert_gridcell_angles, rotate_grid_vectors
-from icenet2.utils import Hemisphere, run_command
+from icenet2.utils import run_command
 
 import iris
-import numpy as np
 
 
 class ClimateDownloader(Downloader):
@@ -22,7 +22,7 @@ class ClimateDownloader(Downloader):
                  pressure_levels=(),
                  dates=(),
                  **kwargs):
-        super(Downloader, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._sic_ease_cubes = dict()
         self._files_downloaded = []
@@ -30,11 +30,11 @@ class ClimateDownloader(Downloader):
         self._var_names = list(var_names)
         self._pressure_levels = list(pressure_levels)
         self._dates = list(dates)
+        self._masks = Masks(north=self.north, south=self.south)
 
         assert len(self._var_names), "No variables requested"
         assert len(self._pressure_levels) == len(self._var_names), \
             "# of pressures must match # vars"
-        assert len(self._dates), "Need to download at least one days worth"
 
         self._validate_config()
 
@@ -43,7 +43,31 @@ class ClimateDownloader(Downloader):
             raise RuntimeError("Don't include hemisphere string {} in "
                                "base path".format(self.hemisphere_str))
 
-    # NOTE: will run on dry runs
+    def download(self):
+        logging.info("Building request(s), downloading and daily averaging "
+                     "from {} API".format(self.identifier.upper()))
+
+        for idx, var_name in enumerate(self.var_names):
+            pressures = [None] if not self.pressure_levels[idx] else \
+                self._pressure_levels[idx]
+
+            dates_per_request = self._get_dates_for_request()
+
+            for var_prefix, pressure, req_date in \
+                    product([var_name], pressures, dates_per_request):
+                self._single_download(var_prefix, pressure, req_date)
+
+        logging.info("{} daily files downloaded".
+                     format(len(self._files_downloaded)))
+
+    @abstractmethod
+    def _get_dates_for_request(self):
+        raise NotImplementedError("Missing {} implementation".format(__name__))
+
+    @abstractmethod
+    def _single_download(self, var_prefix, pressure, req_date):
+        raise NotImplementedError("Missing {} implementation".format(__name__))
+
     @property
     def sic_ease_cube(self):
         if self._hemisphere not in self._sic_ease_cubes:
@@ -148,13 +172,6 @@ class ClimateDownloader(Downloader):
                 tmp_fh.close()
                 iris.save(wind_cubes_r[apply_to[i]], tmp_name)
                 os.replace(tmp_name, name)
-
-    # TODO: Refactor as a property of the downloader from instantiation
-    def get_land_mask(self,
-                      land_mask_filename="land_mask.py"):
-        return np.load(os.path.join(
-            self.get_data_var_folder("masks"), land_mask_filename))
-
 
     @property
     def var_names(self):
