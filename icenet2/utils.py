@@ -40,7 +40,7 @@ class HemisphereMixin:
         return self._hemisphere & Hemisphere.BOTH
 
 
-def run_command(commandstr):
+def run_command(commandstr, dry=False):
     """Run a shell command
 
     A wrapper in case we want some additional handling to go in here
@@ -52,6 +52,10 @@ def run_command(commandstr):
     Raises:
         OSError: from subprocess
     """
+    if dry:
+        logging.info("Skipping dry commaand: {}".format(commandstr))
+        return 0
+
     retcode = sp.call(commandstr, shell=True)
     if retcode < 0:
         logging.warning("Child was terminated by signal", -retcode)

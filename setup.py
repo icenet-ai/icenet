@@ -38,7 +38,7 @@ setup(
 
             # TODO: reflect to appropriate module?
             # TODO: not required for dailies? commented out for the mo
-            # "download_era5=icenet2.data.climate.era5:download",
+            # "download_era5=icenet2.data.climate.era5:cli",
             # "regrid_era5=icenet2.data.climate.era5:regrid_data",
             # "regrid_era5_wind=icenet2.data.climate.era5:regrid_wind_data",
             # "rotate_era5_wind=icenet2.data.climate.era5:rotate_wind_data",

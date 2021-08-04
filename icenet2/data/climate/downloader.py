@@ -1,11 +1,14 @@
 import logging
 import os
 import re
+import shutil
+import tempfile
 
 from abc import abstractmethod
 
 from icenet2.data.producers import Downloader
-from icenet2.data.utils import assign_lat_lon_coord_system
+from icenet2.data.utils import assign_lat_lon_coord_system, \
+    gridcell_angles_from_dim_coords, invert_gridcell_angles, rotate_grid_vectors
 from icenet2.utils import Hemisphere, run_command
 
 import iris
@@ -14,7 +17,6 @@ import numpy as np
 
 class ClimateDownloader(Downloader):
 
-    @abstractmethod
     def __init__(self, *args,
                  var_names=(),
                  pressure_levels=(),
@@ -25,13 +27,12 @@ class ClimateDownloader(Downloader):
         self._sic_ease_cubes = dict()
         self._files_downloaded = []
 
-
         self._var_names = list(var_names)
         self._pressure_levels = list(pressure_levels)
         self._dates = list(dates)
 
         assert len(self._var_names), "No variables requested"
-        assert len(self._pressure_levels) != len(self._var_names), \
+        assert len(self._pressure_levels) == len(self._var_names), \
             "# of pressures must match # vars"
         assert len(self._dates), "Need to download at least one days worth"
 
@@ -42,52 +43,52 @@ class ClimateDownloader(Downloader):
             raise RuntimeError("Don't include hemisphere string {} in "
                                "base path".format(self.hemisphere_str))
 
-    # TODO: refactor
-    def get_sic_ease_cube(self, hemisphere):
-        if hemisphere not in self._sic_ease_cubes:
-            sic_day_folder = os.path.join(, "siconca")
+    # NOTE: will run on dry runs
+    @property
+    def sic_ease_cube(self):
+        if self._hemisphere not in self._sic_ease_cubes:
             sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'. \
-                format(self.hemisphere_str)
-            sic_day_path = os.path.join(sic_day_folder, sic_day_fname)
-
+                format(self.hemisphere_str[0])
+            sic_day_path = os.path.join(self.get_data_var_folder("siconca"),
+                                 sic_day_fname)
             if not os.path.exists(sic_day_path):
                 logging.info("Downloading single daily SIC netCDF file for "
                              "regridding ERA5 data to EASE grid...")
 
                 retrieve_sic_day_cmd = 'wget -m -nH --cut-dirs=6 -P {} ' \
                                        'ftp://osisaf.met.no/reprocessed/ice/' \
-                                       'conc/v2p0/1979/01/{}'.format(
-                                        sic_day_path, sic_day_fname)
-                run_command(retrieve_sic_day_cmd.
-                            format(sic_day_folder, sic_day_fname))
+                                       'conc/v2p0/1979/01/{}'.\
+                    format(self.get_data_var_folder("siconca"), sic_day_fname)
+
+                run_command(retrieve_sic_day_cmd)
 
             # Load a single SIC map to obtain the EASE grid for
             # regridding ERA data
-            self._sic_ease_cubes[hemisphere] = \
+            self._sic_ease_cubes[self._hemisphere] = \
                 iris.load_cube(sic_day_path, 'sea_ice_area_fraction')
 
             # Convert EASE coord units to metres for regridding
-            self._sic_ease_cubes[hemisphere].coord(
+            self._sic_ease_cubes[self._hemisphere].coord(
                 'projection_x_coordinate').convert_units('meters')
-            self._sic_ease_cubes[hemisphere].coord(
+            self._sic_ease_cubes[self._hemisphere].coord(
                 'projection_y_coordinate').convert_units('meters')
-        return self._sic_ease_cubes[hemisphere]
+        return self._sic_ease_cubes[self._hemisphere]
 
-    # TODO: refactor
     def regrid(self,
+               files=None,
                remove_original=False):
-        # TODO: this is a bit messy to account for compatibility with existing
-        #  data, so on fresh run from start we'll refine it all
-        for datafile in self._files_downloaded:
+        for datafile in self._files_downloaded if not files else files:
             (datafile_path, datafile_name) = os.path.split(datafile)
-            hemisphere, var_name = datafile_path.split(os.sep)[-2:]
-
-            sic_ease_cube = self.get_sic_ease_cube(hemisphere)
 
             logging.debug("Regridding {}".format(datafile))
             cube = assign_lat_lon_coord_system(iris.load_cube(datafile))
-            cube_ease = cube.regrid(sic_ease_cube, iris.analysis.Linear())
+            cube_ease = cube.regrid(
+                self.sic_ease_cube, iris.analysis.Linear())
 
+            self.additional_regrid_processing(datafile, cube_ease)
+
+            # TODO: filename chain can be handled better for sharing between
+            #  methods
             new_datafile = os.path.join(datafile_path,
                                         re.sub(r'_latlon_', '_', datafile_name))
             logging.info("Saving regridded data to {}... ".format(new_datafile))
@@ -97,51 +98,68 @@ class ClimateDownloader(Downloader):
                 logging.info("Removing {}".format(datafile))
                 os.remove(datafile)
 
-    # TODO: refactor
+    @abstractmethod
+    def additional_regrid_processing(self, datafile, cube_ease):
+        pass
+
     def rotate_wind_data(self,
                          apply_to=("uas", "vas"),
                          remove_original=False):
+        assert len(apply_to) == 2, "Too many wind variables supplied: {}, " \
+                                   "there should only be two.".\
+            format(", ".join(apply_to))
 
-        sic_ease_cube = self.get_sic_ease_cube(self.hemisphere_str)
+        angles = gridcell_angles_from_dim_coords(self.sic_ease_cube)
+        invert_gridcell_angles(angles)
 
-        land_mask = np.load(self.get_data_var_folder("masks"),
-                            config.land_mask_filename))
+        logging.info("Rotating wind data in {}".format(
+            " ".join([self.get_data_var_folder(v) for v in apply_to])))
 
-        # get the gridcell angles
-        angles = utils.gridcell_angles_from_dim_coords(sic_EASE_cube)
+        wind_files = {}
 
-        # invert the angles
-        utils.invert_gridcell_angles(angles)
+        for var in apply_to:
+            source = self.get_data_var_folder(var)
+            wind_files[var] = [df for df in self._files_downloaded
+                               if os.path.split(df)[0] in source]
 
-        # Rotate, regrid, and save
-        ################################################################################
+        # NOTE: we're relying on apply_to having equal datasets
+        assert len(wind_files[apply_to[0]]) == len(wind_files[apply_to[1]]), \
+            "The wind file datasets are unequal in length"
 
-        tic = time.time()
+        # a nicer manner of doing this, no doubt
+        for idx, wind_file_0 in enumerate(wind_files[apply_to[0]]):
+            wind_file_1 = wind_files[apply_to[1]][idx]
 
-        print(f'\nRotating wind data in {wind_data_folder}')
-        wind_cubes = {}
-        for var in ['uas', 'vas']:
-            EASE_path = os.path.join(wind_data_folder, f'{var}{fname_suffix}')
-            wind_cubes[var] = iris.load_cube(EASE_path)
+            logging.info("Rotating {} and {}".format(wind_file_0, wind_file_1))
+            wind_cubes = dict()
+            wind_cubes_r = dict()
 
-        # rotate the winds using the angles
-        wind_cubes_r = {}
-        wind_cubes_r['uas'], wind_cubes_r['vas'] = utils.rotate_grid_vectors(
-            wind_cubes['uas'], wind_cubes['vas'], angles)
+            wind_cubes[apply_to[0]] = iris.load_cube(wind_file_0)
+            wind_cubes[apply_to[1]] = iris.load_cube(wind_file_1)
 
-        # save the new cube
-        for var, cube_ease_r in wind_cubes_r.items():
-            EASE_path = os.path.join(wind_data_folder, f'{var}{fname_suffix}')
+            wind_cubes_r[apply_to[0]], wind_cubes_r[apply_to[1]] = \
+                rotate_grid_vectors(
+                    wind_cubes[apply_to[0]], wind_cubes[apply_to[1]], angles)
 
-            if os.path.exists(EASE_path) and overwrite:
-                print("Removing existing file: {}".format(EASE_path))
-                os.remove(EASE_path)
-            elif os.path.exists(EASE_path) and not overwrite:
-                print("Skipping due to existing file: {}".format(EASE_path))
-                sys.exit()
+            # Original implementation is in danger of lost updates
+            # due to potential lazy loading
+            for i, name in enumerate(wind_file_0, wind_file_1):
+                tmp_fh, tmp_name = tempfile.mktemp(dir=os.path.split(name)[0])
+                tmp_fh.close()
+                iris.save(wind_cubes_r[apply_to[i]], tmp_name)
+                os.replace(tmp_name, name)
 
-            iris.save(cube_ease_r, EASE_path)
+    # TODO: Refactor as a property of the downloader from instantiation
+    def get_land_mask(self,
+                      land_mask_filename="land_mask.py"):
+        return np.load(os.path.join(
+            self.get_data_var_folder("masks"), land_mask_filename))
 
-        print("Done in {:.3f}s.".format(toc - tic))
 
+    @property
+    def var_names(self):
+        return self._var_names
 
+    @property
+    def pressure_levels(self):
+        return self._pressure_levels

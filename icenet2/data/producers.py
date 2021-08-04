@@ -23,7 +23,7 @@ class DataProducer(HemisphereMixin):
 
         self._identifier = identifier
         self._path = path
-        self._hemisphere = (Hemisphere.NORTH if north else Hemisphere.NONE) & \
+        self._hemisphere = (Hemisphere.NORTH if north else Hemisphere.NONE) | \
                            (Hemisphere.SOUTH if south else Hemisphere.NONE)
 
         if os.path.exists(self._path):
@@ -51,10 +51,18 @@ class DataProducer(HemisphereMixin):
 
     def get_data_var_folder(self, var, hemisphere=None):
         if not hemisphere:
-            hemisphere = self.hemisphere_str
+            # We can make the assumption because this implementation is limited
+            # to a single hemisphere
+            hemisphere = self.hemisphere_str[0]
+
+        hemi_path = os.path.join(self.base_path, hemisphere)
+        if not os.path.exists(hemi_path):
+            logging.info("Creating hemisphere path: {}".format(hemi_path))
+            os.mkdir(hemi_path)
 
         var_path = os.path.join(self.base_path, hemisphere, var)
         if not os.path.exists(var_path):
+            logging.info("Creating var path: {}".format(var_path))
             os.mkdir(var_path)
         return var_path
 

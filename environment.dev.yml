@@ -4,11 +4,13 @@ channels:
   - defaults
 dependencies:
   - bokeh
+  - cartopy
   - dask
   - distributed
   - h5py
   - hdf4
   - hdf5
+  - iris
   - netcdf4
   - plotly
   - python>=3.7
@@ -18,5 +20,4 @@ dependencies:
   - pip:
     - cdsapi
     - dm-tree
-    - iris
     - tensorflow-probability
