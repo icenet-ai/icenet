@@ -73,7 +73,8 @@ class Downloader(DataProducer):
 
     @abstractmethod
     def download(self):
-        raise NotImplementedError("{} is abstract".format(__name__))
+        raise NotImplementedError("{}.download is abstract".
+                                  format(__class__.__name__))
 
 
 class Generator(DataProducer):
@@ -82,4 +83,5 @@ class Generator(DataProducer):
 
     @abstractmethod
     def generate(self):
-        raise NotImplementedError("{} is abstract".format(__name__))
+        raise NotImplementedError("{}.generate is abstract".
+                                  format(__class__.__name__))

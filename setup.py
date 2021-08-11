@@ -74,4 +74,7 @@ setup(
 
     ],
     include_package_data=True,
+
+    # TODO: sub-requirements
+    # plotting: matplotlib, imageio, tqdm
 )

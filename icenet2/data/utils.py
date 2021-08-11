@@ -7,10 +7,17 @@ import numpy as np
 
 
 def assign_lat_lon_coord_system(cube):
-    ''' Assign coordinate system to iris cube to allow regridding. '''
+    """ Assign coordinate system to iris cube to allow regridding. """
 
+    # This originated from era5
     cube.coord('latitude').coord_system = iris.coord_systems.GeogCS(6367470.0)
     cube.coord('longitude').coord_system = iris.coord_systems.GeogCS(6367470.0)
+
+    # NOTE: CMIP6 original assignment, but cs in this case is bring assigned to
+    # a module call that doesn't exist, let alone contain this member
+    # cs = grid_cube.coord_system().ellipsoid
+    # for coord in ['longitude', 'latitude']:
+    #     cmip6_cube.coord(coord).coord_system = cs
 
     return cube
 
