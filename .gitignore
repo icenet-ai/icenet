@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.nc
+*.egg-info/
+.idea/
+/data/
+/dataloader_configs/
+icesync.sh
+/logs/
+/network_datasets/
+/orig/
+/venv/
