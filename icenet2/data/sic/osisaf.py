@@ -99,9 +99,11 @@ class SICDownloader(Downloader):
                 #da_osi430b.lat.values = da_osi450.lat.values
                 #da = xr.concat([da_osi450, da_osi430b], dim='time')
 
+            logging.debug("Downloaded {}".format(fpath))
+
             da /= 100.  # Convert from SIC % to fraction
 
-            dates = [pd.Timestamp(date) for date in da.time.values]
+            dates = [pd.to_datetime(date).date() for date in da.time.values]
             if len(dates) > 1:
                 logging.warning("Multiple dates, but not right: {}".
                                 format(pformat(dates)))
@@ -112,7 +114,7 @@ class SICDownloader(Downloader):
                 mask = self._mask_dict[date.month]
 
                 # Set outside mask to zero
-                da.loc[date].data[~mask] = 0.
+                da.loc[pd.Timestamp(date)].data[~mask] = 0.
 
                 # Grab polar hole
                 polarhole_mask = self._masks.get_polarhole_mask(date)
@@ -138,12 +140,16 @@ class SICDownloader(Downloader):
                     interpolated_array[polarhole_mask] = interp_vals
                     da.loc[date].data = interpolated_array
 
-
+                logging.debug("Saving {}".format(fpath))
                 da.to_netcdf(fpath)
 
 
 if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.DEBUG)
     sic = SICDownloader(
-        dates=dt.date(2020, 1, 1)
+        dates=list([
+            pd.to_datetime(date).date() for date in
+            pd.date_range(dt.date(2020, 1, 1), dt.date(2020, 1, 6), freq='D')
+        ])
     )
     sic.download()
