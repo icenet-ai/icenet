@@ -32,6 +32,11 @@ class IceNetERA5PreProcessor(IceNetPreProcessor):
         super().__init__(*args, identifier="era5", **kwargs)
 
 
+class IceNetOSIPreProcessor(IceNetPreProcessor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, identifier="osisaf", **kwargs)
+
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
     pp = IceNetERA5PreProcessor(

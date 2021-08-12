@@ -11,6 +11,7 @@ import xarray as xr
 
 from icenet2.data.producers import Processor
 from icenet2.data.sic.mask import Masks
+from icenet2.model.models import linear_trend_forecast
 
 
 class IceNetPreProcessor(Processor):
@@ -31,7 +32,8 @@ class IceNetPreProcessor(Processor):
                  include_circday=True,
                  include_land=True,
                  lag_override=None,
-                 linear_trend_years=None,
+                 linear_trends=tuple(["siconca"]),
+                 linear_trend_years=2,
                  minmax=True,
                  no_normalise=tuple(["siconca"]),
                  path=os.path.join(".", "network_datasets"),
@@ -56,7 +58,8 @@ class IceNetPreProcessor(Processor):
         self._include_circday = include_circday
         self._include_land = include_land
         #self._lag_override = lag_override
-        #self._linear_trend_years = linear_trend_years
+        self._linear_trends = linear_trends
+        self._linear_trend_years = linear_trend_years
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
             if not minmax else self._normalise_array_scaling
@@ -139,6 +142,11 @@ class IceNetPreProcessor(Processor):
         da.data = np.asarray(da.data, dtype=self._dtype)
 
         da = self.pre_normalisation(var_name, da)
+
+        # TODO: Check, but I believe this should be before norm given source
+        #  data usage
+        if var_name in self._linear_trends:
+            da = self._build_linear_trend_da(da)
 
         if var_name in self._no_normalise:
             logging.info("No normalisation for {}".format(var_name))
@@ -315,3 +323,49 @@ class IceNetPreProcessor(Processor):
         open(scale_path, "w").write(",".join([str(f) for f in
                                               [minimum, maximum]]))
         return new_da
+
+    def _build_linear_trend_da(self, input_da):
+        """
+        Construct a DataArray `linea_trend_da` containing the linear trend SIC
+        forecasts based on the input DataArray `input_da`.
+        `linear_trend_da` will be saved in monthly averages using
+        the `save_xarray_in_monthly_averages` method.
+        Parameters:
+        `input_da` (xarray.DataArray): Input DataArray to produce linear SIC
+        forecasts for.
+        `dataset` (str): 'obs' or 'cmip6' (dictates whether to skip missing
+        observational months in the linear trend extrapolation)
+        Returns:
+        `linear_trend_da` (xarray.DataArray): DataArray whose time slices
+        correspond to the linear trend SIC projection for that month.
+        """
+
+        linear_trend_da = input_da.copy(data=np.zeros(input_da.shape,
+                                                      dtype=self._dtype))
+
+        # FIXME: change the trend dating to dailies. Should we interpolate?
+        #  We need to look at the range of dates and determine if we can
+        #  actually linear trend this data with the available source data
+        forecast_dates = input_da.time.values[12:]
+
+        # Convert from datetime64 to pd.Timestamp
+        forecast_dates = [pd.Timestamp(date) for date in forecast_dates]
+
+        # Add on the future year
+        last_year = forecast_dates[-12:]
+        forecast_dates.extend([
+            date + pd.DateOffset(years=1) for date in last_year])
+
+        linear_trend_da = linear_trend_da.assign_coords(
+            {'time': forecast_dates})
+        land_mask = Masks(north=self.north, south=self.south).get_land_mask()
+
+        for forecast_date in forecast_dates:
+            linear_trend_da.loc[dict(time=forecast_date)] = \
+                linear_trend_forecast(
+                    forecast_date, input_da, land_mask,
+                    self._linear_trend_years,
+                    missing_dates=(),
+                    shape=self._data_shape)[0]
+
+        return linear_trend_da

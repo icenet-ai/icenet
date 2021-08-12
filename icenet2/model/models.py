@@ -172,9 +172,11 @@ def unet_batchnorm2(input_shape, loss, metrics, learning_rate=1e-4, filter_size=
     return model
 
 
-def linear_trend_forecast(forecast_month, n_linear_years='all', da=None, dataset='obs'):
+def linear_trend_forecast(forecast_date, da, mask, n_linear_years,
+                          missing_dates=(), shape=(432, 432)):
     """
-    Returns a simple sea ice forecast based on a gridcell-wise linear extrapolation.
+    Returns a simple sea ice forecast based on a gridcell-wise linear
+    extrapolation.
 
     Parameters:
     forecast_month (datetime.datetime): The month to forecast
@@ -183,10 +185,6 @@ def linear_trend_forecast(forecast_month, n_linear_years='all', da=None, dataset
     extrapolation.
 
     da (xr.DataArray): xarray data array to use instead of observational
-    data (used for setting up CMIP6 pre-training linear trend inputs in IceUNetDataPreProcessor).
-
-    dataset (str): 'obs' or 'cmip6'. If 'obs', missing observational SIC months
-    will be skipped
 
     Returns:
     output_map (np.ndarray): The output SIC map predicted
@@ -196,17 +194,13 @@ def linear_trend_forecast(forecast_month, n_linear_years='all', da=None, dataset
     sie (np.float): The predicted sea ice extend (SIE).
     """
 
-    if da is None:
-        with xr.open_dataset('data/obs/siconca_EASE.nc') as ds:
-            da = next(iter(ds.data_vars.values()))
-
     valid_dates = [pd.Timestamp(date) for date in da.time.values]
 
-    input_dates = [forecast_month - pd.DateOffset(years=1+lag) for lag in range(n_linear_years)]
-    input_dates
+    input_dates = [forecast_date - pd.DateOffset(years=1+lag)
+                   for lag in range(n_linear_years)]
 
     # Do not use missing months in the linear trend projection
-    input_dates = [date for date in input_dates if date not in config.missing_dates]
+    input_dates = [date for date in input_dates if date not in missing_dates]
 
     # Chop off input date from before data start
     input_dates = [date for date in input_dates if date in valid_dates]
@@ -224,14 +218,14 @@ def linear_trend_forecast(forecast_month, n_linear_years='all', da=None, dataset
     y = input_maps.reshape(actual_n_linear_years, -1)
 
     # Fit the least squares linear coefficients
-    r = np.linalg.lstsq(np.c_[x, np.ones_like(x)], y, rcond=None)[0]
+    r = np.linalg.lstsq(
+        np.c_[x, np.ones_like(x)], y, rcond=None)[0]
 
     # y = mx + c
-    output_map = np.matmul(np.array([actual_n_linear_years, 1]), r).reshape(432, 432)
+    output_map = np.matmul(np.array([actual_n_linear_years, 1]), r).\
+        reshape(*shape)
 
-    land_mask_path = os.path.join(config.mask_data_folder, config.land_mask_filename)
-    land_mask = np.load(land_mask_path)
-    output_map[land_mask] = 0.
+    output_map[mask] = 0.
 
     output_map[output_map < 0] = 0.
     output_map[output_map > 1] = 1.

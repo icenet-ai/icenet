@@ -9,4 +9,5 @@ icesync.sh
 /logs/
 /network_datasets/
 /orig/
+/scratch/
 /venv/
