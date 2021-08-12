@@ -29,7 +29,8 @@ class DataProducer(HemisphereMixin):
         if os.path.exists(self._path):
             logging.warning("{} already exists".format(self._path))
         else:
-            os.mkdir(self._path)
+            logging.info("Creating path: {}".format(self._path))
+            os.makedirs(self._path, exist_ok=True)
 
         assert self._identifier, "No identifier supplied"
         assert self._hemisphere != Hemisphere.NONE, "No hemispheres selected"
@@ -69,7 +70,7 @@ class DataProducer(HemisphereMixin):
 
 class Downloader(DataProducer):
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @abstractmethod
     def download(self):
@@ -79,9 +80,19 @@ class Downloader(DataProducer):
 
 class Generator(DataProducer):
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @abstractmethod
     def generate(self):
         raise NotImplementedError("{}.generate is abstract".
+                                  format(__class__.__name__))
+
+
+class Processor(DataProducer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @abstractmethod
+    def process(self):
+        raise NotImplementedError("{}.process is abstract".
                                   format(__class__.__name__))
