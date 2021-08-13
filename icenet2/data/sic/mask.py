@@ -162,7 +162,8 @@ class Masks(Generator):
         return np.load(mask_path)
 
     def get_land_mask(self, land_mask_filename=LAND_MASK_FILENAME):
-        mask_path = os.path.join(self.base_path, land_mask_filename)
+        mask_path = os.path.join(self.get_data_var_folder("masks"),
+                                 land_mask_filename)
 
         if not os.path.exists(mask_path):
             raise RuntimeError("Land mask has not been generated, this is "

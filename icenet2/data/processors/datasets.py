@@ -40,14 +40,28 @@ class IceNetOSIPreProcessor(IceNetPreProcessor):
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
     pp = IceNetERA5PreProcessor(
-        ["siconca", "uas", "vas"],
+        ["uas", "vas"],
         ["tas", "ta500", "tos", "psl", "zg500", "zg250", "rsds", "rlds",
          "hus1000"],
         "test1",
-        [],
         [datetime.date(2021, 1, 1)],
+        [],
         [],
     )
     pp.init_source_data()
     pp.process()
+
+    osi = IceNetOSIPreProcessor(
+        ["siconca"],
+        [],
+        "test1",
+        [datetime.date(2020, 1, 1)],
+        [],
+        [],
+        include_circday=False,
+        include_land=False,
+        linear_trends=tuple(),
+    )
+    osi.init_source_data()
+    osi.process()
 

@@ -172,7 +172,7 @@ def unet_batchnorm2(input_shape, loss, metrics, learning_rate=1e-4, filter_size=
     return model
 
 
-def linear_trend_forecast(forecast_date, da, mask, n_linear_years,
+def linear_trend_forecast(forecast_date, da, mask, n_linear_days,
                           missing_dates=(), shape=(432, 432)):
     """
     Returns a simple sea ice forecast based on a gridcell-wise linear
@@ -196,10 +196,10 @@ def linear_trend_forecast(forecast_date, da, mask, n_linear_years,
 
     valid_dates = [pd.Timestamp(date) for date in da.time.values]
 
-    input_dates = [forecast_date - pd.DateOffset(years=1+lag)
-                   for lag in range(n_linear_years)]
+    input_dates = [forecast_date - pd.DateOffset(days=1+lag)
+                   for lag in range(n_linear_days)]
 
-    # Do not use missing months in the linear trend projection
+    # Do not use missing days in the linear trend projection
     input_dates = [date for date in input_dates if date not in missing_dates]
 
     # Chop off input date from before data start
@@ -208,21 +208,21 @@ def linear_trend_forecast(forecast_date, da, mask, n_linear_years,
     input_dates = sorted(input_dates)
 
     # The actual number of past years used
-    actual_n_linear_years = len(input_dates)
+    actual_n_linear_days = len(input_dates)
 
     da = da.sel(time=input_dates)
 
     input_maps = np.array(da.data)
 
-    x = np.arange(actual_n_linear_years)
-    y = input_maps.reshape(actual_n_linear_years, -1)
+    x = np.arange(actual_n_linear_days)
+    y = input_maps.reshape(actual_n_linear_days, -1)
 
     # Fit the least squares linear coefficients
     r = np.linalg.lstsq(
         np.c_[x, np.ones_like(x)], y, rcond=None)[0]
 
     # y = mx + c
-    output_map = np.matmul(np.array([actual_n_linear_years, 1]), r).\
+    output_map = np.matmul(np.array([actual_n_linear_days, 1]), r).\
         reshape(*shape)
 
     output_map[mask] = 0.

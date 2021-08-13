@@ -24,16 +24,14 @@ class IceNetPreProcessor(Processor):
                  val_dates,
                  *args,
                  data_shape=(432, 432),
-                 default_lag=14,
                  dtype=np.float32,
                  exclude_vars=(),
                  file_filters=tuple(["_latlon_"]),
                  identifier=None,
                  include_circday=True,
                  include_land=True,
-                 lag_override=None,
                  linear_trends=tuple(["siconca"]),
-                 linear_trend_years=2,
+                 linear_trend_days=7,
                  minmax=True,
                  no_normalise=tuple(["siconca"]),
                  path=os.path.join(".", "network_datasets"),
@@ -51,15 +49,13 @@ class IceNetPreProcessor(Processor):
         self._source_data = os.path.join(source_data, identifier)
 
         self._data_shape = data_shape
-        #self._default_lag = default_lag
         self._dtype = dtype
         self._exclude_vars = exclude_vars
         self._file_filters = file_filters
         self._include_circday = include_circday
         self._include_land = include_land
-        #self._lag_override = lag_override
         self._linear_trends = linear_trends
-        self._linear_trend_years = linear_trend_years
+        self._linear_trend_days = linear_trend_days
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
             if not minmax else self._normalise_array_scaling
@@ -104,8 +100,11 @@ class IceNetPreProcessor(Processor):
                 continue
             self._save_variable(var_name)
 
-        self._save_circday()
-        self._save_land()
+        if self._include_circday:
+            self._save_circday()
+
+        if self._include_land:
+            self._save_land()
 
     def pre_normalisation(self, var_name, da):
         logging.debug("No pre normalisation implemented for {}".
@@ -201,10 +200,12 @@ class IceNetPreProcessor(Processor):
         for date in da.time.values:
             slice = da.sel(time=date).data
             date = pd.Timestamp(date)
-            year_str = '{:04d}'.format(date.year)
-            month_str = '{:02d}'.format(date.month)
-            fname = '{}_{}.npy'.format(year_str, month_str)
+            fname = '{:04d}_{:02d}_{:02d}.npy'.\
+                format(date.year, date.month, date.day)
 
+            logging.info("Saving {} for {} in file: {}".format(
+                var_name, date, fname
+            ))
             np.save(
                 os.path.join(self.get_data_var_folder(var_name), fname), slice)
 
@@ -343,18 +344,14 @@ class IceNetPreProcessor(Processor):
         linear_trend_da = input_da.copy(data=np.zeros(input_da.shape,
                                                       dtype=self._dtype))
 
-        # FIXME: change the trend dating to dailies. Should we interpolate?
-        #  We need to look at the range of dates and determine if we can
-        #  actually linear trend this data with the available source data
-        forecast_dates = input_da.time.values[12:]
+        # FIXME: change the trend dating to dailies. This is not going to
+        #  work for simple preprocessing of small datasets
+        forecast_dates = [pd.Timestamp(date) for date in
+                          input_da.time.values][self._linear_trend_days:]
+        last_period = forecast_dates[-self._linear_trend_days:]
 
-        # Convert from datetime64 to pd.Timestamp
-        forecast_dates = [pd.Timestamp(date) for date in forecast_dates]
-
-        # Add on the future year
-        last_year = forecast_dates[-12:]
         forecast_dates.extend([
-            date + pd.DateOffset(years=1) for date in last_year])
+            date + pd.DateOffset(days=1) for date in last_period])
 
         linear_trend_da = linear_trend_da.assign_coords(
             {'time': forecast_dates})
@@ -364,7 +361,7 @@ class IceNetPreProcessor(Processor):
             linear_trend_da.loc[dict(time=forecast_date)] = \
                 linear_trend_forecast(
                     forecast_date, input_da, land_mask,
-                    self._linear_trend_years,
+                    self._linear_trend_days,
                     missing_dates=(),
                     shape=self._data_shape)[0]
 
