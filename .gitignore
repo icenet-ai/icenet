@@ -9,5 +9,8 @@ icesync.sh
 /logs/
 /network_datasets/
 /orig/
+/processed/
 /scratch/
 /venv/
+
+/loader.*.json

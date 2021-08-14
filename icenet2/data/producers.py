@@ -1,8 +1,11 @@
 from abc import abstractmethod
 
+import collections
+import glob
 import logging
 import os
 
+import numpy as np
 
 from icenet2.utils import Hemisphere, HemisphereMixin
 
@@ -89,10 +92,88 @@ class Generator(DataProducer):
 
 
 class Processor(DataProducer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self,
+                 identifier,
+                 source_data,
+                 *args,
+                 file_filters=tuple(),
+                 test_dates=tuple(),
+                 train_dates=tuple(),
+                 val_dates=tuple(),
+                 **kwargs):
+        super().__init__(*args,
+                         identifier=identifier,
+                         **kwargs)
+
+        self._file_filters = list(file_filters)
+        self._source_data = os.path.join(source_data, identifier)
+        self._var_files = dict()
+        self._processed_files = dict()
+
+        # TODO: better as a mixin?
+        Dates = collections.namedtuple("Dates", ["train", "val", "test"])
+        self._dates = Dates(train=list(train_dates),
+                            val=list(val_dates),
+                            test=list(test_dates))
+
+    def init_source_data(self):
+        path_to_glob = os.path.join(self._source_data,
+                                    *self.hemisphere_str)
+
+        if not os.path.exists(path_to_glob):
+            raise OSError("Source data directory {} does not exist".
+                          format(path_to_glob))
+
+        for date_category in ["train", "val", "test"]:
+            dates = getattr(self._dates, date_category)
+
+            if dates:
+                logging.info("Processing {} dates for {} category".
+                             format(len(dates), date_category))
+            else:
+                logging.info("No {} dates for this processor".
+                             format(date_category))
+                continue
+
+            for date in dates:
+                globstr = "{}/**/*_{}.nc".format(
+                    path_to_glob,
+                    date.strftime("%Y%m%d"))
+
+                for df in glob.glob(globstr, recursive=True):
+                    if any([flt in os.path.split(df)[1]
+                            for flt in self._file_filters]):
+                        continue
+
+                    var = os.path.split(df)[0].split(os.sep)[-1]
+                    if var not in self._var_files.keys():
+                        self._var_files[var] = list()
+                    self._var_files[var].append(df)
 
     @abstractmethod
     def process(self):
         raise NotImplementedError("{}.process is abstract".
                                   format(__class__.__name__))
+
+    def save_processed_file(self, var_name, name, data):
+        path = os.path.join(self.get_data_var_folder(var_name), name)
+        np.save(path, data)
+
+        if var_name not in self._processed_files.keys():
+            self._processed_files[var_name] = list()
+
+        if path not in self._processed_files[var_name]:
+            logging.debug("Adding {} file: {}".format(var_name, path))
+            self._processed_files[var_name].append(path)
+        else:
+            logging.warning("{} already exists in {} processed list".
+                            format(path, var_name))
+
+    @property
+    def dates(self):
+        return self._dates
+
+    @property
+    def processed_files(self):
+        return self._processed_files
+

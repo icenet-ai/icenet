@@ -1,4 +1,5 @@
 import collections
+import datetime as dt
 import glob
 import json
 import logging
@@ -34,24 +35,28 @@ class IceNetPreProcessor(Processor):
                  linear_trend_days=7,
                  minmax=True,
                  no_normalise=tuple(["siconca"]),
-                 path=os.path.join(".", "network_datasets"),
+                 path=os.path.join(".", "processed"),
                  source_data=os.path.join(".", "data"),
+                 update_loader=True,
                  **kwargs):
-        super().__init__(*args,
-                         identifier=identifier,
+        super().__init__(identifier,
+                         source_data,
+                         *args,
+                         file_filters=file_filters,
                          path=os.path.join(path, name),
+                         test_dates=test_dates,
+                         train_dates=train_dates,
+                         val_dates=val_dates,
                          **kwargs)
 
         self._abs_vars = abs_vars
         self._anom_vars = anom_vars
 
         self._name = name
-        self._source_data = os.path.join(source_data, identifier)
 
         self._data_shape = data_shape
         self._dtype = dtype
         self._exclude_vars = exclude_vars
-        self._file_filters = file_filters
         self._include_circday = include_circday
         self._include_land = include_land
         self._linear_trends = linear_trends
@@ -59,39 +64,9 @@ class IceNetPreProcessor(Processor):
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
             if not minmax else self._normalise_array_scaling
-        self._var_files = dict()
-
-        Dates = collections.namedtuple("Dates", ["train", "val", "test"])
-        self._dates = Dates(train=train_dates, val=val_dates, test=test_dates)
-
-    def init_source_data(self):
-        path_to_glob = os.path.join(self._source_data, *self.hemisphere_str)
-
-        for date_category in ["train", "val", "test"]:
-            dates = getattr(self._dates, date_category)
-
-            if dates:
-                logging.info("Processing {} dates for {} category".
-                             format(len(dates), date_category))
-            else:
-                logging.info("No {} dates for this processor".
-                             format(date_category))
-                continue
-
-            for date in dates:
-                globstr = "{}/**/*_{}.nc".format(
-                    path_to_glob,
-                    date.strftime("%Y%m%d"))
-
-                for df in glob.glob(globstr, recursive=True):
-                    if any([flt in os.path.split(df)[1]
-                            for flt in self._file_filters]):
-                        continue
-
-                    var = os.path.split(df)[0].split(os.sep)[-1]
-                    if var not in self._var_files.keys():
-                        self._var_files[var] = list()
-                    self._var_files[var].append(df)
+        self._update_loader = os.path.join(".",
+                                           "loader.{}.json".format(name)) \
+            if update_loader else None
 
     def process(self):
         for var_name in self._abs_vars + self._anom_vars:
@@ -106,6 +81,9 @@ class IceNetPreProcessor(Processor):
         if self._include_land:
             self._save_land()
 
+        if self._update_loader:
+            self.update_loader_config()
+
     def pre_normalisation(self, var_name, da):
         logging.debug("No pre normalisation implemented for {}".
                       format(var_name))
@@ -116,8 +94,53 @@ class IceNetPreProcessor(Processor):
                       format(var_name))
         return da
 
+    # TODO: update this to store parameters, if appropriate
+    def update_loader_config(self):
+        # Derived from original icenet parameters, these are all that are
+        # available/relevant for transfer between preprocessing and loading
+        def _update_var_list(obj, var_list):
+            for var_name in var_list:
+                if var_name not in obj:
+                    obj.append(var_name)
+
+        def _serialize(x):
+            if x is dt.date:
+                return x.strftime("%Y-%m-%d")
+            return str(x)
+
+        configuration = {
+            self.identifier: {
+                "name":             self._name,
+                "implementation":   self.__class__.__name__,
+                "anom":             [],
+                "abs":              [],
+                "linear_trends":    [],
+                "dates":            self._dates._asdict(),
+                "raw_data_shape":   list(self._data_shape),
+                "var_files":        self._processed_files,
+            }
+        }
+
+        if os.path.exists(self._update_loader):
+            logging.info("Loading configuration {}".format(self._update_loader))
+            with open(self._update_loader, "r") as fh:
+                obj = json.load(fh)
+                configuration.update(obj)
+
+        _update_var_list(configuration[self.identifier]["abs"],
+                         self._abs_vars)
+        _update_var_list(configuration[self.identifier]["anom"],
+                         self._anom_vars)
+        _update_var_list(configuration[self.identifier]["linear_trends"],
+                         self._linear_trends)
+
+        logging.info("Writing configuration to {}".format(self._update_loader))
+
+        with open(self._update_loader, "w") as fh:
+            json.dump(configuration, fh, indent=4, default=_serialize)
+
     def _save_variable(self, var_name):
-        da = self.open_dataarray_from_files(var_name)
+        da = self._open_dataarray_from_files(var_name)
 
         if var_name in self._anom_vars:
             clim_path = os.path.join(self.get_data_var_folder("params"),
@@ -164,8 +187,7 @@ class IceNetPreProcessor(Processor):
         land_map = np.ones(self._data_shape, dtype=self._dtype)
         land_map[~land_mask] = -1.
 
-        np.save(os.path.join(
-            self.get_data_var_folder("meta"), 'land.npy'), land_map)
+        self.save_processed_file("meta", "land.npy", land_map)
 
     # FIXME: will there be inaccuracies due to leap year offsets?
     def _save_circday(self):
@@ -178,10 +200,12 @@ class IceNetPreProcessor(Processor):
             cos_day = np.cos(2 * np.pi * circday / 366, dtype=self._dtype)
             sin_day = np.sin(2 * np.pi * circday / 366, dtype=self._dtype)
 
-            np.save(os.path.join(self.get_data_var_folder("meta"),
-                                 date.strftime('cos_%j.npy')), cos_day)
-            np.save(os.path.join(self.get_data_var_folder("meta"),
-                                 date.strftime('sin_%j.npy')), sin_day)
+            self.save_processed_file("meta",
+                                     date.strftime('cos_%j.npy'),
+                                     cos_day)
+            self.save_processed_file("meta",
+                                     date.strftime('sin_%j.npy'),
+                                     sin_day)
 
     def _save_output(self, da, var_name):
 
@@ -203,13 +227,9 @@ class IceNetPreProcessor(Processor):
             fname = '{:04d}_{:02d}_{:02d}.npy'.\
                 format(date.year, date.month, date.day)
 
-            logging.info("Saving {} for {} in file: {}".format(
-                var_name, date, fname
-            ))
-            np.save(
-                os.path.join(self.get_data_var_folder(var_name), fname), slice)
+            self.save_processed_file(var_name, fname, slice)
 
-    def open_dataarray_from_files(self, var_name):
+    def _open_dataarray_from_files(self, var_name):
 
         """
         Open the yearly xarray files, accounting for some ERA5 variables that have
