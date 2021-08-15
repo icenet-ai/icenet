@@ -47,6 +47,7 @@ if __name__ == "__main__":
         [datetime.date(2021, 1, 1)],
         [],
         [],
+        linear_trends=tuple(),
     )
     pp.init_source_data()
     pp.process()

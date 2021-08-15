@@ -14,6 +14,12 @@ from icenet2.data.producers import Processor
 from icenet2.data.sic.mask import Masks
 from icenet2.model.models import linear_trend_forecast
 
+"""
+
+TODO: missing dates
+
+"""
+
 
 class IceNetPreProcessor(Processor):
     DATE_FORMAT = "%Y-%m-%d"
@@ -107,22 +113,23 @@ class IceNetPreProcessor(Processor):
                 return x.strftime(IceNetPreProcessor.DATE_FORMAT)
             return str(x)
 
+        source = {
+            "name":             self._name,
+            "implementation":   self.__class__.__name__,
+            "anom":             self._anom_vars,
+            "abs":              self._abs_vars,
+            "dates":            self._dates._asdict(),
+            "linear_trends":    self._linear_trends,
+            "linear_trend_days": self._linear_trend_days,
+            "meta":             self._meta_vars,
+            # TODO: intention should perhaps be to strip these from
+            #  other date sets, this is just an indicative placeholder
+            #  for the mo
+            "var_files":        self._processed_files,
+        }
+
         configuration = {
-            self.identifier: {
-                "name":             self._name,
-                "implementation":   self.__class__.__name__,
-                "anom":             self._anom_vars,
-                "abs":              self._abs_vars,
-                "dates":            self._dates._asdict(),
-                "linear_trends":    self._linear_trends,
-                "linear_trend_days": self._linear_trend_days,
-                "meta":             self._meta_vars,
-                # TODO: intention should perhaps be to strip these from other
-                #  date sets, this is just an indicative placeholder for the mo
-                "missing_dates":    self._missing_dates,
-                "raw_data_shape":   list(self._data_shape),
-                "var_files":        self._processed_files,
-            }
+            "sources": {}
         }
 
         if os.path.exists(self._update_loader):
@@ -130,6 +137,22 @@ class IceNetPreProcessor(Processor):
             with open(self._update_loader, "r") as fh:
                 obj = json.load(fh)
                 configuration.update(obj)
+
+        configuration["sources"][self.identifier] = source
+
+        # Ideally should always be in together
+        if "dtype" in configuration:
+            assert configuration["dtype"] == self._dtype.__name__
+
+        if "shape" in configuration:
+            assert configuration["shape"] == list(self._data_shape)
+
+        configuration["dtype"] = self._dtype.__name__
+        configuration["shape"] = list(self._data_shape)
+
+        if "missing_dates" not in configuration:
+            configuration["missing_dates"] = []
+        configuration["missing_dates"] += self._missing_dates
 
         logging.info("Writing configuration to {}".format(self._update_loader))
 
@@ -188,7 +211,9 @@ class IceNetPreProcessor(Processor):
             self._meta_vars.append("land")
         self.save_processed_file("land", "land.npy", land_map)
 
-    # FIXME: will there be inaccuracies due to leap year offsets?
+        for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
+            os.symlink("land.npy", date.strftime('%j.npy'))
+
     def _save_circday(self):
         for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
             if self.north:
@@ -200,10 +225,10 @@ class IceNetPreProcessor(Processor):
             sin_day = np.sin(2 * np.pi * circday / 366, dtype=self._dtype)
 
             self.save_processed_file("cos",
-                                     date.strftime('cos_%j.npy'),
+                                     date.strftime('%j.npy'),
                                      cos_day)
             self.save_processed_file("sin",
-                                     date.strftime('sin_%j.npy'),
+                                     date.strftime('%j.npy'),
                                      sin_day)
 
         for var_name in ["sin", "cos"]:

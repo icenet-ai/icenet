@@ -27,11 +27,13 @@ class Masks(Generator):
                  polarhole_dates=POLARHOLE_DATES,
                  polarhole_radii=POLARHOLE_RADII,
                  data_shape=(432, 432),
+                 dtype=np.float32,
                  **kwargs):
         super().__init__(*args, identifier="masks", **kwargs)
 
         self._polarhole_dates = polarhole_dates
         self._polarhole_radii = polarhole_radii
+        self._dtype = dtype
         self._shape = data_shape
 
         self.init_params()
@@ -115,6 +117,7 @@ class Masks(Generator):
                                      "active_grid_cell_mask_{:02d}.npy".
                                      format(month))
             logging.info("Saving {}".format(mask_path))
+
             np.save(mask_path, max_extent_mask)
 
             land_mask_path = os.path.join(self.get_data_var_folder("masks"),
@@ -138,10 +141,10 @@ class Masks(Generator):
             # Generate the polar hole masks
             x = np.tile(np.arange(0, self._shape[1]).
                         reshape(self._shape[0], 1), (1, self._shape[1])).\
-                    astype(np.float32) - 215.5
+                    astype(self._dtype) - 215.5
             y = np.tile(np.arange(0, self._shape[1]).
                         reshape(1, self._shape[1]), (self._shape[0], 1)).\
-                    astype(np.float32) - 215.5
+                    astype(self._dtype) - 215.5
             squaresum = np.square(x) + np.square(y)
 
             for i, radius in enumerate(self._polarhole_radii):
