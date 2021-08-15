@@ -81,6 +81,18 @@ class IceNetDataLoader(Generator):
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
             for s in self._config["missing_dates"]]
 
+    @tf.function
+    def decode_item(self, proto):
+        features = {
+            "x": tf.io.FixedLenFeature([*self._shape, self.num_channels],
+                                       getattr(tf, self._config['dtype'])),
+            "y": tf.io.FixedLenFeature([*self._shape, self._n_forecast_days, 2],
+                                       getattr(tf, self._config['dtype'])),
+        }
+
+        item = tf.io.parse_single_example(proto, features)
+        return item['x'], item['y']
+
     def get_datasets(self):
         train_ds, val_ds, test_ds = None, None, None
 
@@ -92,11 +104,13 @@ class IceNetDataLoader(Generator):
 
         for dataset in ("train", "val", "test"):
             batch_number = 0
-            forecast_dates = set([dt.datetime.strptime(s,
+
+            forecast_dates = list(set([dt.datetime.strptime(s,
                                   IceNetPreProcessor.DATE_FORMAT).date()
-                                  for identity in self._config.keys()
+                                  for identity in self._config["sources"].keys()
                                   for s in
-                                  self._config["sources"][identity][dataset]])
+                                  self._config["sources"][identity]
+                                  ["dates"][dataset]]))
             output_dir = self.get_data_var_folder(dataset)
 
             logging.info("{} {} dates in total, generating cache "
@@ -117,7 +131,8 @@ class IceNetDataLoader(Generator):
                         logging.debug("Generating date {}".
                                       format(date.strftime(
                                              IceNetPreProcessor.DATE_FORMAT)))
-                        self._generate_tfrecord(writer, pd.Timestamp(date))
+                        x, y = \
+                            self._generate_tfrecord(writer, pd.Timestamp(date))
 
                 logging.info("Finished batch {}".format(tf_path))
                 batch_number += 1
@@ -127,8 +142,8 @@ class IceNetDataLoader(Generator):
                       filename_override=None):
         filename = "{}.npy".format(date.strftime(date_format)) if not \
             filename_override else filename_override
-        source_path = os.path.join(var_name.split("_")[0],
-                                   self.hemisphere_str[0],
+        source_path = os.path.join(self.hemisphere_str[0],
+                                   var_name.split("_")[0],
                                    filename)
 
         files = [potential for potential in self._channel_files[var_name]
@@ -138,13 +153,11 @@ class IceNetDataLoader(Generator):
             logging.warning("Multiple files found for {}, only returning {}".
                             format(filename, files[0]))
         elif not len(files):
-            logging.warning("No files in channel list for {}".format(filename))
+            #logging.warning("No files in channel list for {}".format(filename))
             return None
         return files[0]
 
     def _generate_tfrecord(self, writer, forecast_date):
-        x, y = None, None
-
         # OUTPUT SETUP - happens for any sample, even if only predicting
         # TODO: is there any benefit to changing this? Not likely
 
@@ -167,7 +180,6 @@ class IceNetDataLoader(Generator):
                 sample_sic_list.append(np.load(sic_filename))
 
         sample_output = np.stack(sample_sic_list, axis=2)
-        sample_output = np.moveaxis(sample_output, source=0, destination=2)
 
         y = np.zeros((*self._shape,
                       self._n_forecast_days,
@@ -187,7 +199,8 @@ class IceNetDataLoader(Generator):
 
             else:
                 # Zero loss outside of 'active grid cells'
-                sample_weight = self._masks.get_active_cell_mask(forecast_day)
+                sample_weight = self._masks.get_active_cell_mask(
+                    forecast_day.month)
                 sample_weight = sample_weight.astype(self._dtype)
 
                 # Scale the loss for each month s.t. March is
@@ -199,40 +212,44 @@ class IceNetDataLoader(Generator):
 
         # INPUT FEATURES
 
-        X = np.zeros((
+        x = np.zeros((
             *self._shape,
             self.num_channels
         ), dtype=self._dtype)
 
-        present_date = forecast_date - relativedelta(days=1)
         v1, v2 = 0, 0
 
+        # FIXME: surely these are current date to previous n, changed
+        #present_date = forecast_start_date - relativedelta(days=1)
+
         for var_name, num_channels in self._channels.items():
-            # FIXME: surely these are current date to previous n, changed
+            if var_name in self._meta_channels:
+                continue
+
             if "linear_trend" not in var_name:
-                input_days = [present_date - relativedelta(days=int(lag))
+                input_days = [forecast_date - relativedelta(days=int(lag))
                               for lag in np.arange(0, num_channels)]
             else:
-                input_days = [present_date + relativedelta(days=int(lead))
+                input_days = [forecast_date + relativedelta(days=int(lead))
                               for lead in np.arange(1, num_channels + 1)]
 
             v2 += num_channels
 
-            X[:, :, v1:v2] = \
+            x[:, :, v1:v2] = \
                 np.stack([np.load(self._get_var_file(var_name, date))
+                          if self._get_var_file(var_name, date)
+                          else np.zeros(self._shape)
                           for date in input_days], axis=-1)
 
             v1 += num_channels
 
         for var_name in self._meta_channels:
-            if self._channels[var_name] >= 1:
+            if self._channels[var_name] > 1:
                 raise RuntimeError("{} meta variable cannot have more than "
                                    "one channel".format(var_name))
 
-            X[:, :, v1] = \
-                np.stack([np.load(
-                    self._get_var_file(var_name, forecast_date, "%j"))],
-                    axis=-1)
+            x[:, :, v1] = \
+                np.load(self._get_var_file(var_name, forecast_date, "%j"))
 
             v1 += self._channels[var_name]
 
@@ -246,6 +263,7 @@ class IceNetDataLoader(Generator):
         })).SerializeToString()
 
         writer.write(record_data)
+        return x, y
 
     def _load_configuration(self, path):
         if os.path.exists(path):
@@ -333,5 +351,5 @@ if __name__ == "__main__":
                           "test_forecast",
                           7,
                           north=True)
-    dl.prepare()
+    dl.generate()
 

@@ -209,10 +209,16 @@ class IceNetPreProcessor(Processor):
 
         if "land" not in self._meta_vars:
             self._meta_vars.append("land")
-        self.save_processed_file("land", "land.npy", land_map)
+
+        land_path = self.save_processed_file("land", "land.npy", land_map)
 
         for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
-            os.symlink("land.npy", date.strftime('%j.npy'))
+            link_path = os.path.join(os.path.dirname(land_path),
+                                     date.strftime('%j.npy'))
+
+            if not os.path.islink(link_path):
+                os.symlink(os.path.basename(land_path), link_path)
+            self.processed_files["land"].append(link_path)
 
     def _save_circday(self):
         for date in pd.date_range(start='2012-1-1', end='2012-12-31'):

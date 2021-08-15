@@ -168,6 +168,7 @@ class Processor(DataProducer):
         else:
             logging.warning("{} already exists in {} processed list".
                             format(path, var_name))
+        return path
 
     @property
     def dates(self):
