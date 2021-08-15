@@ -13,9 +13,12 @@ dependencies:
   - iris
   - netcdf4
   - plotly
-  - python>=3.7
+  - pip
+  - python==3.8
+  - setuptools
   - tensorboard
   - tensorflow
+  - wheel
   - xarray
   - pip:
     - cdsapi

@@ -1,5 +1,6 @@
 import collections
 import datetime as dt
+import glob
 import json
 import logging
 import os
@@ -19,6 +20,23 @@ import tensorflow as tf
 from icenet2.data.sic.mask import Masks
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.producers import Generator
+
+
+def get_decoder(shape, channels, forecasts, vars=2, dtype="float32"):
+    xf = tf.io.FixedLenFeature([*shape, channels], getattr(tf, dtype))
+    yf = tf.io.FixedLenFeature([*shape, forecasts, vars], getattr(tf, dtype))
+
+    @tf.function
+    def decode_item(proto):
+        features = {
+            "x": xf,
+            "y": yf,
+        }
+
+        item = tf.io.parse_single_example(proto, features)
+        return item['x'], item['y']
+
+    return decode_item
 
 
 # TODO: TFDatasetGenerator should be created, so we can also have an
@@ -81,20 +99,34 @@ class IceNetDataLoader(Generator):
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
             for s in self._config["missing_dates"]]
 
-    @tf.function
-    def decode_item(self, proto):
-        features = {
-            "x": tf.io.FixedLenFeature([*self._shape, self.num_channels],
-                                       getattr(tf, self._config['dtype'])),
-            "y": tf.io.FixedLenFeature([*self._shape, self._n_forecast_days, 2],
-                                       getattr(tf, self._config['dtype'])),
-        }
+    def get_datasets(self, batch_size=4):
+        train_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("train")))
+        val_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("val")))
+        test_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("test")))
 
-        item = tf.io.parse_single_example(proto, features)
-        return item['x'], item['y']
+        train_ds, val_ds, test_ds = \
+            tf.data.TFRecordDataset(train_fns), \
+            tf.data.TFRecordDataset(val_fns), \
+            tf.data.TFRecordDataset(test_fns),
 
-    def get_datasets(self):
-        train_ds, val_ds, test_ds = None, None, None
+        # TODO: Comparison/profiling runs
+        # TODO: parallel for batch size while that's small
+        # TODO: obj.decode_item might not work here - figure out runtime
+        #  implementation based on wrapped function call that can be serialised
+        decoder = get_decoder(self._shape,
+                              self.num_channels,
+                              self._n_forecast_days,
+                              dtype=self._dtype.__name__)
+
+        train_ds = train_ds.map(decoder, num_parallel_calls=batch_size).\
+            batch(batch_size)  # .shuffle(batch_size)
+        val_ds = val_ds.map(decoder, num_parallel_calls=batch_size).\
+            batch(batch_size)
+        test_ds = test_ds.map(decoder, num_parallel_calls=batch_size).\
+            batch(batch_size)
 
         return train_ds, val_ds, test_ds
 
@@ -347,9 +379,18 @@ class IceNetDataLoader(Generator):
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
-    dl = IceNetDataLoader("loader.test1.json",
+#    dl = IceNetDataLoader("loader.test1.json",
+#                          "test_forecast",
+#                          7,
+#                          north=True)
+#    dl.generate()
+
+    ds = IceNetDataLoader("loader.test1.json",
                           "test_forecast",
                           7,
                           north=True)
-    dl.generate()
+    _, _, test = ds.get_datasets()
+    x, y = list(test.as_numpy_iterator())[0]
+    print(x.shape)
+    print(y.shape)
 
