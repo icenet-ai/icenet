@@ -16,6 +16,8 @@ from icenet2.model.models import linear_trend_forecast
 
 
 class IceNetPreProcessor(Processor):
+    DATE_FORMAT = "%Y-%m-%d"
+
     def __init__(self,
                  abs_vars,
                  anom_vars,
@@ -33,6 +35,8 @@ class IceNetPreProcessor(Processor):
                  include_land=True,
                  linear_trends=tuple(["siconca"]),
                  linear_trend_days=7,
+                 meta_vars=tuple(),
+                 missing_dates=tuple(),
                  minmax=True,
                  no_normalise=tuple(["siconca"]),
                  path=os.path.join(".", "processed"),
@@ -51,6 +55,7 @@ class IceNetPreProcessor(Processor):
 
         self._abs_vars = abs_vars
         self._anom_vars = anom_vars
+        self._meta_vars = list(meta_vars)
 
         self._name = name
 
@@ -61,6 +66,7 @@ class IceNetPreProcessor(Processor):
         self._include_land = include_land
         self._linear_trends = linear_trends
         self._linear_trend_days = linear_trend_days
+        self._missing_dates = list(missing_dates)
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
             if not minmax else self._normalise_array_scaling
@@ -96,26 +102,24 @@ class IceNetPreProcessor(Processor):
 
     # TODO: update this to store parameters, if appropriate
     def update_loader_config(self):
-        # Derived from original icenet parameters, these are all that are
-        # available/relevant for transfer between preprocessing and loading
-        def _update_var_list(obj, var_list):
-            for var_name in var_list:
-                if var_name not in obj:
-                    obj.append(var_name)
-
         def _serialize(x):
             if x is dt.date:
-                return x.strftime("%Y-%m-%d")
+                return x.strftime(IceNetPreProcessor.DATE_FORMAT)
             return str(x)
 
         configuration = {
             self.identifier: {
                 "name":             self._name,
                 "implementation":   self.__class__.__name__,
-                "anom":             [],
-                "abs":              [],
-                "linear_trends":    [],
+                "anom":             self._anom_vars,
+                "abs":              self._abs_vars,
                 "dates":            self._dates._asdict(),
+                "linear_trends":    self._linear_trends,
+                "linear_trend_days": self._linear_trend_days,
+                "meta":             self._meta_vars,
+                # TODO: intention should perhaps be to strip these from other
+                #  date sets, this is just an indicative placeholder for the mo
+                "missing_dates":    self._missing_dates,
                 "raw_data_shape":   list(self._data_shape),
                 "var_files":        self._processed_files,
             }
@@ -126,13 +130,6 @@ class IceNetPreProcessor(Processor):
             with open(self._update_loader, "r") as fh:
                 obj = json.load(fh)
                 configuration.update(obj)
-
-        _update_var_list(configuration[self.identifier]["abs"],
-                         self._abs_vars)
-        _update_var_list(configuration[self.identifier]["anom"],
-                         self._anom_vars)
-        _update_var_list(configuration[self.identifier]["linear_trends"],
-                         self._linear_trends)
 
         logging.info("Writing configuration to {}".format(self._update_loader))
 
@@ -187,7 +184,9 @@ class IceNetPreProcessor(Processor):
         land_map = np.ones(self._data_shape, dtype=self._dtype)
         land_map[~land_mask] = -1.
 
-        self.save_processed_file("meta", "land.npy", land_map)
+        if "land" not in self._meta_vars:
+            self._meta_vars.append("land")
+        self.save_processed_file("land", "land.npy", land_map)
 
     # FIXME: will there be inaccuracies due to leap year offsets?
     def _save_circday(self):
@@ -200,12 +199,16 @@ class IceNetPreProcessor(Processor):
             cos_day = np.cos(2 * np.pi * circday / 366, dtype=self._dtype)
             sin_day = np.sin(2 * np.pi * circday / 366, dtype=self._dtype)
 
-            self.save_processed_file("meta",
+            self.save_processed_file("cos",
                                      date.strftime('cos_%j.npy'),
                                      cos_day)
-            self.save_processed_file("meta",
+            self.save_processed_file("sin",
                                      date.strftime('sin_%j.npy'),
                                      sin_day)
+
+        for var_name in ["sin", "cos"]:
+            if var_name not in self._meta_vars:
+                self._meta_vars.append(var_name)
 
     def _save_output(self, da, var_name):
 

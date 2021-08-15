@@ -26,11 +26,14 @@ class Masks(Generator):
     def __init__(self, *args,
                  polarhole_dates=POLARHOLE_DATES,
                  polarhole_radii=POLARHOLE_RADII,
+                 data_shape=(432, 432),
                  **kwargs):
         super().__init__(*args, identifier="masks", **kwargs)
 
         self._polarhole_dates = polarhole_dates
         self._polarhole_radii = polarhole_radii
+        self._shape = data_shape
+
         self.init_params()
 
     def init_params(self):
@@ -58,7 +61,6 @@ class Masks(Generator):
                  year=2000,
                  save_land_mask=True,
                  save_polarhole_masks=True,
-                 xy=(432, 432),
                  remove_temp_files=False):
         """Generate a set of data masks
 
@@ -96,14 +98,16 @@ class Masks(Generator):
             with xr.open_dataset(month_path) as ds:
                 status_flag = ds['status_flag']
                 status_flag = np.array(status_flag.data).astype(np.uint8)
-                status_flag = status_flag.reshape(*xy)
+                status_flag = status_flag.reshape(*self._shape)
 
-                binary = np.unpackbits(status_flag, axis=1).reshape(*xy, 8)
+                binary = np.unpackbits(status_flag, axis=1).\
+                    reshape(*self._shape, 8)
 
                 # Mask out: land, lake, and 'outside max climatology' (open sea)
                 max_extent_mask = np.sum(
-                    binary[:, :, [7, 6, 0]], axis=2).reshape(*xy) >= 1
+                    binary[:, :, [7, 6, 0]], axis=2).reshape(*self._shape) >= 1
                 max_extent_mask = ~max_extent_mask
+
                 # FIXME: Remove Caspian and Black seas - should we do this sh?
                 max_extent_mask[325:386, 317:380] = False
 
@@ -120,7 +124,7 @@ class Masks(Generator):
                     not os.path.exists(land_mask_path) \
                     and month == 1:
                 land_mask = np.sum(binary[:, :, [7, 6]], axis=2).\
-                                reshape(*xy) >= 1
+                                reshape(*self._shape) >= 1
 
                 logging.info("Saving {}".format(land_mask_path))
                 np.save(land_mask_path, land_mask)
@@ -132,14 +136,16 @@ class Masks(Generator):
 
         if save_polarhole_masks:
             # Generate the polar hole masks
-            x = np.tile(np.arange(0, xy[1]).reshape(xy[0], 1), (1, xy[1])).\
+            x = np.tile(np.arange(0, self._shape[1]).
+                        reshape(self._shape[0], 1), (1, self._shape[1])).\
                     astype(np.float32) - 215.5
-            y = np.tile(np.arange(0, xy[1]).reshape(1, xy[1]), (xy[0], 1)).\
+            y = np.tile(np.arange(0, self._shape[1]).
+                        reshape(1, self._shape[1]), (self._shape[0], 1)).\
                     astype(np.float32) - 215.5
             squaresum = np.square(x) + np.square(y)
 
             for i, radius in enumerate(self._polarhole_radii):
-                polarhole = np.full(xy, False)
+                polarhole = np.full(self._shape, False)
                 polarhole[squaresum < radius**2] = True
 
                 polarhole_path = os.path.join(self.get_data_var_folder("masks"),
@@ -182,6 +188,9 @@ class Masks(Generator):
                 logging.info("Loading polarhole {}".format(polarhole_path))
                 return np.load(polarhole_path)
         return None
+
+    def get_blank_mask(self):
+        return np.full(self._shape, False)
 
 
 if __name__ == "__main__":
