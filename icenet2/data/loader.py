@@ -78,6 +78,7 @@ class IceNetDataLoader(Generator):
         self._channels = dict()
         self._channel_names = []
         self._channel_files = dict()
+        self._configuration_path = configuration_path
         self._dataset_config_path = dataset_config_path
         self._config = dict()
         self._loss_weight_days = loss_weight_days
@@ -96,6 +97,7 @@ class IceNetDataLoader(Generator):
 
         self._dtype = getattr(np, self._config["dtype"])
         self._shape = tuple(self._config["shape"])
+
         self._missing_dates = [
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
             for s in self._config["missing_dates"]]
@@ -135,8 +137,8 @@ class IceNetDataLoader(Generator):
                         logging.debug("Generating date {}".
                                       format(date.strftime(
                                              IceNetPreProcessor.DATE_FORMAT)))
-                        x, y = \
-                            self._generate_tfrecord(writer, pd.Timestamp(date))
+                        x, y = self.generate_sample(date)
+                        self._write_tfrecord(writer, x, y)
 
                 logging.info("Finished batch {}".format(tf_path))
                 batch_number += 1
@@ -144,57 +146,7 @@ class IceNetDataLoader(Generator):
 
         self._write_dataset_config(counts)
 
-    def _write_dataset_config(self, counts):
-        # TODO: move to utils for this and process
-        def _serialize(x):
-            if x is dt.date:
-                return x.strftime(IceNetPreProcessor.DATE_FORMAT)
-            return str(x)
-
-        configuration = {
-            "identifier":       self.identifier,
-            "implementation":   self.__class__.__name__,
-            "counts":           counts,
-            "dtype":            self._dtype.__name__,
-            # FIXME: this naming is inconsistent, sort it out!!! ;)
-            "shape":            list(self._shape),
-            "missing_dates":    self._missing_dates,
-            "n_forecast_days":  self._n_forecast_days,
-            "num_channels":     self.num_channels,
-            "north":            self.north,
-            "south":            self.south,
-        }
-
-        output_path = os.path.join(self._dataset_config_path,
-                                   "dataset_config.{}.json".format(
-                                       self.identifier))
-
-        logging.info("Writing configuration to {}".format(output_path))
-
-        with open(output_path, "w") as fh:
-            json.dump(configuration, fh, indent=4, default=_serialize)
-
-    def _get_var_file(self, var_name, date,
-                      date_format=IceNetPreProcessor.DATE_FORMAT,
-                      filename_override=None):
-        filename = "{}.npy".format(date.strftime(date_format)) if not \
-            filename_override else filename_override
-        source_path = os.path.join(self.hemisphere_str[0],
-                                   var_name.split("_")[0],
-                                   filename)
-
-        files = [potential for potential in self._channel_files[var_name]
-                 if source_path in potential]
-
-        if len(files) > 1:
-            logging.warning("Multiple files found for {}, only returning {}".
-                            format(filename, files[0]))
-        elif not len(files):
-            #logging.warning("No files in channel list for {}".format(filename))
-            return None
-        return files[0]
-
-    def _generate_tfrecord(self, writer, forecast_date):
+    def generate_sample(self, forecast_date):
         # OUTPUT SETUP - happens for any sample, even if only predicting
         # TODO: is there any benefit to changing this? Not likely
 
@@ -205,7 +157,7 @@ class IceNetDataLoader(Generator):
         sample_sic_list = []
 
         for leadtime_idx in range(self._n_forecast_days):
-            forecast_day = forecast_date + pd.DateOffset(days=leadtime_idx)
+            forecast_day = forecast_date + relativedelta(days=leadtime_idx)
             sic_filename = self._get_var_file("siconca_abs", forecast_day)
 
             if not sic_filename:
@@ -227,7 +179,7 @@ class IceNetDataLoader(Generator):
 
         # Masked recomposition of output
         for leadtime_idx in range(self._n_forecast_days):
-            forecast_day = forecast_date + pd.DateOffset(days=leadtime_idx)
+            forecast_day = forecast_date + relativedelta(days=leadtime_idx)
 
             if any([forecast_day == missing_date
                     for missing_date in self._missing_dates]):
@@ -248,7 +200,6 @@ class IceNetDataLoader(Generator):
             y[:, :, leadtime_idx, 1] = sample_weight
 
         # INPUT FEATURES
-
         x = np.zeros((
             *self._shape,
             self.num_channels
@@ -257,7 +208,6 @@ class IceNetDataLoader(Generator):
         v1, v2 = 0, 0
 
         # FIXME: surely these are current date to previous n, changed
-        #present_date = forecast_start_date - relativedelta(days=1)
 
         for var_name, num_channels in self._channels.items():
             if var_name in self._meta_channels:
@@ -265,7 +215,7 @@ class IceNetDataLoader(Generator):
 
             if "linear_trend" not in var_name:
                 input_days = [forecast_date - relativedelta(days=int(lag))
-                              for lag in np.arange(0, num_channels)]
+                              for lag in np.arange(1, num_channels + 1)]
             else:
                 input_days = [forecast_date + relativedelta(days=int(lead))
                               for lead in np.arange(1, num_channels + 1)]
@@ -292,26 +242,7 @@ class IceNetDataLoader(Generator):
 
         logging.debug("x shape {}, y shape {}".format(x.shape, y.shape))
 
-        record_data = tf.train.Example(features=tf.train.Features(feature={
-            "x": tf.train.Feature(
-                float_list=tf.train.FloatList(value=x.reshape(-1))),
-            "y": tf.train.Feature(
-                float_list=tf.train.FloatList(value=y.reshape(-1))),
-        })).SerializeToString()
-
-        writer.write(record_data)
         return x, y
-
-    def _load_configuration(self, path):
-        if os.path.exists(path):
-            logging.info("Loading configuration {}".format(path))
-
-            with open(path, "r") as fh:
-                obj = json.load(fh)
-
-                self._config.update(obj)
-        else:
-            raise OSError("{} not found".format(path))
 
     def _add_channel_files(self, var_name, filelist):
         if var_name in self._channel_files:
@@ -377,6 +308,86 @@ class IceNetDataLoader(Generator):
         logging.debug("Channel quantities deduced:\n{}\n\nTotal channels: {}".
             format(pformat(self._channels), self.num_channels))
 
+    def _get_var_file(self, var_name, date,
+                      date_format=IceNetPreProcessor.DATE_FORMAT,
+                      filename_override=None):
+        filename = "{}.npy".format(date.strftime(date_format)) if not \
+            filename_override else filename_override
+        source_path = os.path.join(self.hemisphere_str[0],
+                                   var_name.split("_")[0],
+                                   filename)
+
+        files = [potential for potential in self._channel_files[var_name]
+                 if source_path in potential]
+
+        if len(files) > 1:
+            logging.warning("Multiple files found for {}, only returning {}".
+                            format(filename, files[0]))
+        elif not len(files):
+            #logging.warning("No files in channel list for {}".format(filename))
+            return None
+        return files[0]
+
+    def _load_configuration(self, path):
+        if os.path.exists(path):
+            logging.info("Loading configuration {}".format(path))
+
+            with open(path, "r") as fh:
+                obj = json.load(fh)
+
+                self._config.update(obj)
+        else:
+            raise OSError("{} not found".format(path))
+
+    def _write_dataset_config(self, counts):
+        # TODO: move to utils for this and process
+        def _serialize(x):
+            if x is dt.date:
+                return x.strftime(IceNetPreProcessor.DATE_FORMAT)
+            return str(x)
+
+        configuration = {
+            "identifier":       self.identifier,
+            "implementation":   self.__class__.__name__,
+            "counts":           counts,
+            "dtype":            self._dtype.__name__,
+            "loader_config":    self._configuration_path,
+            "missing_dates":    self._missing_dates,
+            "n_forecast_days":  self._n_forecast_days,
+            "north":            self.north,
+            "num_channels":     self.num_channels,
+            # FIXME: this naming is inconsistent, sort it out!!! ;)
+            "shape":            list(self._shape),
+            "south":            self.south,
+
+            # For recreating this dataloader
+            # "dataset_config_path = ".",
+            "loader_path":      self._path,
+            "loss_weight_days": self._loss_weight_days,
+            "output_batch_size": self._output_batch_size,
+            "var_lag":          self._var_lag,
+            "var_lag_override": self._var_lag_override,
+        }
+
+        output_path = os.path.join(self._dataset_config_path,
+                                   "dataset_config.{}.json".format(
+                                       self.identifier))
+
+        logging.info("Writing configuration to {}".format(output_path))
+
+        with open(output_path, "w") as fh:
+            json.dump(configuration, fh, indent=4, default=_serialize)
+
+    def _write_tfrecord(self, writer, x, y):
+        record_data = tf.train.Example(features=tf.train.Features(feature={
+            "x": tf.train.Feature(
+                float_list=tf.train.FloatList(value=x.reshape(-1))),
+            "y": tf.train.Feature(
+                float_list=tf.train.FloatList(value=y.reshape(-1))),
+        })).SerializeToString()
+
+        writer.write(record_data)
+
     @property
     def num_channels(self):
         return sum(self._channels.values())
@@ -389,6 +400,7 @@ class IceNetDataSet(DataProducer):
                  path=os.path.join(".", "network_datasets"),
                  **kwargs):
         self._config = dict()
+        self._configuration_path = configuration_path
         self._load_configuration(configuration_path)
 
         super().__init__(*args,
@@ -400,6 +412,7 @@ class IceNetDataSet(DataProducer):
 
         self._counts = self._config["counts"]
         self._dtype = getattr(np, self._config["dtype"])
+        self._loader_config = self._config["loader_config"]
         self._n_forecast_days = self._config["n_forecast_days"]
         self._num_channels = self._config["num_channels"]
         self._shape = tuple(self._config["shape"])
@@ -456,13 +469,38 @@ class IceNetDataSet(DataProducer):
 
         return train_ds, val_ds, test_ds
 
+    def get_data_loader(self):
+        loader = IceNetDataLoader(self.loader_config,
+                                  self.identifier,
+                                  self._config["var_lag"],
+                                  dataset_config_path=os.path.dirname(
+                                      self._configuration_path),
+                                  loss_weight_days=self._config[
+                                      "loss_weight_days"],
+                                  north=self.north,
+                                  output_batch_size=self._config[
+                                      "output_batch_size"],
+                                  path=self._config["loader_path"],
+                                  south=self.south,
+                                  var_lag_override=self._config[
+                                      "var_lag_override"])
+        return loader
+
+    @property
+    def counts(self):
+        return self._counts
+
     @property
     def dtype(self):
         return self._dtype
 
     @property
-    def counts(self):
-        return self._counts
+    def loader_config(self):
+        return self._loader_config
+
+    @property
+    def loss_weight_days(self):
+        return self._loss_weight_days
 
     @property
     def missing_days(self):
@@ -491,7 +529,12 @@ if __name__ == "__main__":
 
     ds = IceNetDataSet(os.path.join(".", "dataset_config.test_forecast.json"))
     _, _, test = ds.get_split_datasets()
-    x, y = list(test.as_numpy_iterator())[0]
-    print(x.shape)
-    print(y.shape)
+    x1, y1 = list(test.as_numpy_iterator())[0]
+    print(x1.shape)
+    print(y1.shape)
+
+    other_dl = ds.get_data_loader()
+    x2, y2 = other_dl.generate_sample(dt.date(2020, 1, 1))
+    print(x2.shape)
+    print(y2.shape)
 

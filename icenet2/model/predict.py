@@ -1,85 +1,45 @@
-import inspect
 import logging
 import os
 
 from datetime import datetime
-from inspect import Parameter, Signature
 
-import icenet2.constants as constants
-import icenet2.data.loader as loader
 import icenet2.model.models as models
 
-import numpy as np
-import tensorflow
-import tqdm
-import xarray as xr
+from icenet2.data.loader import IceNetDataSet
 
 from tensorflow.keras.models import load_model
 
 
 def predict_forecast(
-    input_path,
-    output_path,
     data_configuration,
-    network_path=None,
     model_func=models.unet_batchnorm,
+    start_dates=tuple([datetime.now().date()]),
     seed=42,
-    n_forecast_days=93,
-    start_dates=tuple([datetime.now().date()])
+    network_folder=os.path.join(".", "results", "networks")
 ):
     # TODO: generic predict functions for the different models
     #  that take init date as input?
+    ds = IceNetDataSet(data_configuration)
+    dl = ds.get_data_loader()
 
-    icenet2_name = model_func.__name__
+    forecast_inputs = {date: dl.generate_sample(date) for date in start_dates}
 
-    # TODO: network fpath
-    network_path = os.path.join(constants.FOLDERS['results'],
-                                 "network.{}.h5".format(seed))
-
-    # TODO: custom objects
-    # TODO: dynamic num of forecast days
-    dataloader = loader.get_loader(
-        loader.get_configuration(data_configuration))
+    network_path = os.path.join(network_folder,
+                                "network_{}.{}.h5".format(ds.identifier, seed))
 
     if network_path and os.path.exists(network_path):
         logging.info("Loading model from {}...".format(network_path))
-        network = load_model(
-            network_path,
-        )
+        network = load_model(network_path)
     else:
         logging.warning("No network exists, creating untrained model")
         network = model_func(
-            (),
+            (*ds.shape, dl.num_channels),
             [],
             [],
-            n_forecast_days=dataloader.n_forecast_days
+            n_forecast_days=ds.n_forecast_days
         )
 
-#     da_with_coords = xr.open_dataarray(
-#         'data/nh/siconca/raw_yearly_data/siconca_1979.nc')
-# 
-#     shape = (len(start_dates),
-#              *dataloader.config['raw_data_shape'],
-#              n_forecast_days)
-# 
-#     forecasts = xr.DataArray(
-#         data=np.zeros(shape, dtype=np.float32),
-#         dims=('time', 'yc', 'xc', 'leadtime'),
-#         coords={
-#             'time': start_dates,
-#             'yc': da_with_coords.coords['yc'],
-#             'xc': da_with_coords.coords['xc'],
-#             'leadtime': np.arange(1, n_forecast_days + 1)
-#         }
-#     )
-
-    # forecast_start_date = all_forecast_start_dates[0]
-    batch = []
-    for forecast_start_date in tqdm.tqdm(start_dates):
-        X, y = dataloader.data_generation([('nh', forecast_start_date)])
-        batch.append((X, y))
-
-    pred = network(batch, training=False)
+    pred = network([forecast_inputs.values()], training=False)
     return pred
 
 

@@ -66,11 +66,6 @@ def train_model(
     logging.info("# validation samples: {}".format(ds.counts["val"]))
     logging.info("# input channels: {}".format(ds.num_channels))
 
-    custom_objects = {
-        'weighted_MAE_corrected': metrics.weighted_MAE_corrected,
-        'weighted_RMSE_corrected': metrics.weighted_RMSE_corrected,
-        'weighted_MSE_corrected': losses.weighted_MSE_corrected,
-    }
     prev_best = None
 
     loss = losses.weighted_MSE_corrected
@@ -111,8 +106,14 @@ def train_model(
 
     with strategy.scope():
         if pre_load_network:
+            custom_objects = {
+                'weighted_MAE_corrected': metrics.weighted_MAE_corrected,
+                'weighted_RMSE_corrected': metrics.weighted_RMSE_corrected,
+                'weighted_MSE_corrected': losses.weighted_MSE_corrected,
+            }
+
             logging.info("Loading network from {}".
-                format(pre_load_network_fname))
+                         format(pre_load_network_fname))
             network = load_model(pre_load_network_fname,
                                  custom_objects=custom_objects)
         else:
