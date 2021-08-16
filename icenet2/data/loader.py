@@ -19,12 +19,14 @@ import tensorflow as tf
 
 from icenet2.data.sic.mask import Masks
 from icenet2.data.process import IceNetPreProcessor
-from icenet2.data.producers import Generator
+from icenet2.data.producers import DataProducer, Generator
 
 
-def get_decoder(shape, channels, forecasts, vars=2, dtype="float32"):
-    xf = tf.io.FixedLenFeature([*shape, channels], getattr(tf, dtype))
-    yf = tf.io.FixedLenFeature([*shape, forecasts, vars], getattr(tf, dtype))
+def get_decoder(shape, channels, forecasts, num_vars=2, dtype="float32"):
+    xf = tf.io.FixedLenFeature(
+        [*shape, channels], getattr(tf, dtype))
+    yf = tf.io.FixedLenFeature(
+        [*shape, forecasts, num_vars], getattr(tf, dtype))
 
     @tf.function
     def decode_item(proto):
@@ -61,11 +63,11 @@ class IceNetDataLoader(Generator):
                  identifier,
                  var_lag,
                  *args,
+                 dataset_config_path=".",
                  loss_weight_days=True,
                  n_forecast_days=93,
                  output_batch_size=32,
                  path=os.path.join(".", "network_datasets"),
-                 seed=None,
                  var_lag_override=None,
                  **kwargs):
         super().__init__(*args,
@@ -76,6 +78,7 @@ class IceNetDataLoader(Generator):
         self._channels = dict()
         self._channel_names = []
         self._channel_files = dict()
+        self._dataset_config_path = dataset_config_path
         self._config = dict()
         self._loss_weight_days = loss_weight_days
         self._masks = Masks(north=self.north, south=self.south)
@@ -83,8 +86,6 @@ class IceNetDataLoader(Generator):
         self._missing_dates = []
         self._n_forecast_days = n_forecast_days
         self._output_batch_size = output_batch_size
-        self._rng = np.random.default_rng(seed)
-        self._seed = seed
 
         self._var_lag = var_lag
         self._var_lag_override = dict() \
@@ -99,42 +100,13 @@ class IceNetDataLoader(Generator):
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
             for s in self._config["missing_dates"]]
 
-    def get_datasets(self, batch_size=4):
-        train_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("train")))
-        val_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("val")))
-        test_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("test")))
-
-        train_ds, val_ds, test_ds = \
-            tf.data.TFRecordDataset(train_fns), \
-            tf.data.TFRecordDataset(val_fns), \
-            tf.data.TFRecordDataset(test_fns),
-
-        # TODO: Comparison/profiling runs
-        # TODO: parallel for batch size while that's small
-        # TODO: obj.decode_item might not work here - figure out runtime
-        #  implementation based on wrapped function call that can be serialised
-        decoder = get_decoder(self._shape,
-                              self.num_channels,
-                              self._n_forecast_days,
-                              dtype=self._dtype.__name__)
-
-        train_ds = train_ds.map(decoder, num_parallel_calls=batch_size).\
-            batch(batch_size)  # .shuffle(batch_size)
-        val_ds = val_ds.map(decoder, num_parallel_calls=batch_size).\
-            batch(batch_size)
-        test_ds = test_ds.map(decoder, num_parallel_calls=batch_size).\
-            batch(batch_size)
-
-        return train_ds, val_ds, test_ds
-
     def generate(self):
         # TODO: for each set, validate every variable has an appropriate file
         #  in the configuration arrays, otherwise drop the forecast date
+        splits = ("train", "val", "test")
+        counts = {el: 0 for el in splits}
 
-        for dataset in ("train", "val", "test"):
+        for dataset in splits:
             batch_number = 0
 
             forecast_dates = list(set([dt.datetime.strptime(s,
@@ -168,6 +140,39 @@ class IceNetDataLoader(Generator):
 
                 logging.info("Finished batch {}".format(tf_path))
                 batch_number += 1
+            counts[dataset] = len(forecast_dates)
+
+        self._write_dataset_config(counts)
+
+    def _write_dataset_config(self, counts):
+        # TODO: move to utils for this and process
+        def _serialize(x):
+            if x is dt.date:
+                return x.strftime(IceNetPreProcessor.DATE_FORMAT)
+            return str(x)
+
+        configuration = {
+            "identifier":       self.identifier,
+            "implementation":   self.__class__.__name__,
+            "counts":           counts,
+            "dtype":            self._dtype.__name__,
+            # FIXME: this naming is inconsistent, sort it out!!! ;)
+            "shape":            list(self._shape),
+            "missing_dates":    self._missing_dates,
+            "n_forecast_days":  self._n_forecast_days,
+            "num_channels":     self.num_channels,
+            "north":            self.north,
+            "south":            self.south,
+        }
+
+        output_path = os.path.join(self._dataset_config_path,
+                                   "dataset_config.{}.json".format(
+                                       self.identifier))
+
+        logging.info("Writing configuration to {}".format(output_path))
+
+        with open(output_path, "w") as fh:
+            json.dump(configuration, fh, indent=4, default=_serialize)
 
     def _get_var_file(self, var_name, date,
                       date_format=IceNetPreProcessor.DATE_FORMAT,
@@ -377,19 +382,115 @@ class IceNetDataLoader(Generator):
         return sum(self._channels.values())
 
 
+class IceNetDataSet(DataProducer):
+    def __init__(self,
+                 configuration_path,
+                 *args,
+                 path=os.path.join(".", "network_datasets"),
+                 **kwargs):
+        self._config = dict()
+        self._load_configuration(configuration_path)
+
+        super().__init__(*args,
+                         identifier=self._config["identifier"],
+                         north=bool(self._config["north"]),
+                         path=path,
+                         south=bool(self._config["south"]),
+                         **kwargs)
+
+        self._counts = self._config["counts"]
+        self._dtype = getattr(np, self._config["dtype"])
+        self._n_forecast_days = self._config["n_forecast_days"]
+        self._num_channels = self._config["num_channels"]
+        self._shape = tuple(self._config["shape"])
+
+        self._missing_dates = [
+            dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
+            for s in self._config["missing_dates"]]
+
+    def _load_configuration(self, path):
+        if os.path.exists(path):
+            logging.info("Loading configuration {}".format(path))
+
+            with open(path, "r") as fh:
+                obj = json.load(fh)
+
+                self._config.update(obj)
+        else:
+            raise OSError("{} not found".format(path))
+
+    def get_split_datasets(self, batch_size=4):
+        train_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("train"),
+            missing_error=True))
+        val_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("val"),
+            missing_error=True))
+        test_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("test"),
+            missing_error=True))
+
+        if not (len(train_fns) + len(val_fns) + len(test_fns)):
+            raise RuntimeError("No files have been found, abandoning...")
+
+        train_ds, val_ds, test_ds = \
+            tf.data.TFRecordDataset(train_fns), \
+            tf.data.TFRecordDataset(val_fns), \
+            tf.data.TFRecordDataset(test_fns),
+
+        # TODO: Comparison/profiling runs
+        # TODO: parallel for batch size while that's small
+        # TODO: obj.decode_item might not work here - figure out runtime
+        #  implementation based on wrapped function call that can be serialised
+        decoder = get_decoder(self.shape,
+                              self.num_channels,
+                              self.n_forecast_days,
+                              dtype=self._dtype.__name__)
+
+        train_ds = train_ds.map(decoder, num_parallel_calls=batch_size).\
+            batch(batch_size)  # .shuffle(batch_size)
+        val_ds = val_ds.map(decoder, num_parallel_calls=batch_size).\
+            batch(batch_size)
+        test_ds = test_ds.map(decoder, num_parallel_calls=batch_size).\
+            batch(batch_size)
+
+        return train_ds, val_ds, test_ds
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @property
+    def counts(self):
+        return self._counts
+
+    @property
+    def missing_days(self):
+        return self._missing_dates
+
+    @property
+    def n_forecast_days(self):
+        return self._n_forecast_days
+
+    @property
+    def num_channels(self):
+        return self._num_channels
+
+    @property
+    def shape(self):
+        return self._shape
+
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
-#    dl = IceNetDataLoader("loader.test1.json",
-#                          "test_forecast",
-#                          7,
-#                          north=True)
-#    dl.generate()
-
-    ds = IceNetDataLoader("loader.test1.json",
+    dl = IceNetDataLoader("loader.test1.json",
                           "test_forecast",
                           7,
                           north=True)
-    _, _, test = ds.get_datasets()
+    dl.generate()
+
+    ds = IceNetDataSet(os.path.join(".", "dataset_config.test_forecast.json"))
+    _, _, test = ds.get_split_datasets()
     x, y = list(test.as_numpy_iterator())[0]
     print(x.shape)
     print(y.shape)

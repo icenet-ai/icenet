@@ -66,12 +66,12 @@ class Masks(Generator):
                  remove_temp_files=False):
         """Generate a set of data masks
 
-        TODO: need to review this, probably not appropriate for dual hemisphere
-        """
 
+        """
         siconca_folder = self.get_data_var_folder("siconca")
 
-        # FIXME: cut-dirs can be nasty, better use -O, changed from 4 to 5
+        # FIXME: cut-dirs can be change intolerant, better use -O, changed
+        #  from 4 to 5
         retrieve_cmd_template_osi450 = \
             "wget -m -nH --cut-dirs=4 -P {} " \
             "ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/{}"
@@ -111,7 +111,8 @@ class Masks(Generator):
                 max_extent_mask = ~max_extent_mask
 
                 # FIXME: Remove Caspian and Black seas - should we do this sh?
-                max_extent_mask[325:386, 317:380] = False
+                if self.north:
+                    max_extent_mask[325:386, 317:380] = False
 
             mask_path = os.path.join(self.get_data_var_folder("masks"),
                                      "active_grid_cell_mask_{:02d}.npy".
@@ -167,7 +168,7 @@ class Masks(Generator):
                                "this is not done automatically so you might "
                                "want to address this!")
 
-        logging.debug("Loading active cell mask {}".format(mask_path))
+        # logging.debug("Loading active cell mask {}".format(mask_path))
         return np.load(mask_path)
 
     def get_land_mask(self, land_mask_filename=LAND_MASK_FILENAME):
@@ -179,7 +180,7 @@ class Masks(Generator):
                                "not done automatically so you might want to "
                                "address this!")
 
-        logging.debug("Loading land mask {}".format(mask_path))
+        # logging.debug("Loading land mask {}".format(mask_path))
         return np.load(mask_path)
 
     def get_polarhole_mask(self, date):
@@ -188,7 +189,7 @@ class Masks(Generator):
                 polarhole_path = os.path.join(self.get_data_var_folder("masks"),
                                               "polarhole{}_mask.npy".
                                               format(i + 1))
-                logging.info("Loading polarhole {}".format(polarhole_path))
+                # logging.debug("Loading polarhole {}".format(polarhole_path))
                 return np.load(polarhole_path)
         return None
 

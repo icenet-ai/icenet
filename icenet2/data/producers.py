@@ -53,7 +53,7 @@ class DataProducer(HemisphereMixin):
     def identifier(self):
         return self._identifier
 
-    def get_data_var_folder(self, var, hemisphere=None):
+    def get_data_var_folder(self, var, hemisphere=None, missing_error=False):
         if not hemisphere:
             # We can make the assumption because this implementation is limited
             # to a single hemisphere
@@ -61,13 +61,21 @@ class DataProducer(HemisphereMixin):
 
         hemi_path = os.path.join(self.base_path, hemisphere)
         if not os.path.exists(hemi_path):
-            logging.info("Creating hemisphere path: {}".format(hemi_path))
-            os.mkdir(hemi_path)
+            if not missing_error:
+                logging.info("Creating hemisphere path: {}".format(hemi_path))
+                os.mkdir(hemi_path)
+            else:
+                raise OSError("Hemisphere directory {} is missing and this is "
+                              "flagged as an error!".format(hemi_path))
 
         var_path = os.path.join(self.base_path, hemisphere, var)
         if not os.path.exists(var_path):
-            logging.info("Creating var path: {}".format(var_path))
-            os.mkdir(var_path)
+            if not missing_error:
+                logging.info("Creating var path: {}".format(var_path))
+                os.mkdir(var_path)
+            else:
+                raise OSError("Variable directory {} is missing and this is "
+                              "flagged as an error!".format(var_path))
         return var_path
 
 

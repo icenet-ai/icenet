@@ -29,11 +29,11 @@ class HemisphereMixin:
 
     @property
     def north(self):
-        return self._hemisphere & Hemisphere.NORTH
+        return (self._hemisphere & Hemisphere.NORTH) == Hemisphere.NORTH
 
     @property
     def south(self):
-        return self._hemisphere & Hemisphere.SOUTH
+        return (self._hemisphere & Hemisphere.SOUTH) == Hemisphere.SOUTH
 
     @property
     def both(self):

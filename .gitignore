@@ -13,4 +13,5 @@ icesync.sh
 /scratch/
 /venv/
 
+/dataset_config.*.json
 /loader.*.json
