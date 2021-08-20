@@ -271,7 +271,7 @@ class IceNetPreProcessor(Processor):
         """
 
         logging.info("Opening files for {}".format(var_name))
-        ds_list = [xr.open_dataset(path) for path in self._var_files[var_name]]
+        ds = xr.open_mfdataset(self._var_files[var_name])
 
         # Set of variables names
         # var_set = set([next(iter(
@@ -280,23 +280,25 @@ class IceNetPreProcessor(Processor):
 
         # For processing one file, we're going to assume a single non-lambert
         # variable exists at the start and rename all of them
-        var_names = []
-        for ds in ds_list:
-            var_names += [name for name in list(ds.data_vars.keys())
-                          if not name.startswith("lambert_")]
+        var_names = [name for name in list(ds.data_vars.keys())
+                     if not name.startswith("lambert_")]
 
         var_names = set(var_names)
         logging.debug("Files have var names {} which will be renamed to {}".
                       format(", ".join(var_names), var_name))
 
-        for i, ds in enumerate(ds_list):
-            ds = ds.rename({k: var_name for k in var_names})
-            ds_list[i] = ds
-
-        ds = xr.combine_nested(ds_list,
-                               concat_dim='time')
-
+        ds = ds.rename({k: var_name for k in var_names})
         da = getattr(ds, var_name)
+
+        search = [pd.Timestamp(el) for el in
+                  self.dates["train"] + self.dates["val"] + self.dates["test"]
+                  if pd.Timestamp(el) in da.time]
+
+        logging.info("Time dimension is {} units long".format(len(da.time)))
+        da = da.sel(time=search)
+        logging.info("Filtered to {} units long based on configuration "
+                     "requirements".format(len(da.time)))
+
         return da
 
     @staticmethod

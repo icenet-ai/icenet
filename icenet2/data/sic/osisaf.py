@@ -1,20 +1,113 @@
 import copy
+import fnmatch
+import glob
 import logging
 import os
 import sys
+import tempfile
 import time
 
 import datetime as dt
+from ftplib import FTP
 from pprint import pformat
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from scipy import interpolate
-
 from icenet2.data.producers import Downloader
 from icenet2.data.sic.mask import Masks
+from icenet2.utils import Hemisphere
+
+
+invalid_sic_days = {
+    Hemisphere.NORTH: [
+        dt.date(1979, 5, 28),
+        dt.date(1979, 5, 30),
+        dt.date(1979, 6, 1),
+        dt.date(1979, 6, 3),
+        dt.date(1979, 6, 11),
+        dt.date(1979, 6, 13),
+        dt.date(1979, 6, 15),
+        dt.date(1979, 6, 17),
+        dt.date(1979, 6, 19),
+        dt.date(1979, 6, 21),
+        dt.date(1979, 6, 23),
+        dt.date(1979, 6, 25),
+        dt.date(1979, 7, 1),
+        dt.date(1979, 7, 25),
+        dt.date(1979, 7, 27),
+        dt.date(1984, 9, 14),
+        *[d.date() for d in
+          pd.date_range(dt.date(1986, 4, 1), dt.date(1986, 6, 30))],
+        dt.date(1987, 1, 16),
+        dt.date(1987, 1, 18),
+        dt.date(1987, 1, 30),
+        dt.date(1987, 2, 1),
+        dt.date(1987, 2, 23),
+        dt.date(1987, 2, 27),
+        dt.date(1987, 3, 1),
+        dt.date(1987, 3, 13),
+        dt.date(1987, 3, 23),
+        dt.date(1987, 3, 25),
+        dt.date(1987, 4, 4),
+        dt.date(1987, 4, 6),
+        dt.date(1987, 4, 10),
+        dt.date(1987, 4, 12),
+        dt.date(1987, 4, 14),
+        dt.date(1987, 4, 16),
+        dt.date(1987, 4, 4),
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 12, 1), dt.date(1987, 12, 31))],
+        dt.date(1990, 1, 26)
+    ],
+    Hemisphere.SOUTH: [
+        dt.date(1979, 2, 5),
+        dt.date(1979, 2, 25),
+        dt.date(1979, 3, 23),
+        dt.date(1979, 3, 27),
+        dt.date(1979, 3, 29),
+        dt.date(1979, 4, 12),
+        dt.date(1979, 5, 16),
+        dt.date(1979, 7, 11),
+        dt.date(1979, 7, 13),
+        dt.date(1979, 7, 15),
+        dt.date(1979, 7, 17),
+        dt.date(1979, 8, 10),
+        dt.date(1979, 9, 3),
+        dt.date(1980, 2, 16),
+        dt.date(1980, 3, 15),
+        dt.date(1980, 3, 31),
+        dt.date(1980, 4, 22),
+        dt.date(1981, 6, 10),
+        dt.date(1982, 8, 6),
+        dt.date(1983, 7, 8),
+        dt.date(1983, 7, 10),
+        dt.date(1983, 7, 22),
+        dt.date(1984, 6, 12),
+        dt.date(1984, 9, 14),
+        dt.date(1984, 9, 16),
+        dt.date(1984, 10, 4),
+        dt.date(1984, 10, 6),
+        dt.date(1984, 10, 8),
+        dt.date(1984, 11, 19),
+        dt.date(1984, 11, 21),
+        dt.date(1985, 7, 23),
+        *[d.date() for d in
+          pd.date_range(dt.date(1986, 4, 1), dt.date(1986, 6, 30))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 2))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 12, 1), dt.date(1987, 12, 31))],
+        dt.date(1990, 8, 14),
+        dt.date(1990, 8, 15),
+        dt.date(1990, 8, 24)
+    ]
+}
+
+var_remove_list = ['time_bnds', 'raw_ice_conc_values', 'total_standard_error',
+                   'smearing_standard_error', 'algorithm_standard_error',
+                   'status_flag', 'Lambert_Azimuthal_Grid']
 
 
 class SICDownloader(Downloader):
@@ -30,14 +123,20 @@ class SICDownloader(Downloader):
         - OSI-430-b (2016-present): https://thredds.met.no/thredds/dodsC/osisaf/
             met.no/reprocessed/ice/conc_crb_nh_agg.html
     """
-
     def __init__(self,
                  *args,
+                 additional_invalid_dates=(),
                  dates=(),
+                 delete_temp=False,
+                 dtype=np.float32,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
 
         self._dates = dates
+        self._delete_temp = delete_temp
+        self._dtype=dtype
+        self._invalid_dates = invalid_sic_days[self.hemisphere] + \
+            list(additional_invalid_dates)
         self._masks = Masks(north=self.north, south=self.south)
 
         self._mask_dict = {
@@ -48,108 +147,138 @@ class SICDownloader(Downloader):
     def download(self):
         hs = self.hemisphere_str[0]
 
-        ref_date = dt.date(1978, 1, 1)
-        osi450_start = dt.date(1979, 1, 1)
+        #cmd = "wget -m -nH -nv --cut-dirs=4 -P {} {}"
+        ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
+        ftp_osi430b = "/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/"
+        cache = {}
         osi430b_start = dt.date(2016, 1, 1)
 
-        # FIXME: do ranged request optimsisation
-        dt_arr = list(sorted(copy.copy(self._dates)))
+        # Bit wasteful
+        dt_arr = list(reversed(sorted(copy.copy(self._dates))))
+        data_files = []
 
-        while len(dt_arr):
-            el = dt_arr.pop()
+        with FTP('osisaf.met.no') as ftp:
+            ftp.login()
 
-            date_str = el.strftime("%Y%m%d")
+            while len(dt_arr):
+                el = dt_arr.pop()
+
+                if el in self._invalid_dates:
+                    logging.warning("Date {} is in invalid list".format(el))
+                    continue
+
+                date_str = el.strftime("%Y_%m_%d")
+                temp_path = os.path.join(self.get_data_var_folder("siconca"),
+                                         str(el.year),
+                                         "{}.temp".format(date_str))
+                nc_path = os.path.join(self.get_data_var_folder("siconca"),
+                                       str(el.year),
+                                       "{}.nc".format(date_str))
+
+                if not os.path.isdir(os.path.dirname(temp_path)):
+                    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+
+                if os.path.exists(temp_path) or os.path.exists(nc_path):
+                    logging.info("{} already exists, skipping".format(nc_path))
+                    data_files.append(temp_path)
+                    continue
+
+                chdir_path = ftp_osi450 if el < osi430b_start else ftp_osi430b
+                chdir_path = chdir_path.format(el.year, el.month)
+
+                ftp.cwd(chdir_path)
+
+                if chdir_path not in cache:
+                    cache[chdir_path] = ftp.nlst()
+
+                cache_match = "ice_conc_{}_ease*_{:04d}{:02d}{:02d}*.nc".\
+                    format(hs, el.year, el.month, el.day)
+                ftp_files = [el for el in cache[chdir_path]
+                             if fnmatch.fnmatch(el, cache_match)]
+
+                if len(ftp_files) > 1:
+                    raise ValueError("More than a single file found: {}".
+                                     format(ftp_files))
+                elif not len(ftp_files):
+                    continue
+
+                with open(temp_path, "wb") as fh:
+                    ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
+
+                logging.debug("Downloaded {}".format(temp_path))
+                data_files.append(temp_path)
+
+        ds = xr.open_mfdataset(data_files)
+
+        ds = ds.drop_vars(var_remove_list)
+        da = ds.ice_conc
+
+        da /= 100.  # Convert from SIC % to fraction
+        da = self._missing_dates(da)
+
+        for date in da.time.values:
+            date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
+            day_da = da.loc[date]
+            mask = self._mask_dict[pd.to_datetime(date).month]
+
+            # TODO: active grid cell mask possibly should move to preproc
+            # Set outside mask to zero
+            day_da.data[~mask] = 0.
+
             fpath = os.path.join(self.get_data_var_folder("siconca"),
-                                 "siconca_{}.nc".format(date_str))
-            if os.path.exists(fpath):
-                logging.info("{} already exists, skipping".format(fpath))
-                continue
+                                 str(el.year),
+                                 "{}.nc".format(date_str))
+            day_da.to_netcdf(fpath)
 
-            if el < osi450_start:
-                raise NotImplementedError("No available date {}".
-                                          format(osi450_start))
-            elif el < osi430b_start:
-                da_osi450 = xr.open_dataarray(
-                    "https://thredds.met.no/thredds/dodsC/osisaf/met.no/"
-                    "reprocessed/ice/conc_v2p0_{0}_agg?"
-                    "xc[0:1:431],"
-                    "yc[0:1:431],"
-                    "lat[0:1:431][0:1:431],"
-                    "lon[0:1:431][0:1:431],"
-                    "time[{1}:1:{1}],"
-                    "ice_conc[{1}:1:{1}][0:1:431][0:1:431]".format(
-                        hs,
-                        (el - osi450_start).days,
-                    ))
-                da = da_osi450.resample(time='1D').mean()
-            else:
-                da_osi430b = xr.open_dataarray(
-                    "https://thredds.met.no/thredds/dodsC/osisaf/met.no/"
-                    "reprocessed/ice/conc_crb_{0}_agg?"
-                    "xc[0:1:431],"
-                    "yc[0:1:431],"
-                    "lat[0:1:431][0:1:431],"
-                    "lon[0:1:431][0:1:431],"
-                    "time[{1}:1:{1}],"
-                    "ice_conc[{1}:1:{1}][0:1:431][0:1:431]".format(
-                        hs,
-                        (el - osi430b_start).days,
-                    ))
-                da = da_osi430b.resample(time='1D').mean()
-                #da_osi430b.lat.values = da_osi450.lat.values
-                #da = xr.concat([da_osi450, da_osi430b], dim='time')
+        if self._delete_temp:
+            for fpath in data_files:
+                os.unlink(fpath)
 
-            logging.debug("Downloaded {}".format(fpath))
+    def _missing_dates(self, da):
+        if pd.Timestamp(1979, 1, 2, 12) in da.time.values\
+                and dt.date(1979, 1, 1) in self._dates:
+            da_1979_01_01 = da.sel(
+                time=[pd.Timestamp(1979, 1, 2, 12)]).copy().assign_coords(
+                {'time': [pd.Timestamp(1979, 1, 1, 12)]})
+            da = xr.concat([da, da_1979_01_01], dim='time')
+            da = da.sortby('time')
 
-            da /= 100.  # Convert from SIC % to fraction
+        dates_obs = [pd.to_datetime(date).date() for date in da.time.values]
+        dates_all = [pd.to_datetime(date).date() for date in
+                     pd.date_range(min(self._dates), max(self._dates))]
+        missing_dates = [date for date in dates_all if date not in dates_obs]
 
-            dates = [pd.to_datetime(date).date() for date in da.time.values]
-            if len(dates) > 1:
-                logging.warning("Multiple dates, but not right: {}".
-                                format(pformat(dates)))
-                break
+        dates_obs_df = pd.DataFrame(dates_obs, columns=['date'])
+        gaps_df = (dates_obs_df.diff() - dt.timedelta(days=1)).\
+            rename(columns={'date': 'gap_from_prev'})
+        gaps_df = pd.concat((dates_obs_df, gaps_df), axis=1)
+        gaps_thresh_df = gaps_df[gaps_df.gap_from_prev >= dt.timedelta(days=5)]
 
-            for date in dates:
-                # Grab mask
-                mask = self._mask_dict[date.month]
+        end = gaps_thresh_df['date'] - dt.timedelta(days=1)
+        start = [row.date - row.gap_from_prev
+                 for date, row in gaps_thresh_df.iterrows()]
+        start_end_gap_df = pd.DataFrame(
+            {'start': start, 'end': end, 'gap': gaps_thresh_df.gap_from_prev})
+        start_end_gap_df = start_end_gap_df.reset_index().drop(columns='index')
+        start_end_gap_df.to_csv(os.path.join(
+            self.get_data_var_folder("siconca"), "missing_days.csv"))
 
-                # Set outside mask to zero
-                da.loc[pd.Timestamp(date)].data[~mask] = 0.
+        da_interp = da.copy()
+        for date in missing_dates:
+            da_interp = xr.concat([da_interp, da.interp(time=date)], dim='time')
+        da_interp = da_interp.sortby('time')
+        da_interp.data = np.array(da_interp.data, dtype=self._dtype)
 
-                # Grab polar hole
-                polarhole_mask = self._masks.get_polarhole_mask(date)
-                skip_interp = True if not polarhole_mask else False
-
-                # Interpolate polar hole
-                if not skip_interp:
-                    xx, yy = np.meshgrid(np.arange(432), np.arange(432))
-
-                    valid = ~polarhole_mask
-
-                    x = xx[valid]
-                    y = yy[valid]
-
-                    x_interp = xx[polarhole_mask]
-                    y_interp = yy[polarhole_mask]
-
-                    values = da.loc[date].data[valid]
-
-                    interp_vals = interpolate.griddata(
-                        (x, y), values, (x_interp, y_interp), method='linear')
-                    interpolated_array = da.loc[date].data.copy()
-                    interpolated_array[polarhole_mask] = interp_vals
-                    da.loc[date].data = interpolated_array
-
-                logging.debug("Saving {}".format(fpath))
-                da.to_netcdf(fpath)
+        return da_interp
 
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
     sic = SICDownloader(
+        path=os.path.join(".", "testsic"),
         dates=list([
             pd.to_datetime(date).date() for date in
-            pd.date_range(dt.date(2020, 1, 1), dt.date(2020, 1, 6), freq='D')
+            pd.date_range("1989-01-01", "1989-01-06", freq="D")
         ])
     )
     sic.download()

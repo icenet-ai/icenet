@@ -62,20 +62,25 @@ class ERA5Downloader(ClimateDownloader):
         #  abstracted for different temporal averaging
         var = var_prefix if not pressure else \
             "{}{}".format(var_prefix, pressure)
-        var_folder = self.get_data_var_folder(var)
+        var_folder = os.path.join(self.get_data_var_folder(var),
+                                  req_date.year)
 
-        date_str = req_date.strftime("%Y%m%d")
+        # For the year component - 365 * 50 is a lot of files ;)
+        if not os.path.exists(var_folder):
+            os.makedirs(var_folder, exist_ok=True)
+
+        date_str = req_date.strftime("%Y_%m_%d")
 
         logging.debug("Processing var {} for year {}".format(var,
                                                              date_str))
 
         download_path = os.path.join(var_folder,
-                                     "{}_latlon_download_{}.nc".
+                                     "latlon_download_{}.nc".
                                      format(var, date_str))
         daily_path = os.path.join(var_folder,
-                                  "{}_latlon_{}.nc".
+                                  "latlon_{}.nc".
                                   format(var, date_str))
-        regridded_name = re.sub(r'_latlon_', '_', daily_path)
+        regridded_name = re.sub(r'^latlon_', '', daily_path)
 
         retrieve_dict = {
             'product_type': 'reanalysis',

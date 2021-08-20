@@ -138,7 +138,7 @@ class Masks(Generator):
             logging.info("Removing {}".format(siconca_folder))
             shutil.rmtree(siconca_folder)
 
-        if save_polarhole_masks:
+        if save_polarhole_masks and not self.south:
             # Generate the polar hole masks
             x = np.tile(np.arange(0, self._shape[1]).
                         reshape(self._shape[0], 1), (1, self._shape[1])).\
@@ -184,6 +184,9 @@ class Masks(Generator):
         return np.load(mask_path)
 
     def get_polarhole_mask(self, date):
+        if self.south:
+            return None
+
         for i, r in enumerate(self._polarhole_radii):
             if date <= self._polarhole_dates[i]:
                 polarhole_path = os.path.join(self.get_data_var_folder("masks"),

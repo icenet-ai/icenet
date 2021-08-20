@@ -16,6 +16,10 @@ class HemisphereMixin:
     _hemisphere = Hemisphere.NONE
 
     @property
+    def hemisphere(self):
+        return self._hemisphere
+
+    @property
     def hemisphere_str(self):
         return ["nh"] if self.north else \
                ["sh"] if self.south else \
