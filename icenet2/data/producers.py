@@ -4,6 +4,7 @@ import collections
 import glob
 import logging
 import os
+import re
 
 import numpy as np
 
@@ -30,7 +31,7 @@ class DataProducer(HemisphereMixin):
                            (Hemisphere.SOUTH if south else Hemisphere.NONE)
 
         if os.path.exists(self._path):
-            logging.warning("{} already exists".format(self._path))
+            logging.debug("{} already exists".format(self._path))
         else:
             logging.info("Creating path: {}".format(self._path))
             os.makedirs(self._path, exist_ok=True)
@@ -144,16 +145,22 @@ class Processor(DataProducer):
                 continue
 
             for date in dates:
-                globstr = "{}/**/*_{}.nc".format(
+                globstr = "{}/**/*{}.nc".format(
                     path_to_glob,
-                    date.strftime("%Y%m%d"))
+                    date.strftime("%Y_%m_%d"))
 
                 for df in glob.glob(globstr, recursive=True):
                     if any([flt in os.path.split(df)[1]
                             for flt in self._file_filters]):
                         continue
 
-                    var = os.path.split(df)[0].split(os.sep)[-1]
+                    path_comps = str(os.path.split(df)[0]).split(os.sep)
+                    var = path_comps[-1]
+
+                    # The year is in the path, fall back one further
+                    if re.match(r'^\d{4}$', var):
+                        var = path_comps[-2]
+
                     if var not in self._var_files.keys():
                         self._var_files[var] = list()
                     self._var_files[var].append(df)

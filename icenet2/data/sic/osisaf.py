@@ -3,6 +3,7 @@ import fnmatch
 import glob
 import logging
 import os
+import re
 import sys
 import tempfile
 import time
@@ -179,7 +180,7 @@ class SICDownloader(Downloader):
                     os.makedirs(os.path.dirname(temp_path), exist_ok=True)
 
                 if os.path.exists(temp_path) or os.path.exists(nc_path):
-                    logging.info("{} already exists, skipping".format(nc_path))
+                    logging.info("{} file exists, skipping".format(date_str))
                     data_files.append(temp_path)
                     continue
 
@@ -206,29 +207,34 @@ class SICDownloader(Downloader):
                     ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
 
                 logging.debug("Downloaded {}".format(temp_path))
-                data_files.append(temp_path)
+                temp_path.append(temp_path)
 
-        ds = xr.open_mfdataset(data_files)
+        temp_files = [file for file in data_files
+                      if not os.path.exists(re.subn(r'\.temp$', '.nc',
+                                                    file)[0])]
 
-        ds = ds.drop_vars(var_remove_list)
-        da = ds.ice_conc
+        if len(temp_files):
+            ds = xr.open_mfdataset(temp_files)
 
-        da /= 100.  # Convert from SIC % to fraction
-        da = self._missing_dates(da)
+            ds = ds.drop_vars(var_remove_list)
+            da = ds.resample(time='1D').mean().ice_conc
 
-        for date in da.time.values:
-            date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
-            day_da = da.loc[date]
-            mask = self._mask_dict[pd.to_datetime(date).month]
+            da /= 100.  # Convert from SIC % to fraction
+            da = self._missing_dates(da)
 
-            # TODO: active grid cell mask possibly should move to preproc
-            # Set outside mask to zero
-            day_da.data[~mask] = 0.
+            for date in da.time.values:
+                date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
+                day_da = da.loc[slice(date)]
+                mask = self._mask_dict[pd.to_datetime(date).month]
 
-            fpath = os.path.join(self.get_data_var_folder("siconca"),
-                                 str(el.year),
-                                 "{}.nc".format(date_str))
-            day_da.to_netcdf(fpath)
+                # TODO: active grid cell mask possibly should move to preproc
+                # Set outside mask to zero
+                day_da.data[0][~mask] = 0.
+
+                fpath = os.path.join(self.get_data_var_folder("siconca"),
+                                     str(el.year),
+                                     "{}.nc".format(date_str))
+                day_da.to_netcdf(fpath)
 
         if self._delete_temp:
             for fpath in data_files:
@@ -275,7 +281,6 @@ class SICDownloader(Downloader):
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
     sic = SICDownloader(
-        path=os.path.join(".", "testsic"),
         dates=list([
             pd.to_datetime(date).date() for date in
             pd.date_range("1989-01-01", "1989-01-06", freq="D")

@@ -186,8 +186,7 @@ class ClimateDownloader(Downloader):
             # Original implementation is in danger of lost updates
             # due to potential lazy loading
             for i, name in enumerate([wind_file_0, wind_file_1]):
-                logging.debug("Writing {} - {}".
-                              format(wind_file_0, wind_file_1))
+                logging.debug("Writing {}".format(name))
 
                 _, tmp_name = tempfile.mkstemp(
                     dir=os.path.split(name)[0],

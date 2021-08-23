@@ -28,9 +28,9 @@ class IceNetPreProcessor(Processor):
                  abs_vars,
                  anom_vars,
                  name,
-                 test_dates,
                  train_dates,
                  val_dates,
+                 test_dates,
                  *args,
                  data_shape=(432, 432),
                  dtype=np.float32,
@@ -54,9 +54,9 @@ class IceNetPreProcessor(Processor):
                          *args,
                          file_filters=file_filters,
                          path=os.path.join(path, name),
-                         test_dates=test_dates,
                          train_dates=train_dates,
                          val_dates=val_dates,
+                         test_dates=test_dates,
                          **kwargs)
 
         self._abs_vars = abs_vars
@@ -266,12 +266,13 @@ class IceNetPreProcessor(Processor):
     def _open_dataarray_from_files(self, var_name):
 
         """
-        Open the yearly xarray files, accounting for some ERA5 variables that have
-        erroneous 'unknown' NetCDF variable names which prevents concatentation.
+        Open the yearly xarray files, accounting for some ERA5 variables that
+        have erroneous 'unknown' NetCDF variable names which prevents
+        concatentation.
         """
 
         logging.info("Opening files for {}".format(var_name))
-        ds = xr.open_mfdataset(self._var_files[var_name])
+        ds = xr.open_mfdataset(self._var_files[var_name], concat_dim="time")
 
         # Set of variables names
         # var_set = set([next(iter(
@@ -290,9 +291,9 @@ class IceNetPreProcessor(Processor):
         ds = ds.rename({k: var_name for k in var_names})
         da = getattr(ds, var_name)
 
-        search = [pd.Timestamp(el) for el in
-                  self.dates["train"] + self.dates["val"] + self.dates["test"]
-                  if pd.Timestamp(el) in da.time]
+        all_dates = self.dates.train + self.dates.val + self.dates.test
+        da_dates = [pd.to_datetime(d).date() for d in da.time.values]
+        search = [el for el in all_dates if el in da_dates]
 
         logging.info("Time dimension is {} units long".format(len(da.time)))
         da = da.sel(time=search)
@@ -407,7 +408,8 @@ class IceNetPreProcessor(Processor):
         last_period = forecast_dates[-self._linear_trend_days:]
 
         forecast_dates.extend([
-            date + pd.DateOffset(days=1) for date in last_period])
+            date + pd.DateOffset(days=self._linear_trend_days)
+            for date in last_period])
 
         linear_trend_da = linear_trend_da.assign_coords(
             {'time': forecast_dates})

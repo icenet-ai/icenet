@@ -105,7 +105,10 @@ class IceNetCMIPPreProcessor(IceNetPreProcessor):
 
 class IceNetERA5PreProcessor(IceNetPreProcessor):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, identifier="era5", **kwargs)
+        super().__init__(*args,
+                         file_filters=["latlon_"],
+                         identifier="era5",
+                         **kwargs)
 
 
 class IceNetOSIPreProcessor(IceNetPreProcessor):
@@ -123,18 +126,6 @@ class IceNetOSIPreProcessor(IceNetPreProcessor):
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
-#    pp = IceNetERA5PreProcessor(
-#        ["uas", "vas"],
-#        ["tas", "ta500", "tos", "psl", "zg500", "zg250", "rsds", "rlds",
-#         "hus1000"],
-#        "test1",
-#        [datetime.date(2021, 1, 1)],
-#        [],
-#        [],
-#        linear_trends=tuple(),
-#    )
-#    pp.init_source_data()
-#    pp.process()
 
     osi = IceNetOSIPreProcessor(
         ["siconca"],
@@ -142,13 +133,14 @@ if __name__ == "__main__":
         "test1",
         list([
             pd.to_datetime(date).date() for date in
-            pd.date_range(dt.date(1986, 1, 1), dt.date(1986, 1, 3), freq='D')
+            pd.date_range(dt.date(1989, 1, 1), dt.date(1989, 1, 6), freq='D')
         ]),
         [],
         [],
         include_circday=False,
         include_land=False,
-        linear_trends=tuple(),
+        linear_trends=["siconca"],
+        linear_trend_days=3,
     )
     osi.init_source_data()
     osi.process()
