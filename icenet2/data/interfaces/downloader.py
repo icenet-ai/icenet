@@ -100,21 +100,38 @@ class ClimateDownloader(Downloader):
 
     def regrid(self,
                files=None,
-               remove_original=False):
+               remove_original=False,
+               remove_failures=False):
         for datafile in self._files_downloaded if not files else files:
             (datafile_path, datafile_name) = os.path.split(datafile)
+            new_datafile = os.path.join(datafile_path,
+                                        re.sub(r'^latlon_', '', datafile_name))
+
+            if os.path.exists(new_datafile):
+                logging.debug("Skipping {} as {} already exists".
+                    format(datafile, os.path.basename(new_datafile)))
+                continue
 
             logging.debug("Regridding {}".format(datafile))
-            cube = assign_lat_lon_coord_system(iris.load_cube(datafile))
-            cube_ease = cube.regrid(
-                self.sic_ease_cube, iris.analysis.Linear())
+
+            try:
+                cube = iris.load_cube(datafile)
+                cube = assign_lat_lon_coord_system(cube)
+                cube_ease = cube.regrid(
+                    self.sic_ease_cube, iris.analysis.Linear())
+            except iris.exceptions.CoordinateNotFoundError:
+                logging.warning("{} has no coordinates...".
+                                format(datafile_name))
+                if remove_failures:
+                    logging.debug("Deleting {}...".
+                                  format(datafile_name))
+                    os.unlink(datafile)
+                continue
 
             self.additional_regrid_processing(datafile, cube_ease)
 
             # TODO: filename chain can be handled better for sharing between
             #  methods
-            new_datafile = os.path.join(datafile_path,
-                                        re.sub(r'_latlon_', '_', datafile_name))
             logging.info("Saving regridded data to {}... ".format(new_datafile))
             iris.save(cube_ease, new_datafile)
 
@@ -142,9 +159,10 @@ class ClimateDownloader(Downloader):
 
         for var in apply_to:
             source = self.get_data_var_folder(var)
-            wind_files[var] = [df for df in self._files_downloaded
-                               if os.path.split(df)[0] in source
-                               and "_latlon_" not in os.path.split(df)[1]]
+
+            latlon_files = [df for df in self._files_downloaded if source in df]
+            wind_files[var] = [re.sub(r'latlon_', '', df)
+                               for df in latlon_files]
 
         # NOTE: we're relying on apply_to having equal datasets
         assert len(wind_files[apply_to[0]]) == len(wind_files[apply_to[1]]), \
@@ -167,9 +185,14 @@ class ClimateDownloader(Downloader):
 
             # Original implementation is in danger of lost updates
             # due to potential lazy loading
-            for i, name in enumerate(wind_file_0, wind_file_1):
-                tmp_fh, tmp_name = tempfile.mktemp(dir=os.path.split(name)[0])
-                tmp_fh.close()
+            for i, name in enumerate([wind_file_0, wind_file_1]):
+                logging.debug("Writing {} - {}".
+                              format(wind_file_0, wind_file_1))
+
+                _, tmp_name = tempfile.mkstemp(
+                    dir=os.path.split(name)[0],
+                    suffix=".nc",
+                )
                 iris.save(wind_cubes_r[apply_to[i]], tmp_name)
                 os.replace(tmp_name, name)
 

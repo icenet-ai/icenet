@@ -63,7 +63,7 @@ class ERA5Downloader(ClimateDownloader):
         var = var_prefix if not pressure else \
             "{}{}".format(var_prefix, pressure)
         var_folder = os.path.join(self.get_data_var_folder(var),
-                                  req_date.year)
+                                  str(req_date.year))
 
         # For the year component - 365 * 50 is a lot of files ;)
         if not os.path.exists(var_folder):
@@ -71,14 +71,13 @@ class ERA5Downloader(ClimateDownloader):
 
         date_str = req_date.strftime("%Y_%m_%d")
 
-        logging.debug("Processing var {} for year {}".format(var,
-                                                             date_str))
+        logging.debug("Processing var {} for {}".format(var, date_str))
 
         download_path = os.path.join(var_folder,
-                                     "latlon_download_{}.nc".
+                                     "latlon_download_{}_{}.nc".
                                      format(var, date_str))
         daily_path = os.path.join(var_folder,
-                                  "latlon_{}.nc".
+                                  "latlon_{}_{}.nc".
                                   format(var, date_str))
         regridded_name = re.sub(r'^latlon_', '', daily_path)
 
@@ -103,31 +102,26 @@ class ERA5Downloader(ClimateDownloader):
                 not os.path.exists(daily_path):
             logging.info("Downloading data for {}...".format(var))
 
-            if self.dry:
-                logging.info("DRY RUN: skipping CDS request: "
-                             "{}".format(retrieve_dict))
-            else:
-                self.client.retrieve(dataset, retrieve_dict,
-                                     download_path)
-                logging.debug('Download completed.')
+            self.client.retrieve(dataset, retrieve_dict,
+                                 download_path)
+            logging.debug('Download completed.')
 
-                logging.debug('Computing daily averages...')
-                da = xr.open_dataarray(download_path)
+            logging.debug('Computing daily averages...')
+            da = xr.open_dataarray(download_path)
 
-                if 'expver' in da.coords:
-                    raise RuntimeError("fix_near_real_time_era5_coords "
-                                       "no longer exists in the "
-                                       "codebase for expver in "
-                                       "coordinates")
+            if 'expver' in da.coords:
+                raise RuntimeError("fix_near_real_time_era5_coords "
+                                   "no longer exists in the "
+                                   "codebase for expver in "
+                                   "coordinates")
 
-                da_daily = da.resample(time='1D').reduce(np.mean)
+            da_daily = da.resample(time='1D').reduce(np.mean)
 
-                logging.debug("Saving new daily file")
-                da_daily.to_netcdf(daily_path)
+            logging.debug("Saving new daily file")
+            da_daily.to_netcdf(daily_path)
             self._files_downloaded.append(daily_path)
 
-            if not self.dry:
-                os.remove(download_path)
+            os.remove(download_path)
         # TODO: check this is a reliable method for picking up
         #  ungridded files
         elif os.path.exists(daily_path):
@@ -170,14 +164,13 @@ class ERA5Downloader(ClimateDownloader):
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
-    logging.info("ERA5 Downloader - direct module run")
-
     era5 = ERA5Downloader(
         var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds", "rsds",
                    "uas", "vas"],
         pressure_levels=[None, [500], None, None, [250, 500], [1000], None,
                          None, None, None],
-        dates=[date(2021, 1, 1)]
+        dates=[pd.to_datetime(date).date() for date in
+             pd.date_range("1989-01-01", "1989-01-06", freq="D")],
     )
     era5.download()
     era5.regrid()
