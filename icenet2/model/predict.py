@@ -7,39 +7,44 @@ import icenet2.model.models as models
 
 from icenet2.data.loader import IceNetDataSet
 
+import numpy as np
+import tensorflow as tf
+
 from tensorflow.keras.models import load_model
 
 
 def predict_forecast(
-    data_configuration,
+    loader_config,
     model_func=models.unet_batchnorm,
     start_dates=tuple([datetime.now().date()]),
     seed=42,
-    network_folder=os.path.join(".", "results", "networks")
+    network_folder=os.path.join(".", "results", "networks"),
+    n_filters_factor=1/8,
 ):
     # TODO: generic predict functions for the different models
     #  that take init date as input?
-    ds = IceNetDataSet(data_configuration)
+    ds = IceNetDataSet(loader_config)
     dl = ds.get_data_loader()
 
-    forecast_inputs = {date: dl.generate_sample(date) for date in start_dates}
+    # FIXME: wasteful, we don't need to generate output
+    forecast_inputs = [dl.generate_sample(date)[0]
+                       for date in start_dates]
 
     network_path = os.path.join(network_folder,
                                 "network_{}.{}.h5".format(ds.identifier, seed))
 
-    if network_path and os.path.exists(network_path):
-        logging.info("Loading model from {}...".format(network_path))
-        network = load_model(network_path)
-    else:
-        logging.warning("No network exists, creating untrained model")
-        network = model_func(
-            (*ds.shape, dl.num_channels),
-            [],
-            [],
-            n_forecast_days=ds.n_forecast_days
-        )
+    logging.info("Loading model from {}...".format(network_path))
 
-    pred = network([forecast_inputs.values()], training=False)
+    network = model_func(
+        (*ds.shape, dl.num_channels),
+        [],
+        [],
+        n_filters_factor=n_filters_factor,
+        n_forecast_days=ds.n_forecast_days
+    )
+    network.load_weights(network_path)
+
+    pred = network(tf.convert_to_tensor(forecast_inputs), training=False)
     return pred
 
 

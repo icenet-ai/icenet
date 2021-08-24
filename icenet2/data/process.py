@@ -22,7 +22,7 @@ TODO: missing dates
 
 
 class IceNetPreProcessor(Processor):
-    DATE_FORMAT = "%Y-%m-%d"
+    DATE_FORMAT = "%Y_%m_%d"
 
     def __init__(self,
                  abs_vars,
@@ -35,7 +35,7 @@ class IceNetPreProcessor(Processor):
                  data_shape=(432, 432),
                  dtype=np.float32,
                  exclude_vars=(),
-                 file_filters=tuple(["_latlon_"]),
+                 file_filters=tuple(["latlon_"]),
                  identifier=None,
                  include_circday=True,
                  include_land=True,
@@ -113,12 +113,21 @@ class IceNetPreProcessor(Processor):
                 return x.strftime(IceNetPreProcessor.DATE_FORMAT)
             return str(x)
 
+        # We have to be explicit with "dates" as the properties will not be
+        # caught by _serialize
         source = {
             "name":             self._name,
             "implementation":   self.__class__.__name__,
             "anom":             self._anom_vars,
             "abs":              self._abs_vars,
-            "dates":            self._dates._asdict(),
+            "dates":            {
+                "train":        [d.strftime(IceNetPreProcessor.DATE_FORMAT)
+                                 for d in self._dates.train],
+                "val":          [d.strftime(IceNetPreProcessor.DATE_FORMAT)
+                                 for d in self._dates.val],
+                "test":         [d.strftime(IceNetPreProcessor.DATE_FORMAT)
+                                 for d in self._dates.test],
+            },
             "linear_trends":    self._linear_trends,
             "linear_trend_days": self._linear_trend_days,
             "meta":             self._meta_vars,
@@ -293,7 +302,7 @@ class IceNetPreProcessor(Processor):
 
         all_dates = self.dates.train + self.dates.val + self.dates.test
         da_dates = [pd.to_datetime(d).date() for d in da.time.values]
-        search = [el for el in all_dates if el in da_dates]
+        search = list(set([el for el in all_dates if el in da_dates]))
 
         logging.info("Time dimension is {} units long".format(len(da.time)))
         da = da.sel(time=search)

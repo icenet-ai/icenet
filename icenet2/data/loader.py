@@ -199,6 +199,8 @@ class IceNetDataLoader(Generator):
 
             y[:, :, leadtime_idx, 1] = sample_weight
 
+        y[..., 0:1] = np.nan_to_num(y[..., 0:1])
+
         # INPUT FEATURES
         x = np.zeros((
             *self._shape,

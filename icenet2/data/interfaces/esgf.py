@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import re
 
 import numpy as np
 import xarray as xr
@@ -53,7 +54,9 @@ class CMIP6Downloader(ClimateDownloader):
                  grid_map=GRID_MAP,
                  grid_override=None,  # EC-Earth3 wants all 'gr'
                  **kwargs):
-        super().__init__(*args, identifier="cmip6", **kwargs)
+        super().__init__(*args,
+                         identifier="cmip6",
+                         **kwargs)
 
         self._source = source
         self._member = member
@@ -69,8 +72,6 @@ class CMIP6Downloader(ClimateDownloader):
         return [None]
 
     def _single_download(self, var_prefix, pressure, req_date):
-        # FIXME: Repeated code block
-
         query = {
             'source_id': self._source,
             'member_id': self._member,
@@ -83,42 +84,53 @@ class CMIP6Downloader(ClimateDownloader):
         }
 
         var_name = "{}{}".format(var_prefix, "" if not pressure else pressure)
-        output_name = "{}_latlon.nc".format(var_name)
-        output_path = self.get_data_var_folder(var_name)
+        output_name = "latlon_{}.{}.{}.nc".format(var_name,
+                                                  self._source,
+                                                  self._member)
+        proc_name = re.sub(r'^latlon_', '', output_name)
+        output_path = os.path.join(self.get_data_var_folder(var_name),
+                                   output_name)
+        proc_path = os.path.join(output_path, proc_name)
 
-        logging.info("Querying ESGF")
-        results = []
-        for experiment_id in self._experiments:
-            query['experiment_id'] = experiment_id
+        if not os.path.exists(output_path) or \
+                os.path.exists(os.path.join(output_path, proc_name)):
+            logging.info("Querying ESGF")
+            results = []
+            for experiment_id in self._experiments:
+                query['experiment_id'] = experiment_id
 
-            for data_node in self._nodes:
-                query['data_node'] = data_node
+                for data_node in self._nodes:
+                    query['data_node'] = data_node
 
-                node_results = esgf_search(**query)
+                    node_results = esgf_search(**query)
 
-                if len(node_results):
-                    logging.debug("Found {}".format(experiment_id))
-                    results.extend(node_results)
-                    break
+                    if len(node_results):
+                        logging.debug("Found {}".format(experiment_id))
+                        results.extend(node_results)
+                        break
 
-        logging.info("Found {} {} results from ESGF search".
-            format(var_prefix, len(results)))
+            logging.info("Found {} {} results from ESGF search".
+                format(var_prefix, len(results)))
 
-        # http://xarray.pydata.org/en/stable/user-guide/io.html?highlight=opendap#opendap
-        # Avoid 500MB DAP request limit
-        cmip6_da = xr.open_mfdataset(results,
-                                     combine='by_coords',
-                                     chunks={'time': '499MB'})[var_prefix]
+            # http://xarray.pydata.org/en/stable/user-guide/io.html?highlight=opendap#opendap
+            # Avoid 500MB DAP request limit
+            cmip6_da = xr.open_mfdataset(results,
+                                         combine='by_coords',
+                                         chunks={'time': '499MB'})[var_prefix]
 
-        if pressure:
-            cmip6_da = cmip6_da.sel(plev=pressure)
+            if pressure:
+                cmip6_da = cmip6_da.sel(plev=pressure)
 
-        logging.info("Retrieving and saving {}:".format(output_name))
-        cmip6_da.compute()
-        cmip6_da.to_netcdf(output_path)
-
-        # NOTE: The regridding operation in utils.regrid_cmip6 is the same
-        #  as ERA5
+            logging.info("Retrieving and saving {}:".format(output_name))
+            cmip6_da.compute()
+            cmip6_da.to_netcdf(output_path)
+        else:
+            if not os.path.exists(proc_path):
+                logging.info("{} already exists but is not processed".
+                             format(output_path))
+                self._files_downloaded.append(output_path)
+            else:
+                logging.info("{} processed file exists".format(proc_path))
 
     def additional_regrid_processing(self, datafile, cube_ease):
         (datafile_path, datafile_name) = os.path.split(datafile)

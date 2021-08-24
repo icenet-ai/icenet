@@ -1,6 +1,4 @@
-import os
-import sys
-
+import tensorflow as tf
 from tensorflow.keras import backend as K
 
 
@@ -39,8 +37,8 @@ def construct_categorical_focal_loss(gamma=2.):
         # Calculate Cross Entropy
         cross_entropy = -y_true * K.log(y_pred)
 
-        # Calculate Focal Loss (downweights easy samples where the probability of
-        #   correct class is high)
+        # Calculate Focal Loss (downweights easy samples where the probability
+        # of correct class is high)
         focal_loss = K.pow(1 - y_pred, gamma) * cross_entropy
 
         # Loss is a tensor which is reduced implictly by TensorFlow using
@@ -72,11 +70,14 @@ def weighted_categorical_crossentropy(y_true, y_pred, sample_weight=None):
     return cross_entropy
 
 
-def weighted_categorical_crossentropy_single_leadtime(y_true, y_pred, sample_weight=None):
+def weighted_categorical_crossentropy_single_leadtime(y_true, y_pred,
+                                                      sample_weight=None):
     """
-    Categorical crossentropy for a single lead time with IceNet's sample weighting.
+    Categorical crossentropy for a single lead time with IceNet's sample
+    weighting.
 
-    This assumes y_true corresponds to a singlea lead time (no lead time dimension)
+    This assumes y_true corresponds to a singlea lead time (no lead time
+    dimension)
 
     Used for computing lead-time-wise temperature scaling factors for the
     IceNet ensemble model.
@@ -96,6 +97,7 @@ def weighted_categorical_crossentropy_single_leadtime(y_true, y_pred, sample_wei
     cross_entropy = - y_true * K.log(y_pred) * sample_weight
 
     return cross_entropy
+
 
 @tf.function(input_signature=(
     tf.TensorSpec(shape=[None, 432, 432, None, 2], dtype=tf.float32),
