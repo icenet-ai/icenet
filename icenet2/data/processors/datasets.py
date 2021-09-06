@@ -1,5 +1,6 @@
 import datetime as dt
 import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -112,8 +113,25 @@ class IceNetERA5PreProcessor(IceNetPreProcessor):
 
 
 class IceNetOSIPreProcessor(IceNetPreProcessor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args,
+                 missing_dates=None,
+                 **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
+
+        missing_dates_path = os.path.join(
+            self._source_data,
+            *self.hemisphere_str,
+            "siconca",
+            "missing_days.csv")
+
+        missing_dates = [] if missing_dates is None else missing_dates
+        assert type(missing_dates) is list
+
+        with open(missing_dates_path, "r") as fh:
+            missing_dates += [dt.date(*[int(s)
+                                        for s in line.strip().split(",")])
+                              for line in fh.readlines()]
+        self.missing_dates = missing_dates
 
     def pre_normalisation(self, var_name, da):
         if var_name != "siconca":

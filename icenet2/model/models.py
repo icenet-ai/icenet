@@ -1,3 +1,4 @@
+import logging
 import os
 
 import numpy as np
@@ -168,7 +169,8 @@ def linear_trend_forecast(forecast_date, da, mask, n_linear_days,
                    for lag in range(n_linear_days)]
 
     # Do not use missing days in the linear trend projection
-    input_dates = [date for date in input_dates if date not in missing_dates]
+    input_dates = [date for date in input_dates
+                   if pd.to_datetime(date).date() not in missing_dates]
 
     # Chop off input date from before data start
     input_dates = [date for date in input_dates if date in valid_dates]

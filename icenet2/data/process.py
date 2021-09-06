@@ -28,6 +28,10 @@ class IceNetPreProcessor(Processor):
                  abs_vars,
                  anom_vars,
                  name,
+                 # FIXME: the preprocessors don't need to have the concept of
+                 #  train, test, val: they only need to output daily files
+                 #  that either are, or are not, part of normalisation /
+                 #  climatology calculations. Not a problem, just fix
                  train_dates,
                  val_dates,
                  test_dates,
@@ -161,7 +165,9 @@ class IceNetPreProcessor(Processor):
 
         if "missing_dates" not in configuration:
             configuration["missing_dates"] = []
-        configuration["missing_dates"] += self._missing_dates
+        configuration["missing_dates"] += [
+            d.strftime(IceNetPreProcessor.DATE_FORMAT)
+            for d in self._missing_dates]
 
         logging.info("Writing configuration to {}".format(self._update_loader))
 
@@ -178,7 +184,7 @@ class IceNetPreProcessor(Processor):
             if not os.path.exists(clim_path):
                 if self._dates.train:
                     climatology = da.sel(time=self._dates.train).\
-                        groupby('time.dayofyear', restore_coord_dims=True).\
+                        groupby('time.month', restore_coord_dims=True).\
                         mean()
 
                     climatology.to_netcdf(clim_path)
@@ -188,14 +194,12 @@ class IceNetPreProcessor(Processor):
             else:
                 climatology = xr.open_dataarray(clim_path)
 
-            da = da.groupby('time.dayofyear') - climatology
+            da = da.groupby("time.month") - climatology
 
         da.data = np.asarray(da.data, dtype=self._dtype)
 
         da = self.pre_normalisation(var_name, da)
 
-        # TODO: Check, but I believe this should be before norm given source
-        #  data usage
         if var_name in self._linear_trends:
             da = self._build_linear_trend_da(da)
 
@@ -412,8 +416,9 @@ class IceNetPreProcessor(Processor):
 
         # FIXME: change the trend dating to dailies. This is not going to
         #  work for simple preprocessing of small datasets
-        forecast_dates = [pd.Timestamp(date) for date in
-                          input_da.time.values][self._linear_trend_days:]
+        forecast_dates = sorted([pd.Timestamp(date)
+                                 for date in input_da.time.values])
+        forecast_dates = forecast_dates[self._linear_trend_days:]
         last_period = forecast_dates[-self._linear_trend_days:]
 
         forecast_dates.extend([
@@ -424,12 +429,20 @@ class IceNetPreProcessor(Processor):
             {'time': forecast_dates})
         land_mask = Masks(north=self.north, south=self.south).get_land_mask()
 
-        for forecast_date in forecast_dates:
+        for forecast_date in sorted(forecast_dates, reverse=True):
             linear_trend_da.loc[dict(time=forecast_date)] = \
                 linear_trend_forecast(
                     forecast_date, input_da, land_mask,
                     self._linear_trend_days,
-                    missing_dates=(),
+                    missing_dates=self._missing_dates,
                     shape=self._data_shape)[0]
 
         return linear_trend_da
+
+    @property
+    def missing_dates(self):
+        return self._missing_dates
+
+    @missing_dates.setter
+    def missing_dates(self, arr):
+        self._missing_dates = arr

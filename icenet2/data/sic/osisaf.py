@@ -60,6 +60,8 @@ invalid_sic_days = {
         dt.date(1987, 4, 4),
         *[d.date() for d in
           pd.date_range(dt.date(1987, 12, 1), dt.date(1987, 12, 31))],
+        # TODO: TEST DATE
+        dt.date(1989, 1, 3),
         dt.date(1990, 1, 26)
     ],
     Hemisphere.SOUTH: [
@@ -157,74 +159,78 @@ class SICDownloader(Downloader):
         # Bit wasteful
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
         data_files = []
+        ftp = None
 
-        with FTP('osisaf.met.no') as ftp:
-            ftp.login()
+        while len(dt_arr):
+            el = dt_arr.pop()
 
-            while len(dt_arr):
-                el = dt_arr.pop()
+            if el in self._invalid_dates:
+                logging.warning("Date {} is in invalid list".format(el))
+                continue
 
-                if el in self._invalid_dates:
-                    logging.warning("Date {} is in invalid list".format(el))
-                    continue
+            date_str = el.strftime("%Y_%m_%d")
+            temp_path = os.path.join(self.get_data_var_folder("siconca"),
+                                     str(el.year),
+                                     "{}.temp".format(date_str))
+            nc_path = os.path.join(self.get_data_var_folder("siconca"),
+                                   str(el.year),
+                                   "{}.nc".format(date_str))
 
-                date_str = el.strftime("%Y_%m_%d")
-                temp_path = os.path.join(self.get_data_var_folder("siconca"),
-                                         str(el.year),
-                                         "{}.temp".format(date_str))
-                nc_path = os.path.join(self.get_data_var_folder("siconca"),
-                                       str(el.year),
-                                       "{}.nc".format(date_str))
+            if not os.path.isdir(os.path.dirname(temp_path)):
+                os.makedirs(os.path.dirname(temp_path), exist_ok=True)
 
-                if not os.path.isdir(os.path.dirname(temp_path)):
-                    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+            if os.path.exists(temp_path) or os.path.exists(nc_path):
+                logging.info("{} file exists, skipping".format(date_str))
+                data_files.append(temp_path)
+                continue
 
-                if os.path.exists(temp_path) or os.path.exists(nc_path):
-                    logging.info("{} file exists, skipping".format(date_str))
-                    data_files.append(temp_path)
-                    continue
+            if not ftp:
+                ftp = FTP('osisaf.met.no')
+                ftp.login()
 
-                chdir_path = ftp_osi450 if el < osi430b_start else ftp_osi430b
-                chdir_path = chdir_path.format(el.year, el.month)
+            chdir_path = ftp_osi450 if el < osi430b_start else ftp_osi430b
+            chdir_path = chdir_path.format(el.year, el.month)
 
-                ftp.cwd(chdir_path)
+            ftp.cwd(chdir_path)
 
-                if chdir_path not in cache:
-                    cache[chdir_path] = ftp.nlst()
+            if chdir_path not in cache:
+                cache[chdir_path] = ftp.nlst()
 
-                cache_match = "ice_conc_{}_ease*_{:04d}{:02d}{:02d}*.nc".\
-                    format(hs, el.year, el.month, el.day)
-                ftp_files = [el for el in cache[chdir_path]
-                             if fnmatch.fnmatch(el, cache_match)]
+            cache_match = "ice_conc_{}_ease*_{:04d}{:02d}{:02d}*.nc".\
+                format(hs, el.year, el.month, el.day)
+            ftp_files = [el for el in cache[chdir_path]
+                         if fnmatch.fnmatch(el, cache_match)]
 
-                if len(ftp_files) > 1:
-                    raise ValueError("More than a single file found: {}".
-                                     format(ftp_files))
-                elif not len(ftp_files):
-                    continue
+            if len(ftp_files) > 1:
+                raise ValueError("More than a single file found: {}".
+                                 format(ftp_files))
+            elif not len(ftp_files):
+                continue
 
-                with open(temp_path, "wb") as fh:
-                    ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
+            with open(temp_path, "wb") as fh:
+                ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
 
-                logging.debug("Downloaded {}".format(temp_path))
-                temp_path.append(temp_path)
+            logging.debug("Downloaded {}".format(temp_path))
+            data_files.append(temp_path)
 
-        temp_files = [file for file in data_files
-                      if not os.path.exists(re.subn(r'\.temp$', '.nc',
-                                                    file)[0])]
+        if ftp:
+            ftp.quit()
 
-        if len(temp_files):
-            ds = xr.open_mfdataset(temp_files)
+        if len(data_files):
+            ds = xr.open_mfdataset(data_files)
 
             ds = ds.drop_vars(var_remove_list)
-            da = ds.resample(time='1D').mean().ice_conc
+            dts = [pd.to_datetime(date).date() for date in ds.time.values]
+            da = ds.resample(time="1D").mean().ice_conc.sel(time=dts)
 
             da /= 100.  # Convert from SIC % to fraction
+
             da = self._missing_dates(da)
 
             for date in da.time.values:
                 date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
-                day_da = da.loc[slice(date)]
+                day_da = da.sel(time=slice(date, date))
+
                 mask = self._mask_dict[pd.to_datetime(date).month]
 
                 # TODO: active grid cell mask possibly should move to preproc
@@ -241,41 +247,37 @@ class SICDownloader(Downloader):
                 os.unlink(fpath)
 
     def _missing_dates(self, da):
-        if pd.Timestamp(1979, 1, 2, 12) in da.time.values\
+        if pd.Timestamp(1979, 1, 2) in da.time.values\
                 and dt.date(1979, 1, 1) in self._dates:
             da_1979_01_01 = da.sel(
-                time=[pd.Timestamp(1979, 1, 2, 12)]).copy().assign_coords(
-                {'time': [pd.Timestamp(1979, 1, 1, 12)]})
+                time=[pd.Timestamp(1979, 1, 2)]).copy().assign_coords(
+                {'time': [pd.Timestamp(1979, 1, 1)]})
             da = xr.concat([da, da_1979_01_01], dim='time')
             da = da.sortby('time')
 
         dates_obs = [pd.to_datetime(date).date() for date in da.time.values]
         dates_all = [pd.to_datetime(date).date() for date in
                      pd.date_range(min(self._dates), max(self._dates))]
-        missing_dates = [date for date in dates_all if date not in dates_obs]
+        missing_dates = [date for date in dates_all
+                         if date not in dates_obs
+                         or date in self._invalid_dates]
 
-        dates_obs_df = pd.DataFrame(dates_obs, columns=['date'])
-        gaps_df = (dates_obs_df.diff() - dt.timedelta(days=1)).\
-            rename(columns={'date': 'gap_from_prev'})
-        gaps_df = pd.concat((dates_obs_df, gaps_df), axis=1)
-        gaps_thresh_df = gaps_df[gaps_df.gap_from_prev >= dt.timedelta(days=5)]
+        missing_dates_path = os.path.join(
+            self.get_data_var_folder("siconca"), "missing_days.csv")
 
-        end = gaps_thresh_df['date'] - dt.timedelta(days=1)
-        start = [row.date - row.gap_from_prev
-                 for date, row in gaps_thresh_df.iterrows()]
-        start_end_gap_df = pd.DataFrame(
-            {'start': start, 'end': end, 'gap': gaps_thresh_df.gap_from_prev})
-        start_end_gap_df = start_end_gap_df.reset_index().drop(columns='index')
-        start_end_gap_df.to_csv(os.path.join(
-            self.get_data_var_folder("siconca"), "missing_days.csv"))
+        with open(missing_dates_path, "w") as fh:
+            for date in missing_dates:
+                fh.write(date.strftime("%Y,%m,%d\n"))
 
-        da_interp = da.copy()
         for date in missing_dates:
-            da_interp = xr.concat([da_interp, da.interp(time=date)], dim='time')
-        da_interp = da_interp.sortby('time')
-        da_interp.data = np.array(da_interp.data, dtype=self._dtype)
+            da = xr.concat([da,
+                            da.interp(time=pd.Timestamp(date))],
+                           dim='time')
 
-        return da_interp
+        da = da.sortby('time')
+        da.data = np.array(da.data, dtype=self._dtype)
+
+        return da
 
 
 if __name__ == "__main__":
@@ -283,7 +285,7 @@ if __name__ == "__main__":
     sic = SICDownloader(
         dates=list([
             pd.to_datetime(date).date() for date in
-            pd.date_range("1989-01-01", "1989-01-06", freq="D")
+            pd.date_range("1988-12-31", "1989-01-06", freq="D")
         ])
     )
     sic.download()

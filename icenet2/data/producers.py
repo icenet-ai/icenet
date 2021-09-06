@@ -193,3 +193,6 @@ class Processor(DataProducer):
     def processed_files(self):
         return self._processed_files
 
+    @property
+    def source_data(self):
+        return self._source_data

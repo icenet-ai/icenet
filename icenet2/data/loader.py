@@ -166,7 +166,10 @@ class IceNetDataLoader(Generator):
                     np.full(self._shape, np.nan))
 
             else:
-                sample_sic_list.append(np.load(sic_filename))
+                channel_data = np.load(sic_filename)
+                logging.debug("{} shape {}".format(sic_filename,
+                                                   channel_data.shape))
+                sample_sic_list.append(channel_data)
 
         sample_output = np.stack(sample_sic_list, axis=2)
 
@@ -354,7 +357,9 @@ class IceNetDataLoader(Generator):
             "counts":           counts,
             "dtype":            self._dtype.__name__,
             "loader_config":    self._configuration_path,
-            "missing_dates":    self._missing_dates,
+            "missing_dates":    [date.strftime(
+                IceNetPreProcessor.DATE_FORMAT) for date in
+                self._missing_dates],
             "n_forecast_days":  self._n_forecast_days,
             "north":            self.north,
             "num_channels":     self.num_channels,
