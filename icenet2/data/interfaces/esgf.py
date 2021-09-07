@@ -53,6 +53,7 @@ class CMIP6Downloader(ClimateDownloader):
                  table_map=TABLE_MAP,
                  grid_map=GRID_MAP,
                  grid_override=None,  # EC-Earth3 wants all 'gr'
+                 years=[2012],
                  **kwargs):
         super().__init__(*args,
                          identifier="cmip6",
@@ -63,6 +64,7 @@ class CMIP6Downloader(ClimateDownloader):
         self._frequency = frequency
         self._experiments = experiments
         self._nodes = nodes
+        self._years = years
 
         self._table_map = table_map
         self._grid_map = grid_map
@@ -105,7 +107,9 @@ class CMIP6Downloader(ClimateDownloader):
                     node_results = esgf_search(**query)
 
                     if len(node_results):
-                        logging.debug("Found {}".format(experiment_id))
+                        logging.debug("Query: {}".format(query))
+                        logging.debug("Found {}: {}".format(experiment_id,
+                                                            node_results))
                         results.extend(node_results)
                         break
 
@@ -118,8 +122,10 @@ class CMIP6Downloader(ClimateDownloader):
                                          combine='by_coords',
                                          chunks={'time': '499MB'})[var_prefix]
 
+            cmip6_da.sel(time=cmip6_da.time.dt.year.isin(self._years))
+
             if pressure:
-                cmip6_da = cmip6_da.sel(plev=pressure)
+                cmip6_da = cmip6_da.sel(plev=int(pressure * 100))
 
             logging.info("Retrieving and saving {}:".format(output_name))
             cmip6_da.compute()
@@ -166,4 +172,4 @@ if __name__ == "__main__":
     )
     cmip.download()
 #    cmip.regrid()
-#    era5.rotate_wind_data()
+#    cmip.rotate_wind_data()
