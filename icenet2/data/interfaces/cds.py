@@ -98,34 +98,34 @@ class ERA5Downloader(ClimateDownloader):
             dataset = 'reanalysis-era5-pressure-levels'
             retrieve_dict['pressure_level'] = pressure
 
-        if not os.path.exists(regridded_name) and \
-                not os.path.exists(daily_path):
-            logging.info("Downloading data for {}...".format(var))
+        if not os.path.exists(regridded_name):
+            if not os.path.exists(daily_path):
+                logging.info("Downloading data for {}...".format(var))
 
-            self.client.retrieve(dataset, retrieve_dict,
-                                 download_path)
-            logging.debug('Download completed.')
+                self.client.retrieve(dataset, retrieve_dict,
+                                     download_path)
+                logging.debug('Download completed.')
 
-            logging.debug('Computing daily averages...')
-            da = xr.open_dataarray(download_path)
+                logging.debug('Computing daily averages...')
+                da = xr.open_dataarray(download_path)
 
-            if 'expver' in da.coords:
-                raise RuntimeError("fix_near_real_time_era5_coords "
-                                   "no longer exists in the "
-                                   "codebase for expver in "
-                                   "coordinates")
+                if 'expver' in da.coords:
+                    raise RuntimeError("fix_near_real_time_era5_coords "
+                                       "no longer exists in the "
+                                       "codebase for expver in "
+                                       "coordinates")
 
-            da_daily = da.resample(time='1D').reduce(np.mean)
+                da_daily = da.resample(time='1D').reduce(np.mean)
 
-            logging.debug("Saving new daily file")
-            da_daily.to_netcdf(daily_path)
-            self._files_downloaded.append(daily_path)
+                logging.debug("Saving new daily file")
+                da_daily.to_netcdf(daily_path)
+                self._files_downloaded.append(daily_path)
 
-            os.remove(download_path)
-        # TODO: check this is a reliable method for picking up
-        #  ungridded files
-        elif os.path.exists(daily_path):
-            self._files_downloaded.append(daily_path)
+                os.remove(download_path)
+            # TODO: check this is a reliable method for picking up
+            #  ungridded files
+            else:
+                self._files_downloaded.append(daily_path)
 
     def _get_dates_for_request(self):
         # TODO: Stick some additional controls for batching downloads more

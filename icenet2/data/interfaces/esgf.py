@@ -1,4 +1,3 @@
-import argparse
 import logging
 import os
 import re
@@ -39,9 +38,18 @@ class CMIP6Downloader(ClimateDownloader):
         'ua': 'gn',
     }
 
+    # Prioritise European first, US last, avoiding unnecessary queries
+    # against nodes further afield (all traffic has a cost, and the coverage
+    # of local nodes is more than enough)
     ESGF_NODES = ("esgf-data3.ceda.ac.uk",
+                  "esg1.umr-cnrm.fr",
+                  "vesg.ipsl.upmc.fr",
+                  "esgf3.dkrz.de",
                   "esgf.bsc.es",
-                  "esgf-data2.diasjp.net")
+                  "esgf-data.csc.fi",
+                  "noresg.nird.sigma2.no",
+                  "esgf-data.ucar.edu",
+                  "esgf-data2.diasjp.net",)
 
     def __init__(self,
                  *args,
@@ -53,7 +61,6 @@ class CMIP6Downloader(ClimateDownloader):
                  table_map=TABLE_MAP,
                  grid_map=GRID_MAP,
                  grid_override=None,  # EC-Earth3 wants all 'gr'
-                 years=[2012],
                  **kwargs):
         super().__init__(*args,
                          identifier="cmip6",
@@ -64,7 +71,6 @@ class CMIP6Downloader(ClimateDownloader):
         self._frequency = frequency
         self._experiments = experiments
         self._nodes = nodes
-        self._years = years
 
         self._table_map = table_map
         self._grid_map = grid_map
@@ -122,19 +128,20 @@ class CMIP6Downloader(ClimateDownloader):
                                          combine='by_coords',
                                          chunks={'time': '499MB'})[var_prefix]
 
-            cmip6_da.sel(time=cmip6_da.time.dt.year.isin(self._years))
-
             if pressure:
                 cmip6_da = cmip6_da.sel(plev=int(pressure * 100))
 
             logging.info("Retrieving and saving {}:".format(output_name))
             cmip6_da.compute()
             cmip6_da.to_netcdf(output_path)
+
+            self._files_downloaded.append(output_path)
         else:
             if not os.path.exists(proc_path):
                 logging.info("{} already exists but is not processed".
                              format(output_path))
-                self._files_downloaded.append(output_path)
+                if output_path not in self._files_downloaded:
+                    self._files_downloaded.append(output_path)
             else:
                 logging.info("{} processed file exists".format(proc_path))
 
@@ -163,13 +170,13 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
     logging.info("CMIP Downloader - direct module run")
 
-    cmip = CMIP6Downloader(
-        source="MRI-ESM2-0",
-        member="r2i1p1f1",
-        var_names=["zg"],
-        pressure_levels=[[250]],
-        dates=[None],
-    )
-    cmip.download()
+cmip = CMIP6Downloader(
+    source="MRI-ESM2-0",
+    member="r2i1p1f1",
+    var_names=["zg"],
+    pressure_levels=[[250]],
+    dates=[None],
+)
+cmip.download()
 #    cmip.regrid()
 #    cmip.rotate_wind_data()
