@@ -174,7 +174,7 @@ class SICDownloader(Downloader):
                                      "{}.temp".format(date_str))
             nc_path = os.path.join(self.get_data_var_folder("siconca"),
                                    str(el.year),
-                                   "{}.nc".format(date_str))
+                                   "siconca_{}.nc".format(date_str))
 
             if not os.path.isdir(os.path.dirname(temp_path)):
                 os.makedirs(os.path.dirname(temp_path), exist_ok=True)
