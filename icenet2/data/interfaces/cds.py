@@ -104,7 +104,7 @@ class ERA5Downloader(ClimateDownloader):
 
                 self.client.retrieve(dataset, retrieve_dict,
                                      download_path)
-                logging.debug('Download completed.')
+                logging.info('Download completed: {}'.format(download_path))
 
                 logging.debug('Computing daily averages...')
                 da = xr.open_dataarray(download_path)
@@ -117,7 +117,7 @@ class ERA5Downloader(ClimateDownloader):
 
                 da_daily = da.resample(time='1D').reduce(np.mean)
 
-                logging.debug("Saving new daily file")
+                logging.debug("Saving new daily file: {}".format(daily_path))
                 da_daily.to_netcdf(daily_path)
                 self._files_downloaded.append(daily_path)
 
@@ -126,6 +126,8 @@ class ERA5Downloader(ClimateDownloader):
             #  ungridded files
             else:
                 self._files_downloaded.append(daily_path)
+        else:
+            logging.info("{} already exists".format(regridded_name))
 
     def _get_dates_for_request(self):
         # TODO: Stick some additional controls for batching downloads more
