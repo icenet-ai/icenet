@@ -144,12 +144,21 @@ class Processor(DataProducer):
                              format(date_category))
                 continue
 
-            for date in dates:
-                globstr = "{}/**/*{}.nc".format(
-                    path_to_glob,
-                    date.strftime("%Y_%m_%d"))
+            globstr = "{}/**/*.nc".format(
+                path_to_glob)
 
-                for df in glob.glob(globstr, recursive=True):
+            dfs = glob.glob(globstr, recursive=True)
+
+            for date in dates:
+                match_str = date.strftime("%Y_%m_%d")
+                match_dfs = [
+                    df for df in dfs
+                    if df.endswith("{}.nc".format(match_str))
+                ]
+                logging.debug("{} potentials found for {}".
+                              format(len(match_dfs), match_str))
+
+                for df in match_dfs:
                     if any([flt in os.path.split(df)[1]
                             for flt in self._file_filters]):
                         continue
