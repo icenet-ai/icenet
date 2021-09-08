@@ -79,7 +79,9 @@ class ERA5Downloader(ClimateDownloader):
         daily_path = os.path.join(var_folder,
                                   "latlon_{}_{}.nc".
                                   format(var, date_str))
-        regridded_name = re.sub(r'^latlon_', '', daily_path)
+        regridded_name = os.path.join(var_folder,
+                                      "{}_{}.nc".
+                                      format(var, date_str))
 
         retrieve_dict = {
             'product_type': 'reanalysis',
