@@ -285,7 +285,11 @@ class IceNetPreProcessor(Processor):
         """
 
         logging.info("Opening files for {}".format(var_name))
-        ds = xr.open_mfdataset(self._var_files[var_name], concat_dim="time")
+        ds = xr.open_mfdataset(self._var_files[var_name],
+                               # Solves issue with inheriting files without
+                               # time dimension (only having coordinate)
+                               combine="nested",
+                               concat_dim="time")
 
         # Set of variables names
         # var_set = set([next(iter(

@@ -149,8 +149,10 @@ class Processor(DataProducer):
 
             dfs = glob.glob(globstr, recursive=True)
 
+            # TODO: thread this for improved speed (make Processor thread-safe?)
             for date in dates:
                 match_str = date.strftime("%Y_%m_%d")
+                # TODO: test if endswith works better than re.search
                 match_dfs = [
                     df for df in dfs
                     if df.endswith("{}.nc".format(match_str))
