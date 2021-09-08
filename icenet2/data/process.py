@@ -289,7 +289,10 @@ class IceNetPreProcessor(Processor):
                                # Solves issue with inheriting files without
                                # time dimension (only having coordinate)
                                combine="nested",
-                               concat_dim="time")
+                               concat_dim="time",
+                               # TODO: Wasteful on small sets, but much faster
+                               #  on big sets: make optional
+                               parallel=True)
 
         # Set of variables names
         # var_set = set([next(iter(
