@@ -89,7 +89,8 @@ def xarray_to_video(da, video_path, fps, mask=None, mask_type='contour',
         return image
 
     if video_dates is None:
-        video_dates = [pd.Timestamp(date).to_pydatetime() for date in da.time.values]
+        video_dates = [pd.Timestamp(date).to_pydatetime()
+                       for date in da.time.values]
 
     if crop is not None:
         a = crop[0][0]

@@ -181,7 +181,8 @@ class SICDownloader(Downloader):
 
             if os.path.exists(temp_path) or os.path.exists(nc_path):
                 logging.info("{} file exists, skipping".format(date_str))
-                data_files.append(temp_path)
+                if not os.path.exists(nc_path):
+                    data_files.append(temp_path)
                 continue
 
             if not ftp:
@@ -216,8 +217,10 @@ class SICDownloader(Downloader):
         if ftp:
             ftp.quit()
 
+        logging.debug("Files being processed: {}".format(data_files))
+
         if len(data_files):
-            ds = xr.open_mfdataset(data_files)
+            ds = xr.open_mfdataset(data_files, engine="netcdf4")
 
             ds = ds.drop_vars(var_remove_list)
             dts = [pd.to_datetime(date).date() for date in ds.time.values]
@@ -228,23 +231,39 @@ class SICDownloader(Downloader):
             da = self._missing_dates(da)
 
             for date in da.time.values:
-                date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
-                day_da = da.sel(time=slice(date, date))
-
-                mask = self._mask_dict[pd.to_datetime(date).month]
-
-                # TODO: active grid cell mask possibly should move to preproc
-                # Set outside mask to zero
-                day_da.data[0][~mask] = 0.
-
                 fpath = os.path.join(self.get_data_var_folder("siconca"),
                                      str(el.year),
                                      "{}.nc".format(date_str))
-                day_da.to_netcdf(fpath)
+
+                if not os.path.exists(fpath):
+                    date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
+                    day_da = da.sel(time=slice(date, date))
+
+                    mask = self._mask_dict[pd.to_datetime(date).month]
+
+                    # TODO: active grid cell mask possibly should move to
+                    #  preproc Set outside mask to zero
+                    day_da.data[0][~mask] = 0.
+
+                    day_da.to_netcdf(fpath)
 
         if self._delete_temp:
             for fpath in data_files:
                 os.unlink(fpath)
+
+    def missing_dates(self):
+        filenames = [os.path.join(self.get_data_var_folder("siconca"),
+                                  str(el.year),
+                                  "siconca_{}.nc".format(
+                                      el.strftime("%Y_%m_%d")))
+                     for el in self._dates]
+        filenames = [f for f in filenames if os.path.exists(f)]
+
+        ds = xr.open_mfdataset(filenames,
+                               combine="nested",
+                               concat_dim="time",
+                               parallel=True)
+        self._missing_dates(ds.to_array())
 
     def _missing_dates(self, da):
         if pd.Timestamp(1979, 1, 2) in da.time.values\
