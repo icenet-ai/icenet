@@ -312,11 +312,25 @@ class IceNetPreProcessor(Processor):
         da = getattr(ds, var_name)
 
         all_dates = self.dates.train + self.dates.val + self.dates.test
-        da_dates = [pd.to_datetime(d).date() for d in da.time.values]
-        search = list(set([el for el in all_dates if el in da_dates]))
+        logging.debug("{} dates in total".format(len(all_dates)))
 
-        logging.info("Time dimension is {} units long".format(len(da.time)))
-        da = da.sel(time=search)
+        da_dates = [pd.to_datetime(d).date() for d in da.time.values]
+        logging.debug("{} dates in da".format(len(da_dates)))
+
+        search = list(set([el for el in all_dates
+                           if pd.to_datetime(el).date() in da_dates]))
+        logging.debug("Selecting {} dates from da".format(len(search)))
+
+        try:
+            da = da.sel(time=search)
+        except KeyError:
+            # There is likely non-resampled data being used
+            # TODO: we could use nearest neighbour on this coordinate,
+            #  but this feels more reliable to dodgy input data when
+            #  transferring
+            logging.warning("Data selection failed, likely not daily sampled "
+                            "data so will give that a try")
+            da = da.resample(time="1D").mean().sel(time=search).sortby("time")
         logging.info("Filtered to {} units long based on configuration "
                      "requirements".format(len(da.time)))
 

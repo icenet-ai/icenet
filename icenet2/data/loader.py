@@ -133,6 +133,7 @@ class IceNetDataLoader(Generator):
                                        "{:08}.tfrecord".format(batch_number))
 
                 with tf.io.TFRecordWriter(tf_path) as writer:
+                    # TODO: multiprocess
                     for date in dates:
                         logging.debug("Generating date {}".
                                       format(date.strftime(
