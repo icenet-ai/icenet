@@ -168,8 +168,6 @@ class IceNetDataLoader(Generator):
 
             else:
                 channel_data = np.load(sic_filename)
-                logging.debug("{} shape {}".format(sic_filename,
-                                                   channel_data.shape))
                 sample_sic_list.append(channel_data)
 
         sample_output = np.stack(sample_sic_list, axis=2)

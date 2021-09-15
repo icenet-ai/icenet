@@ -31,7 +31,7 @@ def train_model(
         pre_load_network=False,
         pre_load_path=None,
         seed=42,
-        strategy=tf.distribute.experimental.CentralStorageStrategy,
+        strategy=tf.distribute.get_strategy(),
         weight_decay=0.,
         max_queue_size=3,
         workers=5,
@@ -97,7 +97,7 @@ def train_model(
     #                              TRAINING MODEL
     ############################################################################
 
-    with strategy().scope():
+    with strategy.scope():
         network = unet_batchnorm(
             input_shape=input_shape,
             loss=loss,
@@ -108,25 +108,25 @@ def train_model(
             n_forecast_days=ds.n_forecast_days,
         )
 
-        if pre_load_network:
-            logging.info("Loading network weights from {}".
-                         format(pre_load_path))
-            network.load_weights(pre_load_path)
+    if pre_load_network:
+        logging.info("Loading network weights from {}".
+                     format(pre_load_path))
+        network.load_weights(pre_load_path)
 
-        network.summary()
+    network.summary()
 
-        model_history = network.fit(
-            train_ds,
-            epochs=epochs,
-            verbose=training_verbosity,
-            #callbacks=callbacks_list,
-            #steps_per_epoch=ds.counts["train"] / batch_size,
-            #validation_steps=ds.counts["val"] / batch_size,
-            validation_data=val_ds,
-            max_queue_size=max_queue_size,
-            workers=workers,
-            use_multiprocessing=use_multiprocessing
-        )
+    model_history = network.fit(
+        train_ds,
+        epochs=epochs,
+        verbose=training_verbosity,
+        #callbacks=callbacks_list,
+        #steps_per_epoch=ds.counts["train"] / batch_size,
+        #validation_steps=ds.counts["val"] / batch_size,
+        validation_data=val_ds,
+        max_queue_size=max_queue_size,
+        workers=workers,
+        use_multiprocessing=use_multiprocessing
+    )
 
     if network_save:
         logging.info("Saving network to: {}".format(network_path))
