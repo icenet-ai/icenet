@@ -438,7 +438,7 @@ class IceNetDataSet(DataProducer):
         else:
             raise OSError("{} not found".format(path))
 
-    def get_split_datasets(self, batch_size=4):
+    def get_split_datasets(self, batch_size=4, prefetch=4, ratio=None):
         train_fns = glob.glob("{}/*.tfrecord".format(
             self.get_data_var_folder("train"),
             missing_error=True))
@@ -451,6 +451,23 @@ class IceNetDataSet(DataProducer):
 
         if not (len(train_fns) + len(val_fns) + len(test_fns)):
             raise RuntimeError("No files have been found, abandoning...")
+
+        if ratio:
+            if ratio > 1.0:
+                raise RuntimeError("Ratio cannot be more than 1")
+
+            logging.info("Reducing datasets to {} of total files".format(ratio))
+            train_idx, val_idx, test_idx = \
+                int(len(train_fns) * ratio), \
+                int(len(val_fns) * ratio), \
+                int(len(test_fns) * ratio)
+
+            if train_idx > 0:
+                train_fns = train_fns[:train_idx]
+            if val_idx > 0:
+                val_fns = val_fns[:val_idx]
+            if test_idx > 0:
+                test_fns = test_fns[:test_idx]
 
         train_ds, val_ds, test_ds = \
             tf.data.TFRecordDataset(train_fns), \
@@ -473,7 +490,9 @@ class IceNetDataSet(DataProducer):
         test_ds = test_ds.map(decoder, num_parallel_calls=batch_size).\
             batch(batch_size)
 
-        return train_ds, val_ds, test_ds
+        return train_ds.prefetch(prefetch), \
+               val_ds.prefetch(prefetch), \
+               test_ds.prefetch(prefetch)
 
     def get_data_loader(self):
         loader = IceNetDataLoader(self.loader_config,

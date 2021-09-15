@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 import os
 
@@ -36,7 +37,9 @@ def train_model(
         max_queue_size=3,
         workers=5,
         use_multiprocessing=True,
-        training_verbosity=2,
+        use_tensorboard=True,
+        training_verbosity=1,
+        dataset_ratio=None,
     ):
 
     np.random.default_rng(seed)
@@ -45,7 +48,8 @@ def train_model(
     ds = dataset_class(loader_config)
 
     input_shape = (*ds.shape, ds.num_channels)
-    train_ds, val_ds, test_ds = ds.get_split_datasets(batch_size=batch_size)
+    train_ds, val_ds, test_ds = ds.get_split_datasets(batch_size=batch_size,
+                                                      ratio=dataset_ratio)
 
     if pre_load_network and not os.path.exists(pre_load_path):
         raise RuntimeError("{} is not available, so you cannot preload the "
@@ -93,6 +97,11 @@ def train_model(
             baseline=prev_best
         ))
 
+    if use_tensorboard:
+        log_dir = "logs/" + dt.datetime.now().strftime("%d-%m-%y-%H%M%S")
+        callbacks_list.append(tf.keras.callbacks.TensorBoard(log_dir=log_dir,
+                                                             histogram_freq=1))
+
     ############################################################################
     #                              TRAINING MODEL
     ############################################################################
@@ -119,7 +128,7 @@ def train_model(
         train_ds,
         epochs=epochs,
         verbose=training_verbosity,
-        #callbacks=callbacks_list,
+        callbacks=callbacks_list,
         #steps_per_epoch=ds.counts["train"] / batch_size,
         #validation_steps=ds.counts["val"] / batch_size,
         validation_data=val_ds,
