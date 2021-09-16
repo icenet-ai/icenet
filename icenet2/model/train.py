@@ -16,6 +16,7 @@ from icenet2.model.models import unet_batchnorm
 
 
 def train_model(
+        run_name,
         loader_config,
         batch_size=4,
         checkpoint_monitor='val_weighted_MAE_corrected',
@@ -27,7 +28,7 @@ def train_model(
         filter_size=3,
         learning_rate=5e-4,
         n_filters_factor=2,
-        network_folder=os.path.join(".", "results", "networks"),
+        network_folder=None,
         network_save=True,
         pre_load_network=False,
         pre_load_path=None,
@@ -55,11 +56,17 @@ def train_model(
         raise RuntimeError("{} is not available, so you cannot preload the "
                            "network with it!".format(pre_load_path))
 
+    if not network_folder:
+        network_folder = os.path.join(".", "results", "networks", run_name)
+
     if not os.path.exists(network_folder):
         logging.info("Creating network folder: {}".format(network_folder))
         os.makedirs(network_folder)
+
     network_path = os.path.join(network_folder,
-                                "network_{}.{}.h5".format(ds.identifier, seed))
+                                "{}.network_{}.{}.h5".format(run_name,
+                                                             ds.identifier,
+                                                             seed))
 
     logging.info("# training samples: {}".format(ds.counts["train"]))
     logging.info("# validation samples: {}".format(ds.counts["val"]))
