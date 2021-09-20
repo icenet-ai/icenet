@@ -14,7 +14,7 @@ from tensorflow.keras.models import load_model
 
 
 def predict_forecast(
-    loader_config,
+    dataset_config,
     model_func=models.unet_batchnorm,
     start_dates=tuple([datetime.now().date()]),
     seed=42,
@@ -23,7 +23,7 @@ def predict_forecast(
 ):
     # TODO: generic predict functions for the different models
     #  that take init date as input?
-    ds = IceNetDataSet(loader_config)
+    ds = IceNetDataSet(dataset_config)
     dl = ds.get_data_loader()
 
     # FIXME: wasteful, we don't need to generate output

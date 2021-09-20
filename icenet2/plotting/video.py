@@ -102,5 +102,5 @@ def xarray_to_video(da, video_path, fps, mask=None, mask_type='contour',
             mask = mask[a:b, c:d]
 
     imageio.mimsave(video_path,
-                    [make_frame(date) for date in tqdm(video_dates)],
+                    [make_frame(date) for date in tqdm.tqdm(video_dates)],
                     fps=fps)

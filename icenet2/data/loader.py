@@ -259,6 +259,7 @@ class IceNetDataLoader(Generator):
         logging.debug("Adding {} to {} channel".format(len(filelist), var_name))
         self._channel_files[var_name] += filelist
 
+    # FIXME: there is a chance of reordering of channel names
     def _construct_channels(self):
         lag_vars = [(identity, var, data_format)
                     for data_format in ("abs", "anom")
@@ -452,7 +453,7 @@ class IceNetDataSet(DataProducer):
         if not (len(train_fns) + len(val_fns) + len(test_fns)):
             raise RuntimeError("No files have been found, abandoning...")
 
-        if ratio:
+        if num_channels:
             if ratio > 1.0:
                 raise RuntimeError("Ratio cannot be more than 1")
 
