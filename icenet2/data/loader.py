@@ -1,4 +1,5 @@
 import collections
+import concurrent.futures
 import datetime as dt
 import glob
 import json
@@ -6,7 +7,7 @@ import logging
 import os
 import sys
 
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from dateutil.relativedelta import relativedelta
 from pprint import pformat
 
@@ -64,6 +65,7 @@ class IceNetDataLoader(Generator):
                  var_lag,
                  *args,
                  dataset_config_path=".",
+                 generate_workers=8,
                  loss_weight_days=True,
                  n_forecast_days=93,
                  output_batch_size=32,
@@ -87,6 +89,7 @@ class IceNetDataLoader(Generator):
         self._missing_dates = []
         self._n_forecast_days = n_forecast_days
         self._output_batch_size = output_batch_size
+        self._workers = 8
 
         self._var_lag = var_lag
         self._var_lag_override = dict() \
@@ -111,12 +114,13 @@ class IceNetDataLoader(Generator):
         for dataset in splits:
             batch_number = 0
 
-            forecast_dates = list(set([dt.datetime.strptime(s,
-                                  IceNetPreProcessor.DATE_FORMAT).date()
-                                  for identity in self._config["sources"].keys()
-                                  for s in
-                                  self._config["sources"][identity]
-                                  ["dates"][dataset]]))
+            forecast_dates = sorted(list(set([dt.datetime.strptime(s,
+                                    IceNetPreProcessor.DATE_FORMAT).date()
+                                    for identity in
+                                              self._config["sources"].keys()
+                                    for s in
+                                    self._config["sources"][identity]
+                                    ["dates"][dataset]])))
             output_dir = self.get_data_var_folder(dataset)
 
             logging.info("{} {} dates in total, generating cache "
@@ -128,22 +132,36 @@ class IceNetDataLoader(Generator):
                     yield dates[i:i + num]
                     i += num
 
-            for dates in batch(forecast_dates, self._output_batch_size):
-                tf_path = os.path.join(output_dir,
-                                       "{:08}.tfrecord".format(batch_number))
-
-                with tf.io.TFRecordWriter(tf_path) as writer:
+            # TODO: generate_sample for processpoolexecution/distribution,
+            #  we want to max out write I/O for generating these sets and the
+            #  GIL gets in the way
+            def generate_and_write(dl, path, dates):
+                with tf.io.TFRecordWriter(path) as writer:
                     # TODO: multiprocess
                     for date in dates:
-                        logging.debug("Generating date {}".
-                                      format(date.strftime(
-                                             IceNetPreProcessor.DATE_FORMAT)))
-                        x, y = self.generate_sample(date)
-                        self._write_tfrecord(writer, x, y)
+                        logging.debug("Generating date {}".format(
+                            date.strftime(IceNetPreProcessor.DATE_FORMAT)))
+                        x, y = dl.generate_sample(date)
+                        dl._write_tfrecord(writer, x, y)
+                return path
 
-                logging.info("Finished batch {}".format(tf_path))
-                batch_number += 1
-            counts[dataset] = len(forecast_dates)
+            with ThreadPoolExecutor(max_workers=self._workers) as executor:
+                tf_path = os.path.join(output_dir,
+                                       "{:08}.tfrecord")
+
+                futures = []
+
+                for dates in batch(forecast_dates, self._output_batch_size):
+                    futures.append(executor.submit(generate_and_write,
+                                                   self,
+                                                   tf_path.format(batch_number),
+                                                   dates))
+                    batch_number += 1
+                    counts[dataset] += len(dates)
+
+                for fut in concurrent.futures.as_completed(futures):
+                    path = fut.result()
+                    logging.info("Finished batch {}".format(path))
 
         self._write_dataset_config(counts)
 
@@ -210,8 +228,6 @@ class IceNetDataLoader(Generator):
         ), dtype=self._dtype)
 
         v1, v2 = 0, 0
-
-        # FIXME: surely these are current date to previous n, changed
 
         for var_name, num_channels in self._channels.items():
             if var_name in self._meta_channels:
@@ -307,6 +323,13 @@ class IceNetDataLoader(Generator):
             self._add_channel_files(
                 var_name,
                 self._config["sources"][identity]["var_files"][var_name])
+
+        # Keep intuitive order from the start, which will allow easier
+        # analysis of input data down the line
+        self._channel_names = sorted(self._channel_names)
+        self._channels = {var: self._channels[var] for var in
+                          sorted(self._channels.keys())}
+        self._meta_channels = sorted(self._meta_channels)
 
         logging.debug("Variable names deduced:\n{}".format(
             pformat(self._channel_names)))

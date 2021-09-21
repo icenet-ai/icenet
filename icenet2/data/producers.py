@@ -133,6 +133,8 @@ class Processor(DataProducer):
             raise OSError("Source data directory {} does not exist".
                           format(path_to_glob))
 
+        var_files = {}
+
         for date_category in ["train", "val", "test"]:
             dates = getattr(self._dates, date_category)
 
@@ -157,8 +159,6 @@ class Processor(DataProducer):
                     df for df in dfs
                     if df.endswith("{}.nc".format(match_str))
                 ]
-                logging.debug("{} potentials found for {}".
-                              format(len(match_dfs), match_str))
 
                 for df in match_dfs:
                     if any([flt in os.path.split(df)[1]
@@ -172,9 +172,17 @@ class Processor(DataProducer):
                     if re.match(r'^\d{4}$', var):
                         var = path_comps[-2]
 
-                    if var not in self._var_files.keys():
-                        self._var_files[var] = list()
-                    self._var_files[var].append(df)
+                    if var not in var_files.keys():
+                        var_files[var] = list()
+                    var_files[var].append(df)
+
+        # Ensure we're ordered, it has repercussions for xarray
+        self._var_files = {
+            var: sorted(var_files[var]) for var in sorted(var_files.keys())
+        }
+        for var in self._var_files.keys():
+            logging.info("Got {} files for {}".format(
+                len(self._var_files[var]), var))
 
     @abstractmethod
     def process(self):
