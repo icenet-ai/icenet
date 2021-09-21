@@ -476,7 +476,7 @@ class IceNetDataSet(DataProducer):
         if not (len(train_fns) + len(val_fns) + len(test_fns)):
             raise RuntimeError("No files have been found, abandoning...")
 
-        if num_channels:
+        if ratio:
             if ratio > 1.0:
                 raise RuntimeError("Ratio cannot be more than 1")
 
