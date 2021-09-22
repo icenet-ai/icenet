@@ -1,4 +1,5 @@
 import collections
+import copy
 import concurrent.futures
 import datetime as dt
 import glob
@@ -7,7 +8,7 @@ import logging
 import os
 import sys
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from dateutil.relativedelta import relativedelta
 from pprint import pformat
 
@@ -21,6 +22,114 @@ import tensorflow as tf
 from icenet2.data.sic.mask import Masks
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.producers import DataProducer, Generator
+
+
+def generate_and_write(path, dates_args):
+    with tf.io.TFRecordWriter(path) as writer:
+        for date in dates_args.keys():
+            x, y = generate_sample(date, *dates_args[date])
+            write_tfrecord(writer, x, y)
+    return path
+
+
+def generate_sample(forecast_date,
+                    channels,
+                    dtype,
+                    loss_weight_days,
+                    masks,
+                    meta_channels,
+                    missing_dates,
+                    n_forecast_days,
+                    num_channels,
+                    shape,
+                    var_files,
+):
+    # OUTPUT SETUP - happens for any sample, even if only predicting
+    # TODO: is there any benefit to changing this? Not likely
+
+    # Build up the set of N_samps output SIC time-series
+    #   (each n_forecast_months long in the time dimension)
+
+    # To become array of shape (*raw_data_shape, n_forecast_days)
+    sample_sic_list = []
+
+    for leadtime_idx in range(n_forecast_days):
+        forecast_day = forecast_date + relativedelta(days=leadtime_idx)
+        sic_filename = var_files["siconca_abs"][forecast_day] \
+            if forecast_day in var_files["siconca_abs"] else None
+
+        if not sic_filename:
+            # Output file does not exist - fill it with NaNs
+            sample_sic_list.append(np.full(shape, np.nan))
+
+        else:
+            channel_data = np.load(sic_filename)
+            sample_sic_list.append(channel_data)
+
+    sample_output = np.stack(sample_sic_list, axis=2)
+
+    y = np.zeros((*shape,
+                  n_forecast_days,
+                  2),
+                 dtype=dtype)
+
+    y[:, :, :, 0] = sample_output
+
+    # Masked recomposition of output
+    for leadtime_idx in range(n_forecast_days):
+        forecast_day = forecast_date + relativedelta(days=leadtime_idx)
+
+        if any([forecast_day == missing_date
+                for missing_date in missing_dates]):
+            sample_weight = np.zeros(shape, dtype)
+
+        else:
+            # Zero loss outside of 'active grid cells'
+            sample_weight = masks[forecast_day]
+            sample_weight = sample_weight.astype(dtype)
+
+            # Scale the loss for each month s.t. March is
+            #   scaled by 1 and Sept is scaled by 1.77
+            if loss_weight_days:
+                sample_weight *= 33928. / np.sum(sample_weight)
+
+        y[:, :, leadtime_idx, 1] = sample_weight
+
+    y[..., 0:1] = np.nan_to_num(y[..., 0:1])
+
+    # INPUT FEATURES
+    x = np.zeros((
+        *shape,
+        num_channels
+    ), dtype=dtype)
+
+    v1, v2 = 0, 0
+
+    for var_name, num_channels in channels.items():
+        if var_name in meta_channels:
+            continue
+
+        v2 += num_channels
+
+        x[:, :, v1:v2] = \
+            np.stack([np.load(filename)
+                      if filename
+                      else np.zeros(shape)
+                      for filename in var_files[var_name].values()], axis=-1)
+
+        v1 += num_channels
+
+    for var_name in meta_channels:
+        if channels[var_name] > 1:
+            raise RuntimeError("{} meta variable cannot have more than "
+                               "one channel".format(var_name))
+
+        x[:, :, v1] = np.load(var_files[var_name])
+        v1 += channels[var_name]
+
+    logging.debug("x shape {}, y shape {}".format(x.shape, y.shape))
+
+    return x, y
 
 
 def get_decoder(shape, channels, forecasts, num_vars=2, dtype="float32"):
@@ -40,6 +149,17 @@ def get_decoder(shape, channels, forecasts, num_vars=2, dtype="float32"):
         return item['x'], item['y']
 
     return decode_item
+
+
+def write_tfrecord(writer, x, y):
+    record_data = tf.train.Example(features=tf.train.Features(feature={
+        "x": tf.train.Feature(
+            float_list=tf.train.FloatList(value=x.reshape(-1))),
+        "y": tf.train.Feature(
+            float_list=tf.train.FloatList(value=y.reshape(-1))),
+    })).SerializeToString()
+
+    writer.write(record_data)
 
 
 # TODO: TFDatasetGenerator should be created, so we can also have an
@@ -89,7 +209,7 @@ class IceNetDataLoader(Generator):
         self._missing_dates = []
         self._n_forecast_days = n_forecast_days
         self._output_batch_size = output_batch_size
-        self._workers = 8
+        self._workers = generate_workers
 
         self._var_lag = var_lag
         self._var_lag_override = dict() \
@@ -132,137 +252,137 @@ class IceNetDataLoader(Generator):
                     yield dates[i:i + num]
                     i += num
 
-            # TODO: generate_sample for processpoolexecution/distribution,
-            #  we want to max out write I/O for generating these sets and the
-            #  GIL gets in the way
-            def generate_and_write(dl, path, dates):
-                with tf.io.TFRecordWriter(path) as writer:
-                    # TODO: multiprocess
-                    for date in dates:
-                        logging.debug("Generating date {}".format(
-                            date.strftime(IceNetPreProcessor.DATE_FORMAT)))
-                        x, y = dl.generate_sample(date)
-                        dl._write_tfrecord(writer, x, y)
-                return path
-
-            with ThreadPoolExecutor(max_workers=self._workers) as executor:
+            # This was a quick and dirty beef-up of the implementation as it's
+            # very I/O bursty work. It significantly reduces the overall time
+            # taken to produce a full dataset at BAS so we can use this as a
+            # paradigm moving forward (with a slightly cleaner implementation)
+            with ProcessPoolExecutor(max_workers=self._workers) as executor:
                 tf_path = os.path.join(output_dir,
                                        "{:08}.tfrecord")
 
                 futures = []
 
                 for dates in batch(forecast_dates, self._output_batch_size):
+                    args = {}
+
+                    for date in dates:
+                        masks = {}
+                        var_files = {}
+
+                        for day in range(self._n_forecast_days):
+                            forecast_day = date + relativedelta(days=day)
+
+                            masks[forecast_day] = \
+                                self._masks.get_active_cell_mask(
+                                    forecast_day.month)
+
+                        for var_name in self._meta_channels:
+                            var_files[var_name] = \
+                                self._get_var_file(var_name, date, "%j")
+
+                        for var_name, num_channels in self._channels.items():
+                            if var_name in self._meta_channels:
+                                continue
+
+                            if "linear_trend" not in var_name:
+                                input_days = [
+                                    date - relativedelta(days=int(lag))
+                                    for lag in
+                                    np.arange(1, num_channels + 1)]
+                            else:
+                                input_days = [
+                                    date + relativedelta(days=int(lead))
+                                    for lead in
+                                    np.arange(1, num_channels + 1)]
+
+                            var_files[var_name] = {
+                                input_date: self._get_var_file(
+                                    var_name, input_date)
+                                for input_date in input_days}
+
+                        # TODO: I don't like this, but I was trying to ensure
+                        #  no deadlock to producing sets due to this object
+                        #  not being serializable (even though I'm sure it
+                        #  is). Refactor and clean this up!
+                        args[date] = [
+                            self._channels,
+                            self._dtype,
+                            self._loss_weight_days,
+                            masks,
+                            self._meta_channels,
+                            self._missing_dates,
+                            self._n_forecast_days,
+                            self.num_channels,
+                            self._shape,
+                            var_files,
+                        ]
+
                     futures.append(executor.submit(generate_and_write,
-                                                   self,
                                                    tf_path.format(batch_number),
-                                                   dates))
+                                                   args))
+
+                    logging.debug("Submitted {} dates as batch {}".format(
+                        len(dates), batch_number))
                     batch_number += 1
                     counts[dataset] += len(dates)
 
+                logging.info("{} tasks submitted".format(len(futures)))
+
                 for fut in concurrent.futures.as_completed(futures):
                     path = fut.result()
-                    logging.info("Finished batch {}".format(path))
+                    logging.info("Finished output {}".format(path))
 
         self._write_dataset_config(counts)
 
-    def generate_sample(self, forecast_date):
-        # OUTPUT SETUP - happens for any sample, even if only predicting
-        # TODO: is there any benefit to changing this? Not likely
+    def generate_sample(self, date):
+        # TODO: UGH this is repeating due to the need to reproduce process
+        #  for DL
+        masks = {}
+        var_files = {}
 
-        # Build up the set of N_samps output SIC time-series
-        #   (each n_forecast_months long in the time dimension)
+        for day in range(self._n_forecast_days):
+            forecast_day = date + relativedelta(days=day)
 
-        # To become array of shape (*raw_data_shape, n_forecast_months)
-        sample_sic_list = []
-
-        for leadtime_idx in range(self._n_forecast_days):
-            forecast_day = forecast_date + relativedelta(days=leadtime_idx)
-            sic_filename = self._get_var_file("siconca_abs", forecast_day)
-
-            if not sic_filename:
-                # Output file does not exist - fill it with NaNs
-                sample_sic_list.append(
-                    np.full(self._shape, np.nan))
-
-            else:
-                channel_data = np.load(sic_filename)
-                sample_sic_list.append(channel_data)
-
-        sample_output = np.stack(sample_sic_list, axis=2)
-
-        y = np.zeros((*self._shape,
-                      self._n_forecast_days,
-                      2),
-                     dtype=self._dtype)
-
-        y[:, :, :, 0] = sample_output
-
-        # Masked recomposition of output
-        for leadtime_idx in range(self._n_forecast_days):
-            forecast_day = forecast_date + relativedelta(days=leadtime_idx)
-
-            if any([forecast_day == missing_date
-                    for missing_date in self._missing_dates]):
-                sample_weight = np.zeros(self._shape,
-                                         self._dtype)
-
-            else:
-                # Zero loss outside of 'active grid cells'
-                sample_weight = self._masks.get_active_cell_mask(
+            masks[forecast_day] = \
+                self._masks.get_active_cell_mask(
                     forecast_day.month)
-                sample_weight = sample_weight.astype(self._dtype)
 
-                # Scale the loss for each month s.t. March is
-                #   scaled by 1 and Sept is scaled by 1.77
-                if self._loss_weight_days:
-                    sample_weight *= 33928. / np.sum(sample_weight)
-
-            y[:, :, leadtime_idx, 1] = sample_weight
-
-        y[..., 0:1] = np.nan_to_num(y[..., 0:1])
-
-        # INPUT FEATURES
-        x = np.zeros((
-            *self._shape,
-            self.num_channels
-        ), dtype=self._dtype)
-
-        v1, v2 = 0, 0
+        for var_name in self._meta_channels:
+            var_files[var_name] = \
+                self._get_var_file(var_name, date, "%j")
 
         for var_name, num_channels in self._channels.items():
             if var_name in self._meta_channels:
                 continue
 
             if "linear_trend" not in var_name:
-                input_days = [forecast_date - relativedelta(days=int(lag))
-                              for lag in np.arange(1, num_channels + 1)]
+                input_days = [
+                    date - relativedelta(days=int(lag))
+                    for lag in
+                    np.arange(1, num_channels + 1)]
             else:
-                input_days = [forecast_date + relativedelta(days=int(lead))
-                              for lead in np.arange(1, num_channels + 1)]
+                input_days = [
+                    date + relativedelta(days=int(lead))
+                    for lead in
+                    np.arange(1, num_channels + 1)]
 
-            v2 += num_channels
+            var_files[var_name] = {
+                input_date: self._get_var_file(
+                    var_name, input_date)
+                for input_date in input_days}
 
-            x[:, :, v1:v2] = \
-                np.stack([np.load(self._get_var_file(var_name, date))
-                          if self._get_var_file(var_name, date)
-                          else np.zeros(self._shape)
-                          for date in input_days], axis=-1)
-
-            v1 += num_channels
-
-        for var_name in self._meta_channels:
-            if self._channels[var_name] > 1:
-                raise RuntimeError("{} meta variable cannot have more than "
-                                   "one channel".format(var_name))
-
-            x[:, :, v1] = \
-                np.load(self._get_var_file(var_name, forecast_date, "%j"))
-
-            v1 += self._channels[var_name]
-
-        logging.debug("x shape {}, y shape {}".format(x.shape, y.shape))
-
-        return x, y
+        return generate_sample(
+            date,
+            self._channels,
+            self._dtype,
+            self._loss_weight_days,
+            masks,
+            self._meta_channels,
+            self._missing_dates,
+            self._n_forecast_days,
+            self.num_channels,
+            self._shape,
+            var_files)
 
     def _add_channel_files(self, var_name, filelist):
         if var_name in self._channel_files:
@@ -407,16 +527,6 @@ class IceNetDataLoader(Generator):
 
         with open(output_path, "w") as fh:
             json.dump(configuration, fh, indent=4, default=_serialize)
-
-    def _write_tfrecord(self, writer, x, y):
-        record_data = tf.train.Example(features=tf.train.Features(feature={
-            "x": tf.train.Feature(
-                float_list=tf.train.FloatList(value=x.reshape(-1))),
-            "y": tf.train.Feature(
-                float_list=tf.train.FloatList(value=y.reshape(-1))),
-        })).SerializeToString()
-
-        writer.write(record_data)
 
     @property
     def num_channels(self):

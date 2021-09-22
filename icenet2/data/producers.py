@@ -105,6 +105,7 @@ class Processor(DataProducer):
                  identifier,
                  source_data,
                  *args,
+                 lag=None,
                  file_filters=tuple(),
                  test_dates=tuple(),
                  train_dates=tuple(),
@@ -118,6 +119,7 @@ class Processor(DataProducer):
         self._source_data = os.path.join(source_data, identifier)
         self._var_files = dict()
         self._processed_files = dict()
+        self._lag = lag
 
         # TODO: better as a mixin?
         Dates = collections.namedtuple("Dates", ["train", "val", "test"])
@@ -136,7 +138,7 @@ class Processor(DataProducer):
         var_files = {}
 
         for date_category in ["train", "val", "test"]:
-            dates = getattr(self._dates, date_category)
+            dates = sorted(getattr(self._dates, date_category))
 
             if dates:
                 logging.info("Processing {} dates for {} category".
@@ -145,6 +147,11 @@ class Processor(DataProducer):
                 logging.info("No {} dates for this processor".
                              format(date_category))
                 continue
+
+            if self._lag:
+                logging.info("Adding lag of {} days".format(self._lag))
+                dates += [dates[0] - dt.timedelta(days=day + 1)
+                          for day in range(self._lag)]
 
             globstr = "{}/**/*.nc".format(
                 path_to_glob)

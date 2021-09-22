@@ -136,8 +136,6 @@ def train_model(
         epochs=epochs,
         verbose=training_verbosity,
         callbacks=callbacks_list,
-        #steps_per_epoch=ds.counts["train"] / batch_size,
-        #validation_steps=ds.counts["val"] / batch_size,
         validation_data=val_ds,
         max_queue_size=max_queue_size,
         workers=workers,
