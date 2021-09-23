@@ -186,7 +186,7 @@ def linear_trend_forecast(forecast_date, da, mask, n_linear_days,
 
     if not actual_n_linear_days:
         actual_n_linear_days = 1
-        input_maps = np.zeros((actual_n_linear_days, *shape))
+        input_maps = np.empty((actual_n_linear_days, *shape))
 
     x = np.arange(actual_n_linear_days)
     y = input_maps.reshape(actual_n_linear_days, -1)

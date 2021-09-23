@@ -6,6 +6,8 @@ import logging
 import os
 import sys
 
+from pprint import pformat
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -317,10 +319,11 @@ class IceNetPreProcessor(Processor):
         da_dates = [pd.to_datetime(d).date() for d in da.time.values]
         logging.debug("{} dates in da".format(len(da_dates)))
 
-        search = list(set([el for el in all_dates
-                           if pd.to_datetime(el).date() in da_dates]))
+        search = sorted(list(set([el for el in all_dates
+                                 if pd.to_datetime(el).date() in da_dates])))
         logging.debug("Selecting {} dates from da".format(len(search)))
 
+        # TODO: are we killing the lag/lead days, have a think later
         try:
             da = da.sel(time=search)
         except KeyError:

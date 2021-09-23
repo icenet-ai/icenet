@@ -230,37 +230,36 @@ class IceNetDataLoader(Generator):
         #  in the configuration arrays, otherwise drop the forecast date
         splits = ("train", "val", "test")
         counts = {el: 0 for el in splits}
+        futures = []
 
-        for dataset in splits:
-            batch_number = 0
+        def batch(dates, num):
+            i = 0
+            while i < len(dates):
+                yield dates[i:i + num]
+                i += num
 
-            forecast_dates = sorted(list(set([dt.datetime.strptime(s,
-                                    IceNetPreProcessor.DATE_FORMAT).date()
-                                    for identity in
-                                              self._config["sources"].keys()
-                                    for s in
-                                    self._config["sources"][identity]
-                                    ["dates"][dataset]])))
-            output_dir = self.get_data_var_folder(dataset)
+        # This was a quick and dirty beef-up of the implementation as it's
+        # very I/O bursty work. It significantly reduces the overall time
+        # taken to produce a full dataset at BAS so we can use this as a
+        # paradigm moving forward (with a slightly cleaner implementation)
+        with ProcessPoolExecutor(max_workers=self._workers) as executor:
+            for dataset in splits:
+                batch_number = 0
 
-            logging.info("{} {} dates in total, generating cache "
-                         "data.".format(len(forecast_dates), dataset))
+                forecast_dates = sorted(list(set([dt.datetime.strptime(s,
+                                        IceNetPreProcessor.DATE_FORMAT).date()
+                                        for identity in
+                                                  self._config["sources"].keys()
+                                        for s in
+                                        self._config["sources"][identity]
+                                        ["dates"][dataset]])))
+                output_dir = self.get_data_var_folder(dataset)
 
-            def batch(dates, num):
-                i = 0
-                while i < len(dates):
-                    yield dates[i:i + num]
-                    i += num
+                logging.info("{} {} dates in total, generating cache "
+                             "data.".format(len(forecast_dates), dataset))
 
-            # This was a quick and dirty beef-up of the implementation as it's
-            # very I/O bursty work. It significantly reduces the overall time
-            # taken to produce a full dataset at BAS so we can use this as a
-            # paradigm moving forward (with a slightly cleaner implementation)
-            with ProcessPoolExecutor(max_workers=self._workers) as executor:
                 tf_path = os.path.join(output_dir,
                                        "{:08}.tfrecord")
-
-                futures = []
 
                 for dates in batch(forecast_dates, self._output_batch_size):
                     args = {}
@@ -328,9 +327,9 @@ class IceNetDataLoader(Generator):
 
                 logging.info("{} tasks submitted".format(len(futures)))
 
-                for fut in concurrent.futures.as_completed(futures):
-                    path = fut.result()
-                    logging.info("Finished output {}".format(path))
+            for fut in concurrent.futures.as_completed(futures):
+                path = fut.result()
+                logging.info("Finished output {}".format(path))
 
         self._write_dataset_config(counts)
 

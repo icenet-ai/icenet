@@ -147,10 +147,11 @@ class Processor(DataProducer):
                              format(date_category))
                 continue
 
+            # TODO: ProcessPool for this (avoid the GIL for globbing)
             if lag_days:
                 logging.info("Including lag of {} days".format(lag_days))
                 dates += [dates[0] - dt.timedelta(days=day + 1)
-                          for day in range(lead_days)]
+                          for day in range(lag_days)]
 
             if lead_days:
                 logging.info("Including lead of {} days".format(lead_days))
@@ -162,7 +163,6 @@ class Processor(DataProducer):
 
             dfs = glob.glob(globstr, recursive=True)
 
-            # TODO: thread this for improved speed (make Processor thread-safe?)
             for date in dates:
                 match_str = date.strftime("%Y_%m_%d")
                 # TODO: test if endswith works better than re.search
@@ -185,7 +185,9 @@ class Processor(DataProducer):
 
                     if var not in var_files.keys():
                         var_files[var] = list()
-                    var_files[var].append(df)
+
+                    if df not in var_files[var]:
+                        var_files[var].append(df)
 
         # Ensure we're ordered, it has repercussions for xarray
         self._var_files = {
