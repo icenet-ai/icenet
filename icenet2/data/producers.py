@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 import collections
+import datetime as dt
 import glob
 import logging
 import os
@@ -105,7 +106,6 @@ class Processor(DataProducer):
                  identifier,
                  source_data,
                  *args,
-                 lag=None,
                  file_filters=tuple(),
                  test_dates=tuple(),
                  train_dates=tuple(),
@@ -119,7 +119,6 @@ class Processor(DataProducer):
         self._source_data = os.path.join(source_data, identifier)
         self._var_files = dict()
         self._processed_files = dict()
-        self._lag = lag
 
         # TODO: better as a mixin?
         Dates = collections.namedtuple("Dates", ["train", "val", "test"])
@@ -127,7 +126,7 @@ class Processor(DataProducer):
                             val=list(val_dates),
                             test=list(test_dates))
 
-    def init_source_data(self):
+    def init_source_data(self, lag_days=None, lead_days=None):
         path_to_glob = os.path.join(self._source_data,
                                     *self.hemisphere_str)
 
@@ -148,10 +147,15 @@ class Processor(DataProducer):
                              format(date_category))
                 continue
 
-            if self._lag:
-                logging.info("Adding lag of {} days".format(self._lag))
+            if lag_days:
+                logging.info("Including lag of {} days".format(lag_days))
                 dates += [dates[0] - dt.timedelta(days=day + 1)
-                          for day in range(self._lag)]
+                          for day in range(lead_days)]
+
+            if lead_days:
+                logging.info("Including lead of {} days".format(lead_days))
+                dates += [dates[-1] + dt.timedelta(days=day + 1)
+                          for day in range(lead_days)]
 
             globstr = "{}/**/*.nc".format(
                 path_to_glob)
