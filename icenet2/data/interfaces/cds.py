@@ -165,17 +165,3 @@ class ERA5Downloader(ClimateDownloader):
             # Convert from geopotential to geopotential height
             cube_ease /= 9.80665
 
-
-if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.DEBUG)
-    era5 = ERA5Downloader(
-        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds", "rsds",
-                   "uas", "vas"],
-        pressure_levels=[None, [500], None, None, [250, 500], [1000], None,
-                         None, None, None],
-        dates=[pd.to_datetime(date).date() for date in
-             pd.date_range("1989-01-01", "1989-01-06", freq="D")],
-    )
-    era5.download()
-    era5.regrid()
-    era5.rotate_wind_data()

@@ -164,19 +164,3 @@ class CMIP6Downloader(ClimateDownloader):
             logging.info("Regrid processing, data type not float: {}".
                          format(cube_ease.data.dtype))
             cube_ease.data = cube_ease.data.astype(np.float32)
-
-
-if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.DEBUG)
-    logging.info("CMIP Downloader - direct module run")
-
-cmip = CMIP6Downloader(
-    source="MRI-ESM2-0",
-    member="r2i1p1f1",
-    var_names=["zg"],
-    pressure_levels=[[250]],
-    dates=[None],
-)
-cmip.download()
-#    cmip.regrid()
-#    cmip.rotate_wind_data()

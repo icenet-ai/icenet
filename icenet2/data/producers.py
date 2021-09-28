@@ -148,6 +148,7 @@ class Processor(DataProducer):
                 continue
 
             # TODO: ProcessPool for this (avoid the GIL for globbing)
+            # FIXME: needs to deal with a lack of continuity in the date ranges
             if lag_days:
                 logging.info("Including lag of {} days".format(lag_days))
                 dates += [dates[0] - dt.timedelta(days=day + 1)

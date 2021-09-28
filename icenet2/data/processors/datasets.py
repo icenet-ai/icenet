@@ -67,11 +67,12 @@ class SICInterpolation:
                 y_interp = yy[~valid]
 
                 if len(x_valid) or len(y_valid):
-                    da.sel(time=date).data[~valid] = \
-                        interpolate.griddata((x_valid, y_valid),
-                                             values,
-                                             (x_interp, y_interp),
-                                             method='linear')
+                    interp_vals = interpolate.griddata((x_valid, y_valid),
+                                                       values,
+                                                       (x_interp, y_interp),
+                                                       method='linear')
+                    da.sel(time=date).data[~valid] = interp_vals
+
                 else:
                     logging.warning("No valid values to interpolate with on "
                                     "{}".format(date))
