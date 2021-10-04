@@ -15,10 +15,11 @@ from tensorflow.keras.models import load_model
 
 def predict_forecast(
     dataset_config,
+    network_name,
     model_func=models.unet_batchnorm,
     start_dates=tuple([datetime.now().date()]),
     seed=42,
-    network_folder=os.path.join(".", "results", "networks"),
+    network_folder=None,
     n_filters_factor=1/8,
 ):
     # TODO: generic predict functions for the different models
@@ -30,8 +31,14 @@ def predict_forecast(
     forecast_inputs = [dl.generate_sample(date)[0]
                        for date in start_dates]
 
+    if not network_folder:
+        network_folder = os.path.join(".", "results", "networks",
+                                      "{}.{}".format(network_name, seed))
+
+    # FIXME: this is a mess as we have seed duplication in filename, sort it out
     network_path = os.path.join(network_folder,
-                                "network_{}.{}.h5".format(ds.identifier, seed))
+                                "{}.{}.network_{}.{}.h5".
+                                format(network_name, seed, ds.identifier, seed))
 
     logging.info("Loading model from {}...".format(network_path))
 
