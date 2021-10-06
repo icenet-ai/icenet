@@ -571,7 +571,7 @@ class IceNetDataSet(DataProducer):
         else:
             raise OSError("{} not found".format(path))
 
-    def get_split_datasets(self, batch_size=4, prefetch=4, ratio=None):
+    def get_split_datasets(self, batch_size=4, ratio=None):
         train_fns = glob.glob("{}/*.tfrecord".format(
             self.get_data_var_folder("train"),
             missing_error=True))
@@ -616,16 +616,16 @@ class IceNetDataSet(DataProducer):
                               self.n_forecast_days,
                               dtype=self._dtype.__name__)
 
-        train_ds = train_ds.map(decoder, num_parallel_calls=batch_size).\
+        train_ds = train_ds.interleave(decoder, num_parallel_calls=batch_size).\
             batch(batch_size)  # .shuffle(batch_size)
-        val_ds = val_ds.map(decoder, num_parallel_calls=batch_size).\
+        val_ds = val_ds.interleave(decoder, num_parallel_calls=batch_size).\
             batch(batch_size)
-        test_ds = test_ds.map(decoder, num_parallel_calls=batch_size).\
+        test_ds = test_ds.interleave(decoder, num_parallel_calls=batch_size).\
             batch(batch_size)
 
-        return train_ds.prefetch(prefetch), \
-               val_ds.prefetch(prefetch), \
-               test_ds.prefetch(prefetch)
+        return train_ds.prefetch(tf.data.AUTOTUNE), \
+               val_ds.prefetch(tf.data.AUTOTUNE), \
+               test_ds.prefetch(tf.data.AUTOTUNE)
 
     def get_data_loader(self):
         loader = IceNetDataLoader(self.loader_config,
