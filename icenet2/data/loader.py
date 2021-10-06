@@ -616,11 +616,17 @@ class IceNetDataSet(DataProducer):
                               self.n_forecast_days,
                               dtype=self._dtype.__name__)
 
-        train_ds = train_ds.interleave(decoder, num_parallel_calls=batch_size).\
+        train_ds = train_ds.interleave(lambda x: tf.data.TFRecordDataset(x),
+                                       num_parallel_calls=batch_size).\
+            map(decoder, num_parallel_calls=1).\
             batch(batch_size)  # .shuffle(batch_size)
-        val_ds = val_ds.interleave(decoder, num_parallel_calls=batch_size).\
+        val_ds = val_ds.interleave(lambda x: tf.data.TFRecordDataset(x),
+                                   num_parallel_calls=batch_size).\
+            map(decoder, num_parallel_calls=1).\
             batch(batch_size)
-        test_ds = test_ds.interleave(decoder, num_parallel_calls=batch_size).\
+        test_ds = test_ds.interleave(lambda x: tf.data.TFRecordDataset(x),
+                                     num_parallel_calls=batch_size).\
+            map(decoder, num_parallel_calls=1).\
             batch(batch_size)
 
         return train_ds.prefetch(tf.data.AUTOTUNE), \
