@@ -145,7 +145,7 @@ def get_decoder(shape, channels, forecasts, num_vars=2, dtype="float32"):
             "y": yf,
         }
 
-        item = tf.io.parse_single_example(proto, features)
+        item = tf.io.parse_example(proto, features)
         return item['x'], item['y']
 
     return decode_item
@@ -616,17 +616,17 @@ class IceNetDataSet(DataProducer):
                               self.n_forecast_days,
                               dtype=self._dtype.__name__)
 
-        train_ds = train_ds.interleave(lambda x: tf.data.TFRecordDataset(x),
-                                       num_parallel_calls=batch_size).\
-            map(decoder, num_parallel_calls=1).\
-            batch(batch_size)  # .shuffle(batch_size)
-        val_ds = val_ds.interleave(lambda x: tf.data.TFRecordDataset(x),
-                                   num_parallel_calls=batch_size).\
-            map(decoder, num_parallel_calls=1).\
+        train_ds = train_ds.\
+                map(decoder, num_parallel_calls=batch_size * 2).\
+                batch(batch_size).\
+                shuffle(batch_size)
+
+        val_ds = val_ds.\
+            map(decoder, num_parallel_calls=batch_size).\
             batch(batch_size)
-        test_ds = test_ds.interleave(lambda x: tf.data.TFRecordDataset(x),
-                                     num_parallel_calls=batch_size).\
-            map(decoder, num_parallel_calls=1).\
+
+        test_ds = test_ds.\
+            map(decoder, num_parallel_calls=batch_size).\
             batch(batch_size)
 
         return train_ds.prefetch(tf.data.AUTOTUNE), \
