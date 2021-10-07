@@ -603,9 +603,9 @@ class IceNetDataSet(DataProducer):
                 test_fns = test_fns[:test_idx]
 
         train_ds, val_ds, test_ds = \
-            tf.data.TFRecordDataset(train_fns), \
-            tf.data.TFRecordDataset(val_fns), \
-            tf.data.TFRecordDataset(test_fns),
+            tf.data.TFRecordDataset(train_fns, num_parallel_reads=batch_size), \
+            tf.data.TFRecordDataset(val_fns, num_parallel_reads=batch_size), \
+            tf.data.TFRecordDataset(test_fns, num_parallel_reads=batch_size),
 
         # TODO: Comparison/profiling runs
         # TODO: parallel for batch size while that's small
