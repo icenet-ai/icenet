@@ -151,13 +151,27 @@ class Processor(DataProducer):
             # FIXME: needs to deal with a lack of continuity in the date ranges
             if lag_days:
                 logging.info("Including lag of {} days".format(lag_days))
-                dates += [dates[0] - dt.timedelta(days=day + 1)
-                          for day in range(lag_days)]
+
+                additional_lag_dates = []
+
+                for date in dates:
+                    for day in range(lag_days):
+                        lag_date = date - dt.timedelta(days=day + 1)
+                        if lag_date not in dates:
+                            additional_lag_dates.append(lag_date)
+                dates += additional_lag_dates
 
             if lead_days:
                 logging.info("Including lead of {} days".format(lead_days))
-                dates += [dates[-1] + dt.timedelta(days=day + 1)
-                          for day in range(lead_days)]
+
+                additional_lead_dates = []
+
+                for date in dates:
+                    for day in range(lead_days):
+                        lead_day = date + dt.timedelta(days=day + 1)
+                        if lead_day not in dates:
+                            additional_lead_dates.append(lead_day)
+                dates += additional_lead_dates
 
             globstr = "{}/**/*.nc".format(
                 path_to_glob)
