@@ -167,9 +167,14 @@ class IceNetPreProcessor(Processor):
 
         if "missing_dates" not in configuration:
             configuration["missing_dates"] = []
-        configuration["missing_dates"] += [
-            d.strftime(IceNetPreProcessor.DATE_FORMAT)
-            for d in self._missing_dates]
+
+        # Conversion required one way or another, so perhaps more efficient
+        # than a union
+        for d in self._missing_dates:
+            date_str = d.strftime(IceNetPreProcessor.DATE_FORMAT)
+
+            if date_str not in configuration["missing_dates"]:
+                configuration["missing_dates"].append(date_str)
 
         logging.info("Writing configuration to {}".format(self._update_loader))
 
@@ -178,6 +183,10 @@ class IceNetPreProcessor(Processor):
 
     def _save_variable(self, var_name):
         da = self._open_dataarray_from_files(var_name)
+
+        # FIXME: we should ideally store train dates against the
+        #  normalisation and climatology, to ensure recalculation on
+        #  reprocess. All this need be is in the path, to be honest
 
         if var_name in self._anom_vars:
             clim_path = os.path.join(self.get_data_var_folder("params"),
@@ -263,8 +272,8 @@ class IceNetPreProcessor(Processor):
         self.paths data structure.
         Parameters:
         da (xarray.DataArray): The DataArray to save.
-        dataset_type (str): Either 'obs' or 'transfer' (for CMIP6 data) - the type
-        of dataset being saved.
+        dataset_type (str): Either 'obs' or 'transfer' (for CMIP6 data) - the
+        type of dataset being saved.
         varname (str): Variable name being saved.
         data_format (str): Either 'abs' or 'anom' - the format of the data
         being saved.
@@ -313,19 +322,20 @@ class IceNetPreProcessor(Processor):
         ds = ds.rename({k: var_name for k in var_names})
         da = getattr(ds, var_name)
 
-        all_dates = self.dates.train + self.dates.val + self.dates.test
-        logging.debug("{} dates in total".format(len(all_dates)))
+        # all_dates = self.dates.train + self.dates.val + self.dates.test
+        # logging.debug("{} dates in total".format(len(all_dates)))
 
         da_dates = [pd.to_datetime(d).date() for d in da.time.values]
         logging.debug("{} dates in da".format(len(da_dates)))
 
-        search = sorted(list(set([el for el in all_dates
-                                 if pd.to_datetime(el).date() in da_dates])))
-        logging.debug("Selecting {} dates from da".format(len(search)))
+        # search = sorted(list(set([el for el in all_dates
+        #                          if pd.to_datetime(el).date() in da_dates])))
+        # logging.debug("Selecting {} dates from da".format(len(search)))
 
-        # TODO: are we killing the lag/lead days, have a think later
+        # We no longer select on all_dates, as it destroys lag/lead processed
+        # selections from the dataset
         try:
-            da = da.sel(time=search)
+            da = da.sel(time=da_dates)
         except KeyError:
             # There is likely non-resampled data being used
             # TODO: we could use nearest neighbour on this coordinate,
@@ -333,7 +343,7 @@ class IceNetPreProcessor(Processor):
             #  transferring
             logging.warning("Data selection failed, likely not daily sampled "
                             "data so will give that a try")
-            da = da.resample(time="1D").mean().sel(time=search).sortby("time")
+            da = da.resample(time="1D").mean().sel(time=da_dates).sortby("time")
         logging.info("Filtered to {} units long based on configuration "
                      "requirements".format(len(da.time)))
 
@@ -435,25 +445,28 @@ class IceNetPreProcessor(Processor):
         correspond to the linear trend SIC projection for that month.
         """
 
-        linear_trend_da = input_da.copy(data=np.zeros(input_da.shape,
-                                                      dtype=self._dtype))
-
         # FIXME: change the trend dating to dailies. This is not going to
         #  work for simple preprocessing of small datasets
-        forecast_dates = sorted([pd.Timestamp(date)
-                                 for date in input_da.time.values])
-        forecast_dates = forecast_dates[self._linear_trend_days:]
-        last_period = forecast_dates[-self._linear_trend_days:]
+        data_dates = sorted([pd.Timestamp(date)
+                             for date in input_da.time.values])
 
-        forecast_dates.extend([
-            date + pd.DateOffset(days=self._linear_trend_days)
-            for date in last_period])
+        # the old method doesn't work with non-contiguous forecast ranges
+        trend_dates = pd.date_range(
+            data_dates[0],
+            data_dates[-1] + pd.DateOffset(days=self._linear_trend_days))
 
-        linear_trend_da = linear_trend_da.assign_coords(
-            {'time': forecast_dates})
+        # TODO: check, as this was dropping the first trend num of days by
+        #  doing trend_dates[self._linear_trend_days:]
+#        trend_dates = list(set(sorted([pd.to_datetime(el) for el
+#                                       in trend_dates])))
+
+        linear_trend_da = \
+            xr.broadcast(input_da, xr.DataArray(trend_dates, dims="time"))[0]
+        linear_trend_da = linear_trend_da.sel(time=trend_dates)
+
         land_mask = Masks(north=self.north, south=self.south).get_land_mask()
 
-        for forecast_date in sorted(forecast_dates, reverse=True):
+        for forecast_date in sorted(trend_dates, reverse=True):
             linear_trend_da.loc[dict(time=forecast_date)] = \
                 linear_trend_forecast(
                     forecast_date, input_da, land_mask,

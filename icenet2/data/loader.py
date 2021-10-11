@@ -111,6 +111,8 @@ def generate_sample(forecast_date,
 
         v2 += num_channels
 
+        logging.debug("Var {}: files {}".format(var_name,
+                                                var_files[var_name].values()))
         x[:, :, v1:v2] = \
             np.stack([np.load(filename)
                       if filename
@@ -394,7 +396,6 @@ class IceNetDataLoader(Generator):
         logging.debug("Adding {} to {} channel".format(len(filelist), var_name))
         self._channel_files[var_name] += filelist
 
-    # FIXME: there is a chance of reordering of channel names
     def _construct_channels(self):
         lag_vars = [(identity, var, data_format)
                     for data_format in ("abs", "anom")

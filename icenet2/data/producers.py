@@ -159,7 +159,7 @@ class Processor(DataProducer):
                         lag_date = date - dt.timedelta(days=day + 1)
                         if lag_date not in dates:
                             additional_lag_dates.append(lag_date)
-                dates += additional_lag_dates
+                dates += list(set(additional_lag_dates))
 
             if lead_days:
                 logging.info("Including lead of {} days".format(lead_days))
@@ -171,14 +171,15 @@ class Processor(DataProducer):
                         lead_day = date + dt.timedelta(days=day + 1)
                         if lead_day not in dates:
                             additional_lead_dates.append(lead_day)
-                dates += additional_lead_dates
+                dates += list(set(additional_lead_dates))
 
             globstr = "{}/**/*.nc".format(
                 path_to_glob)
 
             dfs = glob.glob(globstr, recursive=True)
 
-            for date in dates:
+            # Ensure we're ordered, it has repercussions for xarray
+            for date in sorted(dates):
                 match_str = date.strftime("%Y_%m_%d")
                 # TODO: test if endswith works better than re.search
                 match_dfs = [
@@ -204,9 +205,8 @@ class Processor(DataProducer):
                     if df not in var_files[var]:
                         var_files[var].append(df)
 
-        # Ensure we're ordered, it has repercussions for xarray
         self._var_files = {
-            var: sorted(var_files[var]) for var in sorted(var_files.keys())
+            var: var_files[var] for var in sorted(var_files.keys())
         }
         for var in self._var_files.keys():
             logging.info("Got {} files for {}".format(
