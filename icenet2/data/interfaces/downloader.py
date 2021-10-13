@@ -9,7 +9,9 @@ from itertools import product
 from icenet2.data.sic.mask import Masks
 from icenet2.data.producers import Downloader
 from icenet2.data.utils import assign_lat_lon_coord_system, \
-    gridcell_angles_from_dim_coords, invert_gridcell_angles, rotate_grid_vectors
+    gridcell_angles_from_dim_coords, \
+    invert_gridcell_angles, \
+    rotate_grid_vectors
 from icenet2.utils import run_command
 
 import iris
@@ -21,6 +23,7 @@ class ClimateDownloader(Downloader):
                  var_names=(),
                  pressure_levels=(),
                  dates=(),
+                 delete_tempfiles=True,
                  **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -31,6 +34,8 @@ class ClimateDownloader(Downloader):
         self._pressure_levels = list(pressure_levels)
         self._dates = list(dates)
         self._masks = Masks(north=self.north, south=self.south)
+
+        self._delete = delete_tempfiles
 
         assert len(self._var_names), "No variables requested"
         assert len(self._pressure_levels) == len(self._var_names), \
@@ -99,9 +104,7 @@ class ClimateDownloader(Downloader):
         return self._sic_ease_cubes[self._hemisphere]
 
     def regrid(self,
-               files=None,
-               remove_original=False,
-               remove_failures=False):
+               files=None):
         for datafile in self._files_downloaded if not files else files:
             (datafile_path, datafile_name) = os.path.split(datafile)
             new_datafile = os.path.join(datafile_path,
@@ -122,8 +125,8 @@ class ClimateDownloader(Downloader):
             except iris.exceptions.CoordinateNotFoundError:
                 logging.warning("{} has no coordinates...".
                                 format(datafile_name))
-                if remove_failures:
-                    logging.debug("Deleting {}...".
+                if self.delete:
+                    logging.debug("Deleting failed file {}...".
                                   format(datafile_name))
                     os.unlink(datafile)
                 continue
@@ -135,7 +138,7 @@ class ClimateDownloader(Downloader):
             logging.info("Saving regridded data to {}... ".format(new_datafile))
             iris.save(cube_ease, new_datafile)
 
-            if remove_original:
+            if self.delete:
                 logging.info("Removing {}".format(datafile))
                 os.remove(datafile)
 
@@ -181,7 +184,8 @@ class ClimateDownloader(Downloader):
 
             wind_cubes_r[apply_to[0]], wind_cubes_r[apply_to[1]] = \
                 rotate_grid_vectors(
-                    wind_cubes[apply_to[0]], wind_cubes[apply_to[1]], angles)
+                    wind_cubes[apply_to[0]], wind_cubes[apply_to[1]], angles,
+                )
 
             # Original implementation is in danger of lost updates
             # due to potential lazy loading
@@ -194,6 +198,14 @@ class ClimateDownloader(Downloader):
                 )
                 iris.save(wind_cubes_r[apply_to[i]], tmp_name)
                 os.replace(tmp_name, name)
+
+    @property
+    def delete(self):
+        return self._delete
+
+    @property
+    def dates(self):
+        return self._dates
 
     @property
     def var_names(self):

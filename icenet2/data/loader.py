@@ -617,10 +617,11 @@ class IceNetDataSet(DataProducer):
                               self.n_forecast_days,
                               dtype=self._dtype.__name__)
 
+        # FIXME: this is not acceptable shuffling
         train_ds = train_ds.\
                 map(decoder, num_parallel_calls=batch_size * 2).\
                 batch(batch_size).\
-                shuffle(batch_size)
+                shuffle(batch_size, reshuffle_each_iteration=True)
 
         val_ds = val_ds.\
             map(decoder, num_parallel_calls=batch_size).\

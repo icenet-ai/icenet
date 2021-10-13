@@ -53,6 +53,7 @@ class IceNetPreProcessor(Processor):
                  no_normalise=tuple(["siconca"]),
                  path=os.path.join(".", "processed"),
                  source_data=os.path.join(".", "data"),
+                 update_key=None,
                  update_loader=True,
                  **kwargs):
         super().__init__(identifier,
@@ -82,6 +83,7 @@ class IceNetPreProcessor(Processor):
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
             if not minmax else self._normalise_array_scaling
+        self._update_key = self.identifier if not update_key else update_key
         self._update_loader = os.path.join(".",
                                            "loader.{}.json".format(name)) \
             if update_loader else None
@@ -153,7 +155,7 @@ class IceNetPreProcessor(Processor):
                 obj = json.load(fh)
                 configuration.update(obj)
 
-        configuration["sources"][self.identifier] = source
+        configuration["sources"][self._update_key] = source
 
         # Ideally should always be in together
         if "dtype" in configuration:

@@ -10,6 +10,8 @@ from scipy import interpolate
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.sic.mask import Masks
 
+# TODO: Split datasets into modules correlating to interfaces
+
 
 class SICInterpolation:
     @staticmethod
@@ -113,6 +115,14 @@ class IceNetERA5PreProcessor(IceNetPreProcessor):
                          **kwargs)
 
 
+class IceNetHRESPreProcessor(IceNetPreProcessor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args,
+                         file_filters=["latlon_"],
+                         identifier="mars.hres",
+                         **kwargs)
+
+
 class IceNetOSIPreProcessor(IceNetPreProcessor):
     def __init__(self, *args,
                  missing_dates=None,
@@ -152,7 +162,7 @@ if __name__ == "__main__":
         "test1",
         list([
             pd.to_datetime(date).date() for date in
-            pd.date_range(dt.date(1989, 1, 1), dt.date(1989, 1, 6), freq='D')
+            pd.date_range(dt.date(2010, 1, 1), dt.date(2010, 1, 6), freq='D')
         ]),
         [],
         [],

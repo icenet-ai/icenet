@@ -16,13 +16,9 @@ script to be run in parallel for different variables.
 
 import logging
 import os
-import re
-
-from datetime import date
 
 import cdsapi as cds
 import numpy as np
-import pandas as pd
 import xarray as xr
 
 from icenet2.data.interfaces.downloader import ClimateDownloader
@@ -66,8 +62,7 @@ class ERA5Downloader(ClimateDownloader):
                                   str(req_date.year))
 
         # For the year component - 365 * 50 is a lot of files ;)
-        if not os.path.exists(var_folder):
-            os.makedirs(var_folder, exist_ok=True)
+        os.makedirs(var_folder, exist_ok=True)
 
         date_str = req_date.strftime("%Y_%m_%d")
 
@@ -123,7 +118,9 @@ class ERA5Downloader(ClimateDownloader):
                 da_daily.to_netcdf(daily_path)
                 self._files_downloaded.append(daily_path)
 
-                os.remove(download_path)
+                if self.delete:
+                    logging.debug("Remove {}".format(download_path))
+                    os.remove(download_path)
             # TODO: check this is a reliable method for picking up
             #  ungridded files
             else:
