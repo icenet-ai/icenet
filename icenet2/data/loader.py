@@ -621,7 +621,7 @@ class IceNetDataSet(DataProducer):
         train_ds = train_ds.\
                 map(decoder, num_parallel_calls=batch_size * 2).\
                 batch(batch_size).\
-                shuffle(batch_size, reshuffle_each_iteration=True)
+                shuffle(len(train_fns), reshuffle_each_iteration=True)
 
         val_ds = val_ds.\
             map(decoder, num_parallel_calls=batch_size).\
