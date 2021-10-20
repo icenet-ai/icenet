@@ -1,7 +1,8 @@
+import collections
+import datetime as dt
+import json
 import logging
 import os
-
-from datetime import datetime
 
 import icenet2.model.models as models
 
@@ -17,19 +18,45 @@ def predict_forecast(
     dataset_config,
     network_name,
     model_func=models.unet_batchnorm,
-    start_dates=tuple([datetime.now().date()]),
-    seed=42,
-    network_folder=None,
     n_filters_factor=1/8,
+    network_folder=None,
+    seed=42,
+    start_dates=tuple([dt.datetime.now().date()]),
+    testset=False,
 ):
-    # TODO: generic predict functions for the different models
-    #  that take init date as input?
     ds = IceNetDataSet(dataset_config)
     dl = ds.get_data_loader()
 
-    # FIXME: wasteful, we don't need to generate output
-    forecast_inputs = [dl.generate_sample(date)[0]
-                       for date in start_dates]
+    if not testset:
+        logging.info("Generating forecast inputs from processed/ files")
+
+        forecast_inputs, gen_outputs = \
+            list(zip(*[dl.generate_sample(date) for date in start_dates]))
+    else:
+        # TODO: This is horrible behaviour, rethink and refactor: we should
+        #  be able to pull from the test set in a nicer and more efficient
+        #  fashion
+        _, _, test_inputs = ds.get_split_datasets()
+
+        source_key = [k for k in dl.config['sources'].keys() if k != "meta"][0]
+        # FIXME: should be using date format from class
+        test_dates = [dt.date(*[int(v) for v in d.split("_")]) for d in
+                      dl.config["sources"][source_key]["dates"]["test"]]
+
+        if len(test_dates) == 0:
+            raise RuntimeError("No processed files were produced for the test "
+                               "set")
+
+        missing = set(start_dates).difference(test_dates)
+        if len(missing) > 0:
+            raise RuntimeError("{} are not in the test set".
+                               format(", ".join(missing)))
+
+        forecast_inputs, gen_outputs = [], []
+        x, y = list(test_inputs.as_numpy_iterator())[0]
+        for idx in [test_dates.index(sd) for sd in start_dates]:
+            forecast_inputs.append(x[idx, ...])
+            gen_outputs.append(y[idx, ...])
 
     if not network_folder:
         network_folder = os.path.join(".", "results", "networks",
@@ -52,7 +79,7 @@ def predict_forecast(
     network.load_weights(network_path)
 
     pred = network(tf.convert_to_tensor(forecast_inputs), training=False)
-    return pred
+    return pred, gen_outputs
 
 
 # TODO: better method via click via single 'icenet' entry point
@@ -69,7 +96,7 @@ def cli():
     parser.add_argument("-s", "--seed", default=42, type=int)
     parser.add_argument("-f", "--n_forecast_days", default=93, type=int)
     # TODO: mechanism
-    parser.add_argument("-d", "--start_dates", default=tuple([datetime.now()
+    parser.add_argument("-d", "--start_dates", default=tuple([dt.datetime.now()
                                                              .date()]))
     args = parser.parse_args()
 

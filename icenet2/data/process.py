@@ -1,12 +1,7 @@
-import collections
 import datetime as dt
-import glob
 import json
 import logging
 import os
-import sys
-
-from pprint import pformat
 
 import numpy as np
 import pandas as pd
@@ -15,12 +10,6 @@ import xarray as xr
 from icenet2.data.producers import Processor
 from icenet2.data.sic.mask import Masks
 from icenet2.model.models import linear_trend_forecast
-
-"""
-
-TODO: missing dates
-
-"""
 
 
 class IceNetPreProcessor(Processor):
@@ -43,8 +32,6 @@ class IceNetPreProcessor(Processor):
                  exclude_vars=(),
                  file_filters=tuple(["latlon_"]),
                  identifier=None,
-                 include_circday=True,
-                 include_land=True,
                  linear_trends=tuple(["siconca"]),
                  linear_trend_days=7,
                  meta_vars=tuple(),
@@ -68,6 +55,7 @@ class IceNetPreProcessor(Processor):
 
         self._abs_vars = abs_vars
         self._anom_vars = anom_vars
+        # TODO: Ugh, this should not be here any longer
         self._meta_vars = list(meta_vars)
 
         self._name = name
@@ -75,8 +63,6 @@ class IceNetPreProcessor(Processor):
         self._data_shape = data_shape
         self._dtype = dtype
         self._exclude_vars = exclude_vars
-        self._include_circday = include_circday
-        self._include_land = include_land
         self._linear_trends = linear_trends
         self._linear_trend_days = linear_trend_days
         self._missing_dates = list(missing_dates)
@@ -94,12 +80,6 @@ class IceNetPreProcessor(Processor):
                 logging.warning("{} does not exist".format(var_name))
                 continue
             self._save_variable(var_name)
-
-        if self._include_circday:
-            self._save_circday()
-
-        if self._include_land:
-            self._save_land()
 
         if self._update_loader:
             self.update_loader_config()
@@ -227,45 +207,6 @@ class IceNetPreProcessor(Processor):
         da = self.post_normalisation(var_name, da)
 
         self._save_output(da, var_name)
-
-    def _save_land(self):
-        land_mask = Masks(north=self.north, south=self.south).get_land_mask()
-        land_map = np.ones(self._data_shape, dtype=self._dtype)
-        land_map[~land_mask] = -1.
-
-        if "land" not in self._meta_vars:
-            self._meta_vars.append("land")
-
-        land_path = self.save_processed_file("land", "land.npy", land_map)
-
-        for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
-            link_path = os.path.join(os.path.dirname(land_path),
-                                     date.strftime('%j.npy'))
-
-            if not os.path.islink(link_path):
-                os.symlink(os.path.basename(land_path), link_path)
-            self.processed_files["land"].append(link_path)
-
-    def _save_circday(self):
-        for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
-            if self.north:
-                circday = date.dayofyear
-            else:
-                circday = date.dayofyear + 365.25 / 2
-
-            cos_day = np.cos(2 * np.pi * circday / 366, dtype=self._dtype)
-            sin_day = np.sin(2 * np.pi * circday / 366, dtype=self._dtype)
-
-            self.save_processed_file("cos",
-                                     date.strftime('%j.npy'),
-                                     cos_day)
-            self.save_processed_file("sin",
-                                     date.strftime('%j.npy'),
-                                     sin_day)
-
-        for var_name in ["sin", "cos"]:
-            if var_name not in self._meta_vars:
-                self._meta_vars.append(var_name)
 
     def _save_output(self, da, var_name):
 

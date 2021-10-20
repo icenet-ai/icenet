@@ -529,6 +529,10 @@ class IceNetDataLoader(Generator):
             json.dump(configuration, fh, indent=4, default=_serialize)
 
     @property
+    def config(self):
+        return self._config
+
+    @property
     def num_channels(self):
         return sum(self._channels.values())
 
@@ -617,7 +621,6 @@ class IceNetDataSet(DataProducer):
                               self.n_forecast_days,
                               dtype=self._dtype.__name__)
 
-        # FIXME: this is not acceptable shuffling
         train_ds = train_ds.\
                 map(decoder, num_parallel_calls=batch_size * 2).\
                 batch(batch_size).\
