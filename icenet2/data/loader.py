@@ -541,6 +541,7 @@ class IceNetDataSet(DataProducer):
     def __init__(self,
                  configuration_path,
                  *args,
+                 batch_size=4,
                  path=os.path.join(".", "network_datasets"),
                  **kwargs):
         self._config = dict()
@@ -554,6 +555,7 @@ class IceNetDataSet(DataProducer):
                          south=bool(self._config["south"]),
                          **kwargs)
 
+        self._batch_size = batch_size
         self._counts = self._config["counts"]
         self._dtype = getattr(np, self._config["dtype"])
         self._loader_config = self._config["loader_config"]
@@ -576,7 +578,7 @@ class IceNetDataSet(DataProducer):
         else:
             raise OSError("{} not found".format(path))
 
-    def get_split_datasets(self, batch_size=4, ratio=None):
+    def get_split_datasets(self, ratio=None):
         train_fns = glob.glob("{}/*.tfrecord".format(
             self.get_data_var_folder("train"),
             missing_error=True))
@@ -608,9 +610,9 @@ class IceNetDataSet(DataProducer):
                 test_fns = test_fns[:test_idx]
 
         train_ds, val_ds, test_ds = \
-            tf.data.TFRecordDataset(train_fns, num_parallel_reads=batch_size), \
-            tf.data.TFRecordDataset(val_fns, num_parallel_reads=batch_size), \
-            tf.data.TFRecordDataset(test_fns, num_parallel_reads=batch_size),
+            tf.data.TFRecordDataset(train_fns, num_parallel_reads=self.batch_size), \
+            tf.data.TFRecordDataset(val_fns, num_parallel_reads=self.batch_size), \
+            tf.data.TFRecordDataset(test_fns, num_parallel_reads=self.batch_size),
 
         # TODO: Comparison/profiling runs
         # TODO: parallel for batch size while that's small
@@ -623,17 +625,17 @@ class IceNetDataSet(DataProducer):
 
         train_ds = train_ds.\
                 shuffle(len(train_fns), reshuffle_each_iteration=True).\
-                map(decoder, num_parallel_calls=batch_size).\
-                batch(batch_size)
+                map(decoder, num_parallel_calls=self.batch_size).\
+                batch(self.batch_size)
 
         val_ds = val_ds.\
             shuffle(len(train_fns)).\
-            map(decoder, num_parallel_calls=batch_size).\
-            batch(batch_size)
+            map(decoder, num_parallel_calls=self.batch_size).\
+            batch(self.batch_size)
 
         test_ds = test_ds.\
-            map(decoder, num_parallel_calls=batch_size).\
-            batch(batch_size)
+            map(decoder, num_parallel_calls=self.batch_size).\
+            batch(self.batch_size)
 
         return train_ds.prefetch(tf.data.AUTOTUNE), \
                val_ds.prefetch(tf.data.AUTOTUNE), \
@@ -655,6 +657,10 @@ class IceNetDataSet(DataProducer):
                                   var_lag_override=self._config[
                                       "var_lag_override"])
         return loader
+
+    @property
+    def batch_size(self):
+        return self._batch_size
 
     @property
     def counts(self):

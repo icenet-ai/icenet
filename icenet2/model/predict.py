@@ -17,6 +17,7 @@ from tensorflow.keras.models import load_model
 def predict_forecast(
     dataset_config,
     network_name,
+    dataset_name=None,
     model_func=models.unet_batchnorm,
     n_filters_factor=1/8,
     network_folder=None,
@@ -53,19 +54,35 @@ def predict_forecast(
                                format(", ".join(missing)))
 
         forecast_inputs, gen_outputs = [], []
-        x, y = list(test_inputs.as_numpy_iterator())[0]
-        for idx in [test_dates.index(sd) for sd in start_dates]:
-            forecast_inputs.append(x[idx, ...])
-            gen_outputs.append(y[idx, ...])
+
+        x, y = [], [] 
+        data_iter = test_inputs.as_numpy_iterator()
+
+        data = next(data_iter)
+        x, y = data
+        batch = 0
+        batch_len = None
+
+        for i, idx in enumerate([test_dates.index(sd) for sd in start_dates]):
+            while batch < int(idx / ds.batch_size):
+                data = next(data_iter)
+                x, y = data
+                batch += 1
+            arr_idx = idx % ds.batch_size
+            logging.info("Processing batch {} - item {}".format(batch + 1, arr_idx))
+            logging.debug(", ".join([str(v) for v in [idx, arr_idx, batch, type(arr_idx)]]))
+            forecast_inputs.append(x[arr_idx, ...])
+            gen_outputs.append(y[arr_idx, ...])
 
     if not network_folder:
         network_folder = os.path.join(".", "results", "networks",
                                       "{}.{}".format(network_name, seed))
 
     # FIXME: this is a mess as we have seed duplication in filename, sort it out
+    dataset_name = dataset_name if dataset_name else ds.identifier
     network_path = os.path.join(network_folder,
                                 "{}.{}.network_{}.{}.h5".
-                                format(network_name, seed, ds.identifier, seed))
+                                format(network_name, seed, dataset_name, seed))
 
     logging.info("Loading model from {}...".format(network_path))
 
@@ -78,8 +95,13 @@ def predict_forecast(
     )
     network.load_weights(network_path)
 
-    pred = network(tf.convert_to_tensor(forecast_inputs), training=False)
-    return pred, gen_outputs
+    predictions = []
+
+    for i, net_input in enumerate(forecast_inputs):
+        logging.info("Running prediction {} - {}".format(i, start_dates[i]))
+        pred = network(tf.convert_to_tensor([net_input]), training=False)
+        predictions.append(pred)
+    return predictions, gen_outputs
 
 
 # TODO: better method via click via single 'icenet' entry point
