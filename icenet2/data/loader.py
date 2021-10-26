@@ -42,8 +42,7 @@ def generate_sample(forecast_date,
                     n_forecast_days,
                     num_channels,
                     shape,
-                    var_files,
-):
+                    var_files,):
     # OUTPUT SETUP - happens for any sample, even if only predicting
     # TODO: is there any benefit to changing this? Not likely
 
@@ -70,8 +69,12 @@ def generate_sample(forecast_date,
 
     y = np.zeros((*shape,
                   n_forecast_days,
-                  2),
+                  1),
                  dtype=dtype)
+    sample_weights = np.zeros((*shape,
+                               n_forecast_days,
+                               1),
+                              dtype=dtype)
 
     y[:, :, :, 0] = sample_output
 
@@ -82,7 +85,6 @@ def generate_sample(forecast_date,
         if any([forecast_day == missing_date
                 for missing_date in missing_dates]):
             sample_weight = np.zeros(shape, dtype)
-
         else:
             # Zero loss outside of 'active grid cells'
             sample_weight = masks[forecast_day]
@@ -93,9 +95,9 @@ def generate_sample(forecast_date,
             if loss_weight_days:
                 sample_weight *= 33928. / np.sum(sample_weight)
 
-        y[:, :, leadtime_idx, 1] = sample_weight
+        sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
-    y[..., 0:1] = np.nan_to_num(y[..., 0:1])
+    # CHEAT: y[..., 0:1] = np.nan_to_num(y[..., 0:1])
 
     # INPUT FEATURES
     x = np.zeros((
@@ -131,7 +133,7 @@ def generate_sample(forecast_date,
 
     logging.debug("x shape {}, y shape {}".format(x.shape, y.shape))
 
-    return x, y
+    return x, y, sample_weights
 
 
 def get_decoder(shape, channels, forecasts, num_vars=2, dtype="float32"):
@@ -286,10 +288,11 @@ class IceNetDataLoader(Generator):
                                 continue
 
                             if "linear_trend" not in var_name:
+                                # Collect all lag channels + the forecast date
                                 input_days = [
                                     date - relativedelta(days=int(lag))
                                     for lag in
-                                    np.arange(1, num_channels + 1)]
+                                    np.arange(0, num_channels + 1)]
                             else:
                                 input_days = [
                                     date + relativedelta(days=int(lead))
@@ -357,10 +360,11 @@ class IceNetDataLoader(Generator):
                 continue
 
             if "linear_trend" not in var_name:
+                # Collect all lag input channels + forecast date
                 input_days = [
                     date - relativedelta(days=int(lag))
                     for lag in
-                    np.arange(1, num_channels + 1)]
+                    np.arange(0, num_channels + 1)]
             else:
                 input_days = [
                     date + relativedelta(days=int(lead))
@@ -409,7 +413,7 @@ class IceNetDataLoader(Generator):
                        else self._var_lag_override[var_name])
 
             self._channel_names += ["{}_{}".format(var_prefix, i)
-                                    for i in np.arange(1, var_lag + 1)]
+                                    for i in np.arange(0, var_lag)]
             self._channels[var_prefix] = int(var_lag)
             self._add_channel_files(
                 var_prefix,
@@ -472,7 +476,8 @@ class IceNetDataLoader(Generator):
             logging.warning("Multiple files found for {}, only returning {}".
                             format(filename, files[0]))
         elif not len(files):
-            #logging.warning("No files in channel list for {}".format(filename))
+            # logging.warning("No files in channel list for {}".format(
+            # filename))
             return None
         return files[0]
 
