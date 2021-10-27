@@ -31,7 +31,7 @@ def predict_forecast(
     if not testset:
         logging.info("Generating forecast inputs from processed/ files")
 
-        forecast_inputs, gen_outputs = \
+        forecast_inputs, gen_outputs, _ = \
             list(zip(*[dl.generate_sample(date) for date in start_dates]))
     else:
         # TODO: This is horrible behaviour, rethink and refactor: we should
@@ -61,7 +61,6 @@ def predict_forecast(
         data = next(data_iter)
         x, y = data
         batch = 0
-        batch_len = None
 
         for i, idx in enumerate([test_dates.index(sd) for sd in start_dates]):
             while batch < int(idx / ds.batch_size):
@@ -69,8 +68,8 @@ def predict_forecast(
                 x, y = data
                 batch += 1
             arr_idx = idx % ds.batch_size
-            logging.info("Processing batch {} - item {}".format(batch + 1, arr_idx))
-            logging.debug(", ".join([str(v) for v in [idx, arr_idx, batch, type(arr_idx)]]))
+            logging.info("Processing batch {} - item {}".format(
+                batch + 1, arr_idx))
             forecast_inputs.append(x[arr_idx, ...])
             gen_outputs.append(y[arr_idx, ...])
 

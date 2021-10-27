@@ -27,8 +27,8 @@ from icenet2.data.producers import DataProducer, Generator
 def generate_and_write(path, dates_args):
     with tf.io.TFRecordWriter(path) as writer:
         for date in dates_args.keys():
-            x, y = generate_sample(date, *dates_args[date])
-            write_tfrecord(writer, x, y)
+            x, y, sample_weights = generate_sample(date, *dates_args[date])
+            write_tfrecord(writer, x, y, sample_weights)
     return path
 
 
@@ -42,7 +42,8 @@ def generate_sample(forecast_date,
                     n_forecast_days,
                     num_channels,
                     shape,
-                    var_files,):
+                    var_files,
+                    output_files):
     # OUTPUT SETUP - happens for any sample, even if only predicting
     # TODO: is there any benefit to changing this? Not likely
 
@@ -54,8 +55,8 @@ def generate_sample(forecast_date,
 
     for leadtime_idx in range(n_forecast_days):
         forecast_day = forecast_date + relativedelta(days=leadtime_idx)
-        sic_filename = var_files["siconca_abs"][forecast_day] \
-            if forecast_day in var_files["siconca_abs"] else None
+        sic_filename = output_files[forecast_day] \
+            if forecast_day in output_files else None
 
         if not sic_filename:
             # Output file does not exist - fill it with NaNs
@@ -136,10 +137,12 @@ def generate_sample(forecast_date,
     return x, y, sample_weights
 
 
-def get_decoder(shape, channels, forecasts, num_vars=2, dtype="float32"):
+def get_decoder(shape, channels, forecasts, num_vars=1, dtype="float32"):
     xf = tf.io.FixedLenFeature(
         [*shape, channels], getattr(tf, dtype))
     yf = tf.io.FixedLenFeature(
+        [*shape, forecasts, num_vars], getattr(tf, dtype))
+    sf = tf.io.FixedLenFeature(
         [*shape, forecasts, num_vars], getattr(tf, dtype))
 
     @tf.function
@@ -147,6 +150,7 @@ def get_decoder(shape, channels, forecasts, num_vars=2, dtype="float32"):
         features = {
             "x": xf,
             "y": yf,
+            "sample_weights": sf,
         }
 
         item = tf.io.parse_example(proto, features)
@@ -155,12 +159,14 @@ def get_decoder(shape, channels, forecasts, num_vars=2, dtype="float32"):
     return decode_item
 
 
-def write_tfrecord(writer, x, y):
+def write_tfrecord(writer, x, y, sample_weights):
     record_data = tf.train.Example(features=tf.train.Features(feature={
         "x": tf.train.Feature(
             float_list=tf.train.FloatList(value=x.reshape(-1))),
         "y": tf.train.Feature(
             float_list=tf.train.FloatList(value=y.reshape(-1))),
+        "sample_weights": tf.train.Feature(
+            float_list=tf.train.FloatList(value=sample_weights.reshape(-1))),
     })).SerializeToString()
 
     writer.write(record_data)
@@ -202,8 +208,8 @@ class IceNetDataLoader(Generator):
                          **kwargs)
 
         self._channels = dict()
-        self._channel_names = []
         self._channel_files = dict()
+
         self._configuration_path = configuration_path
         self._dataset_config_path = dataset_config_path
         self._config = dict()
@@ -292,7 +298,7 @@ class IceNetDataLoader(Generator):
                                 input_days = [
                                     date - relativedelta(days=int(lag))
                                     for lag in
-                                    np.arange(0, num_channels + 1)]
+                                    np.arange(1, num_channels + 1)]
                             else:
                                 input_days = [
                                     date + relativedelta(days=int(lead))
@@ -302,7 +308,16 @@ class IceNetDataLoader(Generator):
                             var_files[var_name] = {
                                 input_date: self._get_var_file(
                                     var_name, input_date)
-                                for input_date in input_days}
+                                for input_date in set(sorted(input_days))}
+
+                        output_files = {
+                            input_date:
+                                self._get_var_file("siconca_abs", input_date)
+                            for input_date in [
+                                date + relativedelta(days=leadtime_idx)
+                                for leadtime_idx in
+                                range(self._n_forecast_days)]
+                        }
 
                         # TODO: I don't like this, but I was trying to ensure
                         #  no deadlock to producing sets due to this object
@@ -319,6 +334,7 @@ class IceNetDataLoader(Generator):
                             self.num_channels,
                             self._shape,
                             var_files,
+                            output_files,
                         ]
 
                     futures.append(executor.submit(generate_and_write,
@@ -364,7 +380,7 @@ class IceNetDataLoader(Generator):
                 input_days = [
                     date - relativedelta(days=int(lag))
                     for lag in
-                    np.arange(0, num_channels + 1)]
+                    np.arange(1, num_channels + 1)]
             else:
                 input_days = [
                     date + relativedelta(days=int(lead))
@@ -375,6 +391,15 @@ class IceNetDataLoader(Generator):
                 input_date: self._get_var_file(
                     var_name, input_date)
                 for input_date in input_days}
+
+        output_files = {
+            input_date:
+                self._get_var_file("siconca_abs", input_date)
+            for input_date in [
+                date + relativedelta(days=leadtime_idx)
+                for leadtime_idx in
+                range(self._n_forecast_days)]
+        }
 
         return generate_sample(
             date,
@@ -387,7 +412,8 @@ class IceNetDataLoader(Generator):
             self._n_forecast_days,
             self.num_channels,
             self._shape,
-            var_files)
+            var_files,
+            output_files)
 
     def _add_channel_files(self, var_name, filelist):
         if var_name in self._channel_files:
@@ -401,10 +427,14 @@ class IceNetDataLoader(Generator):
         self._channel_files[var_name] += filelist
 
     def _construct_channels(self):
+        # As of Python 3.7 dict guarantees the order of keys based on
+        # original insertion order, which is great for this method
         lag_vars = [(identity, var, data_format)
                     for data_format in ("abs", "anom")
-                    for identity in self._config["sources"].keys()
-                    for var in self._config["sources"][identity][data_format]]
+                    for identity in
+                    sorted(self._config["sources"].keys())
+                    for var in
+                    sorted(self._config["sources"][identity][data_format])]
 
         for identity, var_name, data_format in lag_vars:
             var_prefix = "{}_{}".format(var_name, data_format)
@@ -412,8 +442,6 @@ class IceNetDataLoader(Generator):
                        if var_name not in self._var_lag_override
                        else self._var_lag_override[var_name])
 
-            self._channel_names += ["{}_{}".format(var_prefix, i)
-                                    for i in np.arange(0, var_lag)]
             self._channels[var_prefix] = int(var_lag)
             self._add_channel_files(
                 var_prefix,
@@ -421,16 +449,15 @@ class IceNetDataLoader(Generator):
 
         trend_names = [(identity, var,
                         self._config["sources"][identity]["linear_trend_days"])
-                       for identity in self._config["sources"].keys()
+                       for identity in
+                       sorted(self._config["sources"].keys())
                        for var in
-                       self._config["sources"][identity]["linear_trends"]]
+                       sorted(
+                           self._config["sources"][identity]["linear_trends"])]
 
         for identity, var_name, trend_days in trend_names:
             var_prefix = "{}_linear_trend".format(var_name)
 
-            self._channel_names += ["{}_{}".format(var_prefix, leadtime)
-                                    for leadtime in
-                                    np.arange(1, trend_days + 1)]
             self._channels[var_prefix] = int(trend_days)
             self._add_channel_files(
                 var_prefix,
@@ -438,8 +465,10 @@ class IceNetDataLoader(Generator):
 
         # Metadata input variables that don't span time
         meta_names = [(identity, var)
-                      for identity in self._config["sources"].keys()
-                      for var in self._config["sources"][identity]["meta"]]
+                      for identity in
+                      sorted(self._config["sources"].keys())
+                      for var in
+                      sorted(self._config["sources"][identity]["meta"])]
 
         for identity, var_name in meta_names:
             self._meta_channels.append(var_name)
@@ -448,15 +477,6 @@ class IceNetDataLoader(Generator):
                 var_name,
                 self._config["sources"][identity]["var_files"][var_name])
 
-        # Keep intuitive order from the start, which will allow easier
-        # analysis of input data down the line
-        self._channel_names = sorted(self._channel_names)
-        self._channels = {var: self._channels[var] for var in
-                          sorted(self._channels.keys())}
-        self._meta_channels = sorted(self._meta_channels)
-
-        logging.debug("Variable names deduced:\n{}".format(
-            pformat(self._channel_names)))
         logging.debug("Channel quantities deduced:\n{}\n\nTotal channels: {}".
             format(pformat(self._channels), self.num_channels))
 
@@ -502,6 +522,12 @@ class IceNetDataLoader(Generator):
         configuration = {
             "identifier":       self.identifier,
             "implementation":   self.__class__.__name__,
+            # This is only for convenience ;)
+            "channels":         [
+                "{}_{}".format(channel, i)
+                for channel, s in
+                self._channels.items()
+                for i in range(1, s + 1)],
             "counts":           counts,
             "dtype":            self._dtype.__name__,
             "loader_config":    self._configuration_path,
@@ -615,9 +641,12 @@ class IceNetDataSet(DataProducer):
                 test_fns = test_fns[:test_idx]
 
         train_ds, val_ds, test_ds = \
-            tf.data.TFRecordDataset(train_fns, num_parallel_reads=self.batch_size), \
-            tf.data.TFRecordDataset(val_fns, num_parallel_reads=self.batch_size), \
-            tf.data.TFRecordDataset(test_fns, num_parallel_reads=self.batch_size),
+            tf.data.TFRecordDataset(train_fns,
+                                    num_parallel_reads=self.batch_size), \
+            tf.data.TFRecordDataset(val_fns,
+                                    num_parallel_reads=self.batch_size), \
+            tf.data.TFRecordDataset(test_fns,
+                                    num_parallel_reads=self.batch_size),
 
         # TODO: Comparison/profiling runs
         # TODO: parallel for batch size while that's small
@@ -715,7 +744,7 @@ if __name__ == "__main__":
     print(y1.shape)
 
     other_dl = ds.get_data_loader()
-    x2, y2 = other_dl.generate_sample(dt.date(2020, 1, 1))
+    x2, y2, _ = other_dl.generate_sample(dt.date(2020, 1, 1))
     print(x2.shape)
     print(y2.shape)
 

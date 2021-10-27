@@ -6,7 +6,6 @@ import numpy as np
 import tensorflow as tf
 
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.keras.models import load_model
 
 import icenet2.model.losses as losses
 import icenet2.model.metrics as metrics
@@ -74,12 +73,12 @@ def train_model(
 
     prev_best = None
 
-    loss = losses.weighted_MSE_corrected
+    loss = losses.WeightedMSE
     metrics_list = [
         # metrics.weighted_MAE,
-        metrics.weighted_MAE_corrected,
-        metrics.weighted_RMSE_corrected,
-        losses.weighted_MSE_corrected
+        metrics.WeightedMAE,
+        metrics.WeightedRMSE,
+        losses.WeightedMSE
     ]
 
     callbacks_list = list()

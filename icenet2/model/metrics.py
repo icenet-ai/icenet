@@ -56,104 +56,136 @@ class ConstructLeadtimeAccuracy(tf.keras.metrics.CategoricalAccuracy):
         return cls(**config)
 
 
-@tf.function(input_signature=(
-    tf.TensorSpec(shape=[None, 432, 432, None, 2], dtype=tf.float32),
-    tf.TensorSpec(shape=[None, 432, 432, None, 1], dtype=tf.float32),
-))
-def weighted_MAE_corrected(y_true, y_pred):
-    ''' Custom keras loss/metric for root mean squared error
+class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
+    """ Custom keras loss/metric for binary accuracy in classifying
+    SIC > 15%
 
     Parameters:
     y_true (ndarray): Ground truth outputs
     y_pred (ndarray): Network predictions
+    sample_weight (ndarray): Pixelwise mask weighting for metric summation
 
     Returns:
     Root mean squared error of SIC (%) (float)
-    '''
+    """
 
-    sample_weight = y_true[:, :, :, :, 1:]
-    y_true = y_true[:, :, :, :, 0:1]
+    def __init__(self, leadtime_idx=None, **kwargs):
+        name = 'binacc'
 
-    abserr = 100*K.abs((y_true - y_pred))  # 432x432 abs errs in %
-    weighted_MAE = K.mean(abserr*sample_weight)
+        # Leadtime to compute metric over - leave as None to use all lead times
+        if leadtime_idx is not None:
+            name += str(leadtime_idx+1)
+        self.leadtime_idx = leadtime_idx
 
-    total_size = tf.size(sample_weight, out_type=tf.int32)
-    mask_size = tf.math.reduce_sum(tf.cast(sample_weight>0, tf.int32))
-    # correction = tf.cast(total_size / mask_size, tf.float32)
-    correction = total_size / mask_size
-    correction = tf.cast(correction, tf.float32)  # float64 by default
+        super().__init__(name=name, **kwargs)
 
-    corrected_MAE = weighted_MAE * correction
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        y_true = y_true > 0.15
+        y_pred = y_pred > 0.15
 
-    return corrected_MAE
+        if self.leadtime_idx is not None:
+            y_true = y_true[..., self.leadtime_idx]
+            y_pred = y_pred[..., self.leadtime_idx]
+            if sample_weight is not None:
+                sample_weight = sample_weight[..., self.leadtime_idx]
 
+        # TF automatically reduces along final dimension - include dummy axis
+        y_true = tf.expand_dims(y_true, axis=-1)
+        y_pred = tf.expand_dims(y_pred, axis=-1)
+        if sample_weight is not None:
+            sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
-@tf.function(input_signature=(
-    tf.TensorSpec(shape=[None, 432, 432, None, 2], dtype=tf.float32),
-    tf.TensorSpec(shape=[None, 432, 432, None, 1], dtype=tf.float32),
-))
-def weighted_RMSE_corrected(y_true, y_pred):
-    ''' Custom keras loss/metric for root mean squared error
+        return super().update_state(y_true, y_pred, sample_weight=sample_weight)
 
-    Parameters:
-    y_true (ndarray): Ground truth outputs
-    y_pred (ndarray): Network predictions
+    def result(self):
+        return 100 * super().result()
 
-    Returns:
-    Root mean squared error of SIC (%) (float)
-    '''
-
-    sample_weight = y_true[:, :, :, :, 1:]
-    y_true = y_true[:, :, :, :, 0:1]
-
-    err = 100*(y_true - y_pred)  # Convert to %
-    err_squared = K.square(err)
-
-    weighted_RMSE = K.sqrt(K.mean(err_squared*sample_weight))
-
-    total_size = tf.size(sample_weight, out_type=tf.int32)
-    mask_size = tf.math.reduce_sum(tf.cast(sample_weight>0, tf.int32))
-    correction = (total_size / mask_size) ** 0.5
-    correction = tf.cast(correction, tf.float32)  # float64 by default
-
-    corrected_RMSE = weighted_RMSE * correction
-
-    return corrected_RMSE
+    def get_config(self):
+        """ For saving and loading networks with this custom metric. """
+        return {
+            'leadtime_idx': self.leadtime_idx,
+        }
 
 
-def weighted_RMSE(y_true, y_pred):
-    ''' Custom keras loss/metric for root mean squared error
+class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
+    """ Custom keras loss/metric for mean absolute error
+    """
 
-    Parameters:
-    y_true (ndarray): Ground truth outputs
-    y_pred (ndarray): Network predictions
+    def __init__(self, name='mae', leadtime_idx=None, **kwargs):
+        # Leadtime to compute metric over - leave as None to use all lead times
+        if leadtime_idx is not None:
+            name += str(leadtime_idx+1)
+        self.leadtime_idx = leadtime_idx
 
-    Returns:
-    Root mean squared error of SIC (%) (float)
-    '''
+        super().__init__(name=name, **kwargs)
 
-    sample_weight = y_true[:, :, :, :, 1]
-    y_true = y_true[:, :, :, :, 0]
+    def update_state(self, y_true, y_pred, sample_weight=None):
 
-    err = 100*(y_true - y_pred)  # Convert to %
+        if self.leadtime_idx is not None:
+            y_true = y_true[..., self.leadtime_idx]
+            y_pred = y_pred[..., self.leadtime_idx]
+            if sample_weight is not None:
+                sample_weight = sample_weight[..., self.leadtime_idx]
 
-    return K.sqrt(K.mean(K.square(err)*sample_weight))
+        # TF automatically reduces along final dimension - include dummy axis
+        y_true = tf.expand_dims(y_true, axis=-1)
+        y_pred = tf.expand_dims(y_pred, axis=-1)
+
+        return super().update_state(100*y_true, 100*y_pred, sample_weight)
 
 
-def weighted_MAE(y_true, y_pred):
-    ''' Custom keras loss/metric for root mean squared error
+class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
+    """ Custom keras loss/metric for root mean squared error
+    """
 
-    Parameters:
-    y_true (ndarray): Ground truth outputs
-    y_pred (ndarray): Network predictions
+    def __init__(self, leadtime_idx=None, name='rmse', **kwargs):
+        # Leadtime to compute metric over - leave as None to use all lead times
+        if leadtime_idx is not None:
+            name += str(leadtime_idx+1)
+        self.leadtime_idx = leadtime_idx
 
-    Returns:
-    Root mean squared error of SIC (%) (float)
-    '''
+        super().__init__(name=name, **kwargs)
 
-    sample_weight = y_true[:, :, :, :, 1]
-    y_true = y_true[:, :, :, :, 0]
+    def update_state(self, y_true, y_pred, sample_weight=None):
 
-    err = 100*(y_true - y_pred)  # Convert to %
+        if self.leadtime_idx is not None:
+            y_true = y_true[..., self.leadtime_idx]
+            y_pred = y_pred[..., self.leadtime_idx]
+            if sample_weight is not None:
+                sample_weight = sample_weight[..., self.leadtime_idx]
 
-    return K.mean(K.abs(err)*sample_weight)
+        # TF automatically reduces along final dimension - include dummy axis
+        y_true = tf.expand_dims(y_true, axis=-1)
+        y_pred = tf.expand_dims(y_pred, axis=-1)
+
+        return super().update_state(100*y_true, 100*y_pred, sample_weight)
+
+
+class WeightedMSE(tf.keras.metrics.MeanSquaredError):
+    """ Custom keras loss/metric for mean squared error
+    """
+
+    def __init__(self, leadtime_idx=None, **kwargs):
+        name = 'mse'
+        # Leadtime to compute metric over - leave as None to use all lead times
+        if leadtime_idx is not None:
+            name += str(leadtime_idx+1)
+        self.leadtime_idx = leadtime_idx
+
+        super().__init__(name=name, **kwargs)
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+
+        if self.leadtime_idx is not None:
+            y_true = y_true[..., self.leadtime_idx]
+            y_pred = y_pred[..., self.leadtime_idx]
+            if sample_weight is not None:
+                sample_weight = sample_weight[..., self.leadtime_idx]
+
+        # TF automatically reduces along final dimension - include dummy axis
+        y_true = tf.expand_dims(y_true, axis=-1)
+        y_pred = tf.expand_dims(y_pred, axis=-1)
+        if sample_weight is not None:
+            sample_weight = tf.expand_dims(sample_weight, axis=-1)
+
+        return super().update_state(100*y_true, 100*y_pred, sample_weight)

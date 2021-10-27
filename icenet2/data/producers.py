@@ -161,6 +161,9 @@ class Processor(DataProducer):
                             additional_lag_dates.append(lag_date)
                 dates += list(set(additional_lag_dates))
 
+            # FIXME: this is conveniently supplied for siconca_abs on
+            #  training with OSISAF data, but are we exploiting the
+            #  convenient usage of this data for linear trends?
             if lead_days:
                 logging.info("Including lead of {} days".format(lead_days))
 
