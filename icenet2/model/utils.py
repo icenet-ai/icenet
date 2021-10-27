@@ -1,207 +1,34 @@
+import logging
 import os
-import sys
 import numpy as np
-import re
 import xarray as xr
-import pandas as pd
-from dateutil.relativedelta import relativedelta
-import iris
-import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 
-
-################## MISC FUNCTIONS
+################################################################################
+# LEARNING RATE
 ################################################################################
 
 
-def make_varname_verbose(varname, leadtime, fc_month_idx):
-
-    '''
-    Takes IceNet short variable name (e.g. siconca_abs_3) and converts it to a
-    long name for a given forecast calendar month and lead time (e.g.
-    'Feb SIC').
-
-    Inputs:
-    varname: Short variable name.
-    leadtime: Lead time of the forecast.
-    fc_month_index: Mod-12 calendar month index for the month being forecast
-        (e.g. 8 for September)
-
-    Returns:
-    verbose_varname: Long variable name.
-    '''
-
-    month_names = np.array(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
-
-    varname_regex = re.compile('^(.*)_(abs|anom|linear_trend)_([0-9]+)$')
-
-    var_lookup_table = {
-        'siconca': 'SIC',
-        'tas': '2m air temperature',
-        'ta500': '500 hPa air temperature',
-        'tos': 'sea surface temperature',
-        'rsds': 'downwelling solar radiation',
-        'rsus': 'upwelling solar radiation',
-        'psl': 'sea level pressure',
-        'zg500': '500 hPa geopotential height',
-        'zg250': '250 hPa geopotential height',
-        'ua10': '10 hPa zonal wind speed',
-        'uas': 'x-direction wind',
-        'vas': 'y-direction wind'
-    }
-
-    initialisation_month_idx = (fc_month_idx - leadtime) % 12
-
-    varname_match = varname_regex.match(varname)
-
-    field = varname_match[1]
-    data_format = varname_match[2]
-    lead_or_lag = int(varname_match[3])
-
-    verbose_varname = ''
-
-    month_suffix = ' '
-    month_prefix = ''
-    if data_format != 'linear_trend':
-        # Read back from initialisation month to get input lag month
-        lag = lead_or_lag  # In no of months
-        input_month_name = month_names[(initialisation_month_idx - lag + 1) % 12]
-
-        if (initialisation_month_idx - lag + 1) // 12 == -1:
-            # Previous calendar year
-            month_prefix = 'Previous '
-
-    elif data_format == 'linear_trend':
-        # Read forward from initialisation month to get linear trend forecast month
-        lead = lead_or_lag  # In no of months
-        input_month_name = month_names[(initialisation_month_idx + lead) % 12]
-
-        if (initialisation_month_idx + lead) // 12 == 1:
-            # Next calendar year
-            month_prefix = 'Next '
-
-    # Month the input corresponds to
-    verbose_varname += month_prefix + input_month_name + month_suffix
-
-    # verbose variable name
-    if data_format != 'linear_trend':
-        verbose_varname += var_lookup_table[field]
-        if data_format == 'anom':
-            verbose_varname += ' anomaly'
-    elif data_format == 'linear_trend':
-        verbose_varname += 'linear trend SIC forecast'
-
-    return verbose_varname
-
-
-def make_varname_verbose_any_leadtime(varname):
-
-    ''' As above, but agnostic to what the target month or lead time is. E.g.
-    "SIC (1)" for sea ice concentration at a lag of 1 month. '''
-
-    varname_regex = re.compile('^(.*)_(abs|anom|linear_trend)_([0-9]+)$')
-
-    var_lookup_table = {
-        'siconca': 'SIC',
-        'tas': '2m air temperature',
-        'ta500': '500 hPa air temperature',
-        'tos': 'sea surface temperature',
-        'rsds': 'downwelling solar radiation',
-        'rsus': 'upwelling solar radiation',
-        'psl': 'sea level pressure',
-        'zg500': '500 hPa geopotential height',
-        'zg250': '250 hPa geopotential height',
-        'ua10': '10 hPa zonal wind speed',
-        'uas': 'x-direction wind',
-        'vas': 'y-direction wind',
-        'land': 'land mask',
-        'cos(month)': 'cos(init month)',
-        'sin(month)': 'sin(init month)',
-    }
-
-    exception_vars = ['cos(month)', 'sin(month)', 'land']
-
-    if varname in exception_vars:
-        return var_lookup_table[varname]
-    else:
-        varname_match = varname_regex.match(varname)
-
-        field = varname_match[1]
-        data_format = varname_match[2]
-        lead_or_lag = int(varname_match[3])
-
-        # verbose variable name
-        if data_format != 'linear_trend':
-            verbose_varname = var_lookup_table[field]
-            if data_format == 'anom':
-                verbose_varname += ' anomaly'
-        elif data_format == 'linear_trend':
-            verbose_varname = 'Linear trend SIC forecast'
-
-        verbose_varname += ' ({:.0f})'.format(lead_or_lag)
-
-        return verbose_varname
-
-
-################################################################################
-################## FUNCTIONS
-################################################################################
-
-def fix_near_real_time_era5_func(latlon_path):
-
-    '''
-    Near-real-time ERA5 data is classed as a different dataset called 'ERA5T'.
-    This results in a spurious 'expver' dimension. This method detects
-    whether that dim is present and removes it, concatenating into one array
-    '''
-
-    ds = xr.open_dataarray(latlon_path)
-
-    if len(ds.data.shape) == 4:
-        print('Fixing spurious ERA5 "expver dimension for {}.'.format(latlon_path))
-
-        arr = xr.open_dataarray(latlon_path).data
-        arr = ds.data
-        # Expver 1 (ERA5)
-        era5_months = ~np.isnan(arr[:, 0, :, :]).all(axis=(1, 2))
-
-        # Expver 2 (ERA5T - near real time)
-        era5t_months = ~np.isnan(arr[:, 1, :, :]).all(axis=(1, 2))
-
-        ds = xr.concat((ds[era5_months, 0, :], ds[era5t_months, 1, :]), dim='time')
-
-        ds = ds.reset_coords('expver', drop=True)
-
-        os.remove(latlon_path)
-        ds.load().to_netcdf(latlon_path)
-
-
-###############################################################################
-############### LEARNING RATE SCHEDULER
-###############################################################################
-
-
-def make_exp_decay_lr_schedule(rate, start_epoch=1, end_epoch=np.inf, verbose=False):
-
-    ''' Returns an exponential learning rate function that multiplies by
-    exp(-rate) each epoch after `start_epoch`. '''
+def make_exp_decay_lr_schedule(rate, start_epoch=1, end_epoch=np.inf):
+    """ Returns an exponential learning rate function that multiplies by
+    exp(-rate) each epoch after `start_epoch`. """
 
     def lr_scheduler_exp_decay(epoch, lr):
-        ''' Learning rate scheduler for fine tuning.
-        Exponential decrease after start_epoch until end_epoch. '''
+        """ Learning rate scheduler for fine tuning.
+        Exponential decrease after start_epoch until end_epoch. """
 
-        if epoch >= start_epoch and epoch < end_epoch:
+        if start_epoch < epoch < end_epoch:
             lr = lr * np.math.exp(-rate)
 
-        if verbose:
-            print('\nSetting learning rate to: {}\n'.format(lr))
+        logging.info('\nSetting learning rate to: {}\n'.format(lr))
 
         return lr
 
     return lr_scheduler_exp_decay
 
+
 ###############################################################################
-############### PLOTTING
+# PLOTTING
 ###############################################################################
 
 

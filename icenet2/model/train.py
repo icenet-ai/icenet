@@ -5,10 +5,12 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.callbacks import \
+    EarlyStopping, ModelCheckpoint, LearningRateScheduler
 
 import icenet2.model.losses as losses
 import icenet2.model.metrics as metrics
+from icenet2.model.utils import make_exp_decay_lr_schedule
 
 from icenet2.data.loader import IceNetDataSet
 from icenet2.model.models import unet_batchnorm
@@ -21,11 +23,13 @@ def train_model(
         checkpoint_monitor='val_weighted_MAE_corrected',
         checkpoint_mode='min',
         dataset_class=IceNetDataSet,
-        dropout_rate=0.5,
         early_stopping_patience=35,
         epochs=2,
         filter_size=3,
-        learning_rate=5e-4,
+        learning_rate=1e-4,
+        lr_10e_decay_fac=1.0,
+        lr_decay_start=10,
+        lr_decay_end=30,
         n_filters_factor=2,
         network_folder=None,
         network_save=True,
@@ -33,7 +37,6 @@ def train_model(
         pre_load_path=None,
         seed=42,
         strategy=tf.distribute.get_strategy(),
-        weight_decay=0.,
         max_queue_size=3,
         workers=5,
         use_multiprocessing=True,
@@ -45,11 +48,10 @@ def train_model(
     np.random.default_rng(seed)
     tf.random.set_seed(seed)
 
-    ds = dataset_class(loader_config)
+    ds = dataset_class(loader_config, batch_size=batch_size)
 
     input_shape = (*ds.shape, ds.num_channels)
-    train_ds, val_ds, test_ds = ds.get_split_datasets(batch_size=batch_size,
-                                                      ratio=dataset_ratio)
+    train_ds, val_ds, test_ds = ds.get_split_datasets(ratio=dataset_ratio)
 
     if pre_load_network and not os.path.exists(pre_load_path):
         raise RuntimeError("{} is not available, so you cannot preload the "
@@ -102,6 +104,15 @@ def train_model(
             patience=early_stopping_patience,
             baseline=prev_best
         ))
+
+    lr_decay = -0.1 * np.log(lr_10e_decay_fac)
+    callbacks_list.append(
+        LearningRateScheduler(
+            make_exp_decay_lr_schedule(
+                rate=lr_decay,
+                start_epoch=lr_decay_start,
+                end_epoch=lr_decay_end,
+            )))
 
     if use_tensorboard:
         log_dir = "logs/" + dt.datetime.now().strftime("%d-%m-%y-%H%M%S")

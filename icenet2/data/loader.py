@@ -1,12 +1,9 @@
-import collections
-import copy
 import concurrent.futures
 import datetime as dt
 import glob
 import json
 import logging
 import os
-import sys
 
 from concurrent.futures import ProcessPoolExecutor
 from dateutil.relativedelta import relativedelta
@@ -16,7 +13,6 @@ from pprint import pformat
 # tf-data-vs-keras-utils-sequence-performance
 
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 from icenet2.data.sic.mask import Masks
