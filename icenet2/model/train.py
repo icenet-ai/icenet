@@ -75,12 +75,12 @@ def train_model(
 
     prev_best = None
 
-    loss = losses.WeightedMSE
+    loss = losses.WeightedMSE()
     metrics_list = [
         # metrics.weighted_MAE,
-        metrics.WeightedMAE,
-        metrics.WeightedRMSE,
-        losses.WeightedMSE
+        metrics.WeightedMAE(),
+        metrics.WeightedRMSE(),
+        losses.WeightedMSE()
     ]
 
     callbacks_list = list()
