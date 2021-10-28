@@ -1,6 +1,4 @@
-import collections
 import datetime as dt
-import json
 import logging
 import os
 
@@ -8,10 +6,7 @@ import icenet2.model.models as models
 
 from icenet2.data.loader import IceNetDataSet
 
-import numpy as np
 import tensorflow as tf
-
-from tensorflow.keras.models import load_model
 
 
 def predict_forecast(

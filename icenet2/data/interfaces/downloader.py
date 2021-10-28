@@ -1,9 +1,11 @@
+import concurrent
 import logging
 import os
 import re
 import tempfile
 
 from abc import abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from itertools import product
 
 from icenet2.data.sic.mask import Masks
@@ -20,20 +22,22 @@ import iris
 class ClimateDownloader(Downloader):
 
     def __init__(self, *args,
-                 var_names=(),
-                 pressure_levels=(),
                  dates=(),
                  delete_tempfiles=True,
+                 max_threads=1,
+                 pressure_levels=(),
+                 var_names=(),
                  **kwargs):
         super().__init__(*args, **kwargs)
 
         self._sic_ease_cubes = dict()
         self._files_downloaded = []
 
-        self._var_names = list(var_names)
-        self._pressure_levels = list(pressure_levels)
         self._dates = list(dates)
         self._masks = Masks(north=self.north, south=self.south)
+        self._max_threads = max_threads
+        self._pressure_levels = list(pressure_levels)
+        self._var_names = list(var_names)
 
         self._delete = delete_tempfiles
 
@@ -48,19 +52,34 @@ class ClimateDownloader(Downloader):
             raise RuntimeError("Don't include hemisphere string {} in "
                                "base path".format(self.hemisphere_str))
 
+    # TODO: add native subprocessing for parallelism
     def download(self):
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))
 
-        for idx, var_name in enumerate(self.var_names):
-            pressures = [None] if not self.pressure_levels[idx] else \
-                self._pressure_levels[idx]
+        with ThreadPoolExecutor(max_workers=self._max_threads) \
+                as executor:
+            futures = []
+            for idx, var_name in enumerate(self.var_names):
+                pressures = [None] if not self.pressure_levels[idx] else \
+                    self._pressure_levels[idx]
 
-            dates_per_request = self._get_dates_for_request()
+                dates_per_request = self._get_dates_for_request()
 
-            for var_prefix, pressure, req_date in \
-                    product([var_name], pressures, dates_per_request):
-                self._single_download(var_prefix, pressure, req_date)
+                for var_prefix, pressure, req_date in \
+                        product([var_name], pressures, dates_per_request):
+
+                    future = executor.submit(self._single_download,
+                                             var_prefix,
+                                             pressure,
+                                             req_date)
+                    futures.append(future)
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logging.error(e)
 
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
