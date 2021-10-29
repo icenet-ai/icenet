@@ -20,7 +20,7 @@ def train_model(
         run_name,
         loader_config,
         batch_size=4,
-        checkpoint_monitor='val_weighted_MAE_corrected',
+        checkpoint_monitor='val_mae',
         checkpoint_mode='min',
         dataset_class=IceNetDataSet,
         early_stopping_patience=35,
@@ -75,14 +75,6 @@ def train_model(
 
     prev_best = None
 
-    loss = losses.WeightedMSE()
-    metrics_list = [
-        # metrics.weighted_MAE,
-        metrics.WeightedMAE(),
-        metrics.WeightedRMSE(),
-        losses.WeightedMSE()
-    ]
-
     callbacks_list = list()
 
     # Checkpoint the model weights when a validation metric is improved
@@ -124,6 +116,14 @@ def train_model(
     ############################################################################
 
     with strategy.scope():
+        loss = losses.WeightedMSE()
+        metrics_list = [
+            # metrics.weighted_MAE,
+            metrics.WeightedMAE(),
+            metrics.WeightedRMSE(),
+            losses.WeightedMSE()
+        ]
+
         network = unet_batchnorm(
             input_shape=input_shape,
             loss=loss,

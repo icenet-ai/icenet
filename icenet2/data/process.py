@@ -3,6 +3,7 @@ import json
 import logging
 import os
 
+import dask
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -164,49 +165,50 @@ class IceNetPreProcessor(Processor):
             json.dump(configuration, fh, indent=4, default=_serialize)
 
     def _save_variable(self, var_name):
-        da = self._open_dataarray_from_files(var_name)
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            da = self._open_dataarray_from_files(var_name)
 
-        # FIXME: we should ideally store train dates against the
-        #  normalisation and climatology, to ensure recalculation on
-        #  reprocess. All this need be is in the path, to be honest
+            # FIXME: we should ideally store train dates against the
+            #  normalisation and climatology, to ensure recalculation on
+            #  reprocess. All this need be is in the path, to be honest
 
-        if var_name in self._anom_vars:
-            clim_path = os.path.join(self.get_data_var_folder("params"),
-                                     "climatology.{}".format(var_name))
+            if var_name in self._anom_vars:
+                clim_path = os.path.join(self.get_data_var_folder("params"),
+                                         "climatology.{}".format(var_name))
 
-            if not os.path.exists(clim_path):
-                if self._dates.train:
-                    climatology = da.sel(time=self._dates.train).\
-                        groupby('time.month', restore_coord_dims=True).\
-                        mean()
+                if not os.path.exists(clim_path):
+                    if self._dates.train:
+                        climatology = da.sel(time=self._dates.train).\
+                            groupby('time.month', restore_coord_dims=True).\
+                            mean()
 
-                    climatology.to_netcdf(clim_path)
+                        climatology.to_netcdf(clim_path)
+                    else:
+                        raise RuntimeError("{} does not exist and no training "
+                                           "data is supplied".format(clim_path))
                 else:
-                    raise RuntimeError("{} does not exist and no training "
-                                       "data is supplied".format(clim_path))
+                    climatology = xr.open_dataarray(clim_path)
+
+                da = da.groupby("time.month") - climatology
+
+            da.data = np.asarray(da.data, dtype=self._dtype)
+
+            da = self.pre_normalisation(var_name, da)
+
+            if var_name in self._linear_trends:
+                da = self._build_linear_trend_da(da)
+
+            if var_name in self._no_normalise:
+                logging.info("No normalisation for {}".format(var_name))
             else:
-                climatology = xr.open_dataarray(clim_path)
+                logging.info("Normalising {}".format(var_name))
+                da = self._normalise(var_name, da)
 
-            da = da.groupby("time.month") - climatology
+            da.data[np.isnan(da.data)] = 0.
 
-        da.data = np.asarray(da.data, dtype=self._dtype)
+            da = self.post_normalisation(var_name, da)
 
-        da = self.pre_normalisation(var_name, da)
-
-        if var_name in self._linear_trends:
-            da = self._build_linear_trend_da(da)
-
-        if var_name in self._no_normalise:
-            logging.info("No normalisation for {}".format(var_name))
-        else:
-            logging.info("Normalising {}".format(var_name))
-            da = self._normalise(var_name, da)
-
-        da.data[np.isnan(da.data)] = 0.
-
-        da = self.post_normalisation(var_name, da)
-
-        self._save_output(da, var_name)
+            self._save_output(da, var_name)
 
     def _save_output(self, da, var_name):
 
@@ -394,17 +396,20 @@ class IceNetPreProcessor(Processor):
                              for date in input_da.time.values])
 
         # the old method doesn't work with non-contiguous forecast ranges
-        trend_dates = pd.date_range(
-            data_dates[0],
-            data_dates[-1] + pd.DateOffset(days=self._linear_trend_days))
+        trend_dates = set()
 
-        # TODO: check, as this was dropping the first trend num of days by
-        #  doing trend_dates[self._linear_trend_days:]
-#        trend_dates = list(set(sorted([pd.to_datetime(el) for el
-#                                       in trend_dates])))
+        for dt in data_dates:
+            trend_dates = trend_dates.union([dt + pd.DateOffset(days=d)
+              for d in range(self._linear_trend_days)])
+
+        trend_dates = list(sorted(trend_dates))
+        logging.info("Generated {} trend dates".format(len(trend_dates)))
 
         linear_trend_da = \
-            xr.broadcast(input_da, xr.DataArray(trend_dates, dims="time"))[0]
+            xr.broadcast(input_da, xr.DataArray(pd.date_range(
+            data_dates[0],
+            data_dates[-1] + pd.DateOffset(days=self._linear_trend_days)),
+                dims="time"))[0]
         linear_trend_da = linear_trend_da.sel(time=trend_dates)
 
         land_mask = Masks(north=self.north, south=self.south).get_land_mask()

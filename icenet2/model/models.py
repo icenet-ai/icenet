@@ -129,7 +129,7 @@ def unet_batchnorm(input_shape, loss, metrics,
     # Keras graph mode needs y_pred and y_true to have the same shape, so we
     #   we must pad an extra dimension onto the model output to train with
     #   an extra sample weight dimension in y_true.
-    final_layer = tf.expand_dims(final_layer, axis=-1)
+    # final_layer = tf.expand_dims(final_layer, axis=-1)
 
     model = Model(inputs, final_layer)
 

@@ -150,7 +150,7 @@ def get_decoder(shape, channels, forecasts, num_vars=1, dtype="float32"):
         }
 
         item = tf.io.parse_example(proto, features)
-        return item['x'], item['y']
+        return item['x'], item['y'], item['sample_weights']
 
     return decode_item
 
@@ -654,12 +654,12 @@ class IceNetDataSet(DataProducer):
                               dtype=self._dtype.__name__)
 
         train_ds = train_ds.\
-                shuffle(len(train_fns), reshuffle_each_iteration=True).\
+                shuffle(int(min(len(train_fns) / 4, 100)),
+                        reshuffle_each_iteration=True).\
                 map(decoder, num_parallel_calls=self.batch_size).\
                 batch(self.batch_size)
 
         val_ds = val_ds.\
-            shuffle(len(train_fns)).\
             map(decoder, num_parallel_calls=self.batch_size).\
             batch(self.batch_size)
 
@@ -691,6 +691,10 @@ class IceNetDataSet(DataProducer):
     @property
     def batch_size(self):
         return self._batch_size
+
+    @property
+    def channels(self):
+        return self._config['channels']
 
     @property
     def counts(self):
