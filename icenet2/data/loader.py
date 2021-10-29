@@ -1,3 +1,4 @@
+import argparse
 import concurrent.futures
 import datetime as dt
 import glob
@@ -729,22 +730,38 @@ class IceNetDataSet(DataProducer):
         return self._shape
 
 
-if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.DEBUG)
-    dl = IceNetDataLoader("loader.test1.json",
-                          "test_forecast",
-                          7,
-                          north=True)
+def get_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("name", type=str)
+    ap.add_argument("hemisphere", choices=("north", "south"))
+
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+
+    ap.add_argument("-l", "--lag", type=int, default=2)
+
+    ap.add_argument("-fn", "--forecast-name", dest="forecast_name",
+                    default=None, type=str)
+    ap.add_argument("-fd", "--forecast-days", dest="forecast_days",
+                    default=93, type=int)
+
+    ap.add_argument("-ob", "--output-batch-size", dest="batch_size", type=int,
+                    default=8)
+    ap.add_argument("-w", "--workers", help="Number of workers to use "
+                                            "generating sets",
+                    type=int, default=8)
+
+    return ap.parse_args()
+
+
+def main():
+    args = get_args()
+    dl = IceNetDataLoader("loader.{}.json".format(args.name),
+                          args.forecast_name
+                          if args.forecast_name else args.name,
+                          args.lag,
+                          n_forecast_days=args.forecast_days,
+                          north=args.hemisphere == "north",
+                          south=args.hemisphere == "south",
+                          output_batch_size=args.batch_size,
+                          generate_workers=args.workers)
     dl.generate()
-
-    ds = IceNetDataSet(os.path.join(".", "dataset_config.test_forecast.json"))
-    _, _, test = ds.get_split_datasets()
-    x1, y1 = list(test.as_numpy_iterator())[0]
-    print(x1.shape)
-    print(y1.shape)
-
-    other_dl = ds.get_data_loader()
-    x2, y2, _ = other_dl.generate_sample(dt.date(2020, 1, 1))
-    print(x2.shape)
-    print(y2.shape)
-

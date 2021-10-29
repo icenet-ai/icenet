@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from icenet2.data.cli import process_args
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.sic.mask import Masks
 
@@ -77,3 +78,11 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
         for var_name in ["sin", "cos"]:
             if var_name not in self._meta_vars:
                 self._meta_vars.append(var_name)
+
+
+def main():
+    args = process_args()
+
+    IceNetMetaPreProcessor(
+        args.name,
+    ).process()

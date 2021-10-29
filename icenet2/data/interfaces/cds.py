@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
 
 
@@ -212,3 +213,23 @@ class ERA5Downloader(ClimateDownloader):
             # Convert from geopotential to geopotential height
             cube_ease /= 9.80665
 
+
+def main():
+    args = download_args()
+
+    logging.info("ERA5 Data Downloading")
+    era5 = ERA5Downloader(
+        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds", "rsds",
+                   "uas", "vas"],
+        pressure_levels=[None, [500], None, None, [250, 500], [1000], None,
+                         None, None, None],
+        dates=[pd.to_datetime(date).date() for date in
+               pd.date_range(args.start_date, args.end_date,
+                             freq="D")],
+        max_threads=4,
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
+    )
+    era5.download()
+    era5.regrid()
+    era5.rotate_wind_data()

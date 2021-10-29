@@ -9,6 +9,7 @@ import shutil
 import numpy as np
 import xarray as xr
 
+from icenet2.data.cli import download_args
 from icenet2.data.producers import Generator
 from icenet2.utils import Hemisphere, run_command
 
@@ -200,9 +201,11 @@ class Masks(Generator):
         return np.full(self._shape, False)
 
 
-if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.DEBUG)
-    sh = Masks(north=False, south=True)
-    sh.generate(save_polarhole_masks=True)
-    nh = Masks(north=True, south=False)
-    nh.generate(save_polarhole_masks=True)
+def main():
+    args = download_args(dates=False)
+
+    north = args.hemisphere == "north"
+    south = args.hemisphere == "south"
+
+    Masks(north=north, south=south).\
+        generate(save_polarhole_masks=north)

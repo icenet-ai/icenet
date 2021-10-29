@@ -9,6 +9,7 @@ import ecmwfapi
 import pandas as pd
 import xarray as xr
 
+from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
 
 
@@ -181,17 +182,20 @@ retrieve,
         pass
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    logging.info("ERA5 Data Downloading")
+def main():
+    args = download_args()
+
+    logging.info("ERA5 HRES Data Downloading")
     hres = HRESDownloader(
         var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
                    "rsds", "uas", "vas", "siconca"],
         pressure_levels=[None, [500], None, None, [250, 500], [1000],
                          None, None, None, None, None],
-        dates=pd.date_range(dt.date(2021, 1, 1), dt.date(2021, 1, 3)),
-        north=True,
-        south=False
+        dates=[pd.to_datetime(date).date() for date in
+               pd.date_range(args.start_date, args.end_date,
+                             freq="D")],
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
     )
     hres.download()
     hres.regrid()

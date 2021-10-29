@@ -1,11 +1,14 @@
+import argparse
 import datetime as dt
 import logging
 import os
+import re
 
 import icenet2.model.models as models
 
 from icenet2.data.loader import IceNetDataSet
 
+import numpy as np
 import tensorflow as tf
 
 
@@ -98,27 +101,74 @@ def predict_forecast(
     return predictions, gen_outputs
 
 
-# TODO: better method via click via single 'icenet' entry point
-def cli():
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("input_path")
-    parser.add_argument("output_path")
-    parser.add_argument("data_configuration")
-    parser.add_argument("-n", "--network_path", default=None)
-    # TODO: mechanism for dynamic lookup via importlib
-    parser.add_argument("-m", "--model_func", default=models.unet_batchnorm)
-    parser.add_argument("-s", "--seed", default=42, type=int)
-    parser.add_argument("-f", "--n_forecast_days", default=93, type=int)
-    # TODO: mechanism
-    parser.add_argument("-d", "--start_dates", default=tuple([dt.datetime.now()
-                                                             .date()]))
-    args = parser.parse_args()
-
-    logging.info("Prediction")
-    predict_forecast(**vars(args))
+def date_arg(string):
+    date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
+    return dt.date(*[int(s) for s in date_match.groups()])
 
 
-if __name__ == "__main__":
-    cli()
+def get_args():
+    # -b 1 -e 1 -w 1 -n 0.125
+    ap = argparse.ArgumentParser()
+    ap.add_argument("dataset", type=str)
+    ap.add_argument("network_name", type=str)
+    ap.add_argument("output_name", type=str)
+    ap.add_argument("seed", type=int, default=42)
+    ap.add_argument("datefile", type=argparse.FileType("r"))
+
+    ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
+    ap.add_argument("-o", "--skip-outputs", default=False, action="store_true")
+    ap.add_argument("-t", "--testset", default=False, action="store_true")
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+
+    return ap.parse_args()
+
+
+def main():
+    args = get_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+
+    dataset_config = \
+        os.path.join(".", "dataset_config.{}.json".format(args.dataset))
+
+    date_content = args.datefile.read()
+    dates = [dt.date(*[int(v) for v in s.split("-")])
+             for s in date_content.split()]
+    args.datefile.close()
+
+    output_dir = os.path.join(".", "results", "predict",
+                              args.output_name,
+                              "{}.{}".format(args.network_name, args.seed))
+
+    forecasts, gen_outputs = predict_forecast(dataset_config,
+                                              args.network_name,
+                                              dataset_name=args.dataset,
+                                              n_filters_factor=
+                                              args.n_filters_factor,
+                                              seed=args.seed,
+                                              start_dates=dates,
+                                              testset=args.testset)
+
+    if os.path.exists(output_dir):
+        raise RuntimeError("{} output already exists".format(output_dir))
+    os.makedirs(output_dir)
+
+    for date, forecast in zip(dates, forecasts):
+        output_path = os.path.join(output_dir, date.strftime("%Y_%m_%d.npy"))
+
+        logging.info("Saving {} - forecast output {}".
+                     format(date, forecast.shape))
+        np.save(output_path, forecast)
+
+    if not args.skip_outputs:
+        logging.info("Saving outputs generated for these inputs as well...")
+        gen_dir = os.path.join(output_dir, "gen_outputs")
+        os.makedirs(gen_dir)
+
+        for date, output in zip(dates, gen_outputs):
+            output_path = os.path.join(gen_dir, date.strftime("%Y_%m_%d.npy"))
+
+            logging.info("Saving {} - generated output {}".
+                         format(date, output.shape))
+            np.save(output_path, output)
+

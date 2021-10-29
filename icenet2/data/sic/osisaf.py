@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from icenet2.data.cli import download_args
 from icenet2.data.producers import Downloader
 from icenet2.data.sic.mask import Masks
 from icenet2.utils import Hemisphere
@@ -299,12 +300,15 @@ class SICDownloader(Downloader):
         return da
 
 
-if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.DEBUG)
+def main():
+    args = download_args()
+
+    logging.info("OSASIF-SIC Data Downloading")
     sic = SICDownloader(
-        dates=list([
-            pd.to_datetime(date).date() for date in
-            pd.date_range("1988-12-31", "1989-01-06", freq="D")
-        ])
+        dates=[pd.to_datetime(date).date() for date in
+               pd.date_range(args.start_date, args.end_date,
+                             freq="D")],
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
     )
     sic.download()

@@ -1,3 +1,4 @@
+import argparse
 import datetime as dt
 import logging
 import os
@@ -157,4 +158,88 @@ def train_model(
         network.save_weights(network_path)
 
     return network_path, model_history
+
+
+def get_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("dataset", type=str)
+    ap.add_argument("run_name", type=str)
+    ap.add_argument("seed", type=int)
+
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+
+    ap.add_argument("-b", "--batch-size", type=int, default=4)
+    ap.add_argument("-e", "--epochs", type=int, default=4)
+    ap.add_argument("-m", "--multiprocessing", action="store_true",
+                    default=False)
+    ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
+    ap.add_argument("-p", "--preload", type=str)
+    ap.add_argument("-qs", "--max-queue-size", default=10, type=int)
+    ap.add_argument("-r", "--ratio", default=None, type=float)
+    ap.add_argument("-s", "--strategy", default="default",
+                    choices=("default", "mirrored", "central"))
+    ap.add_argument("--gpus", default=None)
+    ap.add_argument("-w", "--workers", type=int, default=4)
+
+    ap.add_argument("--lr", default=1e-4, type=float)
+    ap.add_argument("--lr_10e_decay_fac", default=1.0, type=float,
+                    help="Factor by which LR is multiplied by every 10 epochs "
+                         "using exponential decay. E.g. 1 -> no decay (default)"
+                         ", 0.5 -> halve every 10 epochs.")
+    ap.add_argument('--lr_decay_start', default=10, type=int)
+    ap.add_argument('--lr_decay_end', default=30, type=int)
+
+    return ap.parse_args()
+
+
+def main():
+    args = get_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+
+    dataset_config = \
+        os.path.join(".", "dataset_config.{}.json".format(args.dataset))
+
+    strategy = tf.distribute.MirroredStrategy() \
+        if args.strategy == "mirrored" \
+        else tf.distribute.experimental.CentralStorageStrategy() \
+        if args.strategy == "central" \
+        else tf.distribute.get_strategy()
+
+    trained_path, history = \
+        train_model(args.run_name,
+                    dataset_config,
+                    batch_size=args.batch_size,
+                    dataset_ratio=args.ratio,
+                    epochs=args.epochs,
+                    learning_rate=args.lr,
+                    lr_10e_decay_fac=args.lr_10e_decay_fac,
+                    lr_decay_start=args.lr_decay_start,
+                    lr_decay_end=args.lr_decay_end,
+                    pre_load_network=args.preload is not None,
+                    pre_load_path=args.preload,
+                    max_queue_size=args.max_queue_size,
+                    n_filters_factor=args.n_filters_factor,
+                    seed=args.seed,
+                    strategy=strategy,
+                    use_multiprocessing=args.multiprocessing,
+                    workers=args.workers, )
+
+    #    fig, ax = plt.subplots()
+    #    ax.plot(history.history['val_loss'], label='val')
+    #    ax.plot(history.history['loss'], label='train')
+    #    ax.legend(loc='best')
+    #    plot_path = os.path.join(os.path.dirname(trained_path),
+    #                             'network_{}_history.png'.
+    #                             format(args.seed))
+    #    logging.info("Saving plot to: {}".format(plot_path))
+    #    plt.savefig(plot_path)
+
+    history_path = os.path.join(os.path.dirname(trained_path),
+                                "{}_{}_history.pkl".
+                                format(args.run_name, args.seed))
+    with open(history_path, 'wb') as fh:
+        pickle.dump(history.history, fh)
+
+    # TODO: we don't run through the test dates...
 

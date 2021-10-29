@@ -81,7 +81,7 @@ def reprocess_monthlies(source, hemisphere, identifier, output_base,
                     daily.to_netcdf(output_path)
 
 
-if __name__ == "__main__":
+def reprocess_main():
     logging.getLogger().setLevel(logging.DEBUG)
     logging.info("Temporary solution for reprocessing monthly files")
 

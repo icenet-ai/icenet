@@ -1,11 +1,15 @@
+import concurrent.futures
 import logging
 import os
 import re
+
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import xarray as xr
 
 from icenet2.data.interfaces.downloader import ClimateDownloader
+from icenet2.data.cli import download_args
 from icenet2.data.utils import esgf_search
 
 
@@ -164,3 +168,68 @@ class CMIP6Downloader(ClimateDownloader):
             logging.info("Regrid processing, data type not float: {}".
                          format(cube_ease.data.dtype))
             cube_ease.data = cube_ease.data.astype(np.float32)
+
+
+def main():
+    args = download_args()
+
+    logging.info("CMIP6 Data Downloading")
+    # TODO: move into arguments
+    cmip_sources = (
+        ("MRI-ESM2-0", "r1i1p1f1", None),
+        ("MRI-ESM2-0", "r2i1p1f1", None),
+        ("MRI-ESM2-0", "r3i1p1f1", None),
+        ("MRI-ESM2-0", "r4i1p1f1", None),
+        ("MRI-ESM2-0", "r5i1p1f1", None),
+        ("EC-Earth3", "r2i1p1f1", "gr"),
+        ("EC-Earth3", "r7i1p1f1", "gr"),
+        ("EC-Earth3", "r10i1p1f1", "gr"),
+        ("EC-Earth3", "r12i1p1f1", "gr"),
+        ("EC-Earth3", "r14i1p1f1", "gr"),
+    )
+
+    def cmip_retrieve(source, member, override):
+        downloader = CMIP6Downloader(
+            source=source,
+            member=member,
+            var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
+                       "rsds",
+                       "uas", "vas", "siconca"],
+            pressure_levels=[None, [500], None, None, [250, 500], [1000],
+                             None, None, None, None, None],
+            dates=[None],
+            grid_override=override,
+            north=args.hemisphere == "north",
+            south=args.hemisphere == "south"
+        )
+        logging.info("CMIP downloading: {} {} {}".format(source,
+                                                         member,
+                                                         override))
+        downloader.download()
+        logging.info("CMIP regridding: {} {} {}".format(source,
+                                                        member,
+                                                        override))
+        downloader.regrid()
+        logging.info("CMIP rotating: {} {} {}".format(source,
+                                                      member,
+                                                      override))
+        downloader.rotate_wind_data()
+        return "CMIP done: {} {} {}".format(source, member, override)
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = []
+
+        for source_arg, member_arg, override_arg in cmip_sources:
+            future = executor.submit(cmip_retrieve,
+                                     source_arg,
+                                     member_arg,
+                                     override_arg)
+            futures.append(future)
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                msg = future.result()
+            except Exception as e:
+                logging.error(e)
+            else:
+                logging.info(msg)

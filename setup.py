@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="icenet2",
-    version="0.0.1a0",
+    version="0.0.1a1",
     author="Tom Andersson/James Byrne",
     author_email="jambyr@bas.ac.uk",
     description="",
@@ -30,43 +30,29 @@ setup(
     entry_points={
         # TODO: refactor to single entry point using click
         "console_scripts": [
-            # 1. Pipeline used for provisioning
-            # 2. Data retrieval
-            # "gen_masks=icenet2.data.masks:generate",
+            "icenet_data_masks = icenet2.data.sic.mask:main",
 
-            # "download_sic_data=icenet2.data.sic:download",
+            "icenet_data_cmip = icenet2.data.interfaces.esgf:main",
+            "icenet_data_era5 = icenet2.data.interfaces.cds:main",
+            "icenet_data_hres = icenet2.data.interfaces.mars:main",
+            "icenet_data_sic = icenet2.data.interfaces.osisaf:main",
 
-            # TODO: reflect to appropriate module?
-            # TODO: not required for dailies? commented out for the mo
-            # "download_era5=icenet2.data.climate.era5:cli",
-            # "regrid_era5=icenet2.data.climate.era5:regrid_data",
-            # "regrid_era5_wind=icenet2.data.climate.era5:regrid_wind_data",
-            # "rotate_era5_wind=icenet2.data.climate.era5:rotate_wind_data",
+            "icenet_data_reproc_monthly = "
+            "icenet2.data.interfaces.utils:reprocess_main",
 
-            # "download_cmip6=icenet2.data.climate.cmip6:download",
-            # "regrid_cmip6=icenet2.data.climate.cmip6:regrid_data",
-            # "regrid_cmip6_wind=icenet2.data.climate.cmip6:regrid_wind_data",
-            # "rotate_cmip6_wind=icenet2.data.climate.cmip6:rotate_wind_data",
+            "icenet_process_cmip = icenet2.data.processors.cmip:main",
+            "icenet_process_era5 = icenet2.data.processors.era5:main",
+            "icenet_process_hres = icenet2.data.processors.hres:main",
+            "icenet_process_sic = icenet2.data.processors.osi:main",
 
-            # "download_seas5=icenet2.data.sic.seas5:download",
-            # "regrid_seas5=icenet2.data.sic.seas5:regrid_data",
-            # "bias_correct_seas5=icenet2.data.sic.seas5:bias_correct",
+            "icenet_process_metadata = icenet2.data.processors.meta:main",
 
-            # 3. Process data loader / configuration
-            # - get_configuration can use module instantiated caching to
-            #   generate the configuration used for the dataloader
-            "configure_icenet=icenet2.data.loader:cli",
-            # - the data loader, be it tfrecord or numpy based
-            "preprocess_icenet=icenet2.data.loader:cli",
+            "icenet_dataset_create = icenet2.data.loader:main",
 
-            # 4 and 5. Use the model
-            # TODO: discussion around use of wandb, avoiding this dependency
-            "train_icenet=icenet2.model.train:cli",
-            "predict_icenet=icenet2.model.predict:cli",
+            "icenet_train = icenet2.model.train:main",
+            "icenet_predict = icenet2.model.predict:main",
 
-            # 6. Miscellaneous tools
-            # TODO: plotting/analysis tools will be included here
-            # "analyse_uncertainty=icenet.results.data.analyse_uncertainty",
+            "icenet_plot_set = icenet2.plotting.data:plot_set"
         ],
     },
     python_requires='>=3.6, <4',
