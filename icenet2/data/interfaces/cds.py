@@ -12,6 +12,10 @@ chunks.
 
 A command line input dictates which variable is downloaded and allows this
 script to be run in parallel for different variables.
+
+TODO: https://datastore.copernicus-climate.eu/documents/app-c3s-daily-era5-statistics/C3S_Application-Documentation_ERA5-daily-statistics-v2.pdf
+- using this application we can download precalculated means for the daily data
+  which will save a LOT of time
 """
 
 import collections
@@ -89,10 +93,10 @@ class ERA5Downloader(ClimateDownloader):
                                                    destination_date.
                                                    strftime("%Y_%m_%d"))
 
-            if not os.path.exists(daily_path):
+            if not os.path.exists(daily_path) \
+                    and not os.path.exists(regridded_name):
                 downloads.append(destination_date)
-
-            if not os.path.exists(regridded_name):
+            elif not os.path.exists(regridded_name):
                 self._files_downloaded.append(daily_path)
 
         if len(downloads) > 0:

@@ -13,7 +13,7 @@ import icenet2.model.losses as losses
 import icenet2.model.metrics as metrics
 from icenet2.model.utils import make_exp_decay_lr_schedule
 
-from icenet2.data.loader import IceNetDataSet
+from icenet2.data.dataset import IceNetDataSet
 from icenet2.model.models import unet_batchnorm
 
 

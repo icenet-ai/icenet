@@ -166,7 +166,8 @@ class ClimateDownloader(Downloader):
         pass
 
     def rotate_wind_data(self,
-                         apply_to=("uas", "vas")):
+                         apply_to=("uas", "vas"),
+                         manual_files=None):
         assert len(apply_to) == 2, "Too many wind variables supplied: {}, " \
                                    "there should only be two.".\
             format(", ".join(apply_to))
@@ -182,7 +183,11 @@ class ClimateDownloader(Downloader):
         for var in apply_to:
             source = self.get_data_var_folder(var)
 
-            latlon_files = [df for df in self._files_downloaded if source in df]
+            # python data.py south 1990-01-01 1999-12-31 -e -o 2>&1 | tee data.2.log
+            file_source = self._files_downloaded \
+                if not manual_files else manual_files
+
+            latlon_files = sorted([df for df in file_source if source in df])
             wind_files[var] = [re.sub(r'latlon_', '', df)
                                for df in latlon_files]
 

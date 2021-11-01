@@ -6,7 +6,7 @@ import re
 
 import icenet2.model.models as models
 
-from icenet2.data.loader import IceNetDataSet
+from icenet2.data.dataset import IceNetDataSet
 
 import numpy as np
 import tensorflow as tf
