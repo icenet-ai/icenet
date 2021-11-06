@@ -222,7 +222,7 @@ class SICDownloader(Downloader):
         logging.debug("Files being processed: {}".format(data_files))
 
         if len(data_files):
-            ds = xr.open_mfdataset(data_files, engine="netcdf4")
+            ds = xr.open_mfdataset(data_files, engine="netcdf4", parallel=True)
 
             ds = ds.drop_vars(var_remove_list)
             dts = [pd.to_datetime(date).date() for date in ds.time.values]
@@ -247,6 +247,7 @@ class SICDownloader(Downloader):
                     #  preproc Set outside mask to zero
                     day_da.data[0][~mask] = 0.
 
+                    logging.info("Writing {}".format(fpath))
                     day_da.to_netcdf(fpath)
 
         if self._delete_temp:

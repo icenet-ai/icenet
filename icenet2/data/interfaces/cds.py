@@ -324,7 +324,7 @@ class ERA5Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args()
+    args = download_args(workers=True)
 
     logging.info("ERA5 Data Downloading")
     era5 = ERA5Downloader(
@@ -335,26 +335,9 @@ def main():
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date,
                              freq="D")],
-        max_threads=4,
+        max_threads=args.workers,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south"
-    )
-    era5.download()
-    era5.regrid()
-    era5.rotate_wind_data()
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    era5 = ERA5Downloader(
-        var_names=["uas", "vas"],
-        pressure_levels=[None, None],
-        dates=[pd.to_datetime(date).date() for date in
-               pd.date_range("2019-1-1", "2019-1-2",
-                             freq="D")],
-        max_threads=4,
-        north=False,
-        south=True,
     )
     era5.download()
     era5.regrid()
