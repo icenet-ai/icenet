@@ -157,6 +157,7 @@ retrieve,
                     self._files_downloaded.append(daily_path)
                 else:
                     logging.info("{} already exists".format(regridded_name))
+            os.unlink(tmpfile)
 
     def download(self):
         logging.info("Building request(s), downloading and daily averaging "
