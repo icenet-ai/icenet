@@ -200,3 +200,7 @@ def main():
     hres.download()
     hres.regrid()
     hres.rotate_wind_data()
+
+
+if __name__ == "__main__":
+    main()

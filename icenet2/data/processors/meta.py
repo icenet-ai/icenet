@@ -81,7 +81,7 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
 
 
 def main():
-    args = process_args()
+    args = process_args(dates=False, laglead=False)
 
     IceNetMetaPreProcessor(
         args.name,

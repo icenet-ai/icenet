@@ -1,4 +1,5 @@
 import concurrent
+import datetime as dt
 import logging
 import os
 import re
@@ -183,23 +184,41 @@ class ClimateDownloader(Downloader):
         for var in apply_to:
             source = self.get_data_var_folder(var)
 
-            # python data.py south 1990-01-01 1999-12-31 -e -o 2>&1 | tee data.2.log
             file_source = self._files_downloaded \
                 if not manual_files else manual_files
 
-            latlon_files = sorted([df for df in file_source if source in df])
-            wind_files[var] = [re.sub(r'latlon_', '', df)
-                               for df in latlon_files]
+            latlon_files = [df for df in file_source if source in df]
+            wind_files[var] = sorted([
+                re.sub(r'latlon_', '', df) for df in latlon_files
+                if re.sub(r'^latlon_', '',
+                          os.path.basename(df)).startswith(var)],
+                key=lambda x: dt.date(*[int(el) for el in
+                                        re.search(r'^\w+_(\d+)_(\d+)_(\d+).nc',
+                                      os.path.basename(x)).groups()])
+            )
 
         # NOTE: we're relying on apply_to having equal datasets
         assert len(wind_files[apply_to[0]]) == len(wind_files[apply_to[1]]), \
             "The wind file datasets are unequal in length"
 
-        # a nicer manner of doing this, no doubt
+        # validation
+        for idx, wind_file_0 in enumerate(wind_files[apply_to[0]]):
+            wind_file_1 = wind_files[apply_to[1]][idx]
+
+            wd0 = re.sub(r'^{}_'.format(apply_to[0]), '',
+                         os.path.basename(wind_file_0))
+
+            if not wind_file_1.endswith(wd0):
+                logging.error("Wind file array is not valid:".format(
+                    zip(wind_files)))
+                raise RuntimeError("{} is not at the end of {}, something is "
+                                   "wrong".format(wd0, wind_file_1))
+
         for idx, wind_file_0 in enumerate(wind_files[apply_to[0]]):
             wind_file_1 = wind_files[apply_to[1]][idx]
 
             logging.info("Rotating {} and {}".format(wind_file_0, wind_file_1))
+
             wind_cubes = dict()
             wind_cubes_r = dict()
 

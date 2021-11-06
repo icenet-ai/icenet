@@ -14,6 +14,7 @@ A command line input dictates which variable is downloaded and allows this
 script to be run in parallel for different variables.
 
 TODO: https://datastore.copernicus-climate.eu/documents/app-c3s-daily-era5-statistics/C3S_Application-Documentation_ERA5-daily-statistics-v2.pdf
+ https://confluence.ecmwf.int/pages/viewpage.action?pageId=228867588
 - using this application we can download precalculated means for the daily data
   which will save a LOT of time
 """
@@ -21,6 +22,7 @@ TODO: https://datastore.copernicus-climate.eu/documents/app-c3s-daily-era5-stati
 import collections
 import logging
 import os
+import requests
 
 import cdsapi as cds
 import numpy as np
@@ -59,12 +61,14 @@ class ERA5Downloader(ClimateDownloader):
                  *args,
                  identifier="era5",
                  cdi_map=CDI_MAP,
+                 use_toolbox=True,
                  **kwargs):
         super().__init__(*args,
                          identifier=identifier,
                          **kwargs)
         self.client = cds.Client()
         self._cdi_map = cdi_map
+        self._toolbox = use_toolbox
 
     def _single_download(self, var_prefix, pressure, req_date):
         # FIXME: confirmed, but the year start year end naming is a bit weird,
@@ -99,25 +103,120 @@ class ERA5Downloader(ClimateDownloader):
             elif not os.path.exists(regridded_name):
                 self._files_downloaded.append(daily_path)
 
+        if self._toolbox:
+            return self._single_toolbox_download(var_prefix,
+                                                 var,
+                                                 var_folder,
+                                                 pressure,
+                                                 req_date,
+                                                 downloads)
+        return self._single_api_download(var_prefix,
+                                         var,
+                                         var_folder,
+                                         pressure,
+                                         req_date,
+                                         downloads)
+
+    def _single_toolbox_download(self,
+                                 var_prefix,
+                                 var,
+                                 var_folder,
+                                 pressure,
+                                 req_date,
+                                 downloads):
+        if len(downloads) > 0:
+            logging.info("Processing dates: {}".format(downloads))
+
+            params_dict = {
+                "realm":    "c3s",
+                "project":  "app-c3s-daily-era5-statistics",
+                "version":  "master",
+                "workflow_name": "application",
+                "kwargs": {
+                    "dataset": "reanalysis-era5-single-levels",
+                    "product_type": "reanalysis",
+                    "variable": self._cdi_map[var_prefix],
+                    "pressure_level": "-",
+                    "statistic": "daily_mean",
+                    "year": req_date[0].year,
+                    "month": req_date[0].month,
+                    "frequency": "1-hourly",
+                    "time_zone": "UTC+00:00",
+                    "grid": "0.25/0.25",
+                    "area": {"lat": [self.hemisphere_loc[0],
+                                     self.hemisphere_loc[2]],
+                             "lon": [self.hemisphere_loc[1],
+                                     self.hemisphere_loc[3]]},
+                },
+            }
+
+            if pressure:
+                params_dict["kwargs"]["dataset"] = \
+                    "reanalysis-era5-pressure-levels"
+                params_dict["kwargs"]["pressure_level"] = pressure
+
+            result = self.client.service(
+                "tool.toolbox.orchestrator.workflow",
+                params=params_dict)
+
+            temp_download_path = os.path.join(var_folder,
+                                              "download_{}_{}_{}.nc".
+                                              format(
+                                                  var,
+                                                  req_date[0].month,
+                                                  req_date[0].year))
+
+            try:
+                logging.info("Downloading data for {}...".format(var))
+
+                location = result[0]['location']
+                res = requests.get(location, stream=True)
+                logging.info("Writing data to " + temp_download_path)
+                logging.getLogger("requests").setLevel(logging.WARNING)
+
+                with open(temp_download_path, 'wb') as fh:
+                    for r in res.iter_content(chunk_size=1024):
+                        fh.write(r)
+
+                logging.info("Download completed: {}".
+                             format(temp_download_path))
+
+                self._cds_file_process(temp_download_path, var, var_folder)
+            except Exception as e:
+                logging.exception("{} not deleted, look at the "
+                                  "problem".format(temp_download_path))
+                raise RuntimeError(e)
+
+            if self.delete:
+                logging.debug("Remove {}".format(temp_download_path))
+                os.unlink(temp_download_path)
+
+    def _single_api_download(self,
+                             var_prefix,
+                             var,
+                             var_folder,
+                             pressure,
+                             req_date,
+                             downloads):
         if len(downloads) > 0:
             logging.info("Processing dates: {}".format(downloads))
 
             retrieve_dict = {
-                'product_type': 'reanalysis',
-                'variable': self._cdi_map[var_prefix],
-                'year': req_date[0].year,
-                'month': req_date[0].month,
-                'day': ["{:02d}".format(d.day) for d in downloads],
-                'time': ["{:02d}:00".format(h) for h in range(0, 24)],
-                'format': 'netcdf',
-                'area': self.hemisphere_loc
+                "product_type": "reanalysis",
+                "variable": self._cdi_map[var_prefix],
+                "year": req_date[0].year,
+                "month": req_date[0].month,
+                "day": ["{:02d}".format(d.day) for d in downloads],
+                "time": ["{:02d}:00".format(h) for h in range(0, 24)],
+                "format": "netcdf",
+                "area": self.hemisphere_loc
             }
 
-            dataset = 'reanalysis-era5-single-levels'
+            dataset = "reanalysis-era5-single-levels"
 
             if pressure:
-                dataset = 'reanalysis-era5-pressure-levels'
-                retrieve_dict['pressure_level'] = pressure
+                dataset = "reanalysis-era5-pressure-levels"
+                retrieve_dict["pressure_level"] = pressure
 
             temp_download_path = os.path.join(var_folder,
                                               "download_{}_{}_{}.nc".
@@ -132,30 +231,7 @@ class ERA5Downloader(ClimateDownloader):
                 logging.info("Download completed: {}".
                              format(temp_download_path))
 
-                da = xr.open_dataarray(temp_download_path)
-
-                if 'expver' in da.coords:
-                    raise RuntimeError("fix_near_real_time_era5_coords "
-                                       "no longer exists in the "
-                                       "codebase for expver in "
-                                       "coordinates")
-
-                da_daily = da.resample(time='1D').reduce(np.mean)
-
-                for day in da.time.values:
-                    date_str = pd.to_datetime(day).strftime("%Y_%m_%d")
-                    logging.debug(
-                        "Processing var {} for {}".format(var, date_str))
-
-                    daily_path, regridded_name = get_names(var_folder,
-                                                           var,
-                                                           date_str)
-
-                    if not os.path.exists(daily_path):
-                        logging.debug(
-                            "Saving new daily file: {}".format(daily_path))
-                        da_daily.sel(time=slice(day, day)).to_netcdf(daily_path)
-                        self._files_downloaded.append(daily_path)
+                self._cds_file_process(temp_download_path, var, var_folder)
             except Exception as e:
                 logging.exception("{} not deleted, look at the "
                                   "problem".format(temp_download_path))
@@ -166,6 +242,35 @@ class ERA5Downloader(ClimateDownloader):
                 os.unlink(temp_download_path)
         else:
             logging.info("No dates needing downloading for {}".format(var))
+
+    def _cds_file_process(self,
+                          temp_download_path,
+                          var,
+                          var_folder):
+        da = xr.open_dataarray(temp_download_path)
+
+        if 'expver' in da.coords:
+            raise RuntimeError("fix_near_real_time_era5_coords "
+                               "no longer exists in the "
+                               "codebase for expver in "
+                               "coordinates")
+
+        da_daily = da.resample(time='1D').reduce(np.mean)
+
+        for day in da.time.values:
+            date_str = pd.to_datetime(day).strftime("%Y_%m_%d")
+            logging.debug(
+                "Processing var {} for {}".format(var, date_str))
+
+            daily_path, regridded_name = get_names(var_folder,
+                                                   var,
+                                                   date_str)
+
+            if not os.path.exists(daily_path):
+                logging.debug(
+                    "Saving new daily file: {}".format(daily_path))
+                da_daily.sel(time=slice(day, day)).to_netcdf(daily_path)
+                self._files_downloaded.append(daily_path)
 
     def _get_dates_for_request(self):
         dates = collections.deque(sorted(self._dates))
@@ -233,6 +338,23 @@ def main():
         max_threads=4,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south"
+    )
+    era5.download()
+    era5.regrid()
+    era5.rotate_wind_data()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    era5 = ERA5Downloader(
+        var_names=["uas", "vas"],
+        pressure_levels=[None, None],
+        dates=[pd.to_datetime(date).date() for date in
+               pd.date_range("2019-1-1", "2019-1-2",
+                             freq="D")],
+        max_threads=4,
+        north=False,
+        south=True,
     )
     era5.download()
     era5.regrid()

@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="icenet2",
-    version="0.0.2a0",
+    version="0.0.3a0",
     author="Tom Andersson/James Byrne",
     author_email="jambyr@bas.ac.uk",
     description="",
@@ -35,7 +35,7 @@ setup(
             "icenet_data_cmip = icenet2.data.interfaces.esgf:main",
             "icenet_data_era5 = icenet2.data.interfaces.cds:main",
             "icenet_data_hres = icenet2.data.interfaces.mars:main",
-            "icenet_data_sic = icenet2.data.interfaces.osisaf:main",
+            "icenet_data_sic = icenet2.data.sic.osisaf:main",
 
             "icenet_data_reproc_monthly = "
             "icenet2.data.interfaces.utils:reprocess_main",
@@ -47,7 +47,7 @@ setup(
 
             "icenet_process_metadata = icenet2.data.processors.meta:main",
 
-            "icenet_dataset_check = icenet2.data.utils:check"
+            "icenet_dataset_check = icenet2.data.utils:check",
             "icenet_dataset_create = icenet2.data.loader:main",
 
             "icenet_train = icenet2.model.train:main",
@@ -55,9 +55,11 @@ setup(
             "icenet_upload_azure = icenet2.process.azure:upload",
 
             "icenet_plot_set = icenet2.plotting.data:plot_set",
+
+            "icenet_output = icenet2.process.predict:create_cf_output"
         ],
     },
-    python_requires='>=3.6, <4',
+    python_requires='>=3.7, <4',
     install_requires=[
 
     ],

@@ -13,6 +13,18 @@ def date_arg(string):
     return dt.date(*[int(s) for s in date_match.groups()])
 
 
+def dates_arg(string):
+    if string == "none":
+        return []
+
+    date_match = re.findall(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
+
+    if len(date_match) < 1:
+        raise argparse.ArgumentError("No dates found for supplied argument {}".
+                                     format(string))
+    return [dt.date(*[int(s) for s in date_tuple]) for date_tuple in date_match]
+
+
 def download_args(dates=True):
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
@@ -28,26 +40,32 @@ def download_args(dates=True):
     return args
 
 
-def process_args():
+def process_args(dates=True, laglead=True):
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
     ap.add_argument("hemisphere", choices=("north", "south"))
 
-    ap.add_argument("train_start", type=date_arg)
-    ap.add_argument("train_end", type=date_arg)
-    ap.add_argument("val_start", type=date_arg)
-    ap.add_argument("val_end", type=date_arg)
+    if dates:
+        ap.add_argument("-ns", "--train_start",
+                        type=dates_arg, required=False, default=[])
+        ap.add_argument("-ne", "--train_end",
+                        type=dates_arg, required=False, default=[])
+        ap.add_argument("-vs", "--val_start",
+                        type=dates_arg, required=False, default=[])
+        ap.add_argument("-ve", "--val_end",
+                        type=dates_arg, required=False, default=[])
+        ap.add_argument("-ts", "--test-start",
+                        type=dates_arg, required=False, default=[])
+        ap.add_argument("-te", "--test-end", dest="test_end",
+                        type=dates_arg, required=False, default=[])
 
-    ap.add_argument("-ts", "--test-start", dest="test_start",
-                    type=date_arg, required=False, default=[])
-    ap.add_argument("-te", "--test-end", dest="test_end",
-                    type=date_arg, required=False, default=[])
+        ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
 
-    ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
+    if laglead:
+        ap.add_argument("-l", "--lag", type=int, default=2)
+        ap.add_argument("-f", "--forecast-days", type=int, default=93)
 
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
-
-    ap.add_argument("-l", "--lag", type=int, default=2)
 
     args = ap.parse_args()
 

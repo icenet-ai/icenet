@@ -256,7 +256,7 @@ class SICDownloader(Downloader):
     def missing_dates(self):
         filenames = [os.path.join(self.get_data_var_folder("siconca"),
                                   str(el.year),
-                                  "siconca_{}.nc".format(
+                                  "{}.nc".format(
                                       el.strftime("%Y_%m_%d")))
                      for el in self._dates]
         filenames = [f for f in filenames if os.path.exists(f)]

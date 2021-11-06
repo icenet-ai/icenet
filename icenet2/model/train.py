@@ -1,9 +1,11 @@
 import argparse
 import datetime as dt
+import json
 import logging
 import os
 
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 from tensorflow.keras.callbacks import \
@@ -225,21 +227,11 @@ def main():
                     use_multiprocessing=args.multiprocessing,
                     workers=args.workers, )
 
-    #    fig, ax = plt.subplots()
-    #    ax.plot(history.history['val_loss'], label='val')
-    #    ax.plot(history.history['loss'], label='train')
-    #    ax.legend(loc='best')
-    #    plot_path = os.path.join(os.path.dirname(trained_path),
-    #                             'network_{}_history.png'.
-    #                             format(args.seed))
-    #    logging.info("Saving plot to: {}".format(plot_path))
-    #    plt.savefig(plot_path)
-
     history_path = os.path.join(os.path.dirname(trained_path),
-                                "{}_{}_history.pkl".
+                                "{}_{}_history.json".
                                 format(args.run_name, args.seed))
-    with open(history_path, 'wb') as fh:
-        pickle.dump(history.history, fh)
+    with open(history_path, 'w') as fh:
+        pd.DataFrame(history.history).to_json(fh)
 
     # TODO: we don't run through the test dates...
 

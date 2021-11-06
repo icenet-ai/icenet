@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from pprint import pformat
 
 import collections
 import datetime as dt
@@ -187,7 +188,7 @@ class Processor(DataProducer):
                 # TODO: test if endswith works better than re.search
                 match_dfs = [
                     df for df in dfs
-                    if df.endswith("{}.nc".format(match_str))
+                    if df.split(os.sep)[-1] == "{}.nc".format(match_str)
                 ]
 
                 for df in match_dfs:
@@ -214,6 +215,8 @@ class Processor(DataProducer):
         for var in self._var_files.keys():
             logging.info("Got {} files for {}".format(
                 len(self._var_files[var]), var))
+
+            logging.debug("FILES:\n{}".format(pformat(self._var_files[var])))
 
     @abstractmethod
     def process(self):

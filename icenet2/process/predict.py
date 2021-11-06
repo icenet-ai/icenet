@@ -76,7 +76,7 @@ def get_prediction_data(root, name, date):
         axis=-1).squeeze()
 
 
-if __name__ == "__main__":
+def create_cf_output():
     args = get_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -198,3 +198,4 @@ if __name__ == "__main__":
     output_path = os.path.join(args.output_dir, "{}.nc".format(args.name))
     logging.info("Saving to {}".format(output_path))
     xarr.to_netcdf(output_path)
+
