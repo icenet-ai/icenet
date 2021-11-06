@@ -111,53 +111,49 @@ retrieve,
                          format(req_date))
             return
 
-        with tempfile.TemporaryDirectory(dir=".") as tmpdir:
-            tmpfile = os.path.join(tmpdir, "{}.nc".format(levtype))
+        if not os.path.exists(request_target):
+            self._server.execute(request, request_target)
 
-            if not os.path.exists(tmpfile):
-                self._server.execute(request, tmpfile)
+        ds = xr.open_dataset(request_target)
 
-            ds = xr.open_dataset(tmpfile)
+        for var_name, pressure in product(var_names, pressures.split('/')
+                                          if pressures else [None]):
+            # TODO: refactor, this is common pattern CDS as well,
+            #  slightly cleaned up in this implementation
+            var = var_name if not pressure else \
+                "{}{}".format(var_name, pressure)
+            var_folder = os.path.join(self.get_data_var_folder(var),
+                                      str(req_date.year))
 
-            for var_name, pressure in product(var_names, pressures.split('/')
-                                              if pressures else [None]):
-                # TODO: refactor, this is common pattern CDS as well,
-                #  slightly cleaned up in this implementation
-                var = var_name if not pressure else \
-                    "{}{}".format(var_name, pressure)
-                var_folder = os.path.join(self.get_data_var_folder(var),
-                                          str(req_date.year))
+            # For the year component - 365 * 50 is a lot of files ;)
+            os.makedirs(var_folder, exist_ok=True)
 
-                # For the year component - 365 * 50 is a lot of files ;)
-                os.makedirs(var_folder, exist_ok=True)
-
-                date_str = req_date.strftime("%Y_%m_%d")
-                daily_path = os.path.join(var_folder,
-                                          "latlon_{}_{}.nc".
+            date_str = req_date.strftime("%Y_%m_%d")
+            daily_path = os.path.join(var_folder,
+                                      "latlon_{}_{}.nc".
+                                      format(var, date_str))
+            regridded_name = os.path.join(var_folder,
+                                          "{}_{}.nc".
                                           format(var, date_str))
-                regridded_name = os.path.join(var_folder,
-                                              "{}_{}.nc".
-                                              format(var, date_str))
 
-                if not os.path.exists(regridded_name):
-                    if not os.path.exists(daily_path):
-                        da = getattr(ds,
-                                     HRESDownloader.HRES_PARAMS[var_name][1])
+            if not os.path.exists(regridded_name):
+                if not os.path.exists(daily_path):
+                    da = getattr(ds,
+                                 HRESDownloader.HRES_PARAMS[var_name][1])
 
-                        if pressure:
-                            da = da.sel(level=int(pressure))
+                    if pressure:
+                        da = da.sel(level=int(pressure))
 
-                        # Just to make sure
-                        da_daily = da.sel(time=slice(pd.to_datetime(req_date)))
+                    # Just to make sure
+                    da_daily = da.sel(time=slice(pd.to_datetime(req_date)))
 
-                        logging.debug("Saving new daily file: {}".
-                                      format(daily_path))
-                        da_daily.to_netcdf(daily_path)
+                    logging.debug("Saving new daily file: {}".
+                                  format(daily_path))
+                    da_daily.to_netcdf(daily_path)
 
-                    self._files_downloaded.append(daily_path)
-                else:
-                    logging.info("{} already exists".format(regridded_name))
-            os.unlink(tmpfile)
+                self._files_downloaded.append(daily_path)
+            else:
+                logging.info("{} already exists".format(regridded_name))
 
     def download(self):
         logging.info("Building request(s), downloading and daily averaging "
