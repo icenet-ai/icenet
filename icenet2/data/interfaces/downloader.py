@@ -233,14 +233,15 @@ class ClimateDownloader(Downloader):
             # Original implementation is in danger of lost updates
             # due to potential lazy loading
             for i, name in enumerate([wind_file_0, wind_file_1]):
-                logging.debug("Writing {}".format(name))
+                # NOTE: implementation with tempfile caused problems on NFS
+                # mounted filesystem, so avoiding in place of letting iris do it
+                temp_name = os.path.join(os.path.split(name)[0],
+                                         "temp.{}".format(
+                                             os.path.basename(name)))
+                logging.debug("Writing {}".format(temp_name))
 
-                _, tmp_name = tempfile.mkstemp(
-                    dir=os.path.split(name)[0],
-                    suffix=".nc",
-                )
-                iris.save(wind_cubes_r[apply_to[i]], tmp_name)
-                os.replace(tmp_name, name)
+                iris.save(wind_cubes_r[apply_to[i]], temp_name)
+                os.replace(temp_name, name)
 
     @property
     def delete(self):
