@@ -12,7 +12,8 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
     def __init__(self,
                  name,
                  include_circday=True,
-                 include_land=True):
+                 include_land=True,
+                 **kwargs):
         super().__init__(abs_vars=[],
                          anom_vars=[],
                          identifier="meta",
@@ -20,7 +21,8 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
                          name=name,
                          test_dates=[],
                          train_dates=[],
-                         val_dates=[])
+                         val_dates=[],
+                         **kwargs)
 
         self._include_circday = include_circday
         self._include_land = include_land
@@ -85,4 +87,6 @@ def main():
 
     IceNetMetaPreProcessor(
         args.name,
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
     ).process()

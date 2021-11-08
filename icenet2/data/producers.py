@@ -209,6 +209,8 @@ class Processor(DataProducer):
                     if df not in var_files[var]:
                         var_files[var].append(df)
 
+        # TODO: allow option to ditch dates from train/val/test for missing
+        #  var files
         self._var_files = {
             var: var_files[var] for var in sorted(var_files.keys())
         }
