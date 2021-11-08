@@ -31,16 +31,8 @@ import xarray as xr
 
 from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
-
-
-def get_names(var_folder, var, date_str):
-    daily_path = os.path.join(var_folder,
-                              "latlon_{}_{}.nc".
-                              format(var, date_str))
-    regridded_name = os.path.join(var_folder,
-                                  "{}_{}.nc".
-                                  format(var, date_str))
-    return daily_path, regridded_name
+from icenet2.data.interfaces.utils import \
+    batch_requested_dates, get_daily_filenames
 
 
 class ERA5Downloader(ClimateDownloader):
@@ -92,7 +84,7 @@ class ERA5Downloader(ClimateDownloader):
 
         downloads = []
         for destination_date in req_date:
-            daily_path, regridded_name = get_names(var_folder,
+            daily_path, regridded_name = get_daily_filenames(var_folder,
                                                    var,
                                                    destination_date.
                                                    strftime("%Y_%m_%d"))
@@ -262,9 +254,8 @@ class ERA5Downloader(ClimateDownloader):
             logging.debug(
                 "Processing var {} for {}".format(var, date_str))
 
-            daily_path, regridded_name = get_names(var_folder,
-                                                   var,
-                                                   date_str)
+            daily_path, regridded_name = get_daily_filenames(
+                var_folder, var, date_str)
 
             if not os.path.exists(daily_path):
                 logging.debug(
@@ -273,28 +264,7 @@ class ERA5Downloader(ClimateDownloader):
                 self._files_downloaded.append(daily_path)
 
     def _get_dates_for_request(self):
-        dates = collections.deque(sorted(self._dates))
-
-        batched_dates = []
-        batch = []
-
-        while len(dates):
-            if not len(batch):
-                batch.append(dates.popleft())
-            else:
-                if batch[-1].month == dates[0].month:
-                    batch.append(dates.popleft())
-                else:
-                    batched_dates.append(batch)
-                    batch = []
-
-        if len(batch):
-            batched_dates.append(batch)
-
-        if len(dates) > 0:
-            raise RuntimeError("Batching didn't work!")
-
-        return batched_dates
+        return batch_requested_dates(self._dates, attribute="month")
 
     def additional_regrid_processing(self, datafile, cube_ease):
         (datafile_path, datafile_name) = os.path.split(datafile)

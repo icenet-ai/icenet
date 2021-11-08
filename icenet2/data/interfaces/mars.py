@@ -1,7 +1,5 @@
-import datetime as dt
 import logging
 import os
-import tempfile
 
 from itertools import product
 
@@ -11,6 +9,8 @@ import xarray as xr
 
 from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
+from icenet2.data.interfaces.utils import \
+    batch_requested_dates, get_daily_filenames
 
 
 class HRESDownloader(ClimateDownloader):
@@ -63,17 +63,48 @@ retrieve,
         self._server = ecmwfapi.ECMWFService("mars")
 
     def _get_dates_for_request(self):
-        return self.dates
+        return batch_requested_dates(self._dates, attribute="month")
 
-    def _single_download(self, var_names, pressures, req_date):
+    def _single_download(self, var_names, pressures, req_dates):
         levtype = "plev" if pressures else "sfc"
 
-        request_date = req_date.strftime("%Y%m%d")
-        request_target = "nh.{}.{}.nc".format(levtype, request_date)
+        for dt in req_dates:
+            assert dt.year == req_dates[0].year
+            assert dt.month == req_dates[0].month
+
+        request_month = req_dates[0].strftime("%Y%m")
+        request_target = "{}.{}.{}.nc".format(
+            self.hemisphere_str[0], levtype, request_month)
+
+        download_dates = []
+
+        for var_name, pressure in product(var_names, pressures.split('/')
+                                          if pressures else [None]):
+            var = var_name if not pressure else \
+                "{}{}".format(var_name, pressure)
+            var_folder = os.path.join(self.get_data_var_folder(var),
+                                      str(req_dates[0].year))
+
+            for destination_date in req_dates:
+                daily_path, regridded_name = get_daily_filenames(
+                    var_folder, var, destination_date.strftime("%Y_%m_%d"))
+
+                if not os.path.exists(daily_path) \
+                        and not os.path.exists(regridded_name):
+                    if destination_date not in download_dates:
+                        download_dates.append(destination_date)
+                elif not os.path.exists(regridded_name):
+                    self._files_downloaded.append(daily_path)
+
+        download_dates = sorted(list(set(download_dates)))
+
+        if not len(download_dates):
+            logging.info("We have all the files we need from MARS API")
+            return
 
         request = HRESDownloader.MARS_TEMPLATE.format(
             area="/".join([str(s) for s in self.hemisphere_loc]),
-            date=request_date,
+            date="/".join([el.strftime("%Y%m%d") for el in download_dates]),
             levtype=levtype,
             levlist="levelist={},\n  ".format(pressures) if pressures else "",
             params="/".join(
@@ -86,74 +117,41 @@ retrieve,
 
         logging.debug("MARS REQUEST: \n{}\n".format(request))
 
-        # FIXME: Hateful duplication to avoid unnecessary requests
-        missing = False
-        for var_name, pressure in product(var_names, pressures.split('/')
-                if pressures else [None]):
-            # TODO: refactor, this is common pattern CDS as well,
-            #  slightly cleaned up in this implementation
-            var = var_name if not pressure else \
-                "{}{}".format(var_name, pressure)
-            var_folder = os.path.join(self.get_data_var_folder(var),
-                                      str(req_date.year))
-
-            date_str = req_date.strftime("%Y_%m_%d")
-            regridded_name = os.path.join(var_folder,
-                                          "{}_{}.nc".
-                                          format(var, date_str))
-
-            if not os.path.exists(regridded_name):
-                missing = True
-                break
-
-        if not missing:
-            logging.info("We have all the files we need for {}".
-                         format(req_date))
-            return
-
         if not os.path.exists(request_target):
             self._server.execute(request, request_target)
 
         ds = xr.open_dataset(request_target)
 
-        for var_name, pressure in product(var_names, pressures.split('/')
-                                          if pressures else [None]):
-            # TODO: refactor, this is common pattern CDS as well,
-            #  slightly cleaned up in this implementation
-            var = var_name if not pressure else \
-                "{}{}".format(var_name, pressure)
-            var_folder = os.path.join(self.get_data_var_folder(var),
-                                      str(req_date.year))
+        for day in ds.time.values:
+            date_str = pd.to_datetime(day).strftime("%Y_%m_%d")
 
-            # For the year component - 365 * 50 is a lot of files ;)
-            os.makedirs(var_folder, exist_ok=True)
+            for var_name, pressure in product(var_names, pressures.split('/')
+                                              if pressures else [None]):
+                var = var_name if not pressure else \
+                    "{}{}".format(var_name, pressure)
+                var_folder = os.path.join(self.get_data_var_folder(var),
+                                          str(day.year))
 
-            date_str = req_date.strftime("%Y_%m_%d")
-            daily_path = os.path.join(var_folder,
-                                      "latlon_{}_{}.nc".
-                                      format(var, date_str))
-            regridded_name = os.path.join(var_folder,
-                                          "{}_{}.nc".
-                                          format(var, date_str))
+                # For the year component - 365 * 50 is a lot of files ;)
+                os.makedirs(var_folder, exist_ok=True)
 
-            if not os.path.exists(regridded_name):
-                if not os.path.exists(daily_path):
-                    da = getattr(ds,
-                                 HRESDownloader.HRES_PARAMS[var_name][1])
+                daily_path, _ = get_daily_filenames(var_folder, var, date_str)
 
-                    if pressure:
-                        da = da.sel(level=int(pressure))
+                da = getattr(ds,
+                             HRESDownloader.HRES_PARAMS[var_name][1])
 
-                    # Just to make sure
-                    da_daily = da.sel(time=slice(pd.to_datetime(req_date)))
+                if pressure:
+                    da = da.sel(level=int(pressure))
 
-                    logging.debug("Saving new daily file: {}".
-                                  format(daily_path))
-                    da_daily.to_netcdf(daily_path)
+                # Just to make sure
+                da_daily = da.sel(time=slice(
+                    pd.to_datetime(day), pd.to_datetime(day)))
 
-                self._files_downloaded.append(daily_path)
-            else:
-                logging.info("{} already exists".format(regridded_name))
+                logging.info("Saving new daily file: {}".format(daily_path))
+                da_daily.to_netcdf(daily_path)
+
+                if daily_path not in self._files_downloaded:
+                    self._files_downloaded.append(daily_path)
 
     def download(self):
         logging.info("Building request(s), downloading and daily averaging "
@@ -168,9 +166,9 @@ retrieve,
 
         dates_per_request = self._get_dates_for_request()
 
-        for req_date in dates_per_request:
-            self._single_download(sfc_vars, None, req_date)
-            self._single_download(plev_vars, pressures, req_date)
+        for req_batch in dates_per_request:
+            self._single_download(sfc_vars, None, req_batch)
+            self._single_download(plev_vars, pressures, req_batch)
 
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))

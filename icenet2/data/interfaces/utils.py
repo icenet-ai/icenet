@@ -1,10 +1,44 @@
 import argparse
+import collections
 import glob
 import logging
 import os
 
 import pandas as pd
 import xarray as xr
+
+
+def batch_requested_dates(dates, attribute="month"):
+    dates = collections.deque(sorted(dates))
+
+    batched_dates = []
+    batch = []
+
+    while len(dates):
+        if not len(batch):
+            batch.append(dates.popleft())
+        else:
+            if getattr(batch[-1], attribute) == getattr(dates[0], attribute):
+                batch.append(dates.popleft())
+            else:
+                batched_dates.append(batch)
+                batch = []
+
+    if len(batch):
+        batched_dates.append(batch)
+
+    if len(dates) > 0:
+        raise RuntimeError("Batching didn't work!")
+
+    return batched_dates
+
+
+def get_daily_filenames(var_folder, var, date_str):
+    daily_path = os.path.join(var_folder,
+                              "latlon_{}.nc".format(date_str))
+    regridded_name = os.path.join(var_folder,
+                                  "{}.nc".format(date_str))
+    return daily_path, regridded_name
 
 
 """
