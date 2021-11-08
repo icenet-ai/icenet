@@ -23,6 +23,8 @@ def main():
         dates["val"],
         dates["test"],
         linear_trends=tuple(),
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
     )
     pp.init_source_data(
         lag_days=args.lag,

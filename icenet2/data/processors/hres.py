@@ -23,6 +23,8 @@ def main():
         dates["val"],
         dates["test"],
         linear_trends=tuple(),
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
     )
     hres_clim.init_source_data(
         lag_days=args.lag,
@@ -40,7 +42,9 @@ def main():
         linear_trend_days=args.forecast_days,
         # TODO: should reconsider the process for double usage (overrides?)
         #  though this does work as is, which is nice
-        update_key="mars.siconca"
+        update_key="mars.siconca",
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
     )
     hres_osi.init_source_data(
         lag_days=args.lag,

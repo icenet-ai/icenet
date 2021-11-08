@@ -50,6 +50,8 @@ def main():
         dates["test"],
         linear_trends=["siconca"],
         linear_trend_days=args.forecast_days,
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
     )
     osi.init_source_data(
         lag_days=args.lag,
