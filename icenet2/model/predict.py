@@ -4,6 +4,8 @@ import logging
 import os
 import re
 
+from itertools import product
+
 import icenet2.model.models as models
 
 from icenet2.data.dataset import IceNetDataSet
@@ -167,10 +169,10 @@ def main():
         outputs = ((dates, gen_outputs, "outputs"),
                    (dates, sample_weights, "weights"))
 
-        for output_type in outputs:
-            for date, output, directory in zip(*output_type):
+        for dates, outputs, directory in outputs:
+            for date, output in zip(dates, outputs):
                 output_directory = os.path.join(gen_dir, directory)
-                os.makedirs(output_directory)
+                os.makedirs(output_directory, exist_ok=True)
                 output_path = os.path.join(output_directory,
                                            date.strftime("%Y_%m_%d.npy"))
 
