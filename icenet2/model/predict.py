@@ -169,15 +169,14 @@ def main():
         outputs = ((dates, gen_outputs, ["outputs"]),
                    (dates, sample_weights, ["weights"]))
 
-        for output_type in outputs:
-            for dates, outputs, directory in output_type:
-                for date, output in zip(dates, outputs):
-                    output_directory = os.path.join(gen_dir, directory)
-                    os.makedirs(output_directory, exist_ok=True)
-                    output_path = os.path.join(output_directory,
-                                               date.strftime("%Y_%m_%d.npy"))
+        for dates, outputs, directory in outputs:
+            for date, output in zip(dates, outputs):
+                output_directory = os.path.join(gen_dir, directory)
+                os.makedirs(output_directory, exist_ok=True)
+                output_path = os.path.join(output_directory,
+                                           date.strftime("%Y_%m_%d.npy"))
 
-                    logging.info("Saving {} - generated {} {}".
-                                 format(date, directory, output.shape))
-                    np.save(output_path, output)
+                logging.info("Saving {} - generated {} {}".
+                             format(date, directory, output.shape))
+                np.save(output_path, output)
 
