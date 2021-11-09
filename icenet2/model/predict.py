@@ -29,7 +29,7 @@ def predict_forecast(
     if not testset:
         logging.info("Generating forecast inputs from processed/ files")
 
-        forecast_inputs, gen_outputs, _ = \
+        forecast_inputs, gen_outputs, sample_weights = \
             list(zip(*[dl.generate_sample(date) for date in start_dates]))
     else:
         # TODO: This is horrible behaviour, rethink and refactor: we should
@@ -51,25 +51,24 @@ def predict_forecast(
             raise RuntimeError("{} are not in the test set".
                                format(", ".join(missing)))
 
-        forecast_inputs, gen_outputs = [], []
+        forecast_inputs, gen_outputs, sample_weights = [], [], []
 
-        x, y = [], [] 
         data_iter = test_inputs.as_numpy_iterator()
-
         data = next(data_iter)
-        x, y = data
+        x, y, sw = data
         batch = 0
 
         for i, idx in enumerate([test_dates.index(sd) for sd in start_dates]):
             while batch < int(idx / ds.batch_size):
                 data = next(data_iter)
-                x, y = data
+                x, y, sw = data
                 batch += 1
             arr_idx = idx % ds.batch_size
             logging.info("Processing batch {} - item {}".format(
                 batch + 1, arr_idx))
             forecast_inputs.append(x[arr_idx, ...])
             gen_outputs.append(y[arr_idx, ...])
+            sample_weights.append(sw[arr_idx, ...])
 
     if not network_folder:
         network_folder = os.path.join(".", "results", "networks",
@@ -98,7 +97,7 @@ def predict_forecast(
         logging.info("Running prediction {} - {}".format(i, start_dates[i]))
         pred = network(tf.convert_to_tensor([net_input]), training=False)
         predictions.append(pred)
-    return predictions, gen_outputs
+    return predictions, gen_outputs, sample_weights
 
 
 def date_arg(string):
@@ -140,14 +139,15 @@ def main():
                               args.output_name,
                               "{}.{}".format(args.network_name, args.seed))
 
-    forecasts, gen_outputs = predict_forecast(dataset_config,
-                                              args.network_name,
-                                              dataset_name=args.dataset,
-                                              n_filters_factor=
-                                              args.n_filters_factor,
-                                              seed=args.seed,
-                                              start_dates=dates,
-                                              testset=args.testset)
+    forecasts, gen_outputs, sample_weights = \
+        predict_forecast(dataset_config,
+                         args.network_name,
+                         dataset_name=args.dataset,
+                         n_filters_factor=
+                         args.n_filters_factor,
+                         seed=args.seed,
+                         start_dates=dates,
+                         testset=args.testset)
 
     if os.path.exists(output_dir):
         raise RuntimeError("{} output already exists".format(output_dir))
@@ -162,13 +162,19 @@ def main():
 
     if not args.skip_outputs:
         logging.info("Saving outputs generated for these inputs as well...")
-        gen_dir = os.path.join(output_dir, "gen_outputs")
-        os.makedirs(gen_dir)
+        gen_dir = os.path.join(output_dir, "loader")
 
-        for date, output in zip(dates, gen_outputs):
-            output_path = os.path.join(gen_dir, date.strftime("%Y_%m_%d.npy"))
+        outputs = ((dates, gen_outputs, "outputs"),
+                   (dates, sample_weights, "weights"))
 
-            logging.info("Saving {} - generated output {}".
-                         format(date, output.shape))
-            np.save(output_path, output)
+        for output_type in outputs:
+            for date, output, directory in zip(*output_type):
+                output_directory = os.path.join(gen_dir, directory)
+                os.makedirs(output_directory)
+                output_path = os.path.join(output_directory,
+                                           date.strftime("%Y_%m_%d.npy"))
+
+                logging.info("Saving {} - generated {} {}".
+                             format(date, directory, output.shape))
+                np.save(output_path, output)
 
