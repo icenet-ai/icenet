@@ -130,7 +130,7 @@ retrieve,
                 var = var_name if not pressure else \
                     "{}{}".format(var_name, pressure)
                 var_folder = os.path.join(self.get_data_var_folder(var),
-                                          str(day.year))
+                                          str(pd.to_datetime(day).year))
 
                 # For the year component - 365 * 50 is a lot of files ;)
                 os.makedirs(var_folder, exist_ok=True)
