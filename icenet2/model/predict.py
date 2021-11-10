@@ -77,6 +77,7 @@ def predict_forecast(
                                       "{}.{}".format(network_name, seed))
 
     # FIXME: this is a mess as we have seed duplication in filename, sort it out
+    # FIXME: this is a pain in the arse for non-train datasets, sort it out
     dataset_name = dataset_name if dataset_name else ds.identifier
     network_path = os.path.join(network_folder,
                                 "{}.{}.network_{}.{}.h5".
@@ -116,6 +117,8 @@ def get_args():
     ap.add_argument("seed", type=int, default=42)
     ap.add_argument("datefile", type=argparse.FileType("r"))
 
+    ap.add_argument("-i", "--train-identifier", dest="ident",
+                    help="Train dataset identifier", type=str, default=None)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
     ap.add_argument("-o", "--skip-outputs", default=False, action="store_true")
     ap.add_argument("-t", "--testset", default=False, action="store_true")
@@ -144,7 +147,11 @@ def main():
     forecasts, gen_outputs, sample_weights = \
         predict_forecast(dataset_config,
                          args.network_name,
-                         dataset_name=args.dataset,
+                         # FIXME: this is turning into a mapping mess,
+                         #  do we need to retain the train SD name in the
+                         #  network?
+                         dataset_name=
+                         args.ident if args.ident else args.dataset,
                          n_filters_factor=
                          args.n_filters_factor,
                          seed=args.seed,
