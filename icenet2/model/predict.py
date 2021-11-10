@@ -166,8 +166,8 @@ def main():
         logging.info("Saving outputs generated for these inputs as well...")
         gen_dir = os.path.join(output_dir, "loader")
 
-        outputs = ((dates, gen_outputs, ["outputs"]),
-                   (dates, sample_weights, ["weights"]))
+        outputs = ((dates, gen_outputs, "outputs"),
+                   (dates, sample_weights, "weights"))
 
         for dates, outputs, directory in outputs:
             for date, output in zip(dates, outputs):
