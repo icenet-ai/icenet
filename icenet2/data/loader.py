@@ -206,6 +206,27 @@ class IceNetDataLoader(Generator):
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
             for s in self._config["missing_dates"]]
 
+    def write_dataset_config_only(self):
+        splits = ("train", "val", "test")
+        counts = {el: 0 for el in splits}
+
+        # FIXME: cloned mechanism from generate() - do we need to treat these as
+        #  sets that might have missing data for fringe cases?
+        for dataset in splits:
+            forecast_dates = sorted(list(set(
+                [dt.datetime.strptime(s,
+                 IceNetPreProcessor.DATE_FORMAT).date()
+                 for identity in
+                 self._config["sources"].keys()
+                 for s in
+                 self._config["sources"][identity]
+                 ["dates"][dataset]])))
+
+            logging.info("{} {} dates in total, NOT generating cache "
+                         "data.".format(len(forecast_dates), dataset))
+
+        self._write_dataset_config(counts)
+
     def generate(self):
         # TODO: for each set, validate every variable has an appropriate file
         #  in the configuration arrays, otherwise drop the forecast date
@@ -213,10 +234,10 @@ class IceNetDataLoader(Generator):
         counts = {el: 0 for el in splits}
         futures = []
 
-        def batch(dates, num):
+        def batch(batch_dates, num):
             i = 0
-            while i < len(dates):
-                yield dates[i:i + num]
+            while i < len(batch_dates):
+                yield batch_dates[i:i + num]
                 i += num
 
         # This was a quick and dirty beef-up of the implementation as it's
@@ -559,6 +580,10 @@ def get_args():
                                             "generating sets",
                     type=int, default=8)
 
+    ap.add_argument("-c", "--cfg-only", help="Do not generate data, "
+                                             "only config", default=False,
+                    action="store_true", dest="cfg")
+
     return ap.parse_args()
 
 
@@ -573,4 +598,7 @@ def main():
                           south=args.hemisphere == "south",
                           output_batch_size=args.batch_size,
                           generate_workers=args.workers)
-    dl.generate()
+    if args.cfg:
+        dl.write_dataset_config_only()
+    else:
+        dl.generate()
