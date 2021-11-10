@@ -210,6 +210,8 @@ class IceNetDataLoader(Generator):
         splits = ("train", "val", "test")
         counts = {el: 0 for el in splits}
 
+        logging.info("Writing dataset configuration without data generation")
+
         # FIXME: cloned mechanism from generate() - do we need to treat these as
         #  sets that might have missing data for fringe cases?
         for dataset in splits:
@@ -224,6 +226,7 @@ class IceNetDataLoader(Generator):
 
             logging.info("{} {} dates in total, NOT generating cache "
                          "data.".format(len(forecast_dates), dataset))
+            counts[dataset] += len(forecast_dates)
 
         self._write_dataset_config(counts)
 
@@ -589,6 +592,9 @@ def get_args():
 
 def main():
     args = get_args()
+
+    logging.basicConfig(level=logging.INFO
+                        if not args.verbose else logging.DEBUG)
     dl = IceNetDataLoader("loader.{}.json".format(args.name),
                           args.forecast_name
                           if args.forecast_name else args.name,
