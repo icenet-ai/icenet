@@ -233,12 +233,12 @@ class SICDownloader(Downloader):
             da = self._missing_dates(da)
 
             for date in da.time.values:
+                date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
                 fpath = os.path.join(self.get_data_var_folder("siconca"),
                                      str(date.year),
                                      "{}.nc".format(date_str))
 
                 if not os.path.exists(fpath):
-                    date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
                     day_da = da.sel(time=slice(date, date))
 
                     mask = self._mask_dict[pd.to_datetime(date).month]
