@@ -34,8 +34,8 @@ class CMIP6Downloader(ClimateDownloader):
         'ta': 'gn',
         'tos': 'gr',
         'psl': 'gn',
-        'rsus': 'gn',
-        'rsds': 'gn',
+        'rsus': 'gn',   # Surface Upwelling Shortwave Radiation
+        'rsds': 'gn',   # Surface Downwelling Shortwave Radiation
         'zg': 'gn',
         'uas': 'gn',
         'vas': 'gn',

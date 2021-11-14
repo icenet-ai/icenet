@@ -26,9 +26,9 @@ class HRESDownloader(ClimateDownloader):
         "uas":          (165, "u10"),   # 10m_u_component_of_wind
         "vas":          (166, "v10"),   # 10m_v_component_of_wind
         "tas":          (167, "t2m"),   # 2m_temperature (t2m)
-        "rsds":         (169, "ssrd"),  # surface_downwelling_shortwave_flux_in_
-                                        # air
-        "rlds":         (177, "str"),   # surface_net_upward_longwave_flux
+        # https://www.ecmwf.int/sites/default/files/elibrary/2015/18490-radiation-quantities-ecmwf-model-and-mars.pdf
+        "rlds":         (175, "strd"),
+        "rsds":         (169, "ssrd"),
 
         # plev  129.128 / 130.128 / 133.128
         # sfc   31.128 / 34.128 / 134.128 /
