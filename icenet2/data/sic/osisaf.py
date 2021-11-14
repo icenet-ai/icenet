@@ -235,7 +235,7 @@ class SICDownloader(Downloader):
             for date in da.time.values:
                 date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
                 fpath = os.path.join(self.get_data_var_folder("siconca"),
-                                     str(date.year),
+                                     str(pd.to_datetime(date).year),
                                      "{}.nc".format(date_str))
 
                 if not os.path.exists(fpath):
