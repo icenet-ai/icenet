@@ -42,18 +42,19 @@ def upload():
         ContainerClient.from_connection_string(url,
                                                container_name=args.container)
 
-    blobs = container_client.list_blobs()
-    filenames = [b['name'] for b in blobs]
+    # Current SAS tickets being issued don't allow this
+    # blobs = container_client.list_blobs()
+    # filenames = [b['name'] for b in blobs]
 
-    logging.info("{} files already in container {}".format(
-        len(filenames), args.container
-    ))
+    # logging.info("{} files already in container {}".format(
+    #    len(filenames), args.container
+    # ))
 
-    if args.filename not in filenames:
-        with open(args.filename, "rb") as data:
-            logging.info("Uploading {}".format(args.filename))
-            container_client.upload_blob(
-                args.filename, data, overwrite=args.overwrite)
+    # if args.filename not in filenames:
+    with open(args.filename, "rb") as data:
+        logging.info("Uploading {}".format(args.filename))
+        container_client.upload_blob(
+            args.filename, data, overwrite=args.overwrite)
 
 
 if __name__ == "__main__":

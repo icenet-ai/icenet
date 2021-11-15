@@ -1,3 +1,6 @@
+import argparse
+import logging
+import os
 
 import imageio
 import matplotlib.pyplot as plt
@@ -12,7 +15,7 @@ def xarray_to_video(da, video_path, fps, mask=None, mask_type='contour',
                     clim=None, crop=None, data_type='abs', video_dates=None,
                     cmap='viridis', figsize=15, dpi=300):
 
-    '''
+    """
     Generate video of an xarray.DataArray. Optionally input a list of
     `video_dates` to show, otherwise the full set of time coordiantes
     of the dataset is used.
@@ -46,7 +49,7 @@ def xarray_to_video(da, video_path, fps, mask=None, mask_type='contour',
     figsize (int or float): Figure size in inches.
 
     dpi (int): Figure DPI.
-    '''
+    """
 
     if clim is not None:
         min = clim[0]
@@ -104,3 +107,4 @@ def xarray_to_video(da, video_path, fps, mask=None, mask_type='contour',
     imageio.mimsave(video_path,
                     [make_frame(date) for date in tqdm.tqdm(video_dates)],
                     fps=fps)
+

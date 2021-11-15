@@ -39,6 +39,8 @@ setup(
 
             "icenet_data_reproc_monthly = "
             "icenet2.data.interfaces.utils:reprocess_main",
+            "icenet_data_add_time_dim = "
+            "icenet2.data.interfaces.utils:add_time_dim_main",
 
             "icenet_process_cmip = icenet2.data.processors.cmip:main",
             "icenet_process_era5 = icenet2.data.processors.era5:main",
