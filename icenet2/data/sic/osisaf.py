@@ -287,7 +287,7 @@ class SICDownloader(Downloader):
         missing_dates_path = os.path.join(
             self.get_data_var_folder("siconca"), "missing_days.csv")
 
-        with open(missing_dates_path, "w") as fh:
+        with open(missing_dates_path, "a") as fh:
             for date in missing_dates:
                 fh.write(date.strftime("%Y,%m,%d\n"))
 

@@ -26,7 +26,7 @@ class IceNetOSIPreProcessor(IceNetPreProcessor):
             missing_dates += [dt.date(*[int(s)
                                         for s in line.strip().split(",")])
                               for line in fh.readlines()]
-        self.missing_dates = missing_dates
+        self.missing_dates = list(set(missing_dates))
 
     def pre_normalisation(self, var_name, da):
         if var_name != "siconca":
