@@ -289,6 +289,7 @@ class SICDownloader(Downloader):
 
         with open(missing_dates_path, "a") as fh:
             for date in missing_dates:
+                # FIXME: slightly unusual format for Ymd dates
                 fh.write(date.strftime("%Y,%m,%d\n"))
 
         for date in missing_dates:

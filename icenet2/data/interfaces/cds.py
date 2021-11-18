@@ -173,7 +173,10 @@ class ERA5Downloader(ClimateDownloader):
                 logging.info("Download completed: {}".
                              format(temp_download_path))
 
-                self._cds_file_process(temp_download_path, var, var_folder)
+                self._cds_file_process(temp_download_path,
+                                       var,
+                                       var_folder,
+                                       resample=False)
             except Exception as e:
                 logging.exception("{} not deleted, look at the "
                                   "problem".format(temp_download_path))
@@ -238,7 +241,8 @@ class ERA5Downloader(ClimateDownloader):
     def _cds_file_process(self,
                           temp_download_path,
                           var,
-                          var_folder):
+                          var_folder,
+                          resample=True):
         da = xr.open_dataarray(temp_download_path)
 
         if 'expver' in da.coords:

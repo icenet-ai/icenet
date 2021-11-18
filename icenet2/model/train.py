@@ -4,12 +4,16 @@ import json
 import logging
 import os
 
+from pprint import pformat
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import wandb
 
 from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
+from wandb.keras import WandbCallback
 
 import icenet2.model.losses as losses
 import icenet2.model.metrics as metrics
@@ -23,16 +27,18 @@ def train_model(
         run_name,
         loader_config,
         batch_size=4,
-        checkpoint_monitor='val_mae',
+        checkpoint_monitor='val_rmse',
         checkpoint_mode='min',
         dataset_class=IceNetDataSet,
-        early_stopping_patience=35,
+        dataset_ratio=None,
+        early_stopping_patience=15,
         epochs=2,
         filter_size=3,
         learning_rate=1e-4,
         lr_10e_decay_fac=1.0,
         lr_decay_start=10,
         lr_decay_end=30,
+        max_queue_size=3,
         n_filters_factor=2,
         network_folder=None,
         network_save=True,
@@ -40,13 +46,36 @@ def train_model(
         pre_load_path=None,
         seed=42,
         strategy=tf.distribute.get_strategy(),
-        max_queue_size=3,
+        training_verbosity=1,
         workers=5,
         use_multiprocessing=True,
         use_tensorboard=True,
-        training_verbosity=1,
-        dataset_ratio=None,
-    ):
+        use_wandb=True):
+
+    lr_decay = -0.1 * np.log(lr_10e_decay_fac)
+    wandb.init(
+        project="icenet2",
+        entity="jambyr",
+        config=dict(
+            seed=seed,
+            learning_rate=learning_rate,
+            filter_size=filter_size,
+            n_filters_factor=n_filters_factor,
+            lr_10e_decay_fac=lr_10e_decay_fac,
+            lr_decay=lr_decay,
+            lr_decay_start=lr_decay_start,
+            lr_decay_end=lr_decay_end,
+            batch_size=batch_size,
+        ),
+        allow_val_change=True,
+        mode='disabled' if not use_wandb else 'online',
+        settings=wandb.Settings(
+            start_method="fork",
+            _disable_stats=True,
+        ),
+    )
+
+    logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
 
     np.random.default_rng(seed)
     tf.random.set_seed(seed)
@@ -100,7 +129,6 @@ def train_model(
             baseline=prev_best
         ))
 
-    lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     callbacks_list.append(
         LearningRateScheduler(
             make_exp_decay_lr_schedule(
@@ -110,9 +138,21 @@ def train_model(
             )))
 
     if use_tensorboard:
+        logging.info("Adding tensorboard callback")
         log_dir = "logs/" + dt.datetime.now().strftime("%d-%m-%y-%H%M%S")
         callbacks_list.append(tf.keras.callbacks.TensorBoard(log_dir=log_dir,
                                                              histogram_freq=1))
+
+    if use_wandb:
+        # Log training metrics to wandb each epoch
+        logging.info("Adding wandb callback")
+        callbacks_list.append(
+            WandbCallback(
+                monitor=checkpoint_monitor,
+                mode=checkpoint_mode,
+                save_model=False,
+                save_graph=False,
+            ))
 
     ############################################################################
     #                              TRAINING MODEL
@@ -175,6 +215,7 @@ def get_args():
     ap.add_argument("-m", "--multiprocessing", action="store_true",
                     default=False)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
+    ap.add_argument("-nw", "--no-wandb", default=False, action="store_true")
     ap.add_argument("-p", "--preload", type=str)
     ap.add_argument("-qs", "--max-queue-size", default=10, type=int)
     ap.add_argument("-r", "--ratio", default=None, type=float)
@@ -225,6 +266,7 @@ def main():
                     seed=args.seed,
                     strategy=strategy,
                     use_multiprocessing=args.multiprocessing,
+                    use_wandb=args.no_wandb,
                     workers=args.workers, )
 
     history_path = os.path.join(os.path.dirname(trained_path),
