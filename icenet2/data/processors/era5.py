@@ -24,6 +24,7 @@ def main():
         dates["test"],
         linear_trends=tuple(),
         north=args.hemisphere == "north",
+        ref_procdir=args.ref,
         south=args.hemisphere == "south"
     )
     pp.init_source_data(

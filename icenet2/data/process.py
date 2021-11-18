@@ -40,6 +40,7 @@ class IceNetPreProcessor(Processor):
                  minmax=True,
                  no_normalise=tuple(["siconca"]),
                  path=os.path.join(".", "processed"),
+                 ref_procdir=None,
                  source_data=os.path.join(".", "data"),
                  update_key=None,
                  update_loader=True,
@@ -70,6 +71,7 @@ class IceNetPreProcessor(Processor):
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
             if not minmax else self._normalise_array_scaling
+        self._refdir = ref_procdir
         self._update_key = self.identifier if not update_key else update_key
         self._update_loader = os.path.join(".",
                                            "loader.{}.json".format(name)) \
@@ -173,10 +175,19 @@ class IceNetPreProcessor(Processor):
             #  reprocess. All this need be is in the path, to be honest
 
             if var_name in self._anom_vars:
-                clim_path = os.path.join(self.get_data_var_folder("params"),
-                                         "climatology.{}".format(var_name))
+                if self._refdir:
+                    logging.info("Loading climatology from alternate "
+                                 "directory: {}".format(self._refdir))
+                    clim_path = os.path.join(self._refdir,
+                                             "params",
+                                             "climatology.{}".format(var_name))
+                else:
+                    clim_path = os.path.join(self.get_data_var_folder("params"),
+                                             "climatology.{}".format(var_name))
 
                 if not os.path.exists(clim_path):
+                    logging.debug("Generating climatology {}".format(clim_path))
+
                     if self._dates.train:
                         climatology = da.sel(time=self._dates.train).\
                             groupby('time.month', restore_coord_dims=True).\
@@ -184,8 +195,9 @@ class IceNetPreProcessor(Processor):
 
                         climatology.to_netcdf(clim_path)
                     else:
-                        raise RuntimeError("{} does not exist and no training "
-                                           "data is supplied".format(clim_path))
+                        raise RuntimeError("{} does not exist and no "
+                                           "training data is supplied".
+                                           format(clim_path))
                 else:
                     climatology = xr.open_dataarray(clim_path)
 
@@ -330,14 +342,23 @@ class IceNetPreProcessor(Processor):
         min, max (float): Pre-computed min and max for the normalisation.
         """
 
-        mean_path = os.path.join(
-            self.get_data_var_folder("normalisation.mean"),
-            "{}".format(var_name))
+        if self._refdir:
+            logging.info("Using alternate processing directory {} for "
+                         "mean".format(self._refdir))
+            proc_dir = os.path.join(self._refdir, "normalisation.mean")
+        else:
+            proc_dir = self.get_data_var_folder("normalisation.mean")
+
+        mean_path = os.path.join(proc_dir, "{}".format(var_name))
 
         if os.path.exists(mean_path):
+            logging.debug("Loading norm-average mean-std from {}".
+                          format(mean_path))
             mean, std = tuple([self._dtype(el) for el in
                                open(mean_path, "r").read().split(",")])
         elif self._dates.train:
+            logging.debug("Generating norm-average mean-std from {} training "
+                          "dates".format(len(self._dates.train)))
             training_samples = da.sel(time=self._dates.train).data
             training_samples = training_samples.ravel()
 
@@ -352,14 +373,23 @@ class IceNetPreProcessor(Processor):
         return new_da
 
     def _normalise_array_scaling(self, var_name, da):
-        scale_path = os.path.join(
-            self.get_data_var_folder("normalisation.scale"),
-            "{}".format(var_name))
+        if self._refdir:
+            logging.info("Using alternate processing directory {} for "
+                         "scaling".format(self._refdir))
+            proc_dir = os.path.join(self._refdir, "normalisation.scale")
+        else:
+            proc_dir = self.get_data_var_folder("normalisation.scale")
+
+        scale_path = os.path.join(proc_dir, "{}".format(var_name))
 
         if os.path.exists(scale_path):
+            logging.debug("Loading norm-scaling min-max from {}".
+                          format(scale_path))
             minimum, maximum = tuple([self._dtype(el) for el in
                                open(scale_path, "r").read().split(",")])
         elif self._dates.train:
+            logging.debug("Generating norm-scaling min-max from {} training "
+                          "dates".format(len(self._dates.train)))
             training_samples = da.sel(time=self._dates.train).data
             training_samples = training_samples.ravel()
 

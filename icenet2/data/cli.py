@@ -68,6 +68,9 @@ def process_args(dates=True, laglead=True):
         ap.add_argument("-l", "--lag", type=int, default=2)
         ap.add_argument("-f", "--forecast-days", type=int, default=93)
 
+    ap.add_argument("-r", "--ref",
+                    help="Reference loader for normalisations etc",
+                    default=None, type=str)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     args = ap.parse_args()
