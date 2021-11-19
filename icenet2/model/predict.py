@@ -56,6 +56,7 @@ def predict_forecast(
         forecast_inputs, gen_outputs, sample_weights = [], [], []
 
         data_iter = test_inputs.as_numpy_iterator()
+        # FIXME: this is broken, this entry never gets added to the set?
         data = next(data_iter)
         x, y, sw = data
         batch = 0

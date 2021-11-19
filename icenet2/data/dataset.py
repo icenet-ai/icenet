@@ -69,6 +69,16 @@ class IceNetDataSet(DataProducer):
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
             for s in self._config["missing_dates"]]
 
+        self.train_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("train"),
+            missing_error=True))
+        self.val_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("val"),
+            missing_error=True))
+        self.test_fns = glob.glob("{}/*.tfrecord".format(
+            self.get_data_var_folder("test"),
+            missing_error=True))
+
     def _load_configuration(self, path):
         if os.path.exists(path):
             logging.info("Loading configuration {}".format(path))
@@ -81,17 +91,7 @@ class IceNetDataSet(DataProducer):
             raise OSError("{} not found".format(path))
 
     def get_split_datasets(self, ratio=None):
-        train_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("train"),
-            missing_error=True))
-        val_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("val"),
-            missing_error=True))
-        test_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("test"),
-            missing_error=True))
-
-        if not (len(train_fns) + len(val_fns) + len(test_fns)):
+        if not (len(self.train_fns) + len(self.val_fns) + len(self.test_fns)):
             raise RuntimeError("No files have been found, abandoning...")
 
         if ratio:
@@ -100,23 +100,23 @@ class IceNetDataSet(DataProducer):
 
             logging.info("Reducing datasets to {} of total files".format(ratio))
             train_idx, val_idx, test_idx = \
-                int(len(train_fns) * ratio), \
-                int(len(val_fns) * ratio), \
-                int(len(test_fns) * ratio)
+                int(len(self.train_fns) * ratio), \
+                int(len(self.val_fns) * ratio), \
+                int(len(self.test_fns) * ratio)
 
             if train_idx > 0:
-                train_fns = train_fns[:train_idx]
+                self.train_fns = self.train_fns[:train_idx]
             if val_idx > 0:
-                val_fns = val_fns[:val_idx]
+                self.val_fns = self.val_fns[:val_idx]
             if test_idx > 0:
-                test_fns = test_fns[:test_idx]
+                self.test_fns = self.test_fns[:test_idx]
 
         train_ds, val_ds, test_ds = \
-            tf.data.TFRecordDataset(train_fns,
+            tf.data.TFRecordDataset(self.train_fns,
                                     num_parallel_reads=self.batch_size), \
-            tf.data.TFRecordDataset(val_fns,
+            tf.data.TFRecordDataset(self.val_fns,
                                     num_parallel_reads=self.batch_size), \
-            tf.data.TFRecordDataset(test_fns,
+            tf.data.TFRecordDataset(self.test_fns,
                                     num_parallel_reads=self.batch_size),
 
         # TODO: Comparison/profiling runs
@@ -129,7 +129,7 @@ class IceNetDataSet(DataProducer):
                               dtype=self._dtype.__name__)
 
         train_ds = train_ds.\
-                shuffle(int(min(len(train_fns) / 4, 100)),
+                shuffle(int(min(len(self.train_fns) / 4, 100)),
                         reshuffle_each_iteration=True).\
                 map(decoder, num_parallel_calls=self.batch_size).\
                 batch(self.batch_size)

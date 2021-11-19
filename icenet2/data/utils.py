@@ -195,4 +195,3 @@ def esgf_search(server="https://esgf-node.llnl.gov/esg-search/search",
                 if sp[-1] == files_type:
                     all_files.append(sp[0].split(".html")[0])
     return sorted(all_files)
-
