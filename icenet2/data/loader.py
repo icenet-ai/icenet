@@ -37,12 +37,6 @@ def generate_sample(forecast_date,
                     shape,
                     var_files,
                     output_files):
-    # OUTPUT SETUP - happens for any sample, even if only predicting
-    # TODO: is there any benefit to changing this? Not likely
-
-    # Build up the set of N_samps output SIC time-series
-    #   (each n_forecast_months long in the time dimension)
-
     # To become array of shape (*raw_data_shape, n_forecast_days)
     sample_sic_list = []
 

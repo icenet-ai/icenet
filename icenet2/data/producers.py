@@ -35,8 +35,12 @@ class DataProducer(HemisphereMixin):
         if os.path.exists(self._path):
             logging.debug("{} already exists".format(self._path))
         else:
-            logging.info("Creating path: {}".format(self._path))
-            os.makedirs(self._path, exist_ok=True)
+            if not os.path.islink(self._path):
+                logging.info("Creating path: {}".format(self._path))
+                os.makedirs(self._path, exist_ok=True)
+            else:
+                logging.info("Skipping creation for symlink: {}".format(
+                    self._path))
 
         assert self._identifier, "No identifier supplied"
         assert self._hemisphere != Hemisphere.NONE, "No hemispheres selected"

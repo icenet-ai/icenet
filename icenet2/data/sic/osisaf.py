@@ -24,89 +24,106 @@ from icenet2.utils import Hemisphere
 
 invalid_sic_days = {
     Hemisphere.NORTH: [
-        dt.date(1979, 5, 28),
-        dt.date(1979, 5, 30),
-        dt.date(1979, 6, 1),
-        dt.date(1979, 6, 3),
-        dt.date(1979, 6, 11),
-        dt.date(1979, 6, 13),
-        dt.date(1979, 6, 15),
-        dt.date(1979, 6, 17),
-        dt.date(1979, 6, 19),
-        dt.date(1979, 6, 21),
-        dt.date(1979, 6, 23),
-        dt.date(1979, 6, 25),
+        *[d.date() for d in
+          pd.date_range(dt.date(1979, 5, 21), dt.date(1979, 6, 4))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1979, 6, 10), dt.date(1979, 6, 26))],
         dt.date(1979, 7, 1),
-        dt.date(1979, 7, 25),
-        dt.date(1979, 7, 27),
+        *[d.date() for d in
+          pd.date_range(dt.date(1979, 7, 24), dt.date(1979, 7, 28))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1980, 1, 4), dt.date(1980, 1, 10))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1980, 2, 27), dt.date(1980, 3, 4))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1980, 3, 16), dt.date(1980, 3, 22))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1980, 4, 9), dt.date(1980, 4, 15))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1981, 2, 27), dt.date(1981, 3, 5))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1984, 8, 12), dt.date(1984, 8, 24))],
         dt.date(1984, 9, 14),
         *[d.date() for d in
-          pd.date_range(dt.date(1986, 4, 1), dt.date(1986, 6, 30))],
-        dt.date(1987, 1, 16),
-        dt.date(1987, 1, 18),
-        dt.date(1987, 1, 30),
-        dt.date(1987, 2, 1),
-        dt.date(1987, 2, 23),
-        dt.date(1987, 2, 27),
-        dt.date(1987, 3, 1),
-        dt.date(1987, 3, 13),
-        dt.date(1987, 3, 23),
-        dt.date(1987, 3, 25),
-        dt.date(1987, 4, 4),
-        dt.date(1987, 4, 6),
-        dt.date(1987, 4, 10),
-        dt.date(1987, 4, 12),
-        dt.date(1987, 4, 14),
-        dt.date(1987, 4, 16),
-        dt.date(1987, 4, 4),
+          pd.date_range(dt.date(1985, 9, 22), dt.date(1985, 9, 28))],
         *[d.date() for d in
-          pd.date_range(dt.date(1987, 12, 1), dt.date(1987, 12, 31))],
-        # TODO: TEST DATE
+          pd.date_range(dt.date(1986, 3, 29), dt.date(1986, 7, 1))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 1, 3), dt.date(1987, 1, 19))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 1, 29), dt.date(1987, 2, 2))],
+        dt.date(1987, 2, 23),
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 2, 26), dt.date(1987, 3, 2))],
+        dt.date(1987, 3, 13),
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 3, 22), dt.date(1987, 3, 26))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 4, 3), dt.date(1987, 4, 17))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 12, 1), dt.date(1988, 1, 12))],
         dt.date(1989, 1, 3),
-        dt.date(1990, 1, 26)
+        *[d.date() for d in
+          pd.date_range(dt.date(1990, 12, 21), dt.date(1990, 12, 26))],
     ],
     Hemisphere.SOUTH: [
         dt.date(1979, 2, 5),
         dt.date(1979, 2, 25),
         dt.date(1979, 3, 23),
-        dt.date(1979, 3, 27),
-        dt.date(1979, 3, 29),
+        *[d.date() for d in
+          pd.date_range(dt.date(1979, 3, 26), dt.date(1979, 3, 30))],
         dt.date(1979, 4, 12),
         dt.date(1979, 5, 16),
-        dt.date(1979, 7, 11),
-        dt.date(1979, 7, 13),
-        dt.date(1979, 7, 15),
-        dt.date(1979, 7, 17),
+        *[d.date() for d in
+          pd.date_range(dt.date(1979, 5, 21), dt.date(1979, 5, 27))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1979, 7, 10), dt.date(1979, 7, 18))],
         dt.date(1979, 8, 10),
         dt.date(1979, 9, 3),
+        *[d.date() for d in
+          pd.date_range(dt.date(1980, 1, 4), dt.date(1980, 1, 10))],
         dt.date(1980, 2, 16),
-        dt.date(1980, 3, 15),
+        *[d.date() for d in
+          pd.date_range(dt.date(1980, 2, 27), dt.date(1980, 3, 4))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1980, 3, 14), dt.date(1980, 3, 22))],
         dt.date(1980, 3, 31),
+        *[d.date() for d in
+          pd.date_range(dt.date(1980, 4, 9), dt.date(1980, 4, 15))],
         dt.date(1980, 4, 22),
+        *[d.date() for d in
+          pd.date_range(dt.date(1981, 2, 27), dt.date(1981, 3, 5))],
         dt.date(1981, 6, 10),
+        *[d.date() for d in
+          pd.date_range(dt.date(1981, 8, 3), dt.date(1982, 8, 9))],
         dt.date(1982, 8, 6),
-        dt.date(1983, 7, 8),
-        dt.date(1983, 7, 10),
+        *[d.date() for d in
+          pd.date_range(dt.date(1983, 7, 7), dt.date(1983, 7, 11))],
         dt.date(1983, 7, 22),
         dt.date(1984, 6, 12),
-        dt.date(1984, 9, 14),
-        dt.date(1984, 9, 16),
-        dt.date(1984, 10, 4),
-        dt.date(1984, 10, 6),
-        dt.date(1984, 10, 8),
-        dt.date(1984, 11, 19),
-        dt.date(1984, 11, 21),
+        *[d.date() for d in
+          pd.date_range(dt.date(1984, 8, 12), dt.date(1984, 8, 24))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1984, 9, 13), dt.date(1984, 9, 17))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1984, 10, 3), dt.date(1984, 10, 9))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1984, 11, 18), dt.date(1984, 11, 22))],
         dt.date(1985, 7, 23),
         *[d.date() for d in
-          pd.date_range(dt.date(1986, 4, 1), dt.date(1986, 6, 30))],
+          pd.date_range(dt.date(1985, 9, 22), dt.date(1985, 9, 28))],
         *[d.date() for d in
-          pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 2))],
+          pd.date_range(dt.date(1986, 3, 29), dt.date(1986, 11, 2))],
         *[d.date() for d in
-          pd.date_range(dt.date(1987, 12, 1), dt.date(1987, 12, 31))],
+          pd.date_range(dt.date(1987, 1, 3), dt.date(1987, 1, 15))],
+        *[d.date() for d in
+          pd.date_range(dt.date(1987, 12, 1), dt.date(1988, 1, 12))],
         dt.date(1990, 1, 9),
         dt.date(1990, 8, 14),
         dt.date(1990, 8, 15),
-        dt.date(1990, 8, 24)
+        dt.date(1990, 8, 24),
+        *[d.date() for d in
+          pd.date_range(dt.date(1990, 12, 22), dt.date(1990, 12, 26))],
     ]
 }
 
