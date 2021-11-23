@@ -37,6 +37,8 @@ def generate_sample(forecast_date,
                     shape,
                     var_files,
                     output_files):
+    #logging.debug("Forecast date {}:\n{}\n{}".format(forecast_date, pformat(var_files), pformat(output_files)))
+    
     # To become array of shape (*raw_data_shape, n_forecast_days)
     sample_sic_list = []
 
@@ -85,7 +87,13 @@ def generate_sample(forecast_date,
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
-    # CHEAT: y[..., 0:1] = np.nan_to_num(y[..., 0:1])
+
+    # Check our output
+
+    m = np.isnan(y)
+    if np.sum(s[m]) > 0:
+        np.save("{}".format(forecast_date.strftime("%Y_%m_%d.nan.npy"), np.array([x, y, s])))
+        raise RuntimeError("Forecast {} has sample weighting that's going to introduce nans".format(forecast_date))
 
     # INPUT FEATURES
     x = np.zeros((
@@ -100,14 +108,14 @@ def generate_sample(forecast_date,
             continue
 
         v2 += num_channels
+        
+        var_filenames = var_files[var_name].values()
 
-        logging.debug("Var {}: files {}".format(var_name,
-                                                var_files[var_name].values()))
         x[:, :, v1:v2] = \
             np.stack([np.load(filename)
                       if filename
                       else np.zeros(shape)
-                      for filename in var_files[var_name].values()], axis=-1)
+                      for filename in var_filenames], axis=-1)
 
         v1 += num_channels
 
