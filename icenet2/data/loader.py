@@ -37,7 +37,8 @@ def generate_sample(forecast_date,
                     shape,
                     var_files,
                     output_files):
-    #logging.debug("Forecast date {}:\n{}\n{}".format(forecast_date, pformat(var_files), pformat(output_files)))
+    # logging.debug("Forecast date {}:\n{}\n{}".format(forecast_date,
+    # pformat(var_files), pformat(output_files)))
     
     # To become array of shape (*raw_data_shape, n_forecast_days)
     sample_sic_list = []
@@ -91,9 +92,12 @@ def generate_sample(forecast_date,
     # Check our output
 
     m = np.isnan(y)
-    if np.sum(s[m]) > 0:
-        np.save("{}".format(forecast_date.strftime("%Y_%m_%d.nan.npy"), np.array([x, y, s])))
-        raise RuntimeError("Forecast {} has sample weighting that's going to introduce nans".format(forecast_date))
+    if np.sum(sample_weights[m]) > 0:
+        np.save("{}".format(forecast_date.strftime("%Y_%m_%d.nan.npy"),
+                            np.array([y, sample_weights])))
+        msg = "Forecast {} has sample weighting that's going to introduce " \
+              "nans".format(forecast_date)
+        raise RuntimeError(msg)
 
     # INPUT FEATURES
     x = np.zeros((
