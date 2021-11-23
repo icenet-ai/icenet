@@ -74,7 +74,8 @@ def generate_sample(forecast_date,
         forecast_day = forecast_date + relativedelta(days=leadtime_idx)
 
         if any([forecast_day == missing_date
-                for missing_date in missing_dates]):
+                for missing_date in missing_dates])
+            or all(np.isnan(y[..., forecast_day, 0])):
             sample_weight = np.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
@@ -88,16 +89,13 @@ def generate_sample(forecast_date,
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
-
     # Check our output
 
     m = np.isnan(y)
     if np.sum(sample_weights[m]) > 0:
-        np.save("{}".format(forecast_date.strftime("%Y_%m_%d.nan.npy"),
-                            np.array([y, sample_weights])))
-        msg = "Forecast {} has sample weighting that's going to introduce " \
-              "nans".format(forecast_date)
-        raise RuntimeError(msg)
+        np.save("{}".format(forecast_date.strftime("%Y_%m_%d.nan.npy")),
+                            np.array([y, sample_weights]))
+        raise RuntimeError("Forecast {} is a nanset".format(forecast_date))
 
     # INPUT FEATURES
     x = np.zeros((
