@@ -155,7 +155,7 @@ class IceNetPreProcessor(Processor):
 
         # Conversion required one way or another, so perhaps more efficient
         # than a union
-        for d in self._missing_dates:
+        for d in sorted(self._missing_dates):
             date_str = d.strftime(IceNetPreProcessor.DATE_FORMAT)
 
             if date_str not in configuration["missing_dates"]:

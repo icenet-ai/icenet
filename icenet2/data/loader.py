@@ -21,10 +21,17 @@ def generate_and_write(path, dates_args):
     with tf.io.TFRecordWriter(path) as writer:
         for date in dates_args.keys():
             x, y, sample_weights = generate_sample(date, *dates_args[date])
-            write_tfrecord(writer, x, y, sample_weights)
+
+            if x and y and sample_weights:
+                write_tfrecord(writer, x, y, sample_weights)
+            else:
+                logging.warning(date.strftime("Skipping %Y-%m-%d"))
     return path
 
 
+# FIXME: I want to get rid of the datetime calculations here, it's prone to
+#  error and the ordering is already determined. Move the sample generation
+#  to a purely list based affair, guaranteeing order and reducing duplication
 def generate_sample(forecast_date,
                     channels,
                     dtype,
@@ -42,6 +49,9 @@ def generate_sample(forecast_date,
     
     # To become array of shape (*raw_data_shape, n_forecast_days)
     sample_sic_list = []
+
+    logging.debug("Forecast date {} outputs".format(
+        forecast_date.strftime("%Y-%m-%d")))
 
     for leadtime_idx in range(n_forecast_days):
         forecast_day = forecast_date + relativedelta(days=leadtime_idx)
@@ -69,13 +79,18 @@ def generate_sample(forecast_date,
 
     y[:, :, :, 0] = sample_output
 
+    logging.debug("Forecast date {} weights".format(
+        forecast_date.strftime("%Y-%m-%d")))
+
     # Masked recomposition of output
     for leadtime_idx in range(n_forecast_days):
         forecast_day = forecast_date + relativedelta(days=leadtime_idx)
 
         if any([forecast_day == missing_date
-                for missing_date in missing_dates]) or \
-            all(np.isnan(y[..., forecast_day, 0])):
+                for missing_date in missing_dates]):
+            sample_weight = np.zeros(shape, dtype)
+        elif all(np.isnan(y[..., forecast_day, 0])):
+            logging.debug("Forecast {} day {} is nan, zero-weighting")
             sample_weight = np.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
@@ -89,13 +104,19 @@ def generate_sample(forecast_date,
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
-    # Check our output
+    logging.debug("Forecast date {} output check".format(
+        forecast_date.strftime("%Y-%m-%d")))
 
+    # Check our output
     m = np.isnan(y)
     if np.sum(sample_weights[m]) > 0:
         np.save("{}".format(forecast_date.strftime("%Y_%m_%d.nan.npy")),
                             np.array([y, sample_weights]))
-        raise RuntimeError("Forecast {} is a nanset".format(forecast_date))
+        logging.warning("Forecast {} is a nanset".format(forecast_date))
+        return None, None, None
+
+    logging.debug("Forecast date {} inputs".format(
+        forecast_date.strftime("%Y-%m-%d")))
 
     # INPUT FEATURES
     x = np.zeros((
@@ -349,6 +370,7 @@ class IceNetDataLoader(Generator):
 
             for fut in concurrent.futures.as_completed(futures):
                 path = fut.result()
+
                 logging.info("Finished output {}".format(path))
 
         self._write_dataset_config(counts)
@@ -389,7 +411,7 @@ class IceNetDataLoader(Generator):
             var_files[var_name] = {
                 input_date: self._get_var_file(
                     var_name, input_date)
-                for input_date in input_days}
+                for input_date in set(sorted(input_days))}
 
         output_files = {
             input_date:
