@@ -74,8 +74,8 @@ def generate_sample(forecast_date,
         forecast_day = forecast_date + relativedelta(days=leadtime_idx)
 
         if any([forecast_day == missing_date
-                for missing_date in missing_dates])
-            or all(np.isnan(y[..., forecast_day, 0])):
+                for missing_date in missing_dates]) or \
+            all(np.isnan(y[..., forecast_day, 0])):
             sample_weight = np.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
