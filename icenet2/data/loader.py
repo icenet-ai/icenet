@@ -22,10 +22,7 @@ def generate_and_write(path, dates_args):
         for date in dates_args.keys():
             x, y, sample_weights = generate_sample(date, *dates_args[date])
 
-            if x and y and sample_weights:
-                write_tfrecord(writer, x, y, sample_weights)
-            else:
-                logging.warning(date.strftime("Skipping %Y-%m-%d"))
+            write_tfrecord(writer, x, y, sample_weights)
     return path
 
 
@@ -49,9 +46,6 @@ def generate_sample(forecast_date,
     
     # To become array of shape (*raw_data_shape, n_forecast_days)
     sample_sic_list = []
-
-    logging.debug("Forecast date {} outputs".format(
-        forecast_date.strftime("%Y-%m-%d")))
 
     for leadtime_idx in range(n_forecast_days):
         forecast_day = forecast_date + relativedelta(days=leadtime_idx)
@@ -79,9 +73,6 @@ def generate_sample(forecast_date,
 
     y[:, :, :, 0] = sample_output
 
-    logging.debug("Forecast date {} weights".format(
-        forecast_date.strftime("%Y-%m-%d")))
-
     # Masked recomposition of output
     for leadtime_idx in range(n_forecast_days):
         forecast_day = forecast_date + relativedelta(days=leadtime_idx)
@@ -89,8 +80,7 @@ def generate_sample(forecast_date,
         if any([forecast_day == missing_date
                 for missing_date in missing_dates]):
             sample_weight = np.zeros(shape, dtype)
-        elif all(np.isnan(y[..., forecast_day, 0])):
-            logging.debug("Forecast {} day {} is nan, zero-weighting")
+        elif np.isnan(y[..., leadtime_idx, 0]).all():
             sample_weight = np.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
@@ -104,19 +94,12 @@ def generate_sample(forecast_date,
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
-    logging.debug("Forecast date {} output check".format(
-        forecast_date.strftime("%Y-%m-%d")))
-
     # Check our output
     m = np.isnan(y)
     if np.sum(sample_weights[m]) > 0:
         np.save("{}".format(forecast_date.strftime("%Y_%m_%d.nan.npy")),
                             np.array([y, sample_weights]))
-        logging.warning("Forecast {} is a nanset".format(forecast_date))
-        return None, None, None
-
-    logging.debug("Forecast date {} inputs".format(
-        forecast_date.strftime("%Y-%m-%d")))
+        raise RuntimeError("Forecast {} is a nanset".format(forecast_date))
 
     # INPUT FEATURES
     x = np.zeros((
