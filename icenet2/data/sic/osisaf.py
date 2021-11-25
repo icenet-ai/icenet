@@ -118,7 +118,7 @@ invalid_sic_days = {
           pd.date_range(dt.date(1987, 1, 3), dt.date(1987, 1, 15))],
         *[d.date() for d in
           pd.date_range(dt.date(1987, 12, 1), dt.date(1988, 1, 12))],
-        dt.date(1990, 1, 9),
+        #dt.date(1990, 1, 9),
         dt.date(1990, 8, 14),
         dt.date(1990, 8, 15),
         dt.date(1990, 8, 24),
@@ -150,12 +150,14 @@ class SICDownloader(Downloader):
                  additional_invalid_dates=(),
                  dates=(),
                  delete_temp=False,
+                 download=True,
                  dtype=np.float32,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
 
         self._dates = dates
         self._delete_temp = delete_temp
+        self._download = download
         self._dtype=dtype
         self._invalid_dates = invalid_sic_days[self.hemisphere] + \
             list(additional_invalid_dates)
@@ -168,6 +170,11 @@ class SICDownloader(Downloader):
 
     def download(self):
         hs = self.hemisphere_str[0]
+
+        logging.info(
+            "Not downloading SIC files, (re)processing NC files in "
+            "existence already" if not self._download else
+            "Downloading SIC datafiles to .temp intermediates...")
 
         #cmd = "wget -m -nH -nv --cut-dirs=4 -P {} {}"
         ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
@@ -195,57 +202,75 @@ class SICDownloader(Downloader):
                                    str(el.year),
                                    "{}.nc".format(date_str))
 
-            if not os.path.isdir(os.path.dirname(temp_path)):
-                os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+            if not self._download:
+                if os.path.exists(nc_path):
+                    reproc_path = os.path.join(
+                        self.get_data_var_folder("siconca"),
+                        str(el.year),
+                        "{}.reproc.nc".format(date_str))
 
-            if os.path.exists(temp_path) or os.path.exists(nc_path):
-                logging.info("{} file exists, skipping".format(date_str))
-                if not os.path.exists(nc_path):
-                    data_files.append(temp_path)
+                    logging.debug("{} exists, becoming {}".
+                                  format(nc_path, reproc_path))
+                    os.rename(nc_path, reproc_path)
+                    data_files.append(reproc_path)
+                else:
+                    logging.debug("{} does not exist".format(nc_path))
                 continue
+            else:
+                if not os.path.isdir(os.path.dirname(temp_path)):
+                    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
 
-            if not ftp:
-                ftp = FTP('osisaf.met.no')
-                ftp.login()
+                if os.path.exists(temp_path) or os.path.exists(nc_path):
+                    logging.info("{} file exists, skipping".format(date_str))
+                    if not os.path.exists(nc_path):
+                        data_files.append(temp_path)
+                    continue
 
-            chdir_path = ftp_osi450 if el < osi430b_start else ftp_osi430b
-            chdir_path = chdir_path.format(el.year, el.month)
+                if not ftp:
+                    ftp = FTP('osisaf.met.no')
+                    ftp.login()
 
-            ftp.cwd(chdir_path)
+                chdir_path = ftp_osi450 if el < osi430b_start else ftp_osi430b
+                chdir_path = chdir_path.format(el.year, el.month)
 
-            if chdir_path not in cache:
-                cache[chdir_path] = ftp.nlst()
+                ftp.cwd(chdir_path)
 
-            cache_match = "ice_conc_{}_ease*_{:04d}{:02d}{:02d}*.nc".\
-                format(hs, el.year, el.month, el.day)
-            ftp_files = [el for el in cache[chdir_path]
-                         if fnmatch.fnmatch(el, cache_match)]
+                if chdir_path not in cache:
+                    cache[chdir_path] = ftp.nlst()
 
-            if len(ftp_files) > 1:
-                raise ValueError("More than a single file found: {}".
-                                 format(ftp_files))
-            elif not len(ftp_files):
-                continue
+                cache_match = "ice_conc_{}_ease*_{:04d}{:02d}{:02d}*.nc".\
+                    format(hs, el.year, el.month, el.day)
+                ftp_files = [el for el in cache[chdir_path]
+                             if fnmatch.fnmatch(el, cache_match)]
 
-            with open(temp_path, "wb") as fh:
-                ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
+                if len(ftp_files) > 1:
+                    raise ValueError("More than a single file found: {}".
+                                     format(ftp_files))
+                elif not len(ftp_files):
+                    continue
 
-            logging.debug("Downloaded {}".format(temp_path))
-            data_files.append(temp_path)
+                with open(temp_path, "wb") as fh:
+                    ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
 
-        if ftp:
-            ftp.quit()
+                logging.debug("Downloaded {}".format(temp_path))
+                data_files.append(temp_path)
+
+            if ftp:
+                ftp.quit()
 
         logging.debug("Files being processed: {}".format(data_files))
 
         if len(data_files):
             ds = xr.open_mfdataset(data_files, engine="netcdf4", parallel=True)
 
-            ds = ds.drop_vars(var_remove_list)
+            logging.debug("Processing out extraneous data")
+
+            ds = ds.drop_vars(var_remove_list, errors="ignore")
             dts = [pd.to_datetime(date).date() for date in ds.time.values]
             da = ds.resample(time="1D").mean().ice_conc.sel(time=dts)
 
-            da /= 100.  # Convert from SIC % to fraction
+            if self._download:
+                da /= 100.  # Convert from SIC % to fraction
 
             da = self._missing_dates(da)
 
@@ -254,6 +279,8 @@ class SICDownloader(Downloader):
                 fpath = os.path.join(self.get_data_var_folder("siconca"),
                                      str(pd.to_datetime(date).year),
                                      "{}.nc".format(date_str))
+
+                logging.debug("Processing {}".format(date_str))
 
                 if not os.path.exists(fpath):
                     day_da = da.sel(time=slice(date, date))
@@ -301,6 +328,8 @@ class SICDownloader(Downloader):
                          if date not in dates_obs
                          or date in self._invalid_dates]
 
+        logging.info("Processing {} missing dates".format(len(missing_dates)))
+
         missing_dates_path = os.path.join(
             self.get_data_var_folder("siconca"), "missing_days.csv")
 
@@ -309,10 +338,15 @@ class SICDownloader(Downloader):
                 # FIXME: slightly unusual format for Ymd dates
                 fh.write(date.strftime("%Y,%m,%d\n"))
 
+        logging.debug("Interpolating {} missing dates".
+                      format(len(missing_dates)))
+
         for date in missing_dates:
             da = xr.concat([da,
                             da.interp(time=pd.Timestamp(date))],
                            dim='time')
+
+        logging.debug("Finished interpolation")
 
         da = da.sortby('time')
         da.data = np.array(da.data, dtype=self._dtype)
@@ -321,7 +355,7 @@ class SICDownloader(Downloader):
 
 
 def main():
-    args = download_args()
+    args = download_args(skip_download=True)
 
     logging.info("OSASIF-SIC Data Downloading")
     sic = SICDownloader(
@@ -329,6 +363,7 @@ def main():
                pd.date_range(args.start_date, args.end_date,
                              freq="D")],
         north=args.hemisphere == "north",
-        south=args.hemisphere == "south"
+        south=args.hemisphere == "south",
+        download=not args.skip_download
     )
     sic.download()

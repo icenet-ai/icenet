@@ -25,13 +25,17 @@ def dates_arg(string):
     return [dt.date(*[int(s) for s in date_tuple]) for date_tuple in date_match]
 
 
-def download_args(dates=True, workers=False):
+def download_args(dates=True, skip_download=False, workers=False):
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
 
     if dates:
         ap.add_argument("start_date", type=date_arg)
         ap.add_argument("end_date", type=date_arg)
+
+    if skip_download:
+        ap.add_argument("-s", "--skip-download", default=False,
+                        action="store_true")
 
     if workers:
         ap.add_argument("-w", "--workers", default=8, type=int)
