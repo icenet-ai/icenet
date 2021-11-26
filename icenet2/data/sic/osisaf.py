@@ -65,6 +65,40 @@ invalid_sic_days = {
         dt.date(1989, 1, 3),
         *[d.date() for d in
           pd.date_range(dt.date(1990, 12, 21), dt.date(1990, 12, 26))],
+        dt.date(1979, 5, 28),
+        dt.date(1979, 5, 30),
+        dt.date(1979, 6, 1),
+        dt.date(1979, 6, 3),
+        dt.date(1979, 6, 11),
+        dt.date(1979, 6, 13),
+        dt.date(1979, 6, 15),
+        dt.date(1979, 6, 17),
+        dt.date(1979, 6, 19),
+        dt.date(1979, 6, 21),
+        dt.date(1979, 6, 23),
+        dt.date(1979, 6, 25),
+        dt.date(1979, 7, 1),
+        dt.date(1979, 7, 25),
+        dt.date(1979, 7, 27),
+        dt.date(1984, 9, 14),
+        dt.date(1987, 1, 16),
+        dt.date(1987, 1, 18),
+        dt.date(1987, 1, 30),
+        dt.date(1987, 2, 1),
+        dt.date(1987, 2, 23),
+        dt.date(1987, 2, 27),
+        dt.date(1987, 3, 1),
+        dt.date(1987, 3, 13),
+        dt.date(1987, 3, 23),
+        dt.date(1987, 3, 25),
+        dt.date(1987, 4, 4),
+        dt.date(1987, 4, 6),
+        dt.date(1987, 4, 10),
+        dt.date(1987, 4, 12),
+        dt.date(1987, 4, 14),
+        dt.date(1987, 4, 16),
+        dt.date(1987, 4, 4),
+        dt.date(1990, 1, 26)
     ],
     Hemisphere.SOUTH: [
         dt.date(1979, 2, 5),
@@ -118,12 +152,46 @@ invalid_sic_days = {
           pd.date_range(dt.date(1987, 1, 3), dt.date(1987, 1, 15))],
         *[d.date() for d in
           pd.date_range(dt.date(1987, 12, 1), dt.date(1988, 1, 12))],
-        #dt.date(1990, 1, 9),
         dt.date(1990, 8, 14),
         dt.date(1990, 8, 15),
         dt.date(1990, 8, 24),
         *[d.date() for d in
           pd.date_range(dt.date(1990, 12, 22), dt.date(1990, 12, 26))],
+        dt.date(1979, 2, 5),
+        dt.date(1979, 2, 25),
+        dt.date(1979, 3, 23),
+        dt.date(1979, 3, 27),
+        dt.date(1979, 3, 29),
+        dt.date(1979, 4, 12),
+        dt.date(1979, 5, 16),
+        dt.date(1979, 7, 11),
+        dt.date(1979, 7, 13),
+        dt.date(1979, 7, 15),
+        dt.date(1979, 7, 17),
+        dt.date(1979, 8, 10),
+        dt.date(1979, 9, 3),
+        dt.date(1980, 2, 16),
+        dt.date(1980, 3, 15),
+        dt.date(1980, 3, 31),
+        dt.date(1980, 4, 22),
+        dt.date(1981, 6, 10),
+        dt.date(1982, 8, 6),
+        dt.date(1983, 7, 8),
+        dt.date(1983, 7, 10),
+        dt.date(1983, 7, 22),
+        dt.date(1984, 6, 12),
+        dt.date(1984, 9, 14),
+        dt.date(1984, 9, 16),
+        dt.date(1984, 10, 4),
+        dt.date(1984, 10, 6),
+        dt.date(1984, 10, 8),
+        dt.date(1984, 11, 19),
+        dt.date(1984, 11, 21),
+        dt.date(1985, 7, 23),
+        *pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 1)),
+        dt.date(1990, 8, 14),
+        dt.date(1990, 8, 15),
+        dt.date(1990, 8, 24)
     ]
 }
 
@@ -261,38 +329,52 @@ class SICDownloader(Downloader):
         logging.debug("Files being processed: {}".format(data_files))
 
         if len(data_files):
-            ds = xr.open_mfdataset(data_files, engine="netcdf4", parallel=True)
+            for file in data_files:
+                ds = xr.open_dataset(file, engine="netcdf4")
 
-            logging.debug("Processing out extraneous data")
+                logging.debug("Processing out extraneous data")
 
-            ds = ds.drop_vars(var_remove_list, errors="ignore")
-            dts = [pd.to_datetime(date).date() for date in ds.time.values]
-            da = ds.resample(time="1D").mean().ice_conc.sel(time=dts)
+                ds = ds.drop_vars(var_remove_list, errors="ignore")
+                da = ds.resample(time="1D").mean().ice_conc
 
-            if self._download:
-                da /= 100.  # Convert from SIC % to fraction
+                if self._download:
+                    da /= 100.  # Convert from SIC % to fraction
 
-            da = self._missing_dates(da)
+                # TODO: clean up
+                if len(da.time.values) > 1:
+                    raise RuntimeError("Too many dates: {}".format(da.time))
 
-            for date in da.time.values:
-                date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
-                fpath = os.path.join(self.get_data_var_folder("siconca"),
-                                     str(pd.to_datetime(date).year),
-                                     "{}.nc".format(date_str))
+                for date in da.time.values:
+                    date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
+                    fpath = os.path.join(self.get_data_var_folder("siconca"),
+                                         str(pd.to_datetime(date).year),
+                                         "{}.nc".format(date_str))
 
-                logging.debug("Processing {}".format(date_str))
+                    logging.debug("Processing {}".format(date_str))
 
-                if not os.path.exists(fpath):
-                    day_da = da.sel(time=slice(date, date))
+                    if not os.path.exists(fpath):
+                        day_da = da.sel(time=slice(date, date))
 
-                    mask = self._mask_dict[pd.to_datetime(date).month]
+                        mask = self._mask_dict[pd.to_datetime(date).month]
 
-                    # TODO: active grid cell mask possibly should move to
-                    #  preproc Set outside mask to zero
-                    day_da.data[0][~mask] = 0.
+                        # TODO: active grid cell mask possibly should move to
+                        #  preproc Set outside mask to zero
+                        day_da.data[0][~mask] = 0.
 
-                    logging.info("Writing {}".format(fpath))
-                    day_da.to_netcdf(fpath)
+                        if np.sum(np.isnan(day_da.data)) > 0:
+                            logging.warning("NaNs detected, adding to invalid "
+                                            "list: {}".format(date_str))
+                            self._invalid_dates.append(pd.to_datetime(date))
+                        else:
+                            logging.info("Writing {}".format(fpath))
+                            day_da.to_netcdf(fpath)
+
+                ds.close()
+                if not self._download:
+                    logging.info("Removing reproc file {}".format(file))
+                    os.unlink(file)
+
+        self.missing_dates()
 
         if self._delete_temp:
             for fpath in data_files:
@@ -313,8 +395,9 @@ class SICDownloader(Downloader):
         self._missing_dates(ds.to_array())
 
     def _missing_dates(self, da):
-        if pd.Timestamp(1979, 1, 2) in da.time.values\
-                and dt.date(1979, 1, 1) in self._dates:
+        if pd.Timestamp(1979, 1, 2) in da.time.values \
+                and dt.date(1979, 1, 1) in self._dates\
+                and pd.Timestamp(1979, 1, 1) not in da.time.values:
             da_1979_01_01 = da.sel(
                 time=[pd.Timestamp(1979, 1, 2)]).copy().assign_coords(
                 {'time': [pd.Timestamp(1979, 1, 1)]})
@@ -342,9 +425,12 @@ class SICDownloader(Downloader):
                       format(len(missing_dates)))
 
         for date in missing_dates:
-            da = xr.concat([da,
-                            da.interp(time=pd.Timestamp(date))],
-                           dim='time')
+            # TODO: test, but overcomes issue with reprocessing
+            if pd.Timestamp(date) not in da.time.values:
+                logging.debug("Interpolating {}".format(date))
+                da = xr.concat([da,
+                                da.interp(time=pd.to_datetime(date))],
+                               dim='time')
 
         logging.debug("Finished interpolation")
 

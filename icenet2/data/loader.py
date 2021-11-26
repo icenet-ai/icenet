@@ -87,6 +87,9 @@ def generate_sample(forecast_date,
             sample_weight = masks[forecast_day]
             sample_weight = sample_weight.astype(dtype)
 
+            if np.isnan(y[..., leadtime_idx, 0]).any():
+                sample_weight[y[..., leadtime_idx, 0] == np.nan] = 0
+
             # Scale the loss for each month s.t. March is
             #   scaled by 1 and Sept is scaled by 1.77
             if loss_weight_days:
