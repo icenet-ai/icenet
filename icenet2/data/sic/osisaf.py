@@ -343,7 +343,7 @@ class SICDownloader(Downloader):
                     da /= 100.  # Convert from SIC % to fraction
 
                 if not lat_vals:
-                    if hasattr(da.coords, "lat"):
+                    if hasattr(da, "lat"):
                         lat_vals = da.coords['lat']
                     else:
                         raise RuntimeError("First file missing lat vals for "
