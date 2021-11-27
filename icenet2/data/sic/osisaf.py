@@ -342,7 +342,9 @@ class SICDownloader(Downloader):
                 if self._download:
                     da /= 100.  # Convert from SIC % to fraction
 
-                if not lat_vals:
+                # xarray override the boolean equality operator, meaning you
+                # can't use the obvious NoneType if clause laziness. Interesting
+                if isinstance(lat_vals, type(None)):
                     if hasattr(da, "lat"):
                         lat_vals = da.coords['lat']
                     else:
