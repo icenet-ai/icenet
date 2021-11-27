@@ -329,6 +329,8 @@ class SICDownloader(Downloader):
         logging.debug("Files being processed: {}".format(data_files))
 
         if len(data_files):
+            lat_vals = None
+
             for file in data_files:
                 ds = xr.open_dataset(file, engine="netcdf4")
 
@@ -339,6 +341,15 @@ class SICDownloader(Downloader):
 
                 if self._download:
                     da /= 100.  # Convert from SIC % to fraction
+
+                if not lat_vals:
+                    if hasattr(da.coords, "lat"):
+                        lat_vals = da.coords['lat']
+                    else:
+                        raise RuntimeError("First file missing lat vals for "
+                                           "replacement in others")
+
+                da.coords['lat'] = lat_vals
 
                 # TODO: clean up
                 if len(da.time.values) > 1:
