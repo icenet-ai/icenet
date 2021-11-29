@@ -80,15 +80,10 @@ def generate_sample(forecast_date,
         if any([forecast_day == missing_date
                 for missing_date in missing_dates]):
             sample_weight = np.zeros(shape, dtype)
-        elif np.isnan(y[..., leadtime_idx, 0]).all():
-            sample_weight = np.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
             sample_weight = masks[forecast_day]
             sample_weight = sample_weight.astype(dtype)
-
-            if np.isnan(y[..., leadtime_idx, 0]).any():
-                sample_weight[y[..., leadtime_idx, 0] == np.nan] = 0
 
             # Scale the loss for each month s.t. March is
             #   scaled by 1 and Sept is scaled by 1.77
@@ -96,6 +91,12 @@ def generate_sample(forecast_date,
                 sample_weight *= 33928. / np.sum(sample_weight)
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
+
+    if np.isnan(y).any():
+        logging.debug("Fixing nans in output: {}".format(
+            np.argwhere(np.isnan(y))))
+        sample_weights[np.isnan(y)] = 0
+        y[np.isnan(y)] = 0.
 
     # Check our output
     m = np.isnan(y)
