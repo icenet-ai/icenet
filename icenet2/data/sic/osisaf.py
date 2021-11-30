@@ -295,6 +295,7 @@ class SICDownloader(Downloader):
                     continue
 
                 if not ftp:
+                    logging.info("FTP opening")
                     ftp = FTP('osisaf.met.no')
                     ftp.login()
 
@@ -323,8 +324,8 @@ class SICDownloader(Downloader):
                 logging.debug("Downloaded {}".format(temp_path))
                 data_files.append(temp_path)
 
-            if ftp:
-                ftp.quit()
+        if ftp:
+            ftp.quit()
 
         logging.debug("Files being processed: {}".format(data_files))
 
