@@ -30,7 +30,7 @@ def download_args(choices=None, dates=True, skip_download=False, workers=False):
     ap.add_argument("hemisphere", choices=("north", "south"))
 
     if choices and type(choices) == list:
-        ap.add_argument("choice", choices=choices, default=choices[0])
+        ap.add_argument("-c", "--choice", choices=choices, default=choices[0])
 
     if dates:
         ap.add_argument("start_date", type=date_arg)
