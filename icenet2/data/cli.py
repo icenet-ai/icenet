@@ -25,9 +25,12 @@ def dates_arg(string):
     return [dt.date(*[int(s) for s in date_tuple]) for date_tuple in date_match]
 
 
-def download_args(dates=True, skip_download=False, workers=False):
+def download_args(choices=None, dates=True, skip_download=False, workers=False):
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
+
+    if choices and type(choices) == list:
+        ap.add_argument("choice", choices=choices, default=choices[0])
 
     if dates:
         ap.add_argument("start_date", type=date_arg)

@@ -298,7 +298,7 @@ class ERA5Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args(workers=True)
+    args = download_args(choices=["toolbox", "cdsapi"], workers=True)
 
     logging.info("ERA5 Data Downloading")
     era5 = ERA5Downloader(
@@ -311,7 +311,8 @@ def main():
                              freq="D")],
         max_threads=args.workers,
         north=args.hemisphere == "north",
-        south=args.hemisphere == "south"
+        south=args.hemisphere == "south",
+        use_toolbox=args.choice == "toolbox"
     )
     era5.download()
     era5.regrid()
