@@ -69,8 +69,16 @@ def get_prediction_data(root, name, date):
                             "*",
                             date.strftime("%Y_%m_%d.npy"))
 
-    data = [np.load(file) for file in glob.glob(glob_str)]
+    np_files = glob.glob(glob_str)
+    if not len(np_files):
+        logging.warning("No files found")
+        return None
+
+    data = [np.load(f) for f in np_files]
     data = np.array(data)
+
+    logging.debug("Data read from disk: {} from: {}".format(data.shape, np_files))
+
     return np.stack(
         [data.mean(axis=0), data.std(axis=0)],
         axis=-1).squeeze()
@@ -88,6 +96,8 @@ def create_cf_output():
     arr = np.array(
         [get_prediction_data(args.root, args.name, date)
          for date in dates])
+
+    logging.info("Dataset arr shape: {}".format(arr.shape))
 
     # TODO: Highly Recommended Variable Attributes
     xarr = xr.Dataset(
