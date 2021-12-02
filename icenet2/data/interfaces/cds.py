@@ -135,6 +135,7 @@ class ERA5Downloader(ClimateDownloader):
                     "frequency": "1-hourly",
                     "time_zone": "UTC+00:00",
                     "grid": "0.25/0.25",
+                    # TODO: Swapped [0][2] to [2][0] for nh, still sh compat?
                     "area": {"lat": [self.hemisphere_loc[2],
                                      self.hemisphere_loc[0]],
                              "lon": [self.hemisphere_loc[1],

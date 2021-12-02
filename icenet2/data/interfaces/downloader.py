@@ -190,12 +190,12 @@ class ClimateDownloader(Downloader):
             latlon_files = [df for df in file_source if source in df]
             wind_files[var] = sorted([
                 re.sub(r'latlon_', '', df) for df in latlon_files
-                if re.sub(r'^latlon_', '',
-                          os.path.basename(df)).startswith(var)],
+                if os.path.dirname(df).split(os.sep)[-2] == var],
                 key=lambda x: dt.date(*[int(el) for el in
                                         re.search(r'^\w+_(\d+)_(\d+)_(\d+).nc',
                                       os.path.basename(x)).groups()])
             )
+            logging.info("{} files for {}".format(len(wind_files[var]), var))
 
         # NOTE: we're relying on apply_to having equal datasets
         assert len(wind_files[apply_to[0]]) == len(wind_files[apply_to[1]]), \
