@@ -1,18 +1,35 @@
 import argparse
+import datetime as dt
 import configparser
 import logging
 import os
+import re
+import shutil
+import tempfile
+
+import xarray as xr
 
 from azure.storage.blob import ContainerClient
 
 # https://docs.microsoft.com/en-us/azure/developer/python/sdk/storage/storage-blob-readme?view=storage-py-v12#next-steps
 
+
+def date_arg(string):
+    d_match = re.search(r'^(\d+)-(\d+)-(\d+)$', string).groups()
+
+    if d_match:
+        return dt.date(*d_match)
+    return None
+
+
 def upload_parse_args():
     a = argparse.ArgumentParser()
 
     a.add_argument("filename")
+    a.add_argument("date", default=None, type=date_arg, nargs="?")
 
     a.add_argument("-c", "--container", default="input", type=str)
+    a.add_argument("-l", "--leave", default=False, action="store_true")
     a.add_argument("-o", "--overwrite", default=False, action="store_true")
     a.add_argument("-v", "--verbose", default=False, action="store_true")
 
@@ -42,19 +59,30 @@ def upload():
         ContainerClient.from_connection_string(url,
                                                container_name=args.container)
 
-    # Current SAS tickets being issued don't allow this
-    # blobs = container_client.list_blobs()
-    # filenames = [b['name'] for b in blobs]
+    try:
+        if args.date:
+            with tempfile.mkdtemp(dir=".") as tmpdir:
+                ds = xr.open_dataset(args.filename)
+                ds = ds.sel(time=slice(args.date, args.date))
 
-    # logging.info("{} files already in container {}".format(
-    #    len(filenames), args.container
-    # ))
+                if len(ds.time) < 1:
+                    raise ValueError("No elements in {} for {}".format(
+                        args.filename, args.date
+                    ))
 
-    # if args.filename not in filenames:
-    with open(args.filename, "rb") as data:
-        logging.info("Uploading {}".format(args.filename))
-        container_client.upload_blob(
-            args.filename, data, overwrite=args.overwrite)
+                filename = os.path.join(tmpdir, args.filename)
+                ds.to_netcdf(filename)
+        else:
+            filename = args.filename
+
+        with open(filename, "rb") as data:
+            logging.info("Uploading {}".format(filename))
+            container_client.upload_blob(
+                filename, data, overwrite=args.overwrite)
+    finally:
+        if args.date and not args.leave:
+            logging.info("Removing {}".format(tmpdir))
+            shutil.rmtree(tmpdir)
 
 
 if __name__ == "__main__":
