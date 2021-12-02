@@ -18,8 +18,7 @@ def date_arg(string):
     d_match = re.search(r'^(\d+)-(\d+)-(\d+)$', string).groups()
 
     if d_match:
-        return dt.date(*d_match)
-    return None
+        return dt.date(*[int(s) for s in d_match])
 
 
 def upload_parse_args():
@@ -53,30 +52,29 @@ def upload():
             logging.exception("Configuration is not correctly set up")
             raise e
 
-    logging.info("Connecting client")
-
-    container_client = \
-        ContainerClient.from_connection_string(url,
-                                               container_name=args.container)
-
     try:
         if args.date:
-            with tempfile.mkdtemp(dir=".") as tmpdir:
-                ds = xr.open_dataset(args.filename)
-                ds = ds.sel(time=slice(args.date, args.date))
+            tmpdir = tempfile.mkdtemp(dir=".")
+            ds = xr.open_dataset(args.filename)
+            ds = ds.sel(time=slice(args.date, args.date))
 
-                if len(ds.time) < 1:
-                    raise ValueError("No elements in {} for {}".format(
-                        args.filename, args.date
-                    ))
+            if len(ds.time) < 1:
+                raise ValueError("No elements in {} for {}".format(
+                    args.filename, args.date
+                ))
 
-                filename = os.path.join(tmpdir, args.filename)
-                ds.to_netcdf(filename)
+            filename = os.path.join(tmpdir, args.filename)
+            ds.to_netcdf(filename)
         else:
             filename = args.filename
 
         with open(filename, "rb") as data:
             logging.info("Uploading {}".format(filename))
+            logging.info("Connecting client")
+
+            container_client = \
+                ContainerClient.from_connection_string(url,
+                                                       container_name=args.container)
             container_client.upload_blob(
                 filename, data, overwrite=args.overwrite)
     finally:
