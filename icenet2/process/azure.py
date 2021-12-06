@@ -76,7 +76,7 @@ def upload():
                 ContainerClient.from_connection_string(url,
                                                        container_name=args.container)
             container_client.upload_blob(
-                filename, data, overwrite=args.overwrite)
+                os.path.basename(filename), data, overwrite=args.overwrite)
     finally:
         if args.date and not args.leave:
             logging.info("Removing {}".format(tmpdir))
