@@ -73,8 +73,8 @@ def upload():
             logging.info("Connecting client")
 
             container_client = \
-                ContainerClient.from_connection_string(url,
-                                                       container_name=args.container)
+                ContainerClient.\
+                from_connection_string(url, container_name=args.container)
             container_client.upload_blob(
                 filename, data, overwrite=args.overwrite)
     finally:

@@ -153,6 +153,10 @@ retrieve,
                 if daily_path not in self._files_downloaded:
                     self._files_downloaded.append(daily_path)
 
+        logging.info("Removing {}".format(request_target))
+        ds.close()
+        os.unlink(request_target)
+
     def download(self):
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))

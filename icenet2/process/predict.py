@@ -125,12 +125,10 @@ def create_cf_output():
             geospatial_bounds_vertical_crs="",
             geospatial_lat_min="",
             geospatial_lat_max="",
-            geospatial_lat_units="",
-            geospatial_lat_resolution="25km",
+            geospatial_lat_resolution="25 km",
             geospatial_lon_min="",
             geospatial_lon_max="",
-            geospatial_lon_units="",
-            geospatial_lon_resolution="25km",
+            geospatial_lon_resolution="25 km",
             geospatial_vertical_min=0.0,
             geospatial_vertical_max=0.0,
             history="{} - creation".format(dt.datetime.now()),
@@ -144,11 +142,11 @@ def create_cf_output():
             platform="BAS HPC",
             #program="",
             #processing_level="",
-            product_version="",
+            product_version="alpha",
             project="IceNet",
             publisher_email="",
             publisher_institution="British Antarctic Survey",
-            publisher_name="Polar Data Center",
+            #publisher_name="Polar Data Center",
             publisher_url="",
             source="""
             IceNet2 model generation at vTBC
@@ -172,37 +170,49 @@ def create_cf_output():
     )
 
     # FIXME: serializer doesn't like empty fields
-    #xarr.time.attrs = dict(
-    #    long_name="",
-    #    short_name="",
-    #    units="",
-    #)
-    #xarr.yc.attrs = dict(
-    #    long_name="",
-    #    short_name="",
-    #    units="",
-    #)
-    #xarr.xc.attrs = dict(
-    #    long_name="",
-    #    short_name="",
-    #    units="",
-    #)
-    #xarr.leadtime.attrs = dict(
-    #    long_name="",
-    #    short_name="",
-    #    units="",
-    #)
+    xarr.time.attrs = dict(
+        long_name="reference time of product",
+        short_name="time",
+        axis="T",
+    )
+    xarr.yc.attrs = dict(
+        long_name = "y coordinate of projection (northings)",
+        short_name = "projection_y_coordinate",
+        units="km",
+        axis="Y",
+    )
+    xarr.xc.attrs = dict(
+        long_name="x coordinate of projection (eastings)",
+        short_name="projection_x_coordinate",
+        units="km",
+        axis="X",
+    )
+    xarr.leadtime.attrs = dict(
+        long_name="leadtime of forecast in relation to reference time",
+        short_name="leadtime",
+        units="1",
+    )
 
-    #xarr.mean.attrs = dict(
-    #    long_name="",
-    #    short_name="",
-    #    units="",
-    #)
-    #xarr.stddev.attrs = dict(
-    #    long_name="",
-    #    short_name="",
-    #    units="",
-    #)
+    xarr.sic_mean.attrs = dict(
+        long_name="mean sea ice area fraction across ensemble runs of icenet "
+                  "model",
+        standard_name="sea_ice_area_fraction",
+        short_name="sic",
+        valid_min=0,
+        valid_max=1,
+        ancillary_variables="sic_stddev",
+        #grid_mapping="Lambert_Azimuthal_Grid",
+        units="1",
+    )
+
+    xarr.sic_stddev.attrs = dict(
+        long_name="total uncertainty (one standard deviation) of concentration of sea ice",
+        standard_name="sea_ice_area_fraction standard_error",
+        short_name="",
+        valid_min=0,
+        valid_max=1,
+        units="1",
+    )
 
     # TODO: split into daily files
     output_path = os.path.join(args.output_dir, "{}.nc".format(args.name))

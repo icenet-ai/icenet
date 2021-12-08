@@ -1,5 +1,6 @@
 import copy
 import fnmatch
+import ftplib
 import glob
 import logging
 import os
@@ -302,20 +303,27 @@ class SICDownloader(Downloader):
                 chdir_path = ftp_osi450 if el < osi430b_start else ftp_osi430b
                 chdir_path = chdir_path.format(el.year, el.month)
 
-                ftp.cwd(chdir_path)
+                try:
+                    ftp.cwd(chdir_path)
 
-                if chdir_path not in cache:
-                    cache[chdir_path] = ftp.nlst()
+                    if chdir_path not in cache:
+                        cache[chdir_path] = ftp.nlst()
 
-                cache_match = "ice_conc_{}_ease*_{:04d}{:02d}{:02d}*.nc".\
-                    format(hs, el.year, el.month, el.day)
-                ftp_files = [el for el in cache[chdir_path]
-                             if fnmatch.fnmatch(el, cache_match)]
+                    cache_match = "ice_conc_{}_ease*_{:04d}{:02d}{:02d}*.nc".\
+                        format(hs, el.year, el.month, el.day)
+                    ftp_files = [el for el in cache[chdir_path]
+                                 if fnmatch.fnmatch(el, cache_match)]
 
-                if len(ftp_files) > 1:
-                    raise ValueError("More than a single file found: {}".
-                                     format(ftp_files))
-                elif not len(ftp_files):
+                    if len(ftp_files) > 1:
+                        raise ValueError("More than a single file found: {}".
+                                         format(ftp_files))
+                    elif not len(ftp_files):
+                        logging.warning("File is not available: {}".
+                                        format(cache_match))
+                        continue
+                except ftplib.error_perm:
+                    logging.warning("FTP error, possibly missing month chdir "
+                                    "for {}".format(date_str))
                     continue
 
                 with open(temp_path, "wb") as fh:
