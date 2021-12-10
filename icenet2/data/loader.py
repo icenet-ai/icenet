@@ -240,7 +240,7 @@ class IceNetDataLoader(Generator):
                          "data.".format(len(forecast_dates), dataset))
             counts[dataset] += len(forecast_dates)
 
-        self._write_dataset_config(counts)
+        self._write_dataset_config(counts, network_dataset=False)
 
     def generate(self):
         # TODO: for each set, validate every variable has an appropriate file
@@ -520,7 +520,7 @@ class IceNetDataLoader(Generator):
         else:
             raise OSError("{} not found".format(path))
 
-    def _write_dataset_config(self, counts):
+    def _write_dataset_config(self, counts, network_dataset=True):
         # TODO: move to utils for this and process
         def _serialize(x):
             if x is dt.date:
@@ -551,7 +551,8 @@ class IceNetDataLoader(Generator):
 
             # For recreating this dataloader
             # "dataset_config_path = ".",
-            "loader_path":      self._path,
+            # FIXME: badly named, should really be dataset_path
+            "loader_path":      self._path if network_dataset else False,
             "loss_weight_days": self._loss_weight_days,
             "output_batch_size": self._output_batch_size,
             "var_lag":          self._var_lag,

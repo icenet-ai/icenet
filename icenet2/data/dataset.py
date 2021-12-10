@@ -69,15 +69,23 @@ class IceNetDataSet(DataProducer):
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
             for s in self._config["missing_dates"]]
 
-        self.train_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("train"),
-            missing_error=True))
-        self.val_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("val"),
-            missing_error=True))
-        self.test_fns = glob.glob("{}/*.tfrecord".format(
-            self.get_data_var_folder("test"),
-            missing_error=True))
+        if self._config["loader_path"] and \
+                os.path.exists(self._config["loader_path"]):
+            self.train_fns = glob.glob("{}/*.tfrecord".format(
+                self.get_data_var_folder("train"),
+                missing_error=True))
+            self.val_fns = glob.glob("{}/*.tfrecord".format(
+                self.get_data_var_folder("val"),
+                missing_error=True))
+            self.test_fns = glob.glob("{}/*.tfrecord".format(
+                self.get_data_var_folder("test"),
+                missing_error=True))
+        else:
+            logging.warning("Running in configuration only mode, tfrecords "
+                            "were not generated for this dataset")
+            self.train_fns = []
+            self.val_fns = []
+            self.test_fns = []
 
     def _load_configuration(self, path):
         if os.path.exists(path):
