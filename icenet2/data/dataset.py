@@ -155,6 +155,10 @@ class IceNetDataSet(DataProducer):
                test_ds.prefetch(tf.data.AUTOTUNE)
 
     def get_data_loader(self):
+        # TODO: this invocation in config only mode will lead to the
+        #  generation of a network_dataset directory unnecessarily. This
+        #  loader_path logic needs sorting out a bit better, as it's gotten
+        #  messy
         loader = IceNetDataLoader(self.loader_config,
                                   self.identifier,
                                   self._config["var_lag"],
@@ -165,7 +169,6 @@ class IceNetDataSet(DataProducer):
                                   north=self.north,
                                   output_batch_size=self._config[
                                       "output_batch_size"],
-                                  path=self._config["loader_path"],
                                   south=self.south,
                                   var_lag_override=self._config[
                                       "var_lag_override"])
