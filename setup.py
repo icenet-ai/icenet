@@ -2,6 +2,8 @@ import setuptools
 
 from setuptools import setup
 
+from icenet2 import __version__ as icenet_version
+
 """Setup module for Icenet2 - draft module
 """
 
@@ -10,7 +12,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="icenet2",
-    version="0.0.3a0",
+    version=icenet_version,
     author="Tom Andersson/James Byrne",
     author_email="jambyr@bas.ac.uk",
     description="",
