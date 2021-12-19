@@ -29,7 +29,7 @@ def get_args():
     ap.add_argument("datefile", type=argparse.FileType("r"))
 
     ap.add_argument("-o", "--output-dir", default=".")
-    ap.add_argument("-r", "--root", type=str, default="../..")
+    ap.add_argument("-r", "--root", type=str, default=".")
 
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
@@ -98,7 +98,7 @@ def create_cf_output():
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     dataset_config = \
-        os.path.join(".", "dataset_config.{}.json".format(args.dataset))
+        os.path.join(args.root, "dataset_config.{}.json".format(args.dataset))
     ds = IceNetDataSet(dataset_config)
 
     ref_sic = xr.open_dataset(get_refsic(ds.north, ds.south))
