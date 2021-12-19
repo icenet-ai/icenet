@@ -112,9 +112,9 @@ def date_arg(string):
 def get_args():
     # -b 1 -e 1 -w 1 -n 0.125
     ap = argparse.ArgumentParser()
-    ap.add_argument("dataset", type=str)
-    ap.add_argument("network_name", type=str)
-    ap.add_argument("output_name", type=str)
+    ap.add_argument("dataset")
+    ap.add_argument("network_name")
+    ap.add_argument("output_name")
     ap.add_argument("seed", type=int, default=42)
     ap.add_argument("datefile", type=argparse.FileType("r"))
 

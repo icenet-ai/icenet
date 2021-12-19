@@ -10,7 +10,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from icenet2 import __version__ as icenet_version
+from icenet2.data.dataset import IceNetDataSet
 from icenet2.utils import run_command
+
+from pprint import pprint
 
 
 def date_arg(string):
@@ -21,19 +25,18 @@ def date_arg(string):
 def get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("name")
+    ap.add_argument("dataset")
     ap.add_argument("datefile", type=argparse.FileType("r"))
 
     ap.add_argument("-o", "--output-dir", default=".")
-    ap.add_argument("-s", "--hemisphere",
-                    choices=("north", "south"), default="north")
     ap.add_argument("-r", "--root", type=str, default="../..")
+
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     return ap.parse_args()
 
 
-# TODO: I don't like doing this, but for the moment low barrier to entry
-def get_ease_grid(north=True, south=False):
+def get_refsic(north=True, south=False):
     assert north or south, "Select one hemisphere at least..."
 
     str = "nh" if north else "sh"
@@ -52,10 +55,15 @@ def get_ease_grid(north=True, south=False):
 
         run_command(retrieve_sic_day_cmd)
 
-    # Load a single SIC map to obtain the EASE grid for
-    # regridding ERA data
-    cube = iris.load_cube(os.path.join(sic_day_path, sic_day_fname),
-                          'sea_ice_area_fraction')
+    return os.path.join(sic_day_path, sic_day_fname)
+
+
+def get_refcube(north=True, south=False):
+    assert north or south, "Select one hemisphere at least..."
+
+    path = get_refsic(north, south)
+
+    cube = iris.load_cube(path, 'sea_ice_area_fraction')
     return cube
 
 
@@ -89,6 +97,13 @@ def create_cf_output():
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
+    dataset_config = \
+        os.path.join(".", "dataset_config.{}.json".format(args.dataset))
+    ds = IceNetDataSet(dataset_config)
+
+    ref_sic = xr.open_dataset(get_refsic(ds.north, ds.south))
+    ref_cube = get_refcube(ds.north, ds.south)
+
     dates = [dt.date(*[int(v) for v in s.split("-")])
              for s in args.datefile.read().split()]
     args.datefile.close()
@@ -99,17 +114,22 @@ def create_cf_output():
 
     logging.info("Dataset arr shape: {}".format(arr.shape))
 
+    #https://gis.stackexchange.com/questions/345650/how-do-i-add-projection-to-this-netcdf-file-satellite
+
     # TODO: Highly Recommended Variable Attributes
     xarr = xr.Dataset(
         data_vars=dict(
-            sic_mean=(["time", "xc", "yc", "leadtime"], arr[..., 0]),
-            sic_stddev=(["time", "xc", "yc", "leadtime"], arr[..., 1]),
+            Lambert_Azimuthal_Grid=ref_sic.Lambert_Azimuthal_Grid,
+            sic_mean=(["time", "yc", "xc", "leadtime"], arr[..., 0]),
+            sic_stddev=(["time", "yc", "xc", "leadtime"], arr[..., 1]),
         ),
         coords=dict(
             time=[pd.Timestamp(d) for d in dates],
             leadtime=np.arange(1, arr.shape[3] + 1, 1),
-            xc=np.linspace(-5387.5, 5387.5, 432),
-            yc=np.linspace(-5387.5, 5387.5, 432),
+            xc=ref_cube.coord("projection_x_coordinate").points,
+            yc=ref_cube.coord("projection_y_coordinate").points,
+            lat=(("yc", "xc"), ref_cube.coord("latitude").points),
+            lon=(("yc", "xc"), ref_cube.coord("longitude").points),
         ),
         # https://wiki.esipfed.org/Attribute_Convention_for_Data_Discovery_1-3
         attrs=dict(
@@ -120,15 +140,11 @@ def create_cf_output():
             creator_name="James Byrne",
             creator_url="www.bas.ac.uk",
             date_created=dt.datetime.now().strftime("%Y-%m-%d"),
-            geospatial_bounds="",
-            geospatial_bounds_crs="",
-            geospatial_bounds_vertical_crs="",
-            geospatial_lat_min="",
-            geospatial_lat_max="",
-            geospatial_lat_resolution="25 km",
-            geospatial_lon_min="",
-            geospatial_lon_max="",
-            geospatial_lon_resolution="25 km",
+            geospatial_bounds_crs=ref_cube.attributes["geospatial_bounds_crs"],
+            geospatial_lat_min=ref_cube.attributes["geospatial_lat_min"],
+            geospatial_lat_max=ref_cube.attributes["geospatial_lat_max"],
+            geospatial_lon_min=ref_cube.attributes["geospatial_lon_min"],
+            geospatial_lon_max=ref_cube.attributes["geospatial_lon_max"],
             geospatial_vertical_min=0.0,
             geospatial_vertical_max=0.0,
             history="{} - creation".format(dt.datetime.now()),
@@ -136,13 +152,19 @@ def create_cf_output():
             institution="British Antarctic Survey",
             keywords="""'Earth Science > Cryosphere > Sea Ice > Sea Ice Concentration
             Earth Science > Oceans > Sea Ice > Sea Ice Concentration
-            Earth Science > Climate Indicators > Cryospheric Indicators > Sea Ice""",
+            Earth Science > Climate Indicators > Cryospheric Indicators > Sea Ice
+            Geographic Region > {} Hemisphere""".format(
+                "Northern" if ds.north else "Southern"
+            ),
+            # TODO: check we're valid
+            keywords_vocabulary="GCMD Science Keywords",
+            # TODO: Double check this is good with PDC
             license="Open Government Licece (OGL) V3",
             naming_authority="uk.ac.bas",
             platform="BAS HPC",
             #program="",
             #processing_level="",
-            product_version="alpha",
+            product_version=icenet_version,
             project="IceNet",
             publisher_email="",
             publisher_institution="British Antarctic Survey",
@@ -151,46 +173,62 @@ def create_cf_output():
             source="""
             IceNet2 model generation at vTBC
             """,
+            spatial_resolution=ref_cube.attributes["spatial_resolution"],
             # Values for any standard_name attribute must come from the CF
             # Standard Names vocabulary for the data file or product to
             #  comply with CF
             standard_name_vocabulary="CF Standard Name Table v27",
             summary="""
-            TBC
+            This is an output of sea ice concentration predictions from the 
+            IceNet UNet run in an ensemble, with postprocessing to determine 
+            the mean and standard deviation across the runs.
             """,
             # Use ISO 8601:2004 duration format, preferably the extended format
             # as recommended in the Attribute Content Guidance section.
             time_coverage_start="",
             time_coverage_end="",
-            time_coverage_duration="",
-            time_coverage_resolution="",
-            title="Ensemble output of mean and standard deviation for sea ice "
-                  "concentration probability",
+            time_coverage_duration="P1D",
+            time_coverage_resolution="P1D",
+            title="Sea Ice Concentration Prediction",
         )
     )
 
-    # FIXME: serializer doesn't like empty fields
     xarr.time.attrs = dict(
-        long_name="reference time of product",
-        short_name="time",
+        long_name=ref_cube.coord("time").long_name,
+        standard_name=ref_cube.coord("time").standard_name,
         axis="T",
+        # TODO: https://github.com/SciTools/cf-units for units methods
+        # units=Unit('seconds since 1978-01-01 00:00:00', calendar='gregorian')
+        # bounds=array([[31622400., 31708800.]])
     )
     xarr.yc.attrs = dict(
-        long_name = "y coordinate of projection (northings)",
-        short_name = "projection_y_coordinate",
-        units="km",
+        long_name=ref_cube.coord("projection_y_coordinate").long_name,
+        standard_name=ref_cube.coord("projection_y_coordinate").standard_name,
+        units=ref_cube.coord("projection_y_coordinate").units.name,
         axis="Y",
+        # TODO: iris.coord_systems.LambertAzimuthalEqualArea
     )
     xarr.xc.attrs = dict(
-        long_name="x coordinate of projection (eastings)",
-        short_name="projection_x_coordinate",
-        units="km",
+        long_name=ref_cube.coord("projection_x_coordinate").long_name,
+        standard_name=ref_cube.coord("projection_x_coordinate").standard_name,
+        units=ref_cube.coord("projection_x_coordinate").units.name,
         axis="X",
     )
     xarr.leadtime.attrs = dict(
         long_name="leadtime of forecast in relation to reference time",
         short_name="leadtime",
-        units="1",
+        #units="1",
+    )
+
+    xarr.lat.attrs = dict(
+        long_name=ref_cube.coord("latitude").long_name,
+        standard_name=ref_cube.coord("latitude").standard_name,
+        units=ref_cube.coord("latitude").units.name,
+    )
+    xarr.lat.attrs = dict(
+        long_name=ref_cube.coord("longitude").long_name,
+        standard_name=ref_cube.coord("longitude").standard_name,
+        units=ref_cube.coord("longitude").units.name,
     )
 
     xarr.sic_mean.attrs = dict(
@@ -201,16 +239,16 @@ def create_cf_output():
         valid_min=0,
         valid_max=1,
         ancillary_variables="sic_stddev",
-        #grid_mapping="Lambert_Azimuthal_Grid",
+        grid_mapping="Lambert_Azimuthal_Grid",
         units="1",
     )
 
     xarr.sic_stddev.attrs = dict(
         long_name="total uncertainty (one standard deviation) of concentration of sea ice",
         standard_name="sea_ice_area_fraction standard_error",
-        short_name="",
         valid_min=0,
         valid_max=1,
+        grid_mapping="Lambert_Azimuthal_Grid",
         units="1",
     )
 
