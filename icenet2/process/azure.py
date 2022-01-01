@@ -63,8 +63,9 @@ def upload():
                     args.filename, args.date
                 ))
 
-            filename = os.path.join(tmpdir, args.filename)
+            filename = os.path.join(tmpdir, os.path.basename(args.filename))
             ds.to_netcdf(filename)
+            ds.close()
         else:
             filename = args.filename
 
