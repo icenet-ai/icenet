@@ -279,7 +279,7 @@ def data_cli():
                                          filetype="nc"
                                          if not args.numpy else "npy")
 
-    video_batches = np.array(video_batches).squeeze()
+    video_batches = np.array(video_batches, dtype=object).squeeze()
     if len(video_batches.shape) == 1:
         video_batches = video_batches[np.newaxis, :]
 
