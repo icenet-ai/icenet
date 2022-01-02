@@ -279,10 +279,18 @@ def data_cli():
                                          filetype="nc"
                                          if not args.numpy else "npy")
 
-    video_batches = np.array(video_batches, dtype=object).squeeze()
-    if len(video_batches.shape) == 1:
-        video_batches = video_batches[np.newaxis, :]
-
+    if args.skip_years:
+        video_batches = np.array([
+            v_el for h_list in video_batches
+                for v_list in h_list
+                for v_el in v_list], dtype=object)
+    else:
+        video_batches = np.array([
+            y_el for h_list in video_batches
+                for v_list in h_list
+                for y_list in v_list
+                for y_el in y_list], dtype=object)
+        
     with ProcessPoolExecutor(
             max_workers=min(len(video_batches), args.workers)) as executor:
         futures = []
