@@ -239,7 +239,7 @@ class IceNetPreProcessor(Processor):
         for date in da.time.values:
             slice = da.sel(time=date).data
             date = pd.Timestamp(date)
-            fname = '{:04d}_{:02d}_{:02d}.npy'.\
+            fname = "{:04d}_{:02d}_{:02d}.npy".\
                 format(date.year, date.month, date.day)
 
             self.save_processed_file(var_name, fname, slice)

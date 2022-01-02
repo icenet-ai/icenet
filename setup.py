@@ -60,6 +60,8 @@ setup(
 
             "icenet_plot_set = icenet2.plotting.data:plot_set",
 
+            "icenet_video_data = icenet2.plotting.video:data_cli",
+
             "icenet_output = icenet2.process.predict:create_cf_output"
         ],
     },
