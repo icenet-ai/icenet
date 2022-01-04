@@ -248,14 +248,21 @@ def recurse_data_folders(base_path, lookups, children,
 
 
 def video_process(files, numpy, output_dir, fps):
-    logging.debug("Supplied: {} files for processing".format(len(files)))
-    da = get_dataarray_from_files(files, numpy)
     path_comps = os.path.dirname(files[0]).split(os.sep)
     os.makedirs(output_dir, exist_ok=True)
     output_name = os.path.join(output_dir,
                                "{}.mp4".format("_".join(path_comps)))
-    logging.info("Saving to {}".format(output_name))
-    xarray_to_video(da, fps, video_path=output_name)
+
+    if not os.path.exists(output_name):
+        logging.debug("Supplied: {} files for processing".format(len(files)))
+        da = get_dataarray_from_files(files, numpy)
+        logging.info("Saving to {}".format(output_name))
+        xarray_to_video(da, fps, video_path=output_name)
+    else:
+        logging.warning("Not overwriting existing: {}".format(output_name))
+        return None
+
+    return output_name
 
 
 def data_cli():
@@ -304,7 +311,10 @@ def data_cli():
 
         for future in as_completed(futures):
             try:
-                future.result()
+                res = future.result()
+
+                if res:
+                    logging.info("Produced {}".format(res))
             except Exception as e:
                 logging.error(e)
 
