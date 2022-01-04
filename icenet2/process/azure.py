@@ -63,7 +63,14 @@ def upload():
                     args.filename, args.date
                 ))
 
-            filename = os.path.join(tmpdir, os.path.basename(args.filename))
+            filename = os.path.join(tmpdir,
+                                    "{}.{}.{}".format(
+                                        os.path.splitext(
+                                            os.path.basename(args.filename))[0],
+                                        args.date.strftime("%d%m%Y"),
+                                        os.path.splitext(
+                                            os.path.basename(args.filename))[1],
+                                    ))
             ds.to_netcdf(filename)
             ds.close()
         else:

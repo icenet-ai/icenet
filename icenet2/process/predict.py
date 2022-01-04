@@ -256,4 +256,3 @@ def create_cf_output():
     output_path = os.path.join(args.output_dir, "{}.nc".format(args.name))
     logging.info("Saving to {}".format(output_path))
     xarr.to_netcdf(output_path)
-

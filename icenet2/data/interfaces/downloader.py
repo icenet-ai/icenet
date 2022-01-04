@@ -53,11 +53,11 @@ class ClimateDownloader(Downloader):
             raise RuntimeError("Don't include hemisphere string {} in "
                                "base path".format(self.hemisphere_str))
 
-    # TODO: add native subprocessing for parallelism
     def download(self):
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))
 
+        # TODO: override max threads if number of batches is lower...
         with ThreadPoolExecutor(max_workers=self._max_threads) \
                 as executor:
             futures = []
