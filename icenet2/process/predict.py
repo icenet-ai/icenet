@@ -225,7 +225,7 @@ def create_cf_output():
         standard_name=ref_cube.coord("latitude").standard_name,
         units=ref_cube.coord("latitude").units.name,
     )
-    xarr.lat.attrs = dict(
+    xarr.lon.attrs = dict(
         long_name=ref_cube.coord("longitude").long_name,
         standard_name=ref_cube.coord("longitude").standard_name,
         units=ref_cube.coord("longitude").units.name,
