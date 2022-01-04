@@ -193,6 +193,7 @@ def main():
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date,
                              freq="D")],
+        delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south"
     )

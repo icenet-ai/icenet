@@ -43,6 +43,8 @@ def download_args(choices=None, dates=True, skip_download=False, workers=False):
     if workers:
         ap.add_argument("-w", "--workers", default=8, type=int)
 
+    ap.add_argument("-d", "--dont-delete", dest="delete",
+                    action="store_false", default=True)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     args = ap.parse_args()
 

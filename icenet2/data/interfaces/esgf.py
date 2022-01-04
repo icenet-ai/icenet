@@ -196,6 +196,7 @@ def main():
             pressure_levels=[None, [500], None, None, [250, 500], [1000],
                              None, None, None, None, None],
             dates=[None],
+            delete_tempfiles=args.delete,
             grid_override=override,
             north=args.hemisphere == "north",
             south=args.hemisphere == "south"

@@ -218,14 +218,12 @@ class SICDownloader(Downloader):
                  *args,
                  additional_invalid_dates=(),
                  dates=(),
-                 delete_temp=False,
                  download=True,
                  dtype=np.float32,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
 
         self._dates = dates
-        self._delete_temp = delete_temp
         self._download = download
         self._dtype=dtype
         self._invalid_dates = invalid_sic_days[self.hemisphere] + \
@@ -398,7 +396,7 @@ class SICDownloader(Downloader):
 
         self.missing_dates()
 
-        if self._delete_temp:
+        if self.delete:
             for fpath in data_files:
                 os.unlink(fpath)
 
@@ -470,6 +468,7 @@ def main():
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date,
                              freq="D")],
+        delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
         download=not args.skip_download
