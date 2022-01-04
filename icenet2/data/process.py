@@ -258,6 +258,7 @@ class IceNetPreProcessor(Processor):
                                # time dimension (only having coordinate)
                                combine="nested",
                                concat_dim="time",
+                               coords="minimal",
                                # TODO: Wasteful on small sets, but much faster
                                #  on big sets: make optional
                                parallel=True)
