@@ -64,7 +64,7 @@ def upload():
                 ))
 
             filename = os.path.join(tmpdir,
-                                    "{}.{}.{}".format(
+                                    "{}.{}{}".format(
                                         os.path.splitext(
                                             os.path.basename(args.filename))[0],
                                         args.date.strftime("%d%m%Y"),
