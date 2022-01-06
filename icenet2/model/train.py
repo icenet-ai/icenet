@@ -31,7 +31,7 @@ def train_model(
         checkpoint_mode='min',
         dataset_class=IceNetDataSet,
         dataset_ratio=None,
-        early_stopping_patience=15,
+        early_stopping_patience=30,
         epochs=2,
         filter_size=3,
         learning_rate=1e-4,
