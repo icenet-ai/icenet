@@ -259,6 +259,8 @@ class IceNetPreProcessor(Processor):
                                combine="nested",
                                concat_dim="time",
                                coords="minimal",
+                               compat="override",
+                               drop_variables=("lat", "lon"),
                                # TODO: Wasteful on small sets, but much faster
                                #  on big sets: make optional
                                parallel=True)
