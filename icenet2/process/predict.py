@@ -113,10 +113,8 @@ def create_cf_output():
          for date in dates])
 
     logging.info("Dataset arr shape: {}".format(arr.shape))
+    # TODO: apply appropriate mask to output
 
-    #https://gis.stackexchange.com/questions/345650/how-do-i-add-projection-to-this-netcdf-file-satellite
-
-    # TODO: Highly Recommended Variable Attributes
     xarr = xr.Dataset(
         data_vars=dict(
             Lambert_Azimuthal_Grid=ref_sic.Lambert_Azimuthal_Grid,
