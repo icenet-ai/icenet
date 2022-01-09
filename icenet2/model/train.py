@@ -80,7 +80,6 @@ def train_model(
             start_method="fork",
             _disable_stats=True,
         ),
-        sync_tensorboard=use_wandb and use_tensorboard,
     )
 
     logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
