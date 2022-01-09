@@ -110,8 +110,8 @@ def train_model(
                                                              seed))
 
     ratio = dataset_ratio if dataset_ratio else 1.0
-    logging.info("# training samples: {}".format(ds.counts["train"]) * ratio)
-    logging.info("# validation samples: {}".format(ds.counts["val"]) * ratio)
+    logging.info("# training samples: {}".format(ds.counts["train"] * ratio))
+    logging.info("# validation samples: {}".format(ds.counts["val"] * ratio))
     logging.info("# input channels: {}".format(ds.num_channels))
 
     prev_best = None
