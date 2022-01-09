@@ -177,9 +177,6 @@ retrieve,
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
 
-    def additional_regrid_processing(self, datafile, cube_ease):
-        pass
-
 
 def main():
     args = download_args()

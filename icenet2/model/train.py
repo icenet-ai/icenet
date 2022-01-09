@@ -50,7 +50,8 @@ def train_model(
         workers=5,
         use_multiprocessing=True,
         use_tensorboard=True,
-        use_wandb=True):
+        use_wandb=True,
+        wandb_offline=False):
 
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     wandb.init(
@@ -68,7 +69,7 @@ def train_model(
             batch_size=batch_size,
         ),
         allow_val_change=True,
-        mode='disabled' if not use_wandb else 'online',
+        mode='disabled' if not use_wandb else 'offline' if wandb_offline else 'online',
         settings=wandb.Settings(
             start_method="fork",
             _disable_stats=True,
@@ -223,6 +224,7 @@ def get_args():
                     choices=("default", "mirrored", "central"))
     ap.add_argument("--gpus", default=None)
     ap.add_argument("-w", "--workers", type=int, default=4)
+    ap.add_argument("-wo", "--wandb-offline", default=False, action="store_true")
 
     ap.add_argument("--lr", default=1e-4, type=float)
     ap.add_argument("--lr_10e_decay_fac", default=1.0, type=float,
@@ -239,6 +241,8 @@ def main():
     args = get_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     dataset_config = \
         os.path.join(".", "dataset_config.{}.json".format(args.dataset))
@@ -266,7 +270,8 @@ def main():
                     seed=args.seed,
                     strategy=strategy,
                     use_multiprocessing=args.multiprocessing,
-                    use_wandb=args.no_wandb,
+                    use_wandb=not args.no_wandb,
+                    wandb_offline=args.wandb_offline,
                     workers=args.workers, )
 
     history_path = os.path.join(os.path.dirname(trained_path),

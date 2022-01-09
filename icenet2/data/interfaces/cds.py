@@ -161,9 +161,11 @@ class ERA5Downloader(ClimateDownloader):
 
             try:
                 logging.info("Downloading data for {}...".format(var))
-
+                logging.debug("Result: {}".format(result))
+                
                 location = result[0]['location']
                 res = requests.get(location, stream=True)
+
                 logging.info("Writing data to " + temp_download_path)
                 logging.getLogger("requests").setLevel(logging.WARNING)
 
@@ -273,7 +275,7 @@ class ERA5Downloader(ClimateDownloader):
 
     def additional_regrid_processing(self, datafile, cube_ease):
         (datafile_path, datafile_name) = os.path.split(datafile)
-        var_name = datafile_path.split(os.sep)[-1]
+        var_name = datafile_path.split(os.sep)[-2]
 
         # FIXME: are these here or preproc?
         # if var_name == 'zg500' or var_name == 'zg250':
@@ -283,18 +285,16 @@ class ERA5Downloader(ClimateDownloader):
         #     # Replace every value outside of SST < 1000 with
         #    zeros (the ERA5 masked values)
         #     da_daily = da_daily.where(da_daily < 1000., 0)
-
+        
         if var_name == 'tos':
             # Overwrite maksed values with zeros
-            cube_ease.data[cube_ease.data > 500.] = 0.
-            cube_ease.data[cube_ease.data < 0.] = 0.
-
+            logging.debug("ERA5 additional regrid: {}".format(var_name))
+            cube_ease.data[cube_ease.data.mask] = 0.
             cube_ease.data[:, self._masks.get_land_mask()] = 0.
-
-            # Remove mask from masked array
             cube_ease.data = cube_ease.data.data
         elif var_name in ['zg500', 'zg250']:
             # Convert from geopotential to geopotential height
+            logging.debug("ERA5 additional regrid: {}".format(var_name))
             cube_ease /= 9.80665
 
 

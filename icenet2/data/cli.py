@@ -49,6 +49,8 @@ def download_args(choices=None, dates=True, skip_download=False, workers=False):
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
     return args
 
 

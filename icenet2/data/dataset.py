@@ -102,6 +102,9 @@ class IceNetDataSet(DataProducer):
         if not (len(self.train_fns) + len(self.val_fns) + len(self.test_fns)):
             raise RuntimeError("No files have been found, abandoning...")
 
+        logging.info("Datasets: {} train, {} val and {} test filenames".format(
+            len(self.train_fns), len(self.val_fns), len(self.test_fns)))
+
         if ratio:
             if ratio > 1.0:
                 raise RuntimeError("Ratio cannot be more than 1")
@@ -118,6 +121,9 @@ class IceNetDataSet(DataProducer):
                 self.val_fns = self.val_fns[:val_idx]
             if test_idx > 0:
                 self.test_fns = self.test_fns[:test_idx]
+
+            logging.info("Reduced: {} train, {} val and {} test filenames".format(
+                len(self.train_fns), len(self.val_fns), len(self.test_fns)))
 
         train_ds, val_ds, test_ds = \
             tf.data.TFRecordDataset(self.train_fns,
