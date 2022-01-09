@@ -56,6 +56,12 @@ def train_model(
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     wandb.init(
         project="icenet2",
+        name=run_name,
+        notes="{}: run at {}{}".format(run_name,
+                                       dt.datetime.now().strftime("%D %T"),
+                                       "" if
+                                       not pre_load_network else
+                                       " preload {}".format(pre_load_path)),
         entity="jambyr",
         config=dict(
             seed=seed,
@@ -74,6 +80,7 @@ def train_model(
             start_method="fork",
             _disable_stats=True,
         ),
+        sync_tensorboard=use_wandb and use_tensorboard,
     )
 
     logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
@@ -102,8 +109,9 @@ def train_model(
                                                              ds.identifier,
                                                              seed))
 
-    logging.info("# training samples: {}".format(ds.counts["train"]))
-    logging.info("# validation samples: {}".format(ds.counts["val"]))
+    ratio = dataset_ratio if dataset_ratio else 1.0
+    logging.info("# training samples: {}".format(ds.counts["train"]) * ratio)
+    logging.info("# validation samples: {}".format(ds.counts["val"]) * ratio)
     logging.info("# input channels: {}".format(ds.num_channels))
 
     prev_best = None
