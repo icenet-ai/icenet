@@ -53,7 +53,7 @@ class ERA5Downloader(ClimateDownloader):
                  *args,
                  identifier="era5",
                  cdi_map=CDI_MAP,
-                 use_toolbox=False,
+                 use_toolbox=True,
                  **kwargs):
         super().__init__(*args,
                          identifier=identifier,
@@ -135,11 +135,7 @@ class ERA5Downloader(ClimateDownloader):
                     "frequency": "1-hourly",
                     "time_zone": "UTC+00:00",
                     "grid": "0.25/0.25",
-                    # TODO: Swapped [0][2] to [2][0] for nh, still sh compat?
-                    "area": {"lat": [self.hemisphere_loc[2],
-                                     self.hemisphere_loc[0]],
-                             "lon": [self.hemisphere_loc[1],
-                                     self.hemisphere_loc[3]]},
+                    "area": self.hemisphere_loc,
                 },
             }
 
@@ -208,10 +204,7 @@ class ERA5Downloader(ClimateDownloader):
                 "day": ["{:02d}".format(d.day) for d in downloads],
                 "time": ["{:02d}:00".format(h) for h in range(0, 24)],
                 "format": "netcdf",
-                "area": {"lat": [self.hemisphere_loc[2],
-                                 self.hemisphere_loc[0]],
-                         "lon": [self.hemisphere_loc[1],
-                                 self.hemisphere_loc[3]]},
+                "area": self.hemisphere_loc,
             }
 
             dataset = "reanalysis-era5-single-levels"

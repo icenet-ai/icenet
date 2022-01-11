@@ -28,8 +28,8 @@ class HemisphereMixin:
     @property
     def hemisphere_loc(self):
         return [90, -180, 0, 180] if self.north else \
-               [-90, -180, 0, 180] if self.south else \
-               [-90, -180, 90, 180]
+               [0, -180, -90, 180] if self.south else \
+               [90, -180, -90, 180]
 
     @property
     def north(self):
