@@ -7,6 +7,7 @@ import glob
 import logging
 import os
 import re
+import threading
 
 import numpy as np
 
@@ -67,19 +68,21 @@ class DataProducer(HemisphereMixin):
             hemisphere = self.hemisphere_str[0]
 
         hemi_path = os.path.join(self.base_path, hemisphere)
+
         if not os.path.exists(hemi_path):
             if not missing_error:
                 logging.info("Creating hemisphere path: {}".format(hemi_path))
-                os.mkdir(hemi_path)
+                os.makedirs(hemi_path, exist_ok=True)
             else:
                 raise OSError("Hemisphere directory {} is missing and this is "
                               "flagged as an error!".format(hemi_path))
 
         var_path = os.path.join(self.base_path, hemisphere, var)
+
         if not os.path.exists(var_path):
             if not missing_error:
                 logging.info("Creating var path: {}".format(var_path))
-                os.mkdir(var_path)
+                os.makedirs(var_path, exist_ok=True)
             else:
                 raise OSError("Variable directory {} is missing and this is "
                               "flagged as an error!".format(var_path))

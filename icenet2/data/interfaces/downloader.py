@@ -80,7 +80,7 @@ class ClimateDownloader(Downloader):
                 try:
                     future.result()
                 except Exception as e:
-                    logging.error(e)
+                    logging.error("Thread failure: {}".format(e))
 
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))

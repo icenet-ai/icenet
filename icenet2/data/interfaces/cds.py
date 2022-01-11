@@ -53,7 +53,7 @@ class ERA5Downloader(ClimateDownloader):
                  *args,
                  identifier="era5",
                  cdi_map=CDI_MAP,
-                 use_toolbox=True,
+                 use_toolbox=False,
                  **kwargs):
         super().__init__(*args,
                          identifier=identifier,
@@ -117,7 +117,7 @@ class ERA5Downloader(ClimateDownloader):
                                  req_date,
                                  downloads):
         if len(downloads) > 0:
-            logging.info("Processing dates: {}".format(downloads))
+            logging.info("Processing {} dates".format(len(downloads)))
 
             params_dict = {
                 "realm":    "c3s",
@@ -197,7 +197,7 @@ class ERA5Downloader(ClimateDownloader):
                              req_date,
                              downloads):
         if len(downloads) > 0:
-            logging.info("Processing dates: {}".format(downloads))
+            logging.info("Processing {} dates".format(len(downloads)))
 
             retrieve_dict = {
                 "product_type": "reanalysis",
