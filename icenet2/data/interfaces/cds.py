@@ -196,6 +196,7 @@ class ERA5Downloader(ClimateDownloader):
         if len(downloads) > 0:
             logging.info("Processing {} dates".format(len(downloads)))
 
+            area = self.hemisphere_loc
             retrieve_dict = {
                 "product_type": "reanalysis",
                 "variable": self._cdi_map[var_prefix],
