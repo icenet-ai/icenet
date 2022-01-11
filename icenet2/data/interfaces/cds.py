@@ -54,11 +54,12 @@ class ERA5Downloader(ClimateDownloader):
                  identifier="era5",
                  cdi_map=CDI_MAP,
                  use_toolbox=True,
+                 show_progress=False,
                  **kwargs):
         super().__init__(*args,
                          identifier=identifier,
                          **kwargs)
-        self.client = cds.Client()
+        self.client = cds.Client(progress=show_progress)
         self._cdi_map = cdi_map
         self._toolbox = use_toolbox
 
