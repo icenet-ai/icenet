@@ -199,6 +199,7 @@ class ERA5Downloader(ClimateDownloader):
         if len(downloads) > 0:
             logging.info("Processing {} dates".format(len(downloads)))
 
+            area = self.hemisphere_loc
             retrieve_dict = {
                 "product_type": "reanalysis",
                 "variable": self._cdi_map[var_prefix],
@@ -207,7 +208,10 @@ class ERA5Downloader(ClimateDownloader):
                 "day": ["{:02d}".format(d.day) for d in downloads],
                 "time": ["{:02d}:00".format(h) for h in range(0, 24)],
                 "format": "netcdf",
-                "area": self.hemisphere_loc
+                "area": {"lat": [self.hemisphere_loc[2],
+                                 self.hemisphere_loc[0]],
+                         "lon": [self.hemisphere_loc[1],
+                                 self.hemisphere_loc[3]]},
             }
 
             dataset = "reanalysis-era5-single-levels"
