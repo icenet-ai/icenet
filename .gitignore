@@ -3,8 +3,10 @@ __pycache__/
 *.nc
 *.egg-info/
 .idea/
+/build/
 /data/
 /dataloader_configs/
+/dist/
 icesync.sh
 /logs/
 /network_datasets/

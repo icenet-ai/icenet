@@ -201,7 +201,13 @@ class IceNetPreProcessor(Processor):
                 else:
                     climatology = xr.open_dataarray(clim_path)
 
-                da = da.groupby("time.month") - climatology
+                if not da.groupby("time.month").all().month.equals(c.month):
+                    logging.warning("We don't have a full climatology ({}) compared with data ({})".format(
+                        ",".join([str(i) for i in c.month.values]),
+                        ",".join([str(i) for i in da.groupby("time.month").all().month.values])))
+                    da = da - c.mean()
+                else:
+                    da = da.groupby("time.month") - climatology
 
             da.data = np.asarray(da.data, dtype=self._dtype)
 

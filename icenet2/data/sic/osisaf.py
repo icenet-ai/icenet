@@ -218,12 +218,14 @@ class SICDownloader(Downloader):
                  *args,
                  additional_invalid_dates=(),
                  dates=(),
+                 delete_tempfiles=True,
                  download=True,
                  dtype=np.float32,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
 
         self._dates = dates
+        self._delete = delete_tempfiles
         self._download = download
         self._dtype=dtype
         self._invalid_dates = invalid_sic_days[self.hemisphere] + \
@@ -396,7 +398,7 @@ class SICDownloader(Downloader):
 
         self.missing_dates()
 
-        if self.delete:
+        if self._delete:
             for fpath in data_files:
                 os.unlink(fpath)
 
