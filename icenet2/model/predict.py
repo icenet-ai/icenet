@@ -74,15 +74,15 @@ def predict_forecast(
             sample_weights.append(sw[arr_idx, ...])
 
     if not network_folder:
-        network_folder = os.path.join(".", "results", "networks",
-                                      "{}.{}".format(network_name, seed))
+        network_folder = os.path.join(".", "results", "networks", network_name)
 
     # FIXME: this is a mess as we have seed duplication in filename, sort it out
     # FIXME: this is a pain in the arse for non-train datasets, sort it out
     dataset_name = dataset_name if dataset_name else ds.identifier
     network_path = os.path.join(network_folder,
-                                "{}.{}.network_{}.{}.h5".
-                                format(network_name, seed, dataset_name, seed))
+                                "{}.network_{}.{}.h5".format(network_name,
+                                                             dataset_name,
+                                                             seed))
 
     logging.info("Loading model from {}...".format(network_path))
 

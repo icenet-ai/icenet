@@ -276,6 +276,7 @@ def main():
                     n_filters_factor=args.n_filters_factor,
                     seed=args.seed,
                     strategy=strategy,
+                    training_verbosity=1 if args.verbose else 2,
                     use_multiprocessing=args.multiprocessing,
                     use_wandb=not args.no_wandb,
                     wandb_offline=args.wandb_offline,
