@@ -182,6 +182,7 @@ def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
         animation.save(video_path,
                        fps=fps,
                        extra_args=['-vcodec', 'libx264'])
+    return animation
 
 
 def cli_args():

@@ -71,7 +71,7 @@ class DataProducer(HemisphereMixin):
 
         if not os.path.exists(hemi_path):
             if not missing_error:
-                logging.info("Creating hemisphere path: {}".format(hemi_path))
+                logging.debug("Creating hemisphere path: {}".format(hemi_path))
                 os.makedirs(hemi_path, exist_ok=True)
             else:
                 raise OSError("Hemisphere directory {} is missing and this is "
@@ -81,7 +81,7 @@ class DataProducer(HemisphereMixin):
 
         if not os.path.exists(var_path):
             if not missing_error:
-                logging.info("Creating var path: {}".format(var_path))
+                logging.debug("Creating var path: {}".format(var_path))
                 os.makedirs(var_path, exist_ok=True)
             else:
                 raise OSError("Variable directory {} is missing and this is "
