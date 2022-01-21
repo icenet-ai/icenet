@@ -172,7 +172,8 @@ def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
     animation = FuncAnimation(fig,
                               update,
                               video_dates,
-                              interval=1000/fps)
+                              interval=1000/fps,
+                              blit=video_path is None)
 
     if not video_path:
         logging.info("Not saving plot, will return animation")
