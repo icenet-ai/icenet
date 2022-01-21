@@ -23,6 +23,7 @@ import collections
 import logging
 import os
 import requests
+import requests.adapters
 
 import cdsapi as cds
 import numpy as np
@@ -62,6 +63,14 @@ class ERA5Downloader(ClimateDownloader):
         self.client = cds.Client(progress=show_progress)
         self._cdi_map = cdi_map
         self._toolbox = use_toolbox
+
+        if self._max_threads > 10:
+            logging.info("Upping connection limit for max_threads > 10")
+            adapter = requests.adapters.HTTPAdapter(
+                pool_connections=self._max_threads,
+                pool_maxsize=self._max_threads
+            )
+            self.client.session.mount("https://", adapter)
 
     def _single_download(self, var_prefix, pressure, req_date):
         # FIXME: confirmed, but the year start year end naming is a bit weird,
@@ -118,7 +127,7 @@ class ERA5Downloader(ClimateDownloader):
                                  req_date,
                                  downloads):
         if len(downloads) > 0:
-            logging.info("Processing {} dates".format(len(downloads)))
+            logging.debug("Processing {} dates".format(len(downloads)))
 
             params_dict = {
                 "realm":    "c3s",
@@ -194,9 +203,8 @@ class ERA5Downloader(ClimateDownloader):
                              req_date,
                              downloads):
         if len(downloads) > 0:
-            logging.info("Processing {} dates".format(len(downloads)))
+            logging.debug("Processing {} dates".format(len(downloads)))
 
-            area = self.hemisphere_loc
             retrieve_dict = {
                 "product_type": "reanalysis",
                 "variable": self._cdi_map[var_prefix],
