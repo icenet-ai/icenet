@@ -175,8 +175,7 @@ def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
                               interval=1000/fps)
 
     if not video_path:
-        logging.info("Showing plot")
-        plt.show()
+        logging.info("Not saving plot, will return animation")
     else:
         logging.info("Saving plot to {}".format(video_path))
         animation.save(video_path,
