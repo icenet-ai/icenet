@@ -51,7 +51,8 @@ def predict_forecast(
         missing = set(start_dates).difference(test_dates)
         if len(missing) > 0:
             raise RuntimeError("{} are not in the test set".
-                               format(", ".join(missing)))
+                               format(", ".join([str(pd.to_datetime(el).date()) 
+                                                 for el in missing])))
 
         forecast_inputs, gen_outputs, sample_weights = [], [], []
 
