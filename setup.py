@@ -1,6 +1,6 @@
 import setuptools
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 from icenet2 import __version__ as icenet_version
 
@@ -80,6 +80,5 @@ setup(
     include_package_data=True,
     test_suite='tests',
     tests_require=test_requirements,
-    version='0.1.0',
     zip_safe=False,
 )
