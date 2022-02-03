@@ -46,7 +46,7 @@ def main():
         south=args.hemisphere == "south",
         # TODO: should reconsider the process for double usage (overrides?)
         #  though this does work as is, which is nice
-        update_key = "mars.siconca",
+        update_key="mars.siconca",
     )
     hres_osi.init_source_data(
         lag_days=args.lag,

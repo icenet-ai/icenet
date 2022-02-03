@@ -3,6 +3,7 @@ import datetime as dt
 import json
 import logging
 import os
+import random
 
 from pprint import pformat
 
@@ -52,6 +53,11 @@ def train_model(
         use_tensorboard=True,
         use_wandb=True,
         wandb_offline=False):
+    logging.info("Setting seed value {}".format(seed))
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    tf.random.set_seed(seed)
 
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     wandb.init(
@@ -83,9 +89,6 @@ def train_model(
     )
 
     logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
-
-    np.random.default_rng(seed)
-    tf.random.set_seed(seed)
 
     ds = dataset_class(loader_config, batch_size=batch_size)
 
