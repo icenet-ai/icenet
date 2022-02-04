@@ -67,6 +67,7 @@ setup(
             "icenet_train = icenet2.model.train:main",
             "icenet_predict = icenet2.model.predict:main",
             "icenet_upload_azure = icenet2.process.azure:upload",
+            "icenet_upload_local = icenet2.process.local:upload",
 
             "icenet_plot_set = icenet2.plotting.data:plot_set",
 

@@ -14,11 +14,7 @@ from azure.storage.blob import ContainerClient
 # https://docs.microsoft.com/en-us/azure/developer/python/sdk/storage/storage-blob-readme?view=storage-py-v12#next-steps
 
 
-def date_arg(string):
-    d_match = re.search(r'^(\d+)-(\d+)-(\d+)$', string).groups()
-
-    if d_match:
-        return dt.date(*[int(s) for s in d_match])
+from icenet2.process.utils import date_arg, destination_filename
 
 
 def upload_parse_args():
@@ -63,14 +59,7 @@ def upload():
                     args.filename, args.date
                 ))
 
-            filename = os.path.join(tmpdir,
-                                    "{}.{}{}".format(
-                                        os.path.splitext(
-                                            os.path.basename(args.filename))[0],
-                                        args.date.strftime("%d%m%Y"),
-                                        os.path.splitext(
-                                            os.path.basename(args.filename))[1],
-                                    ))
+            filename = destination_filename(tmpdir, args.filename, args.date)
             ds.to_netcdf(filename)
             ds.close()
         else:
