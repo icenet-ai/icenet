@@ -15,7 +15,7 @@ def destination_filename(destination, filename, date):
                         "{}.{}{}".format(
                             os.path.splitext(
                                 os.path.basename(filename))[0],
-                            date.strftime("%d%m%Y"),
+                            date.strftime("%Y-%m-%d"),
                             os.path.splitext(
                                 os.path.basename(filename))[1],
                         ))

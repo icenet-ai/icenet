@@ -45,6 +45,8 @@ def upload():
                                         args.date)
         ds.to_netcdf(filename)
         ds.close()
+
+        logging.info("Saved to {}".format(filename))
     else:
         newname = shutil.copy(args.filename, args.destination)
         logging.info("Copied to {}".format(newname))
