@@ -1,5 +1,3 @@
-import setuptools
-
 from setuptools import setup, find_packages
 
 from icenet2 import __version__ as icenet_version
@@ -13,7 +11,8 @@ with open("README.md", "r") as fh:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [ ]
+# FIXME: we're predominantly using conda for the pipeline, port back to pip?
+requirements = []
 
 test_requirements = ['pytest>=3', ]
 
@@ -22,7 +21,7 @@ setup(
     version=icenet_version,
     author="Tom Andersson/James Byrne",
     author_email="jambyr@bas.ac.uk",
-    description="",
+    description="Library for operational IceNet forecasting",
     long_description=long_description + '\n\n' + history,
     long_description_content_type="text/markdown",
     url="https://www.bas.ac.uk",
@@ -73,7 +72,11 @@ setup(
 
             "icenet_video_data = icenet2.plotting.video:data_cli",
 
-            "icenet_output = icenet2.process.predict:create_cf_output"
+            "icenet_output = icenet2.process.predict:create_cf_output",
+            "icenet_output_broadcast = "
+            "icenet2.process.forecasts:broadcast_main",
+            "icenet_output_reproject = "
+            "icenet2.process.forecasts:reproject_main",
         ],
     },
     python_requires='>=3.7, <4',
