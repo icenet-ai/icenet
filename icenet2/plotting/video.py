@@ -102,6 +102,8 @@ def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
     figsize (int or float): Figure size in inches.
 
     dpi (int): Figure DPI.
+
+    TODO: labels!
     """
 
     def update(date):
@@ -148,9 +150,9 @@ def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
 
     if mask is not None:
         if mask_type == 'contour':
-            ax.contour(mask, levels=[.5, 1], colors='k')
+            ax.contour(mask, levels=[.5, 1], colors='k', zorder=3)
         elif mask_type == 'contourf':
-            ax.contourf(mask, levels=[.5, 1], colors='k')
+            ax.contourf(mask, levels=[.5, 1], colors='k', zorder=3)
 
     ax.axes.xaxis.set_visible(False)
     ax.axes.yaxis.set_visible(False)
@@ -160,20 +162,21 @@ def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
     image = ax.imshow(da.sel(time=date),
                       cmap=cmap,
                       clim=(n_min, n_max),
-                      animated=True)
+                      animated=True,
+                      zorder=1)
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".
                                format(date.year, date.month, date.day),
-                               fontsize="medium")
-    cax = divider.append_axes('right', size='5%', pad=0.05)
+                               fontsize="medium", zorder=2)
+    cax = divider.append_axes('right', size='5%', pad=0.05, zorder=2)
     plt.colorbar(image, cax)
 
     logging.info("Animating")
+    # TODO: Investigate blit, but it causes a few problems with masks/titles.
     animation = FuncAnimation(fig,
                               update,
                               video_dates,
-                              interval=1000/fps,
-                              blit=video_path is None)
+                              interval=1000/fps)
 
     if not video_path:
         logging.info("Not saving plot, will return animation")
