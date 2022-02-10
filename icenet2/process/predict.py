@@ -12,6 +12,7 @@ import xarray as xr
 
 from icenet2 import __version__ as icenet_version
 from icenet2.data.dataset import IceNetDataSet
+from icenet2.data.sic.mask import Masks
 from icenet2.utils import run_command
 
 from pprint import pprint
@@ -28,6 +29,7 @@ def get_args():
     ap.add_argument("dataset")
     ap.add_argument("datefile", type=argparse.FileType("r"))
 
+    ap.add_argument("-m", "--mask", default=False, action="store_true")
     ap.add_argument("-o", "--output-dir", default=".")
     ap.add_argument("-r", "--root", type=str, default=".")
 
@@ -115,11 +117,24 @@ def create_cf_output():
     logging.info("Dataset arr shape: {}".format(arr.shape))
     # TODO: apply appropriate mask to output
 
+    sic_mean = arr[..., 0]
+    sic_stddev = arr[..., 1]
+
+    if args.mask:
+        logging.info("Land masking the forecast output")
+        land_mask = Masks(north=ds.north, south=ds.south).get_land_mask()
+        mask = land_mask[np.newaxis, ..., np.newaxis]
+        mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
+        mask = np.repeat(mask, sic_mean.shape[0], axis=0)
+
+        sic_mean[~mask] = 0
+        sic_stddev[~mask] = 0
+
     xarr = xr.Dataset(
         data_vars=dict(
             Lambert_Azimuthal_Grid=ref_sic.Lambert_Azimuthal_Grid,
-            sic_mean=(["time", "yc", "xc", "leadtime"], arr[..., 0]),
-            sic_stddev=(["time", "yc", "xc", "leadtime"], arr[..., 1]),
+            sic_mean=(["time", "yc", "xc", "leadtime"], sic_mean),
+            sic_stddev=(["time", "yc", "xc", "leadtime"], sic_stddev),
         ),
         coords=dict(
             time=[pd.Timestamp(d) for d in dates],
