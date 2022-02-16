@@ -115,7 +115,6 @@ def create_cf_output():
          for date in dates])
 
     logging.info("Dataset arr shape: {}".format(arr.shape))
-    # TODO: apply appropriate mask to output
 
     sic_mean = arr[..., 0]
     sic_stddev = arr[..., 1]
@@ -127,8 +126,8 @@ def create_cf_output():
         mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
         mask = np.repeat(mask, sic_mean.shape[0], axis=0)
 
-        sic_mean[~mask] = 0
-        sic_stddev[~mask] = 0
+        sic_mean[mask] = 0
+        sic_stddev[mask] = 0
 
     xarr = xr.Dataset(
         data_vars=dict(
