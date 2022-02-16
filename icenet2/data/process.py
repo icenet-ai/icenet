@@ -201,7 +201,7 @@ class IceNetPreProcessor(Processor):
                 else:
                     climatology = xr.open_dataarray(clim_path)
 
-                if not da.groupby("time.month").all().month.equals(climatology.month):
+                if not set(da.groupby("time.month").all().month.values).issubset(set(climatology.month.values)):
                     logging.warning("We don't have a full climatology ({}) compared with data ({})".format(
                         ",".join([str(i) for i in climatology.month.values]),
                         ",".join([str(i) for i in da.groupby("time.month").all().month.values])))
