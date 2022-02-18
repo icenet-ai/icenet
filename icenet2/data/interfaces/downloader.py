@@ -57,24 +57,29 @@ class ClimateDownloader(Downloader):
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))
 
-        # TODO: override max threads if number of batches is lower...
-        with ThreadPoolExecutor(max_workers=self._max_threads) \
+        requests = list()
+
+        for idx, var_name in enumerate(self.var_names):
+            pressures = [None] if not self.pressure_levels[idx] else \
+                self._pressure_levels[idx]
+
+            dates_per_request = self._get_dates_for_request()
+
+            for var_prefix, pressure, req_date in \
+                    product([var_name], pressures, dates_per_request):
+                requests.append((var_prefix, pressure, req_date))
+
+        with ThreadPoolExecutor(max_workers=
+                                min(len(requests), self._max_threads)) \
                 as executor:
             futures = []
-            for idx, var_name in enumerate(self.var_names):
-                pressures = [None] if not self.pressure_levels[idx] else \
-                    self._pressure_levels[idx]
 
-                dates_per_request = self._get_dates_for_request()
-
-                for var_prefix, pressure, req_date in \
-                        product([var_name], pressures, dates_per_request):
-
-                    future = executor.submit(self._single_download,
-                                             var_prefix,
-                                             pressure,
-                                             req_date)
-                    futures.append(future)
+            for var_prefix, pressure, req_date in requests:
+                future = executor.submit(self._single_download,
+                                         var_prefix,
+                                         pressure,
+                                         req_date)
+                futures.append(future)
 
             for future in concurrent.futures.as_completed(futures):
                 try:
