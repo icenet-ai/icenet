@@ -191,8 +191,7 @@ def main():
             source=source,
             member=member,
             var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-                       "rsds",
-                       "uas", "vas", "siconca"],
+                       "rsds", "uas", "vas", "siconca"],
             pressure_levels=[None, [500], None, None, [250, 500], [1000],
                              None, None, None, None, None],
             dates=[None],
@@ -232,3 +231,28 @@ def main():
                 logging.error(e)
             else:
                 logging.info(msg)
+
+"""
+from icenet2.data.interfaces.esgf import CMIP6Downloader
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+downloader = CMIP6Downloader(
+    source="EC-Earth3",
+    member="r2i1p1f1",
+    var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
+               "rsds", "uas", "vas", "siconca"],
+    pressure_levels=[None, [500], None, None, [250, 500], [1000],
+                     None, None, None, None, None],
+    dates=[None],
+    delete_tempfiles=False,
+    grid_override="gr",
+    north=True,
+    south=False,
+    max_threads=16,
+)
+downloader.download()
+###
+downloader.regrid()
+downloader.rotate_wind_data()
+"""

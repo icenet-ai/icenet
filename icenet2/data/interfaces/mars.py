@@ -177,6 +177,17 @@ retrieve,
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
 
+    def additional_regrid_processing(self, datafile, cube_ease):
+        (datafile_path, datafile_name) = os.path.split(datafile)
+        var_name = datafile_path.split(os.sep)[-2]
+
+        if var_name == 'tos':
+            # Overwrite maksed values with zeros
+            logging.debug("MARS additional regrid: {}".format(var_name))
+            cube_ease.data[cube_ease.data.mask] = 0.
+            cube_ease.data[:, self._masks.get_land_mask()] = 0.
+            cube_ease.data = cube_ease.data.data
+
 
 def main():
     args = download_args()

@@ -26,7 +26,7 @@ from icenet2.model.models import unet_batchnorm
 
 def train_model(
         run_name,
-        loader_config,
+        dataset_config,
         batch_size=4,
         checkpoint_monitor='val_rmse',
         checkpoint_mode='min',
@@ -90,7 +90,7 @@ def train_model(
 
     logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
 
-    ds = dataset_class(loader_config, batch_size=batch_size)
+    ds = dataset_class(dataset_config, batch_size=batch_size)
 
     input_shape = (*ds.shape, ds.num_channels)
     train_ds, val_ds, test_ds = ds.get_split_datasets(ratio=dataset_ratio)
