@@ -1,25 +1,3 @@
-"""
-Module to download hourly ERA5 reanalysis latitude-longitude maps,
-compute daily averages, regrid them to the same EASE grid as the OSI-SAF sea
-ice, data, and save as yearly NetCDFs.
-
-The `variables` dictionary controls which NetCDF variables are downloaded/
-regridded, as well their paths/filenames.
-
-Only 120,000 hours of ERA5 data can be downloaded in a single Climate
-Data Store request, so this script downloads and processes data in yearly
-chunks.
-
-A command line input dictates which variable is downloaded and allows this
-script to be run in parallel for different variables.
-
-TODO: https://datastore.copernicus-climate.eu/documents/app-c3s-daily-era5-statistics/C3S_Application-Documentation_ERA5-daily-statistics-v2.pdf
- https://confluence.ecmwf.int/pages/viewpage.action?pageId=228867588
-- using this application we can download precalculated means for the daily data
-  which will save a LOT of time
-"""
-
-import collections
 import logging
 import os
 import requests
@@ -35,8 +13,20 @@ from icenet2.data.interfaces.downloader import ClimateDownloader
 from icenet2.data.interfaces.utils import \
     batch_requested_dates, get_daily_filenames
 
+"""
+Module to download hourly ERA5 reanalysis latitude-longitude maps,
+compute daily averages, regrid them to the same EASE grid as the OSI-SAF sea
+ice, data, and save as yearly NetCDFs.
+"""
+
 
 class ERA5Downloader(ClimateDownloader):
+    """Configuration processor for model-ensemble YAML-based configurations
+
+    Args:
+        configuration: Name of the YAML configuration to load
+    """
+
     CDI_MAP = {
         'tas': '2m_temperature',
         'ta': 'temperature',  # 500
