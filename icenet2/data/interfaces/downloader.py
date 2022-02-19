@@ -18,7 +18,7 @@ from icenet2.data.utils import assign_lat_lon_coord_system, \
 from icenet2.utils import run_command
 
 import iris
-
+import iris.exceptions
 
 class ClimateDownloader(Downloader):
 
@@ -231,10 +231,15 @@ class ClimateDownloader(Downloader):
             wind_cubes[apply_to[0]] = iris.load_cube(wind_file_0)
             wind_cubes[apply_to[1]] = iris.load_cube(wind_file_1)
 
-            wind_cubes_r[apply_to[0]], wind_cubes_r[apply_to[1]] = \
-                rotate_grid_vectors(
-                    wind_cubes[apply_to[0]], wind_cubes[apply_to[1]], angles,
-                )
+            try:
+                wind_cubes_r[apply_to[0]], wind_cubes_r[apply_to[1]] = \
+                    rotate_grid_vectors(
+                        wind_cubes[apply_to[0]], wind_cubes[apply_to[1]], angles,
+                    )
+            except iris.exceptions.CoordinateNotFoundError:
+                logging.exception("Failure to rotate due to coordinate issues. "
+                                  "moving onto next file")
+                continue
 
             # Original implementation is in danger of lost updates
             # due to potential lazy loading
