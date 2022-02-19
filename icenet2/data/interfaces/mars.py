@@ -26,7 +26,8 @@ class HRESDownloader(ClimateDownloader):
         "uas":          (165, "u10"),   # 10m_u_component_of_wind
         "vas":          (166, "v10"),   # 10m_v_component_of_wind
         "tas":          (167, "t2m"),   # 2m_temperature (t2m)
-        # https://www.ecmwf.int/sites/default/files/elibrary/2015/18490-radiation-quantities-ecmwf-model-and-mars.pdf
+        # TODO: Zero at forecast init, we set the step to 12 for values to
+        #  process currently, though this needs review.
         "rlds":         (175, "strd"),
         "rsds":         (169, "ssrd"),
 
@@ -42,7 +43,7 @@ retrieve,
   expver=1,
   levtype={levtype},
   {levlist}param={params},
-  step=0,
+  step=12,
   stream=oper,
   time=00:00:00,
   type=fc,
