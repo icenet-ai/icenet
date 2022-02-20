@@ -4,6 +4,7 @@ import os
 from itertools import product
 
 import ecmwfapi
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -43,7 +44,7 @@ retrieve,
   expver=1,
   levtype={levtype},
   {levlist}param={params},
-  step=12,
+  step=0/6/12/18,
   stream=oper,
   time=00:00:00,
   type=fc,
@@ -122,6 +123,8 @@ retrieve,
             self._server.execute(request, request_target)
 
         ds = xr.open_dataset(request_target)
+
+        ds = ds.resample(time='1D').reduce(np.mean)
 
         for day in ds.time.values:
             date_str = pd.to_datetime(day).strftime("%Y_%m_%d")
