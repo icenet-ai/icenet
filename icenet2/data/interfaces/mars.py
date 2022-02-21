@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 
@@ -77,6 +78,7 @@ retrieve,
         request_month = req_dates[0].strftime("%Y%m")
         request_target = "{}.{}.{}.nc".format(
             self.hemisphere_str[0], levtype, request_month)
+        partial_request_target = "partial.{}".format(request_target)
 
         download_dates = []
 
@@ -104,25 +106,61 @@ retrieve,
             logging.info("We have all the files we need from MARS API")
             return
 
-        request = HRESDownloader.MARS_TEMPLATE.format(
-            area="/".join([str(s) for s in self.hemisphere_loc]),
-            date="/".join([el.strftime("%Y%m%d") for el in download_dates]),
-            levtype=levtype,
-            levlist="levelist={},\n  ".format(pressures) if pressures else "",
-            params="/".join(
-                ["{}.{}".format(
-                    HRESDownloader.HRES_PARAMS[v][0],
-                    HRESDownloader.PARAM_TABLE)
-                 for v in var_names]),
-            target=request_target,
-        )
+        downloaded_files = []
 
-        logging.debug("MARS REQUEST: \n{}\n".format(request))
+        if download_dates[-1].date() - datetime.datetime.now().date() == \
+            datetime.timedelta(days=-1):
+            partial_request = HRESDownloader.MARS_TEMPLATE.format(
+                area="/".join([str(s) for s in self.hemisphere_loc]),
+                date=download_dates[-1].strftime("%Y%m%d"),
+                levtype=levtype,
+                levlist="levelist={},\n  ".format(pressures) if pressures else "",
+                params="/".join(
+                    ["{}.{}".format(
+                        HRESDownloader.HRES_PARAMS[v][0],
+                        HRESDownloader.PARAM_TABLE)
+                        for v in var_names]),
+                target=partial_request_target,
+                # We are only allowed date prior to -24 hours ago, dynamically
+                # retrieve if date is today
+                step="/".join([str(i) for i in
+                               range(datetime.datetime.now().hour)]),
+            )
 
-        if not os.path.exists(request_target):
-            self._server.execute(request, request_target)
+            logging.debug("PART STEP MARS REQUEST: \n{}\n".
+                          format(partial_request))
 
-        ds = xr.open_dataset(request_target)
+            if not os.path.exists(partial_request_target):
+                self._server.execute(partial_request, partial_request_target)
+                downloaded_files.append(partial_request_target)
+                partial_datetime = download_dates.pop()
+                logging.warning("Removed partial date {}".
+                                format(partial_datetime.strftime("%Y%m%d")))
+
+        if len(download_dates) > 0:
+            request = HRESDownloader.MARS_TEMPLATE.format(
+                area="/".join([str(s) for s in self.hemisphere_loc]),
+                date="/".join([el.strftime("%Y%m%d") for el in download_dates]),
+                levtype=levtype,
+                levlist="levelist={},\n  ".format(pressures) if pressures else "",
+                params="/".join(
+                    ["{}.{}".format(
+                        HRESDownloader.HRES_PARAMS[v][0],
+                        HRESDownloader.PARAM_TABLE)
+                     for v in var_names]),
+                target=request_target,
+                # We are only allowed date prior to -24 hours ago, dynamically
+                # retrieve if date is today
+                step="/".join([str(i) for i in range(24)]),
+            )
+
+            logging.debug("MARS REQUEST: \n{}\n".format(request))
+
+            if not os.path.exists(request_target):
+                self._server.execute(request, request_target)
+                downloaded_files.append(request_target)
+
+        ds = xr.open_mfdataset(downloaded_files)
 
         ds = ds.resample(time='1D').reduce(np.mean)
 
@@ -160,9 +198,11 @@ retrieve,
         ds.close()
 
         if self.delete:
-            logging.info("Removing {}".format(request_target))
-            os.unlink(request_target)
-
+            for downloaded_file in [request_target, partial_request_target]:
+                if os.path.exists(downloaded_file):
+                    logging.info("Removing {}".format(downloaded_file))
+                    os.unlink(downloaded_file)
+            
     def download(self):
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))
