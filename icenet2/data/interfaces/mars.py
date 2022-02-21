@@ -108,7 +108,7 @@ retrieve,
 
         downloaded_files = []
 
-        if download_dates[-1].date() - datetime.datetime.now().date() == \
+        if download_dates[-1] - datetime.datetime.now().date() == \
             datetime.timedelta(days=-1):
             partial_request = HRESDownloader.MARS_TEMPLATE.format(
                 area="/".join([str(s) for s in self.hemisphere_loc]),
@@ -202,7 +202,7 @@ retrieve,
                 if os.path.exists(downloaded_file):
                     logging.info("Removing {}".format(downloaded_file))
                     os.unlink(downloaded_file)
-            
+
     def download(self):
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))
