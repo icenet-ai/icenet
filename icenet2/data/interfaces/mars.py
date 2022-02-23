@@ -17,6 +17,10 @@ from icenet2.data.interfaces.utils import \
 
 class HRESDownloader(ClimateDownloader):
     PARAM_TABLE = 128
+
+    # Background on the use of forecast and observational data
+    # https://confluence.ecmwf.int/pages/viewpage.action?pageId=85402030
+    # https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation#ERA5:datadocumentation-Dateandtimespecification
     HRES_PARAMS = {
         "siconca":      (31, "siconc"),     # sea_ice_area_fraction
         "tos":          (34, "sst"),    # sea surface temperature (actually
@@ -28,8 +32,15 @@ class HRESDownloader(ClimateDownloader):
         "uas":          (165, "u10"),   # 10m_u_component_of_wind
         "vas":          (166, "v10"),   # 10m_v_component_of_wind
         "tas":          (167, "t2m"),   # 2m_temperature (t2m)
-        # TODO: Zero at forecast init, we set the step to 12 for values to
-        #  process currently, though this needs review.
+        # https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation#ERA5:datadocumentation-Meanrates/fluxesandaccumulations
+        # https://apps.ecmwf.int/codes/grib/param-db/?id=175
+        # https://confluence.ecmwf.int/pages/viewpage.action?pageId=197702790
+        #
+        # Mean rate/flux parameters in ERA5 (e.g. Table 4 for surface and
+        # single levels) provide similar information to accumulations (e.g.
+        # Table 3 for surface and single levels), except they are expressed as
+        # temporal means, over the same processing periods, and so have units
+        # of "per second".
         "rlds":         (175, "strd"),
         "rsds":         (169, "ssrd"),
 
@@ -233,6 +244,24 @@ retrieve,
             cube_ease.data[cube_ease.data.mask] = 0.
             cube_ease.data[:, self._masks.get_land_mask()] = 0.
             cube_ease.data = cube_ease.data.data
+
+        if var_name in ['rlds', 'rsds']:
+            # FIXME: We're taking the mean across the hourly samples for the
+            #  day in fc which needs to be comparative with the analysis product
+            #  from ERA5. My interpretation is that this should be /24, but of
+            #  course it doesn't work like that thanks to orbital rotation.
+            #  We need to verify the exact mechanism for converting forecast
+            #  values to reanalysis equivalents, but this rudimentary divisor
+            #  should work in the meantime
+            #
+            #  FIXME FIXME FIXME
+            cube_ease /= 12.
+
+        if var_name.startswith("zg"):
+            # https://apps.ecmwf.int/codes/grib/param-db/?id=129
+            #
+            # We want the geopotential height as per ERA5
+            cube_ease /= 9.80665
 
 
 def main():
