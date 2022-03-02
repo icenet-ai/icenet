@@ -4,16 +4,14 @@ import logging
 import os
 import re
 
-from pprint import pformat, pprint
 from concurrent.futures import as_completed, ProcessPoolExecutor
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import tqdm
 import xarray as xr
 
-from matplotlib.animation import ArtistAnimation, FuncAnimation
+from matplotlib.animation import FuncAnimation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet2.process.predict import get_refcube
@@ -177,6 +175,8 @@ def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
                               update,
                               video_dates,
                               interval=1000/fps)
+
+    plt.close()
 
     if not video_path:
         logging.info("Not saving plot, will return animation")
