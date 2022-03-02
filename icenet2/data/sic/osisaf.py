@@ -283,7 +283,11 @@ class SICDownloader(Downloader):
                     os.rename(nc_path, reproc_path)
                     data_files.append(reproc_path)
                 else:
-                    logging.debug("{} does not exist".format(nc_path))
+                    if os.path.exists(temp_path):
+                        logging.info("Using existing {}".format(temp_path))
+                        data_files.append(temp_path)
+                    else:
+                        logging.debug("{} does not exist".format(nc_path))
                 continue
             else:
                 if not os.path.isdir(os.path.dirname(temp_path)):
@@ -392,9 +396,6 @@ class SICDownloader(Downloader):
                             day_da.to_netcdf(fpath)
 
                 ds.close()
-                if not self._download:
-                    logging.info("Removing reproc file {}".format(file))
-                    os.unlink(file)
 
         self.missing_dates()
 
@@ -414,7 +415,7 @@ class SICDownloader(Downloader):
                                combine="nested",
                                concat_dim="time",
                                parallel=True)
-        self._missing_dates(ds.to_array())
+        return self._missing_dates(ds.ice_conc)
 
     def _missing_dates(self, da):
         if pd.Timestamp(1979, 1, 2) in da.time.values \
@@ -458,6 +459,21 @@ class SICDownloader(Downloader):
 
         da = da.sortby('time')
         da.data = np.array(da.data, dtype=self._dtype)
+
+        for date in missing_dates:
+            date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
+            fpath = os.path.join(self.get_data_var_folder("siconca"),
+                                 str(pd.to_datetime(date).year),
+                                 "{}.nc".format(date_str))
+
+            if not os.path.exists(fpath):
+                day_da = da.sel(time=slice(date, date))
+                mask = self._mask_dict[pd.to_datetime(date).month]
+
+                day_da.data[0][~mask] = 0.
+
+                logging.info("Writing missing date file {}".format(fpath))
+                day_da.to_netcdf(fpath)
 
         return da
 
