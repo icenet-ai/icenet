@@ -417,16 +417,8 @@ class IceNetPreProcessor(Processor):
         """
         Construct a DataArray `linea_trend_da` containing the linear trend SIC
         forecasts based on the input DataArray `input_da`.
-        `linear_trend_da` will be saved in monthly averages using
-        the `save_xarray_in_monthly_averages` method.
-        Parameters:
         `input_da` (xarray.DataArray): Input DataArray to produce linear SIC
         forecasts for.
-        `dataset` (str): 'obs' or 'cmip6' (dictates whether to skip missing
-        observational months in the linear trend extrapolation)
-        Returns:
-        `linear_trend_da` (xarray.DataArray): DataArray whose time slices
-        correspond to the linear trend SIC projection for that month.
         """
 
         # FIXME: change the trend dating to dailies. This is not going to
@@ -450,6 +442,7 @@ class IceNetPreProcessor(Processor):
             data_dates[-1] + pd.DateOffset(days=self._linear_trend_days)),
                 dims="time"))[0]
         linear_trend_da = linear_trend_da.sel(time=trend_dates)
+        linear_trend_da.data = np.zeros(linear_trend_da.shape)
 
         land_mask = Masks(north=self.north, south=self.south).get_land_mask()
 
@@ -457,7 +450,6 @@ class IceNetPreProcessor(Processor):
             linear_trend_da.loc[dict(time=forecast_date)] = \
                 linear_trend_forecast(
                     forecast_date, input_da, land_mask,
-                    self._linear_trend_days,
                     missing_dates=self._missing_dates,
                     shape=self._data_shape)[0]
 

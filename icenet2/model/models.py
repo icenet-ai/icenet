@@ -141,66 +141,18 @@ def unet_batchnorm(input_shape, loss, metrics,
     return model
 
 
-def linear_trend_forecast(forecast_date, da, mask, n_linear_days,
+def linear_trend_forecast(forecast_date, da, mask,
                           missing_dates=(), shape=(432, 432)):
-    """
-    Returns a simple sea ice forecast based on a gridcell-wise linear
-    extrapolation.
+    target_date = pd.to_datetime(forecast_date)
+    usable_data = da[(da.time['time.month'] == target_date.month) &
+                     (da.time['time.day'] == target_date.day) &
+                     ~da.time.isin(missing_dates)]
+    x = np.arange(len(usable_data.time))
+    y = usable_data.data.reshape(len(usable_data.time), -1)
 
-    Parameters:
-    forecast_month (datetime.datetime): The month to forecast
-
-    n_linear_years (int or str): Number of past years to use for linear trend
-    extrapolation.
-
-    da (xr.DataArray): xarray data array to use instead of observational
-
-    Returns:
-    output_map (np.ndarray): The output SIC map predicted
-    by fitting a least squares linear trend to the past n_linear_years
-    for the month being predicted.
-
-    sie (np.float): The predicted sea ice extend (SIE).
-    """
-
-    valid_dates = [pd.Timestamp(date) for date in da.time.values]
-
-    input_dates = [forecast_date - pd.DateOffset(days=1+lag)
-                   for lag in range(n_linear_days)]
-
-    # Do not use missing days in the linear trend projection
-    input_dates = [date for date in input_dates
-                   if pd.to_datetime(date).date() not in missing_dates]
-
-    # Chop off input date from before data start
-    input_dates = [date for date in input_dates if date in valid_dates]
-
-    input_dates = sorted(input_dates)
-
-    # The actual number of past years used
-    actual_n_linear_days = len(input_dates)
-
-    da = da.sel(time=input_dates)
-
-    input_maps = np.array(da.data)
-
-    if not actual_n_linear_days:
-        actual_n_linear_days = 1
-        input_maps = np.empty((actual_n_linear_days, *shape))
-
-    x = np.arange(actual_n_linear_days)
-    y = input_maps.reshape(actual_n_linear_days, -1)
-
-    # Fit the least squares linear coefficients
-    r = np.linalg.lstsq(
-        np.c_[x, np.ones_like(x)], y, rcond=None)[0]
-
-    # y = mx + c
-    output_map = np.matmul(np.array([actual_n_linear_days, 1]), r).\
-        reshape(*shape)
-
+    r = np.linalg.lstsq(np.c_[x, np.ones_like(x)], y, rcond=None)[0]
+    output_map = np.matmul(np.array([len(usable_data.time), 1]), r).reshape(*shape)
     output_map[mask] = 0.
-
     output_map[output_map < 0] = 0.
     output_map[output_map > 1] = 1.
 
