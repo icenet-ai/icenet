@@ -16,15 +16,18 @@ from icenet2.data.interfaces.utils import \
 """
 Module to download hourly ERA5 reanalysis latitude-longitude maps,
 compute daily averages, regrid them to the same EASE grid as the OSI-SAF sea
-ice, data, and save as yearly NetCDFs.
+ice, data, and save as daily NetCDFs.
 """
 
 
 class ERA5Downloader(ClimateDownloader):
-    """Configuration processor for model-ensemble YAML-based configurations
+    """Climate downloader to provide ERA5 reanalysis data from CDS API
 
     Args:
-        configuration: Name of the YAML configuration to load
+        identifier (string): how to identify this dataset
+        cdi_map (map): override the default ERA5Downloader.CDI_MAP variable map
+        use_toolbox (boolean): whether to use CDS toolbox for remote aggregation
+        show_progress (boolean): whether to show download progress
     """
 
     CDI_MAP = {
@@ -63,6 +66,13 @@ class ERA5Downloader(ClimateDownloader):
             self.client.session.mount("https://", adapter)
 
     def _single_download(self, var_prefix, pressure, req_date):
+        """Implements a single download from CDS API
+
+        Args:
+            var_prefix (string): the icenet variable name
+            pressure (int): the pressure level to download
+            req_date (datetime): the request date
+        """
         # FIXME: confirmed, but the year start year end naming is a bit weird,
         #  hang up from the icenet port but we might want to consider relevance,
         #  it remains purely for compatibility with existing data
