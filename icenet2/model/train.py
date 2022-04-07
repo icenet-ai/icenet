@@ -21,7 +21,7 @@ import icenet2.model.metrics as metrics
 from icenet2.model.utils import make_exp_decay_lr_schedule
 
 from icenet2.data.dataset import IceNetDataSet
-from icenet2.model.models import unet_batchnorm
+import icenet2.model.models as models
 
 
 def train_model(
@@ -40,6 +40,7 @@ def train_model(
         lr_decay_start=10,
         lr_decay_end=30,
         max_queue_size=3,
+        model_func=models.unet_batchnorm,
         n_filters_factor=2,
         network_folder=None,
         network_save=True,
@@ -178,7 +179,7 @@ def train_model(
             losses.WeightedMSE()
         ]
 
-        network = unet_batchnorm(
+        network = model_func(
             input_shape=input_shape,
             loss=loss,
             metrics=metrics_list,

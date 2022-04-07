@@ -186,7 +186,7 @@ class IceNetPreProcessor(Processor):
                                              "climatology.{}".format(var_name))
 
                 if not os.path.exists(clim_path):
-                    logging.debug("Generating climatology {}".format(clim_path))
+                    logging.info("Generating climatology {}".format(clim_path))
 
                     if self._dates.train:
                         climatology = da.sel(time=self._dates.train).\
@@ -199,9 +199,11 @@ class IceNetPreProcessor(Processor):
                                            "training data is supplied".
                                            format(clim_path))
                 else:
+                    logging.info("Reusing climatology {}".format(clim_path))
                     climatology = xr.open_dataarray(clim_path)
 
-                if not set(da.groupby("time.month").all().month.values).issubset(set(climatology.month.values)):
+                if not set(da.groupby("time.month").all().month.values).\
+                        issubset(set(climatology.month.values)):
                     logging.warning("We don't have a full climatology ({}) compared with data ({})".format(
                         ",".join([str(i) for i in climatology.month.values]),
                         ",".join([str(i) for i in da.groupby("time.month").all().month.values])))
