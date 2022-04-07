@@ -294,7 +294,7 @@ class SICDownloader(Downloader):
                     os.makedirs(os.path.dirname(temp_path), exist_ok=True)
 
                 if os.path.exists(temp_path) or os.path.exists(nc_path):
-                    logging.info("{} file exists, skipping".format(date_str))
+                    logging.debug("{} file exists, skipping".format(date_str))
                     if not os.path.exists(nc_path):
                         data_files.append(temp_path)
                     continue
@@ -430,9 +430,13 @@ class SICDownloader(Downloader):
         dates_obs = [pd.to_datetime(date).date() for date in da.time.values]
         dates_all = [pd.to_datetime(date).date() for date in
                      pd.date_range(min(self._dates), max(self._dates))]
+
+        # Weirdly, we were getting future warnings for timestamps, but unsure
+        # where from
+        invalid_dates = [pd.to_datetime(d).date() for d in self._invalid_dates]
         missing_dates = [date for date in dates_all
                          if date not in dates_obs
-                         or date in self._invalid_dates]
+                         or date in invalid_dates]
 
         logging.info("Processing {} missing dates".format(len(missing_dates)))
 

@@ -245,7 +245,7 @@ class ERA5Downloader(ClimateDownloader):
                 logging.debug("Remove {}".format(temp_download_path))
                 os.unlink(temp_download_path)
         else:
-            logging.info("No dates needing downloading for {}".format(var))
+            logging.debug("No dates needing downloading for {}".format(var))
 
     def _cds_file_process(self,
                           temp_download_path,
