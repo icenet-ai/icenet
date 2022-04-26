@@ -119,7 +119,7 @@ retrieve,
 
         downloaded_files = []
 
-        if download_dates[-1] - datetime.datetime.now().date() == \
+        if download_dates[-1] - datetime.datetime.utcnow().date() == \
             datetime.timedelta(days=-1):
             partial_request = HRESDownloader.MARS_TEMPLATE.format(
                 area="/".join([str(s) for s in self.hemisphere_loc]),
@@ -135,18 +135,24 @@ retrieve,
                 # We are only allowed date prior to -24 hours ago, dynamically
                 # retrieve if date is today
                 step="/".join([str(i) for i in
-                               range(datetime.datetime.now().hour)]),
+                               range(datetime.datetime.utcnow().hour)]),
             )
 
             logging.debug("PART STEP MARS REQUEST: \n{}\n".
                           format(partial_request))
 
             if not os.path.exists(partial_request_target):
-                self._server.execute(partial_request, partial_request_target)
-                downloaded_files.append(partial_request_target)
-                partial_datetime = download_dates.pop()
-                logging.warning("Removed partial date {}".
-                                format(partial_datetime.strftime("%Y%m%d")))
+                try:
+                    self._server.execute(partial_request,
+                                         partial_request_target)
+                except ecmwfapi.api.APIException as e:
+                    logging.exception("Could not complete partial ECMWF "
+                                      "request".format(e))
+                else:
+                    downloaded_files.append(partial_request_target)
+                    partial_datetime = download_dates.pop()
+                    logging.warning("Removed partial date {}".
+                                    format(partial_datetime.strftime("%Y%m%d")))
 
         if len(download_dates) > 0:
             request = HRESDownloader.MARS_TEMPLATE.format(
@@ -168,8 +174,12 @@ retrieve,
             logging.debug("MARS REQUEST: \n{}\n".format(request))
 
             if not os.path.exists(request_target):
-                self._server.execute(request, request_target)
-                downloaded_files.append(request_target)
+                try:
+                    self._server.execute(request, request_target)
+                except ecmwfapi.api.APIException:
+                    logging.exception("Could not complete ECMWF request: {}")
+                else:
+                    downloaded_files.append(request_target)
 
         ds = xr.open_mfdataset(downloaded_files)
 
