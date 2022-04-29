@@ -208,7 +208,8 @@ def main():
         delete_tempfiles=args.delete,
         grid_override=args.override,
         north=args.hemisphere == "north",
-        south=args.hemisphere == "south"
+        south=args.hemisphere == "south",
+        max_threads=args.workers,
     )
     logging.info("CMIP downloading: {} {} {}".format(args.name,
                                                      args.member,
