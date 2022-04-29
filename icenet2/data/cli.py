@@ -25,7 +25,11 @@ def dates_arg(string):
     return [dt.date(*[int(s) for s in date_tuple]) for date_tuple in date_match]
 
 
-def download_args(choices=None, dates=True, skip_download=False, workers=False):
+def download_args(choices=None,
+                  dates=True,
+                  skip_download=False,
+                  workers=False,
+                  extra_args=[]):
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
 
@@ -46,6 +50,10 @@ def download_args(choices=None, dates=True, skip_download=False, workers=False):
     ap.add_argument("-d", "--dont-delete", dest="delete",
                     action="store_false", default=True)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
+
+    for arg in extra_args:
+        ap.add_argument(*arg[0], **arg[1])
+
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)

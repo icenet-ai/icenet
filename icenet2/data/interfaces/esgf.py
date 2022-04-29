@@ -133,6 +133,9 @@ class CMIP6Downloader(ClimateDownloader):
             if pressure:
                 cmip6_da = cmip6_da.sel(plev=int(pressure * 100))
 
+            cmip6_da = cmip6_da.sel(lat=slice(self.hemisphere_loc[2],
+                                              self.hemisphere_loc[0]))
+
             logging.info("Retrieving and saving {}:".format(output_name))
             cmip6_da.compute()
             cmip6_da.to_netcdf(output_path)
@@ -169,90 +172,53 @@ class CMIP6Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args()
-
-    logging.info("CMIP6 Data Downloading")
-    # TODO: move into arguments
-    cmip_sources = (
-        ("MRI-ESM2-0", "r1i1p1f1", None),
-        ("MRI-ESM2-0", "r2i1p1f1", None),
-        ("MRI-ESM2-0", "r3i1p1f1", None),
-        ("MRI-ESM2-0", "r4i1p1f1", None),
-        ("MRI-ESM2-0", "r5i1p1f1", None),
-        ("EC-Earth3", "r2i1p1f1", "gr"),
-        ("EC-Earth3", "r7i1p1f1", "gr"),
-        ("EC-Earth3", "r10i1p1f1", "gr"),
-        ("EC-Earth3", "r12i1p1f1", "gr"),
-        ("EC-Earth3", "r14i1p1f1", "gr"),
+    args = download_args(
+        dates=False,
+        extra_args=[
+            (["name"], dict(type=str)),
+            (["member"], dict(type=str)),
+            (("-o", "--override"), dict(required=None, type=str)),
+        ],
+        workers=True
     )
 
-    def cmip_retrieve(source, member, override):
-        downloader = CMIP6Downloader(
-            source=source,
-            member=member,
-            var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-                       "rsds", "uas", "vas", "siconca"],
-            pressure_levels=[None, [500], None, None, [250, 500], [1000],
-                             None, None, None, None, None],
-            dates=[None],
-            delete_tempfiles=args.delete,
-            grid_override=override,
-            north=args.hemisphere == "north",
-            south=args.hemisphere == "south"
-        )
-        logging.info("CMIP downloading: {} {} {}".format(source,
-                                                         member,
-                                                         override))
-        downloader.download()
-        logging.info("CMIP regridding: {} {} {}".format(source,
-                                                        member,
-                                                        override))
-        downloader.regrid()
-        logging.info("CMIP rotating: {} {} {}".format(source,
-                                                      member,
-                                                      override))
-        downloader.rotate_wind_data()
-        return "CMIP done: {} {} {}".format(source, member, override)
+    logging.info("CMIP6 Data Downloading")
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = []
+#    cmip_sources = (
+#        ("MRI-ESM2-0", "r1i1p1f1", None),
+#        ("MRI-ESM2-0", "r2i1p1f1", None),
+#        ("MRI-ESM2-0", "r3i1p1f1", None),
+#        ("MRI-ESM2-0", "r4i1p1f1", None),
+#        ("MRI-ESM2-0", "r5i1p1f1", None),
+#        ("EC-Earth3", "r2i1p1f1", "gr"),
+#        ("EC-Earth3", "r7i1p1f1", "gr"),
+#        ("EC-Earth3", "r10i1p1f1", "gr"),
+#        ("EC-Earth3", "r12i1p1f1", "gr"),
+#        ("EC-Earth3", "r14i1p1f1", "gr"),
+#    )
 
-        for source_arg, member_arg, override_arg in cmip_sources:
-            future = executor.submit(cmip_retrieve,
-                                     source_arg,
-                                     member_arg,
-                                     override_arg)
-            futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                msg = future.result()
-            except Exception as e:
-                logging.error(e)
-            else:
-                logging.info(msg)
-
-"""
-from icenet2.data.interfaces.esgf import CMIP6Downloader
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-downloader = CMIP6Downloader(
-    source="EC-Earth3",
-    member="r2i1p1f1",
-    var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-               "rsds", "uas", "vas", "siconca"],
-    pressure_levels=[None, [500], None, None, [250, 500], [1000],
-                     None, None, None, None, None],
-    dates=[None],
-    delete_tempfiles=False,
-    grid_override="gr",
-    north=True,
-    south=False,
-    max_threads=16,
-)
-downloader.download()
-###
-downloader.regrid()
-downloader.rotate_wind_data()
-"""
+    downloader = CMIP6Downloader(
+        source=args.name,
+        member=args.member,
+        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
+                   "rsds", "uas", "vas", "siconca"],
+        pressure_levels=[None, [500], None, None, [250, 500], [1000],
+                         None, None, None, None, None],
+        dates=[None],
+        delete_tempfiles=args.delete,
+        grid_override=args.override,
+        north=args.hemisphere == "north",
+        south=args.hemisphere == "south"
+    )
+    logging.info("CMIP downloading: {} {} {}".format(args.name,
+                                                     args.member,
+                                                     args.override))
+    downloader.download()
+    logging.info("CMIP regridding: {} {} {}".format(args.name,
+                                                    args.member,
+                                                    args.override))
+    downloader.regrid()
+    logging.info("CMIP rotating: {} {} {}".format(args.name,
+                                                  args.member,
+                                                  args.override))
+    downloader.rotate_wind_data()
