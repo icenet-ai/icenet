@@ -27,6 +27,7 @@ def dates_arg(string):
 
 def download_args(choices=None,
                   dates=True,
+                  dates_optional=False,
                   skip_download=False,
                   workers=False,
                   extra_args=[]):
@@ -37,8 +38,10 @@ def download_args(choices=None,
         ap.add_argument("-c", "--choice", choices=choices, default=choices[0])
 
     if dates:
-        ap.add_argument("start_date", type=date_arg)
-        ap.add_argument("end_date", type=date_arg)
+        pos_args = [["start_date"], ["end_date"]] if not dates_optional else \
+            [["-sd", "--start-date"], ["-ed", "--end-date"]]
+        ap.add_argument(*pos_args[0], type=date_arg, default=None)
+        ap.add_argument(*pos_args[1], type=date_arg, default=None)
 
     if skip_download:
         ap.add_argument("-s", "--skip-download", default=False,

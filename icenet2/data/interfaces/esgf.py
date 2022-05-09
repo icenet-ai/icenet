@@ -1,11 +1,9 @@
-import concurrent.futures
 import logging
 import os
 import re
 
-from concurrent.futures import ThreadPoolExecutor
-
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from icenet2.data.interfaces.downloader import ClimateDownloader
@@ -112,6 +110,9 @@ class CMIP6Downloader(ClimateDownloader):
                 for data_node in self._nodes:
                     query['data_node'] = data_node
 
+                    # FIXME: inefficient, we can strip redundant results files
+                    #  based on WCRP data management standards for file naming,
+                    #  such as based on date. Refactor/rewrite this impl...
                     node_results = esgf_search(**query)
 
                     if len(node_results):
@@ -122,25 +123,34 @@ class CMIP6Downloader(ClimateDownloader):
                         break
 
             logging.info("Found {} {} results from ESGF search".
-                format(var_prefix, len(results)))
+                format(len(results), var_prefix))
 
-            # http://xarray.pydata.org/en/stable/user-guide/io.html?highlight=opendap#opendap
-            # Avoid 500MB DAP request limit
-            cmip6_da = xr.open_mfdataset(results,
-                                         combine='by_coords',
-                                         chunks={'time': '499MB'})[var_prefix]
+            try:
+                # http://xarray.pydata.org/en/stable/user-guide/io.html?highlight=opendap#opendap
+                # Avoid 500MB DAP request limit
+                cmip6_da = xr.open_mfdataset(results,
+                                             combine='by_coords',
+                                             chunks={'time': '499MB'}
+                                             )[var_prefix]
+            except OSError as e:
+                logging.exception("Error encountered: {}".format(e),
+                                  exc_info=False)
+            else:
+                if self.dates[0] is not None:
+                    cmip6_da = cmip6_da.sel(time=slice(self.dates[0],
+                                                       self.dates[-1]))
 
-            if pressure:
-                cmip6_da = cmip6_da.sel(plev=int(pressure * 100))
+                if pressure:
+                    cmip6_da = cmip6_da.sel(plev=int(pressure * 100))
 
-            cmip6_da = cmip6_da.sel(lat=slice(self.hemisphere_loc[2],
-                                              self.hemisphere_loc[0]))
+                cmip6_da = cmip6_da.sel(lat=slice(self.hemisphere_loc[2],
+                                                  self.hemisphere_loc[0]))
 
-            logging.info("Retrieving and saving {}:".format(output_name))
-            cmip6_da.compute()
-            cmip6_da.to_netcdf(output_path)
+                logging.info("Retrieving and saving {}:".format(output_name))
+                cmip6_da.compute()
+                cmip6_da.to_netcdf(output_path)
 
-            self._files_downloaded.append(output_path)
+                self._files_downloaded.append(output_path)
         else:
             if not os.path.exists(proc_path):
                 logging.info("{} already exists but is not processed".
@@ -173,7 +183,8 @@ class CMIP6Downloader(ClimateDownloader):
 
 def main():
     args = download_args(
-        dates=False,
+        dates=True,
+        dates_optional=True,
         extra_args=[
             (["name"], dict(type=str)),
             (["member"], dict(type=str)),
@@ -197,14 +208,27 @@ def main():
 #        ("EC-Earth3", "r14i1p1f1", "gr"),
 #    )
 
+    dates = [None]
+
+    if args.start_date or args.end_date:
+        # FIXME: This is very lazy and inefficient
+        dates = [pd.to_datetime(date).date() for date in
+                 pd.date_range(
+                    args.start_date if args.start_date else "1850-1-1",
+                    args.end_date if args.end_date else "2100-12-31",
+                    freq="D")]
+        logging.info("{} dates specified, downloading subset".
+                     format(len(dates)))
+
     downloader = CMIP6Downloader(
         source=args.name,
         member=args.member,
-        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-                   "rsds", "uas", "vas", "siconca"],
-        pressure_levels=[None, [500], None, None, [250, 500], [1000],
-                         None, None, None, None, None],
-        dates=[None],
+#        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
+#                   "rsds", "uas", "vas", "siconca"],
+        var_names=["tas"],
+        pressure_levels=[None,], #[500], None, None, [250, 500], [1000],
+                        # None, None, None, None, None],
+        dates=dates,
         delete_tempfiles=args.delete,
         grid_override=args.override,
         north=args.hemisphere == "north",
