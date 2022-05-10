@@ -1,1 +1,4 @@
-.. include:: ../README.rst
+IceNet README
+=============
+
+.. include:: ../README.md

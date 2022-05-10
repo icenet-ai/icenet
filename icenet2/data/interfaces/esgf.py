@@ -12,6 +12,33 @@ from icenet2.data.utils import esgf_search
 
 
 class CMIP6Downloader(ClimateDownloader):
+    """Climate downloader to provide CMIP6 reanalysis data from ESGF APIs
+
+    Args:
+        identifier: how to identify this dataset
+        source: source ID in ESGF node
+        member: member ID in ESGF node
+        nodes: list of ESGF nodes to query
+        experiments: experiment IDs to download
+        frequency: query parameter frequency
+        table_map: table map for
+        grid_map=GRID_MAP,
+        grid_override=None,  # EC-Earth3 wants all 'gr'
+        exclude_nodes=[],
+
+    "MRI-ESM2-0", "r1i1p1f1", None
+    "MRI-ESM2-0", "r2i1p1f1", None
+    "MRI-ESM2-0", "r3i1p1f1", None
+    "MRI-ESM2-0", "r4i1p1f1", None
+    "MRI-ESM2-0", "r5i1p1f1", None
+    "EC-Earth3", "r2i1p1f1", "gr"
+    "EC-Earth3", "r7i1p1f1", "gr"
+    "EC-Earth3", "r10i1p1f1", "gr"
+    "EC-Earth3", "r12i1p1f1", "gr"
+    "EC-Earth3", "r14i1p1f1", "gr"
+
+    """
+    
     TABLE_MAP = {
         'siconca': 'SIday',
         'tas': 'day',
@@ -55,15 +82,15 @@ class CMIP6Downloader(ClimateDownloader):
 
     def __init__(self,
                  *args,
-                 source,
-                 member,
-                 nodes=ESGF_NODES,
-                 experiments=('historical', 'ssp245'),
-                 frequency="day",
-                 table_map=TABLE_MAP,
-                 grid_map=GRID_MAP,
-                 grid_override=None,  # EC-Earth3 wants all 'gr'
-                 exclude_nodes=[],
+                 source: str,
+                 member: str,
+                 nodes: list = ESGF_NODES,
+                 experiments: tuple = ('historical', 'ssp245'),
+                 frequency: str = "day",
+                 table_map: dict = None,
+                 grid_map: dict = None,
+                 grid_override: dict = None,
+                 exclude_nodes: list = None,
                  **kwargs):
         super().__init__(*args,
                          identifier="cmip6",
@@ -73,10 +100,12 @@ class CMIP6Downloader(ClimateDownloader):
         self._member = member
         self._frequency = frequency
         self._experiments = experiments
-        self._nodes = [n for n in nodes if n not in exclude_nodes]
 
-        self._table_map = table_map
-        self._grid_map = grid_map
+        self._nodes = nodes if not exclude_nodes else \
+            [n for n in nodes if n not in exclude_nodes]
+
+        self._table_map = table_map if table_map else CMIP6Downloader.TABLE_MAP
+        self._grid_map = grid_map if grid_map else CMIP6Downloader.GRID_MAP
         self._grid_map_override = grid_override
 
     def _get_dates_for_request(self):
@@ -197,19 +226,6 @@ def main():
     )
 
     logging.info("CMIP6 Data Downloading")
-
-#    cmip_sources = (
-#        ("MRI-ESM2-0", "r1i1p1f1", None),
-#        ("MRI-ESM2-0", "r2i1p1f1", None),
-#        ("MRI-ESM2-0", "r3i1p1f1", None),
-#        ("MRI-ESM2-0", "r4i1p1f1", None),
-#        ("MRI-ESM2-0", "r5i1p1f1", None),
-#        ("EC-Earth3", "r2i1p1f1", "gr"),
-#        ("EC-Earth3", "r7i1p1f1", "gr"),
-#        ("EC-Earth3", "r10i1p1f1", "gr"),
-#        ("EC-Earth3", "r12i1p1f1", "gr"),
-#        ("EC-Earth3", "r14i1p1f1", "gr"),
-#    )
 
     dates = [None]
 

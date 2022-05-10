@@ -1,5 +1,4 @@
 import argparse
-import glob
 import json
 import logging
 import os
@@ -8,7 +7,7 @@ import subprocess
 import numpy as np
 import tensorflow as tf
 
-from icenet2.data.loader import get_decoder
+from icenet2.data.dataset import get_decoder
 
 import matplotlib.pyplot as plt
 

@@ -42,21 +42,6 @@ def get_daily_filenames(var_folder, var, date_str):
     return daily_path, regridded_name
 
 
-"""
-for V in hus1000 psl rlds rsds ta500 tas tos uas vas zg250 zg500; do
-echo "SCRIPT: ${V}" >>process_monthlies.sh.out
-python scratch/test.py /data/hpcdata/users/jambyr/icenet2/tom.data sh era5 $V >>process_monthlies.sh.out 2>>process_monthlies.sh.err
-done
-
-
-for I in nh sh; do
-echo "SCRIPT: ${I}" >>process_monthlies_siconca.$I.out
-python scratch/test.py /data/hpcdata/users/jambyr/icenet2/tom.data $I osisaf siconca >>process_monthlies_siconca.$I.out 2>>process_monthlies_siconca.$I.err
-done
-
-"""
-
-
 def reprocess_monthlies(source, hemisphere, identifier, output_base,
                         dry=False,
                         var_names=[]):

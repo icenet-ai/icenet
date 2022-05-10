@@ -17,6 +17,7 @@
 # relative to the documentation root, use os.path.abspath to make it
 # absolute, like shown here.
 #
+import datetime
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
@@ -36,6 +37,9 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode']
 
+# Standardising on
+napoleon_numpy_docstring = True
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -49,9 +53,10 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'IceNet2'
-copyright = "2022, James Byrne"
-author = "James Byrne"
+project = icenet2.__name__
+copyright = "{}, {}".format(
+    datetime.datetime.utcnow().year, icenet2.__copyright__)
+author = icenet2.__author__
 
 # The version info for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout
