@@ -63,6 +63,7 @@ class CMIP6Downloader(ClimateDownloader):
                  table_map=TABLE_MAP,
                  grid_map=GRID_MAP,
                  grid_override=None,  # EC-Earth3 wants all 'gr'
+                 exclude_nodes=[],
                  **kwargs):
         super().__init__(*args,
                          identifier="cmip6",
@@ -72,7 +73,7 @@ class CMIP6Downloader(ClimateDownloader):
         self._member = member
         self._frequency = frequency
         self._experiments = experiments
-        self._nodes = nodes
+        self._nodes = [n for n in nodes if n not in exclude_nodes]
 
         self._table_map = table_map
         self._grid_map = grid_map
@@ -94,8 +95,8 @@ class CMIP6Downloader(ClimateDownloader):
         }
 
         var_name = "{}{}".format(var_prefix, "" if not pressure else pressure)
-        output_name = "latlon.{}.{}.nc".format(self._source, self._member)
-        proc_name = re.sub(r'^latlon\.', '', output_name)
+        output_name = "latlon_{}.{}.nc".format(self._source, self._member)
+        proc_name = re.sub(r'^latlon_', '', output_name)
         output_path = os.path.join(self.get_data_var_folder(var_name),
                                    output_name)
         proc_path = os.path.join(output_path, proc_name)
@@ -188,6 +189,8 @@ def main():
         extra_args=[
             (["name"], dict(type=str)),
             (["member"], dict(type=str)),
+            (("-xs", "--exclude-server"),
+             dict(default=[], nargs="*")),
             (("-o", "--override"), dict(required=None, type=str)),
         ],
         workers=True
@@ -223,17 +226,17 @@ def main():
     downloader = CMIP6Downloader(
         source=args.name,
         member=args.member,
-#        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-#                   "rsds", "uas", "vas", "siconca"],
-        var_names=["tas"],
-        pressure_levels=[None,], #[500], None, None, [250, 500], [1000],
-                        # None, None, None, None, None],
+        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
+                   "rsds", "uas", "vas", "siconca"],
+        pressure_levels=[None, [500], None, None, [250, 500], [1000],
+                         None, None, None, None, None],
         dates=dates,
         delete_tempfiles=args.delete,
         grid_override=args.override,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
         max_threads=args.workers,
+        exclude_nodes=args.exclude_server,
     )
     logging.info("CMIP downloading: {} {} {}".format(args.name,
                                                      args.member,
