@@ -1,17 +1,11 @@
 import copy
 import fnmatch
 import ftplib
-import glob
 import logging
 import os
-import re
-import sys
-import tempfile
-import time
 
 import datetime as dt
 from ftplib import FTP
-from pprint import pformat
 
 import numpy as np
 import pandas as pd
@@ -21,6 +15,7 @@ from icenet2.data.cli import download_args
 from icenet2.data.producers import Downloader
 from icenet2.data.sic.mask import Masks
 from icenet2.utils import Hemisphere
+from icenet2.data.sic.utils import SIC_HEMI_STR
 
 
 invalid_sic_days = {
@@ -238,7 +233,7 @@ class SICDownloader(Downloader):
         }
 
     def download(self):
-        hs = self.hemisphere_str[0]
+        hs = SIC_HEMI_STR[self.hemisphere_str[0]]
 
         logging.info(
             "Not downloading SIC files, (re)processing NC files in "

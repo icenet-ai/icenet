@@ -11,7 +11,8 @@ import xarray as xr
 
 from icenet2.data.cli import download_args
 from icenet2.data.producers import Generator
-from icenet2.utils import Hemisphere, run_command
+from icenet2.utils import run_command
+from icenet2.data.sic.utils import SIC_HEMI_STR
 
 
 class Masks(Generator):
@@ -85,7 +86,7 @@ class Masks(Generator):
         for month in range(1, 13):
             # Download the data if not already downloaded
             filename_osi450 = filename_template_osi450.format(
-                self.hemisphere_str[0], year, month)
+                SIC_HEMI_STR[self.hemisphere_str[0]], year, month)
 
             month_str = '{:02d}'.format(month)
             month_folder = os.path.join(siconca_folder, str(year), month_str)
