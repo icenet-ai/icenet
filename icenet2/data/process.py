@@ -250,7 +250,8 @@ class IceNetPreProcessor(Processor):
             fname = "{:04d}_{:02d}_{:02d}.npy".\
                 format(date.year, date.month, date.day)
 
-            self.save_processed_file(var_name, fname, slice)
+            self.save_processed_file(var_name, fname, slice,
+                                     append=[str(date.year)])
 
     def _open_dataarray_from_files(self, var_name):
 

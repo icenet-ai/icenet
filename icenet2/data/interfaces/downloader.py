@@ -3,7 +3,6 @@ import datetime as dt
 import logging
 import os
 import re
-import tempfile
 
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor

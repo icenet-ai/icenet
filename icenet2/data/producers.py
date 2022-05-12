@@ -7,7 +7,6 @@ import glob
 import logging
 import os
 import re
-import threading
 
 import numpy as np
 
@@ -61,32 +60,26 @@ class DataProducer(HemisphereMixin):
     def identifier(self):
         return self._identifier
 
-    def get_data_var_folder(self, var, hemisphere=None, missing_error=False):
+    def get_data_var_folder(self, var,
+                            append=[],
+                            hemisphere=None,
+                            missing_error=False):
         if not hemisphere:
             # We can make the assumption because this implementation is limited
             # to a single hemisphere
             hemisphere = self.hemisphere_str[0]
 
-        hemi_path = os.path.join(self.base_path, hemisphere)
+        data_var_path = os.path.join(
+            self.base_path, *[hemisphere, var, *append])
 
-        if not os.path.exists(hemi_path):
+        if not os.path.exists(data_var_path):
             if not missing_error:
-                logging.debug("Creating hemisphere path: {}".format(hemi_path))
-                os.makedirs(hemi_path, exist_ok=True)
+                os.makedirs(data_var_path, exist_ok=True)
             else:
-                raise OSError("Hemisphere directory {} is missing and this is "
-                              "flagged as an error!".format(hemi_path))
+                raise OSError("Directory {} is missing and this is "
+                              "flagged as an error!".format(data_var_path))
 
-        var_path = os.path.join(self.base_path, hemisphere, var)
-
-        if not os.path.exists(var_path):
-            if not missing_error:
-                logging.debug("Creating var path: {}".format(var_path))
-                os.makedirs(var_path, exist_ok=True)
-            else:
-                raise OSError("Variable directory {} is missing and this is "
-                              "flagged as an error!".format(var_path))
-        return var_path
+        return data_var_path
 
 
 class Downloader(DataProducer):
@@ -232,20 +225,21 @@ class Processor(DataProducer):
         raise NotImplementedError("{}.process is abstract".
                                   format(__class__.__name__))
 
-    def save_processed_file(self, var_name, name, data):
-        path = os.path.join(self.get_data_var_folder(var_name), name)
-        np.save(path, data)
+    def save_processed_file(self, var_name, name, data, **kwargs):
+        file_path = os.path.join(
+            self.get_data_var_folder(var_name, **kwargs), name)
+        np.save(file_path, data)
 
         if var_name not in self._processed_files.keys():
             self._processed_files[var_name] = list()
 
-        if path not in self._processed_files[var_name]:
-            logging.debug("Adding {} file: {}".format(var_name, path))
-            self._processed_files[var_name].append(path)
+        if file_path not in self._processed_files[var_name]:
+            logging.debug("Adding {} file: {}".format(var_name, file_path))
+            self._processed_files[var_name].append(file_path)
         else:
             logging.warning("{} already exists in {} processed list".
-                            format(path, var_name))
-        return path
+                            format(file_path, var_name))
+        return file_path
 
     @property
     def dates(self):

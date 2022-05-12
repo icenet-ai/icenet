@@ -126,6 +126,7 @@ class CMIP6Downloader(ClimateDownloader):
         var_name = "{}{}".format(var_prefix, "" if not pressure else pressure)
         output_name = "latlon_{}.{}.nc".format(self._source, self._member)
         proc_name = re.sub(r'^latlon_', '', output_name)
+        # TODO: Yearly output
         output_path = os.path.join(self.get_data_var_folder(var_name),
                                    output_name)
         proc_path = os.path.join(output_path, proc_name)

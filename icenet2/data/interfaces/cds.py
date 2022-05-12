@@ -86,8 +86,8 @@ class ERA5Downloader(ClimateDownloader):
 
         var = var_prefix if not pressure else \
             "{}{}".format(var_prefix, pressure)
-        var_folder = os.path.join(self.get_data_var_folder(var),
-                                  str(req_date[0].year))
+        var_folder = self.get_data_var_folder(var,
+                                              append=[str(req_date[0].year)])
 
         # For the year component - 365 * 50 is a lot of files ;)
         os.makedirs(var_folder, exist_ok=True)

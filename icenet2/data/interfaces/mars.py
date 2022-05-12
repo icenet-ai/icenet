@@ -97,8 +97,8 @@ retrieve,
                                           if pressures else [None]):
             var = var_name if not pressure else \
                 "{}{}".format(var_name, pressure)
-            var_folder = os.path.join(self.get_data_var_folder(var),
-                                      str(req_dates[0].year))
+            var_folder = self.get_data_var_folder(
+                var, append=[str(req_dates[0].year)])
 
             for destination_date in req_dates:
                 daily_path, regridded_name = get_daily_filenames(
@@ -192,8 +192,8 @@ retrieve,
                                               if pressures else [None]):
                 var = var_name if not pressure else \
                     "{}{}".format(var_name, pressure)
-                var_folder = os.path.join(self.get_data_var_folder(var),
-                                          str(pd.to_datetime(day).year))
+                var_folder = self.get_data_var_folder(
+                    var, append=[str(pd.to_datetime(day).year)])
 
                 # For the year component - 365 * 50 is a lot of files ;)
                 os.makedirs(var_folder, exist_ok=True)

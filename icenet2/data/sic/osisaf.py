@@ -264,18 +264,18 @@ class SICDownloader(Downloader):
                 continue
 
             date_str = el.strftime("%Y_%m_%d")
-            temp_path = os.path.join(self.get_data_var_folder("siconca"),
-                                     str(el.year),
-                                     "{}.temp".format(date_str))
-            nc_path = os.path.join(self.get_data_var_folder("siconca"),
-                                   str(el.year),
-                                   "{}.nc".format(date_str))
+            temp_path = os.path.join(
+                self.get_data_var_folder("siconca", append=[str(el.year)]),
+                "{}.temp".format(date_str))
+            nc_path = os.path.join(
+                self.get_data_var_folder("siconca", append=[str(el.year)]),
+                "{}.nc".format(date_str))
 
             if not self._download:
                 if os.path.exists(nc_path):
                     reproc_path = os.path.join(
-                        self.get_data_var_folder("siconca"),
-                        str(el.year),
+                        self.get_data_var_folder("siconca",
+                                                 append=[str(el.year)]),
                         "{}.reproc.nc".format(date_str))
 
                     logging.debug("{} exists, becoming {}".
@@ -372,9 +372,10 @@ class SICDownloader(Downloader):
 
                 for date in da.time.values:
                     date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
-                    fpath = os.path.join(self.get_data_var_folder("siconca"),
-                                         str(pd.to_datetime(date).year),
-                                         "{}.nc".format(date_str))
+                    fpath = os.path.join(
+                        self.get_data_var_folder(
+                            "siconca", append=[str(pd.to_datetime(date).year)]),
+                        "{}.nc".format(date_str))
 
                     logging.debug("Processing {}".format(date_str))
 
@@ -404,11 +405,10 @@ class SICDownloader(Downloader):
                 os.unlink(fpath)
 
     def missing_dates(self):
-        filenames = [os.path.join(self.get_data_var_folder("siconca"),
-                                  str(el.year),
-                                  "{}.nc".format(
-                                      el.strftime("%Y_%m_%d")))
-                     for el in self._dates]
+        filenames = [os.path.join(
+            self.get_data_var_folder("siconca", append=[str(el.year)]),
+            "{}.nc".format(el.strftime("%Y_%m_%d")))
+            for el in self._dates]
         filenames = [f for f in filenames if os.path.exists(f)]
 
         ds = xr.open_mfdataset(filenames,
@@ -466,9 +466,10 @@ class SICDownloader(Downloader):
 
         for date in missing_dates:
             date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
-            fpath = os.path.join(self.get_data_var_folder("siconca"),
-                                 str(pd.to_datetime(date).year),
-                                 "{}.nc".format(date_str))
+            fpath = os.path.join(
+                self.get_data_var_folder(
+                    "siconca", append=[str(pd.to_datetime(date).year)]),
+                "{}.nc".format(date_str))
 
             if not os.path.exists(fpath):
                 day_da = da.sel(time=slice(date, date))
