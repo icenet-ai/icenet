@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-from icenet2 import __version__ as icenet_version
+import icenet2
 
 """Setup module for Icenet2 - draft module
 """
@@ -17,10 +17,10 @@ requirements = []
 test_requirements = ['pytest>=3', ]
 
 setup(
-    name="icenet2",
-    version=icenet_version,
-    author="Tom Andersson/James Byrne",
-    author_email="jambyr@bas.ac.uk",
+    name=icenet2.__name__,
+    version=icenet2.__version__,
+    author=icenet2.__author__,
+    author_email=icenet2.__email__,
     description="Library for operational IceNet forecasting",
     long_description=long_description + '\n\n' + history,
     long_description_content_type="text/markdown",
