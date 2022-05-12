@@ -65,7 +65,7 @@ class ERA5Downloader(ClimateDownloader):
             )
             self.client.session.mount("https://", adapter)
 
-    def _single_download(self, var_prefix, pressure, req_date):
+    def _single_download(self, var_prefix, pressure, req_dates):
         """Implements a single download from CDS API
 
         Args:
@@ -80,24 +80,25 @@ class ERA5Downloader(ClimateDownloader):
         # TODO: This is download and average for dailies, but could be easily
         #  abstracted for different temporal averaging
 
-        for dt in req_date:
-            assert dt.year == req_date[0].year
-            assert dt.month == req_date[0].month
+        for dt in req_dates:
+            assert dt.year == req_dates[0].year
+            assert dt.month == req_dates[0].month
 
         var = var_prefix if not pressure else \
             "{}{}".format(var_prefix, pressure)
         var_folder = self.get_data_var_folder(var,
-                                              append=[str(req_date[0].year)])
+                                              append=[str(req_dates[0].year)])
 
         # For the year component - 365 * 50 is a lot of files ;)
         os.makedirs(var_folder, exist_ok=True)
 
         downloads = []
-        for destination_date in req_date:
-            daily_path, regridded_name = get_daily_filenames(var_folder,
-                                                   var,
-                                                   destination_date.
-                                                   strftime("%Y_%m_%d"))
+        for destination_date in req_dates:
+            daily_path, regridded_name = \
+                get_daily_filenames(var_folder,
+                                    var,
+                                    destination_date.
+                                    strftime("%Y_%m_%d"))
 
             if not os.path.exists(daily_path) \
                     and not os.path.exists(regridded_name):
@@ -110,13 +111,13 @@ class ERA5Downloader(ClimateDownloader):
                                                  var,
                                                  var_folder,
                                                  pressure,
-                                                 req_date,
+                                                 req_dates,
                                                  downloads)
         return self._single_api_download(var_prefix,
                                          var,
                                          var_folder,
                                          pressure,
-                                         req_date,
+                                         req_dates,
                                          downloads)
 
     def _single_toolbox_download(self,
