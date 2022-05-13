@@ -74,7 +74,8 @@ class CMIP6Downloader(ClimateDownloader):
     # Prioritise European first, US last, avoiding unnecessary queries
     # against nodes further afield (all traffic has a cost, and the coverage
     # of local nodes is more than enough)
-    ESGF_NODES = ("esgf-data3.ceda.ac.uk",
+    ESGF_NODES = (# CEDA appears to be down
+                  #"esgf-data3.ceda.ac.uk",
                   "esg1.umr-cnrm.fr",
                   "vesg.ipsl.upmc.fr",
                   "esgf3.dkrz.de",
