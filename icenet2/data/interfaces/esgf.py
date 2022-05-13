@@ -1,5 +1,6 @@
 import logging
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -8,7 +9,6 @@ import xarray as xr
 from icenet2.data.interfaces.downloader import ClimateDownloader
 from icenet2.data.cli import download_args
 from icenet2.data.utils import esgf_search
-from icenet2.data.interfaces.utils import get_daily_filenames
 
 
 class CMIP6Downloader(ClimateDownloader):
@@ -98,6 +98,7 @@ class CMIP6Downloader(ClimateDownloader):
                  **kwargs):
         super().__init__(*args,
                          identifier="cmip6",
+                         var_name_idx=-3,
                          **kwargs)
 
         self._source = source
@@ -194,12 +195,12 @@ class CMIP6Downloader(ClimateDownloader):
             date_str = pd.to_datetime(day).strftime("%Y_%m_%d")
             logging.debug("Processing var {} for {}".format(var_name, date_str))
 
-            daily_path, regridded_name = get_daily_filenames(
+            daily_path, regridded_name = self.get_daily_filenames(
                 self.get_data_var_folder(
                     var_name, append=[
                         "{}.{}".format(self._source, self._member),
                         str(pd.to_datetime(day).year)]),
-                var_name, date_str)
+                date_str)
 
             if len(da_daily.sel(time=slice(day, day)).time) == 0:
                 raise RuntimeError("No information in da_daily: {}".format(
@@ -303,41 +304,10 @@ def main():
     downloader.download()
     logging.info("CMIP regridding: {} {}".format(args.name,
                                                     args.member))
-    downloader.regrid()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=UserWarning)
+        downloader.regrid()
     logging.info("CMIP rotating: {} {}".format(args.name,
                                                   args.member))
     downloader.rotate_wind_data()
-
-"""
-        
-
-
-        output_name = "latlon_{}.{}.nc".format(self._source, self._member)
-        proc_name = re.sub(r'^latlon_', '', output_name)
-        # TODO: Yearly output
-
-        proc_path = os.path.join(output_path, proc_name)
-
-
-                os.path.exists(os.path.join(output_path, proc_name)):
-
-
-
-
-
-
-
-
-
-                self._files_downloaded.append(output_path)
-        else:
-            if not os.path.exists(proc_path):
-                logging.info("{} already exists but is not processed".
-                             format(output_path))
-                if output_path not in self._files_downloaded:
-                    self._files_downloaded.append(output_path)
-            else:
-                logging.info("{} processed file exists".format(proc_path))
-"""
-
 

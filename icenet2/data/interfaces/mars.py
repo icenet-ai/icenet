@@ -11,8 +11,7 @@ import xarray as xr
 
 from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
-from icenet2.data.interfaces.utils import \
-    batch_requested_dates, get_daily_filenames
+from icenet2.data.interfaces.utils import batch_requested_dates
 
 
 class HRESDownloader(ClimateDownloader):
@@ -101,8 +100,8 @@ retrieve,
                 var, append=[str(req_dates[0].year)])
 
             for destination_date in req_dates:
-                daily_path, regridded_name = get_daily_filenames(
-                    var_folder, var, destination_date.strftime("%Y_%m_%d"))
+                daily_path, regridded_name = self.get_daily_filenames(
+                    var_folder, destination_date.strftime("%Y_%m_%d"))
 
                 if not os.path.exists(daily_path) \
                         and not os.path.exists(regridded_name):
@@ -198,7 +197,7 @@ retrieve,
                 # For the year component - 365 * 50 is a lot of files ;)
                 os.makedirs(var_folder, exist_ok=True)
 
-                daily_path, _ = get_daily_filenames(var_folder, var, date_str)
+                daily_path, _ = self.get_daily_filenames(var_folder, date_str)
 
                 da = getattr(ds,
                              HRESDownloader.HRES_PARAMS[var_name][1])

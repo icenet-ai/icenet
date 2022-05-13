@@ -22,12 +22,13 @@ import iris.exceptions
 
 
 class ClimateDownloader(Downloader):
-
     def __init__(self, *args,
                  dates=(),
                  delete_tempfiles=True,
                  max_threads=1,
+                 pregrid_prefix="latlon_",
                  pressure_levels=(),
+                 var_name_idx=-2,
                  var_names=(),
                  **kwargs):
         super().__init__(*args, **kwargs)
@@ -38,7 +39,9 @@ class ClimateDownloader(Downloader):
         self._dates = list(dates)
         self._masks = Masks(north=self.north, south=self.south)
         self._max_threads = max_threads
+        self._pregrid_prefix = pregrid_prefix
         self._pressure_levels = list(pressure_levels)
+        self._var_name_idx = var_name_idx
         self._var_names = list(var_names)
 
         self._delete = delete_tempfiles
@@ -135,7 +138,9 @@ class ClimateDownloader(Downloader):
             (datafile_path, datafile_name) = os.path.split(datafile)
             # TODO: mmmm, need to keep consistent with get_daily_filenames
             new_datafile = os.path.join(datafile_path,
-                                        re.sub(r'^latlon_', '', datafile_name))
+                                        re.sub(
+                                            r'^{}'.format(self.pregrid_prefix),
+                                            '', datafile_name))
 
             if os.path.exists(new_datafile):
                 logging.debug("Skipping {} as {} already exists".
@@ -150,6 +155,7 @@ class ClimateDownloader(Downloader):
 
                 cube_ease = cube.regrid(
                     self.sic_ease_cube, iris.analysis.Linear())
+
             except iris.exceptions.CoordinateNotFoundError:
                 logging.warning("{} has no coordinates...".
                                 format(datafile_name))
@@ -196,7 +202,6 @@ class ClimateDownloader(Downloader):
         angles = gridcell_angles_from_dim_coords(self.sic_ease_cube)
         invert_gridcell_angles(angles)
 
-        # FIXME: broken
         logging.info("Rotating wind data in {}".format(
             " ".join([self.get_data_var_folder(v) for v in apply_to])))
 
@@ -210,8 +215,10 @@ class ClimateDownloader(Downloader):
 
             latlon_files = [df for df in file_source if source in df]
             wind_files[var] = sorted([
-                re.sub(r'latlon_', '', df) for df in latlon_files
-                if os.path.dirname(df).split(os.sep)[-2] == var],
+                re.sub(r'{}'.format(self.pregrid_prefix), '', df)
+                for df in latlon_files
+                if os.path.dirname(df).split(os.sep)
+                [self._var_name_idx] == var],
                 key=lambda x: dt.date(*[int(el) for el in
                                         re.search(
                                             r'^(?:\w+_)?(\d+)_(\d+)_(\d+).nc',
@@ -269,6 +276,18 @@ class ClimateDownloader(Downloader):
 
                 iris.save(wind_cubes_r[apply_to[i]], temp_name)
                 os.replace(temp_name, name)
+
+    def get_daily_filenames(self, var_folder, date_str):
+        daily_path = os.path.join(var_folder,
+                                  "{}{}.nc".format(self.pregrid_prefix,
+                                                   date_str))
+        regridded_name = os.path.join(var_folder,
+                                      "{}.nc".format(date_str))
+        return daily_path, regridded_name
+
+    @property
+    def pregrid_prefix(self):
+        return self._pregrid_prefix
 
     @property
     def delete(self):

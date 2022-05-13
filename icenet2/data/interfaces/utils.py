@@ -1,6 +1,5 @@
 import argparse
 import collections
-import concurrent
 import glob
 import logging
 import os
@@ -32,14 +31,6 @@ def batch_requested_dates(dates, attribute="month"):
         raise RuntimeError("Batching didn't work!")
 
     return batched_dates
-
-
-def get_daily_filenames(var_folder, var, date_str):
-    daily_path = os.path.join(var_folder,
-                              "latlon_{}.nc".format(date_str))
-    regridded_name = os.path.join(var_folder,
-                                  "{}.nc".format(date_str))
-    return daily_path, regridded_name
 
 
 def reprocess_monthlies(source, hemisphere, identifier, output_base,

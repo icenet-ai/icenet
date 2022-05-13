@@ -5,8 +5,12 @@ from icenet2.data.processors.utils import SICInterpolation
 
 
 class IceNetCMIPPreProcessor(IceNetPreProcessor):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, identifier="cmip", **kwargs)
+    def __init__(self, source, member, *args, **kwargs):
+        cmip_source = "{}.{}".format(source, member)
+        super().__init__(*args,
+                         identifier="cmip.{}".format(cmip_source),
+                         source_suffix=cmip_source,
+                         **kwargs)
 
     def pre_normalisation(self, var_name, da):
         if var_name == "siconca":
@@ -21,6 +25,7 @@ def main():
     dates = process_date_args(args)
 
     pp = IceNetCMIPPreProcessor(
+        # source and member args please!
         ["uas", "vas"],
         ["tas", "ta500", "tos", "psl", "zg500", "zg250", "rsds", "rlds",
          "hus1000"],

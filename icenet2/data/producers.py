@@ -108,6 +108,7 @@ class Processor(DataProducer):
                  source_data,
                  *args,
                  file_filters=tuple(),
+                 source_suffix=tuple(),
                  test_dates=tuple(),
                  train_dates=tuple(),
                  val_dates=tuple(),
@@ -117,7 +118,9 @@ class Processor(DataProducer):
                          **kwargs)
 
         self._file_filters = list(file_filters)
-        self._source_data = os.path.join(source_data, identifier)
+        self._source_data = os.path.join(*[source_data,
+                                           identifier,
+                                           *source_suffix])
         self._var_files = dict()
         self._processed_files = dict()
 

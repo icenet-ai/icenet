@@ -10,8 +10,7 @@ import xarray as xr
 
 from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
-from icenet2.data.interfaces.utils import \
-    batch_requested_dates, get_daily_filenames
+from icenet2.data.interfaces.utils import batch_requested_dates
 
 """
 Module to download hourly ERA5 reanalysis latitude-longitude maps,
@@ -89,16 +88,11 @@ class ERA5Downloader(ClimateDownloader):
         var_folder = self.get_data_var_folder(var,
                                               append=[str(req_dates[0].year)])
 
-        # For the year component - 365 * 50 is a lot of files ;)
-        os.makedirs(var_folder, exist_ok=True)
-
         downloads = []
         for destination_date in req_dates:
             daily_path, regridded_name = \
-                get_daily_filenames(var_folder,
-                                    var,
-                                    destination_date.
-                                    strftime("%Y_%m_%d"))
+                self.get_daily_filenames(var_folder,
+                                         destination_date.strftime("%Y_%m_%d"))
 
             if not os.path.exists(daily_path) \
                     and not os.path.exists(regridded_name):
@@ -267,8 +261,8 @@ class ERA5Downloader(ClimateDownloader):
             logging.debug(
                 "Processing var {} for {}".format(var, date_str))
 
-            daily_path, regridded_name = get_daily_filenames(
-                var_folder, var, date_str)
+            daily_path, regridded_name = \
+                self.get_daily_filenames(var_folder, date_str)
 
             if not os.path.exists(daily_path):
                 logging.debug(
