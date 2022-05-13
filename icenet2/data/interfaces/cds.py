@@ -251,8 +251,7 @@ class ERA5Downloader(ClimateDownloader):
     def _cds_file_process(self,
                           temp_download_path,
                           var,
-                          var_folder,
-                          resample=True):
+                          var_folder):
         da = xr.open_dataarray(temp_download_path)
 
         if 'expver' in da.coords:

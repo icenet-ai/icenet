@@ -204,9 +204,14 @@ class IceNetPreProcessor(Processor):
 
                 if not set(da.groupby("time.month").all().month.values).\
                         issubset(set(climatology.month.values)):
-                    logging.warning("We don't have a full climatology ({}) compared with data ({})".format(
-                        ",".join([str(i) for i in climatology.month.values]),
-                        ",".join([str(i) for i in da.groupby("time.month").all().month.values])))
+                    logging.warning(
+                        "We don't have a full climatology ({}) "
+                        "compared with data ({})".format(
+                            ",".join([str(i)
+                                      for i in climatology.month.values]),
+                            ",".join([str(i)
+                                      for i in da.groupby("time.month").
+                                     all().month.values])))
                     da = da - climatology.mean()
                 else:
                     da = da.groupby("time.month") - climatology

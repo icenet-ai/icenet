@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 
 import numpy as np
 import pandas as pd
@@ -9,6 +8,7 @@ import xarray as xr
 from icenet2.data.interfaces.downloader import ClimateDownloader
 from icenet2.data.cli import download_args
 from icenet2.data.utils import esgf_search
+from icenet2.data.interfaces.utils import get_daily_filenames
 
 
 class CMIP6Downloader(ClimateDownloader):
@@ -44,7 +44,9 @@ class CMIP6Downloader(ClimateDownloader):
         'tas': 'day',
         'ta': 'day',
         'tos': 'Oday',
+        'hus': 'day',
         'psl': 'day',
+        'rlds': 'day',
         'rsus': 'day',
         'rsds': 'day',
         'zg': 'day',
@@ -58,7 +60,9 @@ class CMIP6Downloader(ClimateDownloader):
         'tas': 'gn',
         'ta': 'gn',
         'tos': 'gr',
+        'hus': 'gn',
         'psl': 'gn',
+        'rlds': 'gn',
         'rsus': 'gn',   # Surface Upwelling Shortwave Radiation
         'rsds': 'gn',   # Surface Downwelling Shortwave Radiation
         'zg': 'gn',
@@ -124,15 +128,16 @@ class CMIP6Downloader(ClimateDownloader):
         }
 
         var_name = "{}{}".format(var_prefix, "" if not pressure else pressure)
-        output_name = "latlon_{}.{}.nc".format(self._source, self._member)
-        proc_name = re.sub(r'^latlon_', '', output_name)
-        # TODO: Yearly output
-        output_path = os.path.join(self.get_data_var_folder(var_name),
-                                   output_name)
-        proc_path = os.path.join(output_path, proc_name)
+        add_str = ".{}.{}".format(self.dates[0].strftime("%F"),
+                                  self.dates[-1].strftime("%F")) \
+            if self.dates[0] is not None else ""
+        download_name = "download.{}.{}{}.nc".format(
+            self._source, self._member, add_str)
+        download_path = os.path.join(self.get_data_var_folder(var_name),
+                                     download_name)
 
-        if not os.path.exists(output_path) or \
-                os.path.exists(os.path.join(output_path, proc_name)):
+        # Download the full source data for the experiment
+        if not os.path.exists(download_path):
             logging.info("Querying ESGF")
             results = []
             for experiment_id in self._experiments:
@@ -154,7 +159,7 @@ class CMIP6Downloader(ClimateDownloader):
                         break
 
             logging.info("Found {} {} results from ESGF search".
-                format(len(results), var_prefix))
+                         format(len(results), var_prefix))
 
             try:
                 # http://xarray.pydata.org/en/stable/user-guide/io.html?highlight=opendap#opendap
@@ -163,10 +168,7 @@ class CMIP6Downloader(ClimateDownloader):
                                              combine='by_coords',
                                              chunks={'time': '499MB'}
                                              )[var_prefix]
-            except OSError as e:
-                logging.exception("Error encountered: {}".format(e),
-                                  exc_info=False)
-            else:
+
                 if self.dates[0] is not None:
                     cmip6_da = cmip6_da.sel(time=slice(self.dates[0],
                                                        self.dates[-1]))
@@ -176,20 +178,46 @@ class CMIP6Downloader(ClimateDownloader):
 
                 cmip6_da = cmip6_da.sel(lat=slice(self.hemisphere_loc[2],
                                                   self.hemisphere_loc[0]))
-
-                logging.info("Retrieving and saving {}:".format(output_name))
+                logging.info("Retrieving and saving {}:".format(download_path))
                 cmip6_da.compute()
-                cmip6_da.to_netcdf(output_path)
+                cmip6_da.to_netcdf(download_path)
+            except OSError as e:
+                logging.exception("Error encountered: {}".format(e),
+                                  exc_info=False)
 
-                self._files_downloaded.append(output_path)
-        else:
-            if not os.path.exists(proc_path):
-                logging.info("{} already exists but is not processed".
-                             format(output_path))
-                if output_path not in self._files_downloaded:
-                    self._files_downloaded.append(output_path)
-            else:
-                logging.info("{} processed file exists".format(proc_path))
+        # Open the download, reprocess out into individual files
+        # TODO: repeated code w.r.t OSISAF (& mars/era?)
+        da = xr.open_dataarray(download_path)
+        da_daily = da.resample(time='1D').reduce(np.mean)
+
+        for day in da_daily.time.values:
+            date_str = pd.to_datetime(day).strftime("%Y_%m_%d")
+            logging.debug("Processing var {} for {}".format(var_name, date_str))
+
+            daily_path, regridded_name = get_daily_filenames(
+                self.get_data_var_folder(
+                    var_name, append=[
+                        "{}.{}".format(self._source, self._member),
+                        str(pd.to_datetime(day).year)]),
+                var_name, date_str)
+
+            if len(da_daily.sel(time=slice(day, day)).time) == 0:
+                raise RuntimeError("No information in da_daily: {}".format(
+                    da_daily
+                ))
+
+            if not os.path.exists(daily_path):
+                logging.debug(
+                    "Saving new daily file: {}".format(daily_path))
+                da_daily.sel(time=slice(day, day)).to_netcdf(daily_path)
+
+            if not os.path.exists(regridded_name):
+                self._files_downloaded.append(daily_path)
+
+        # Clean up
+        if self.delete:
+            logging.info("Deleting download: {}".format(download_path))
+            raise NotImplementedError("CMIP downloader doesn't delete yet")
 
     def additional_regrid_processing(self, datafile, cube_ease):
         (datafile_path, datafile_name) = os.path.split(datafile)
@@ -200,8 +228,8 @@ class CMIP6Downloader(ClimateDownloader):
             cube_ease.data[cube_ease.data > 500] = 0.
             cube_ease.data[:, self._masks.get_land_mask()] = 0.
 
-        if self._source == 'MRI-ESM2-0':
-            cube_ease.data = cube_ease.data / 100.
+            if self._source == 'MRI-ESM2-0':
+                cube_ease.data = cube_ease.data / 100.
         elif var_name == 'tos':
             cube_ease.data[cube_ease.data > 500] = 0.
             cube_ease.data[:, self._masks.get_land_mask()] = 0.
@@ -210,6 +238,21 @@ class CMIP6Downloader(ClimateDownloader):
             logging.info("Regrid processing, data type not float: {}".
                          format(cube_ease.data.dtype))
             cube_ease.data = cube_ease.data.astype(np.float32)
+
+    def convert_cube(self, cube):
+        """Converts Iris cube to be fit for CMIP regrid
+
+        Params:
+            cube:   the cube requiring alteration
+        Returns:
+            cube:   the altered cube
+        """
+
+        cs = self.sic_ease_cube.coord_system().ellipsoid
+
+        for coord in ['longitude', 'latitude']:
+            cube.coord(coord).coord_system = cs
+        return cube
 
 
 def main():
@@ -255,15 +298,46 @@ def main():
         max_threads=args.workers,
         exclude_nodes=args.exclude_server,
     )
-    logging.info("CMIP downloading: {} {} {}".format(args.name,
-                                                     args.member,
-                                                     args.override))
+    logging.info("CMIP downloading: {} {}".format(args.name,
+                                                     args.member))
     downloader.download()
-    logging.info("CMIP regridding: {} {} {}".format(args.name,
-                                                    args.member,
-                                                    args.override))
+    logging.info("CMIP regridding: {} {}".format(args.name,
+                                                    args.member))
     downloader.regrid()
-    logging.info("CMIP rotating: {} {} {}".format(args.name,
-                                                  args.member,
-                                                  args.override))
+    logging.info("CMIP rotating: {} {}".format(args.name,
+                                                  args.member))
     downloader.rotate_wind_data()
+
+"""
+        
+
+
+        output_name = "latlon_{}.{}.nc".format(self._source, self._member)
+        proc_name = re.sub(r'^latlon_', '', output_name)
+        # TODO: Yearly output
+
+        proc_path = os.path.join(output_path, proc_name)
+
+
+                os.path.exists(os.path.join(output_path, proc_name)):
+
+
+
+
+
+
+
+
+
+                self._files_downloaded.append(output_path)
+        else:
+            if not os.path.exists(proc_path):
+                logging.info("{} already exists but is not processed".
+                             format(output_path))
+                if output_path not in self._files_downloaded:
+                    self._files_downloaded.append(output_path)
+            else:
+                logging.info("{} processed file exists".format(proc_path))
+"""
+
+

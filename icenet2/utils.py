@@ -21,9 +21,9 @@ class HemisphereMixin:
 
     @property
     def hemisphere_str(self):
-        return ["nh"] if self.north else \
-               ["sh"] if self.south else \
-               ["nh", "sh"]
+        return ["north"] if self.north else \
+               ["south"] if self.south else \
+               ["north", "south"]
 
     @property
     def hemisphere_loc(self):

@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import product
 
 from icenet2.data.sic.mask import Masks
+from icenet2.data.sic.utils import SIC_HEMI_STR
 from icenet2.data.producers import Downloader
 from icenet2.data.utils import assign_lat_lon_coord_system, \
     gridcell_angles_from_dim_coords, \
@@ -102,7 +103,7 @@ class ClimateDownloader(Downloader):
     def sic_ease_cube(self):
         if self._hemisphere not in self._sic_ease_cubes:
             sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'. \
-                format(self.hemisphere_str[0])
+                format(SIC_HEMI_STR[self.hemisphere_str[0]])
             sic_day_path = os.path.join(self.get_data_var_folder("siconca"),
                                  sic_day_fname)
             if not os.path.exists(sic_day_path):
@@ -132,6 +133,7 @@ class ClimateDownloader(Downloader):
                files=None):
         for datafile in self._files_downloaded if not files else files:
             (datafile_path, datafile_name) = os.path.split(datafile)
+            # TODO: mmmm, need to keep consistent with get_daily_filenames
             new_datafile = os.path.join(datafile_path,
                                         re.sub(r'^latlon_', '', datafile_name))
 
@@ -144,7 +146,8 @@ class ClimateDownloader(Downloader):
 
             try:
                 cube = iris.load_cube(datafile)
-                cube = assign_lat_lon_coord_system(cube)
+                cube = self.convert_cube(cube)
+
                 cube_ease = cube.regrid(
                     self.sic_ease_cube, iris.analysis.Linear())
             except iris.exceptions.CoordinateNotFoundError:
@@ -167,6 +170,18 @@ class ClimateDownloader(Downloader):
                 logging.info("Removing {}".format(datafile))
                 os.remove(datafile)
 
+    def convert_cube(self, cube):
+        """Converts Iris cube to be fit for regrid
+
+        Params:
+            cube:   the cube requiring alteration
+        Returns:
+            cube:   the altered cube
+        """
+
+        cube = assign_lat_lon_coord_system(cube)
+        return cube
+
     @abstractmethod
     def additional_regrid_processing(self, datafile, cube_ease):
         pass
@@ -181,6 +196,7 @@ class ClimateDownloader(Downloader):
         angles = gridcell_angles_from_dim_coords(self.sic_ease_cube)
         invert_gridcell_angles(angles)
 
+        # FIXME: broken
         logging.info("Rotating wind data in {}".format(
             " ".join([self.get_data_var_folder(v) for v in apply_to])))
 

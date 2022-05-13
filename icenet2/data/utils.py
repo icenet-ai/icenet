@@ -179,8 +179,6 @@ def esgf_search(server="https://esgf-node.llnl.gov/esg-search/search",
             url_keys += ["{}={}".format(k, payload[k])]
 
         url = "{}/?{}".format(server, "&".join(url_keys))
-
-        logging.info("ESGF search node: {}".format(server))
         logging.debug("ESGF search URL: {}".format(url))
 
         r = client.get(url)
