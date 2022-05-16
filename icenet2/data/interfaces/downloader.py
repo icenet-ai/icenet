@@ -134,8 +134,8 @@ class ClimateDownloader(Downloader):
 
     def regrid(self,
                files=None):
-        batches = [b[0:1000] for b in range(
-            0, self._files_downloaded if not files else files, 1000)]
+        filelist = self._files_downloaded if not files else files
+        batches = [filelist[b:b + 1000] for b in range(0, len(filelist), 1000)]
 
         # TODO: DRY, condense to common batch method (w/download)...
         with ThreadPoolExecutor(max_workers=
