@@ -134,7 +134,27 @@ class ClimateDownloader(Downloader):
 
     def regrid(self,
                files=None):
-        for datafile in self._files_downloaded if not files else files:
+        batches = [b[0:1000] for b in range(
+            0, self._files_downloaded if not files else files, 1000)]
+
+        # TODO: DRY, condense to common batch method (w/download)...
+        with ThreadPoolExecutor(max_workers=
+                                min(len(batches), self._max_threads)) \
+                as executor:
+            futures = []
+
+            for files in batches:
+                future = executor.submit(self._batch_regrid, files)
+                futures.append(future)
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logging.exception("Thread failure: {}".format(e))
+
+    def _batch_regrid(self, files):
+        for datafile in files:
             (datafile_path, datafile_name) = os.path.split(datafile)
             # TODO: mmmm, need to keep consistent with get_daily_filenames
             new_datafile = os.path.join(datafile_path,

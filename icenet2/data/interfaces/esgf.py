@@ -203,12 +203,12 @@ class CMIP6Downloader(ClimateDownloader):
                         str(pd.to_datetime(day).year)]),
                 date_str)
 
-            if len(da_daily.sel(time=slice(day, day)).time) == 0:
-                raise RuntimeError("No information in da_daily: {}".format(
-                    da_daily
-                ))
-
             if not os.path.exists(daily_path):
+                if len(da_daily.sel(time=slice(day, day)).time) == 0:
+                    raise RuntimeError("No information in da_daily: {}".format(
+                        da_daily
+                    ))
+
                 logging.debug(
                     "Saving new daily file: {}".format(daily_path))
                 da_daily.sel(time=slice(day, day)).to_netcdf(daily_path)
