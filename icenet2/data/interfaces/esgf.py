@@ -223,7 +223,7 @@ class CMIP6Downloader(ClimateDownloader):
 
     def additional_regrid_processing(self, datafile, cube_ease):
         (datafile_path, datafile_name) = os.path.split(datafile)
-        var_name = datafile_path.split(os.sep)[-1]
+        var_name = datafile_path.split(os.sep)[self._var_name_idx]
 
         # Preprocessing
         if var_name == 'siconca':
