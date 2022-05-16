@@ -140,7 +140,10 @@ class ERA5Downloader(ClimateDownloader):
                     "frequency": "1-hourly",
                     "time_zone": "UTC+00:00",
                     "grid": "0.25/0.25",
-                    "area": self.hemisphere_loc,
+                    "area": {
+                        "lat": [self.hemisphere_loc[0], self.hemisphere_loc[2]],
+                        "lon": [self.hemisphere_loc[1], self.hemisphere_loc[3]],
+                    },
                 },
             }
 
@@ -275,7 +278,7 @@ class ERA5Downloader(ClimateDownloader):
 
     def additional_regrid_processing(self, datafile, cube_ease):
         (datafile_path, datafile_name) = os.path.split(datafile)
-        var_name = datafile_path.split(os.sep)[-2]
+        var_name = datafile_path.split(os.sep)[self._var_name_idx]
 
         # FIXME: are these here or preproc?
         # if var_name == 'zg500' or var_name == 'zg250':

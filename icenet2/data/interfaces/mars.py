@@ -245,7 +245,7 @@ retrieve,
 
     def additional_regrid_processing(self, datafile, cube_ease):
         (datafile_path, datafile_name) = os.path.split(datafile)
-        var_name = datafile_path.split(os.sep)[-2]
+        var_name = datafile_path.split(os.sep)[self._var_name_idx]
 
         if var_name == 'tos':
             # Overwrite maksed values with zeros
