@@ -10,6 +10,7 @@ class IceNetCMIPPreProcessor(IceNetPreProcessor):
         super().__init__(*args,
                          identifier="cmip.{}".format(cmip_source),
                          source_suffix=cmip_source,
+                         update_key=cmip_source,
                          **kwargs)
 
     def pre_normalisation(self, var_name, da):
@@ -21,11 +22,17 @@ class IceNetCMIPPreProcessor(IceNetPreProcessor):
 
 
 def main():
-    args = process_args()
+    args = process_args(
+        extra_args=[
+            (["source"], dict(type=str)),
+            (["member"], dict(type=str)),
+        ],
+    )
     dates = process_date_args(args)
 
     pp = IceNetCMIPPreProcessor(
-        # source and member args please!
+        args.source,
+        args.member,
         ["uas", "vas"],
         ["tas", "ta500", "tos", "psl", "zg500", "zg250", "rsds", "rlds",
          "hus1000"],
@@ -36,7 +43,7 @@ def main():
         linear_trends=tuple(),
         north=args.hemisphere == "north",
         ref_procdir=args.ref,
-        south=args.hemisphere == "south"
+        south=args.hemisphere == "south",
     )
     # ./data/cmip6/north/vas/MRI-ESM2-0.r2i1p1f1/2050/latlon_2050_01_22.nc
     pp.init_source_data(

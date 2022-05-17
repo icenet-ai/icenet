@@ -66,7 +66,9 @@ def download_args(choices=None,
     return args
 
 
-def process_args(dates=True, laglead=True):
+def process_args(dates=True,
+                 lag_lead=True,
+                 extra_args=[]):
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
     ap.add_argument("hemisphere", choices=("north", "south"))
@@ -87,9 +89,12 @@ def process_args(dates=True, laglead=True):
 
         ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
 
-    if laglead:
+    if lag_lead:
         ap.add_argument("-l", "--lag", type=int, default=2)
         ap.add_argument("-f", "--forecast-days", type=int, default=93)
+
+    for arg in extra_args:
+        ap.add_argument(*arg[0], **arg[1])
 
     ap.add_argument("-r", "--ref",
                     help="Reference loader for normalisations etc",

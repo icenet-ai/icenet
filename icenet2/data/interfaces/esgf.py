@@ -262,7 +262,7 @@ def main():
         dates=True,
         dates_optional=True,
         extra_args=[
-            (["name"], dict(type=str)),
+            (["source"], dict(type=str)),
             (["member"], dict(type=str)),
             (("-xs", "--exclude-server"),
              dict(default=[], nargs="*")),
@@ -286,7 +286,7 @@ def main():
                      format(len(dates)))
 
     downloader = CMIP6Downloader(
-        source=args.name,
+        source=args.source,
         member=args.member,
         var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
                    "rsds", "uas", "vas", "siconca"],

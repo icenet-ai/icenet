@@ -141,8 +141,14 @@ class ERA5Downloader(ClimateDownloader):
                     "time_zone": "UTC+00:00",
                     "grid": "0.25/0.25",
                     "area": {
-                        "lat": [self.hemisphere_loc[0], self.hemisphere_loc[2]],
-                        "lon": [self.hemisphere_loc[1], self.hemisphere_loc[3]],
+                        "lat": [min([self.hemisphere_loc[0],
+                                     self.hemisphere_loc[2]]),
+                                max([self.hemisphere_loc[0],
+                                     self.hemisphere_loc[2]])],
+                        "lon": [min([self.hemisphere_loc[1],
+                                     self.hemisphere_loc[3]]),
+                                max([self.hemisphere_loc[1],
+                                     self.hemisphere_loc[3]])],
                     },
                 },
             }
