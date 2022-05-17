@@ -12,8 +12,8 @@ class IceNetCMIPPreProcessor(IceNetPreProcessor):
                  update_key=None, **kwargs):
         cmip_source = "{}.{}".format(source, member)
         super().__init__(*args,
-                         identifier="cmip.{}".format(cmip_source),
-                         source_suffix=cmip_source,
+                         identifier="cmip6",
+                         source_suffix=[cmip_source],
                          update_key=cmip_source
                          if not update_key
                          else "{}.{}".format(update_key, cmip_source),
