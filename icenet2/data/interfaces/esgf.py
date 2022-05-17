@@ -308,7 +308,6 @@ def main():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         downloader.regrid()
-    logging.info("CMIP rotating: {} {}".format(args.name,
-                                                  args.member))
-    downloader.rotate_wind_data()
+
+    # Issue#24: don't think there's a need to rotate wind data
 
