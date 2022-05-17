@@ -132,7 +132,7 @@ class Processor(DataProducer):
     def init_source_data(self, lag_days=None, lead_days=None):
         path_to_glob = os.path.join(self._source_data,
                                     "".join(self.hemisphere_str),
-                                    self._source_suffix)
+                                    *self._source_suffix)
 
         if not os.path.exists(path_to_glob):
             raise OSError("Source data directory {} does not exist".
