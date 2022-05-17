@@ -118,9 +118,8 @@ class Processor(DataProducer):
                          **kwargs)
 
         self._file_filters = list(file_filters)
-        self._source_data = os.path.join(*[source_data,
-                                           identifier,
-                                           *source_suffix])
+        self._source_data = os.path.join(source_data, identifier)
+        self._source_suffix = source_suffix
         self._var_files = dict()
         self._processed_files = dict()
 
@@ -132,7 +131,8 @@ class Processor(DataProducer):
 
     def init_source_data(self, lag_days=None, lead_days=None):
         path_to_glob = os.path.join(self._source_data,
-                                    *self.hemisphere_str)
+                                    "".join(self.hemisphere_str),
+                                    self._source_suffix)
 
         if not os.path.exists(path_to_glob):
             raise OSError("Source data directory {} does not exist".
