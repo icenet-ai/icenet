@@ -423,14 +423,12 @@ class IceNetPreProcessor(Processor):
 
     def _build_linear_trend_da(self, input_da):
         """
-        Construct a DataArray `linea_trend_da` containing the linear trend SIC
+        Construct a DataArray `linear_trend_da` containing the linear trend SIC
         forecasts based on the input DataArray `input_da`.
         `input_da` (xarray.DataArray): Input DataArray to produce linear SIC
         forecasts for.
         """
 
-        # FIXME: change the trend dating to dailies. This is not going to
-        #  work for simple preprocessing of small datasets
         data_dates = sorted([pd.Timestamp(date)
                              for date in input_da.time.values])
 
@@ -454,12 +452,14 @@ class IceNetPreProcessor(Processor):
 
         land_mask = Masks(north=self.north, south=self.south).get_land_mask()
 
+        # TODO: caching
         for forecast_date in sorted(trend_dates, reverse=True):
-            linear_trend_da.loc[dict(time=forecast_date)] = \
-                linear_trend_forecast(
-                    forecast_date, input_da, land_mask,
-                    missing_dates=self._missing_dates,
-                    shape=self._data_shape)[0]
+            output_map, sie = linear_trend_forecast(
+                forecast_date, input_da, land_mask,
+                missing_dates=self._missing_dates,
+                shape=self._data_shape)
+
+            linear_trend_da.loc[dict(time=forecast_date)] = output_map
 
         return linear_trend_da
 

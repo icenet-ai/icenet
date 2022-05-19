@@ -8,15 +8,10 @@ from icenet2.data.processors.utils import SICInterpolation
 
 class IceNetCMIPPreProcessor(IceNetPreProcessor):
     def __init__(self,
-                 source, member, *args,
-                 update_key=None, **kwargs):
+                 source, member, *args, **kwargs):
         cmip_source = "{}.{}".format(source, member)
         super().__init__(*args,
-                         identifier="cmip6",
-                         source_suffix=[cmip_source],
-                         update_key=cmip_source
-                         if not update_key
-                         else "{}.{}".format(update_key, cmip_source),
+                         identifier="cmip6.{}".format(cmip_source),
                          **kwargs)
 
     def pre_normalisation(self, var_name, da):
@@ -73,7 +68,7 @@ def main():
         north=args.hemisphere == "north",
         ref_procdir=args.ref,
         south=args.hemisphere == "south",
-        update_key="siconca",
+        update_key="siconca.{}.{}".format(args.source, args.member),
     )
     cmip_sic.init_source_data(
         lag_days=args.lag,

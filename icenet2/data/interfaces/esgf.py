@@ -74,8 +74,7 @@ class CMIP6Downloader(ClimateDownloader):
     # Prioritise European first, US last, avoiding unnecessary queries
     # against nodes further afield (all traffic has a cost, and the coverage
     # of local nodes is more than enough)
-    ESGF_NODES = (# CEDA appears to be down
-                  #"esgf-data3.ceda.ac.uk",
+    ESGF_NODES = ("esgf.ceda.ac.uk",
                   "esg1.umr-cnrm.fr",
                   "vesg.ipsl.upmc.fr",
                   "esgf3.dkrz.de",
@@ -98,8 +97,7 @@ class CMIP6Downloader(ClimateDownloader):
                  exclude_nodes: list = None,
                  **kwargs):
         super().__init__(*args,
-                         identifier="cmip6",
-                         var_name_idx=-3,
+                         identifier="cmip6.{}.{}".format(source, member),
                          **kwargs)
 
         self._source = source
@@ -198,9 +196,7 @@ class CMIP6Downloader(ClimateDownloader):
 
             daily_path, regridded_name = self.get_daily_filenames(
                 self.get_data_var_folder(
-                    var_name, append=[
-                        "{}.{}".format(self._source, self._member),
-                        str(pd.to_datetime(day).year)]),
+                    var_name, append=[str(pd.to_datetime(day).year)]),
                 date_str)
 
             if not os.path.exists(daily_path):
@@ -225,16 +221,19 @@ class CMIP6Downloader(ClimateDownloader):
         (datafile_path, datafile_name) = os.path.split(datafile)
         var_name = datafile_path.split(os.sep)[self._var_name_idx]
 
-        # Preprocessing
-        if var_name == 'siconca':
-            cube_ease.data[cube_ease.data > 500] = 0.
+        # TODO: regrid fixes need better implementations
+        if var_name == "siconca":
+            cube_ease.data[cube_ease.data.mask] = 0.
             cube_ease.data[:, self._masks.get_land_mask()] = 0.
 
             if self._source == 'MRI-ESM2-0':
                 cube_ease.data = cube_ease.data / 100.
-        elif var_name == 'tos':
-            cube_ease.data[cube_ease.data > 500] = 0.
+            cube_ease.data = cube_ease.data.data
+        elif var_name in ["tos", "hus1000"]:
+            cube_ease.data[cube_ease.data.mask] = 0.
             cube_ease.data[:, self._masks.get_land_mask()] = 0.
+
+            cube_ease.data = cube_ease.data.data
 
         if cube_ease.data.dtype != np.float32:
             logging.info("Regrid processing, data type not float: {}".
@@ -300,11 +299,10 @@ def main():
         max_threads=args.workers,
         exclude_nodes=args.exclude_server,
     )
-    logging.info("CMIP downloading: {} {}".format(args.name,
-                                                     args.member))
+    logging.info("CMIP downloading: {} {}".format(args.source, args.member))
     downloader.download()
-    logging.info("CMIP regridding: {} {}".format(args.name,
-                                                    args.member))
+
+    logging.info("CMIP regridding: {} {}".format(args.source, args.member))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         downloader.regrid()

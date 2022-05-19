@@ -70,7 +70,8 @@ class DataProducer(HemisphereMixin):
             hemisphere = self.hemisphere_str[0]
 
         data_var_path = os.path.join(
-            self.base_path, *[hemisphere, var, *append])
+            self.base_path, *[hemisphere, var, *append]
+        )
 
         if not os.path.exists(data_var_path):
             if not missing_error:
@@ -108,7 +109,6 @@ class Processor(DataProducer):
                  source_data,
                  *args,
                  file_filters=tuple(),
-                 source_suffix=tuple(),
                  test_dates=tuple(),
                  train_dates=tuple(),
                  val_dates=tuple(),
@@ -118,8 +118,9 @@ class Processor(DataProducer):
                          **kwargs)
 
         self._file_filters = list(file_filters)
-        self._source_data = os.path.join(source_data, identifier)
-        self._source_suffix = source_suffix
+        self._source_data = os.path.join(source_data,
+                                         identifier,
+                                         self.hemisphere_str[0])
         self._var_files = dict()
         self._processed_files = dict()
 
@@ -130,13 +131,9 @@ class Processor(DataProducer):
                             test=list(test_dates))
 
     def init_source_data(self, lag_days=None, lead_days=None):
-        path_to_glob = os.path.join(self._source_data,
-                                    "".join(self.hemisphere_str),
-                                    *self._source_suffix)
-
-        if not os.path.exists(path_to_glob):
+        if not os.path.exists(self.source_data):
             raise OSError("Source data directory {} does not exist".
-                          format(path_to_glob))
+                          format(self.source_data))
 
         var_files = {}
 
@@ -180,8 +177,7 @@ class Processor(DataProducer):
                             additional_lead_dates.append(lead_day)
                 dates += list(set(additional_lead_dates))
 
-            globstr = "{}/**/*.nc".format(
-                path_to_glob)
+            globstr = "{}/**/*.nc".format(self.source_data)
 
             dfs = glob.glob(globstr, recursive=True)
 

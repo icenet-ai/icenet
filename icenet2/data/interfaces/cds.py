@@ -188,8 +188,7 @@ class ERA5Downloader(ClimateDownloader):
 
                 self._cds_file_process(temp_download_path,
                                        var,
-                                       var_folder,
-                                       resample=False)
+                                       var_folder)
             except Exception as e:
                 logging.exception("{} not deleted, look at the "
                                   "problem".format(temp_download_path))
