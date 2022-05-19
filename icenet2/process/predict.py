@@ -152,7 +152,8 @@ def create_cf_output():
             creator_name="James Byrne",
             creator_url="www.bas.ac.uk",
             date_created=dt.datetime.now().strftime("%Y-%m-%d"),
-            geospatial_bounds_crs=ref_cube.attributes["geospatial_bounds_crs"],
+            # Issue#18: Overcoming OSI-SAF EPSG ref issue
+            geospatial_bounds_crs="EPSG:6931" if ds.north else "EPSG:6932",
             geospatial_lat_min=ref_cube.attributes["geospatial_lat_min"],
             geospatial_lat_max=ref_cube.attributes["geospatial_lat_max"],
             geospatial_lon_min=ref_cube.attributes["geospatial_lon_min"],
