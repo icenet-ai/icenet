@@ -483,6 +483,8 @@ class IceNetPreProcessor(Processor):
             if not trend_cache.sel(time=forecast_date).isnull().all():
                 output_map = trend_cache.sel(time=forecast_date)
             else:
+                logging.debug("Linear trend calculation: {} {}".format(
+                    var_name, pd.to_datetime(forecast_date).strftime("%F")))
                 output_map = linear_trend_forecast(
                     data_selector, forecast_date, input_da, land_mask,
                     missing_dates=self._missing_dates,
