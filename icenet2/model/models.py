@@ -141,18 +141,12 @@ def unet_batchnorm(input_shape, loss, metrics,
     return model
 
 
-def linear_trend_forecast(forecast_date, da, mask,
+def linear_trend_forecast(usable_selector, forecast_date, da, mask,
                           missing_dates=(), shape=(432, 432)):
-    target_date = pd.to_datetime(forecast_date)
-    usable_data = da[(da.time['time.month'] == target_date.month) &
-                     (da.time['time.day'] == target_date.day) &
-                     ~da.time.isin(missing_dates)]
+    usable_data = usable_selector(da, forecast_date, missing_dates)
 
     if len(usable_data.time) < 1:
-        raise RuntimeError("We have {} items to draw trend from for {}, which "
-                           "is no use. You need to have at least two years data"
-                           " to build linear trends".
-                           format(len(usable_data.time), forecast_date))
+        return np.full((432, 432), np.nan)
 
     x = np.arange(len(usable_data.time))
     y = usable_data.data.reshape(len(usable_data.time), -1)
@@ -163,6 +157,6 @@ def linear_trend_forecast(forecast_date, da, mask,
     output_map[output_map < 0] = 0.
     output_map[output_map > 1] = 1.
 
-    sie = np.sum(output_map > 0.15) * 25**2
+    # sie = np.sum(output_map > 0.15) * 25**2
 
-    return output_map, sie
+    return output_map

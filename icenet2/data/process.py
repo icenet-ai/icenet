@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import logging
 import os
+import pickle
 
 import dask
 import numpy as np
@@ -221,7 +222,7 @@ class IceNetPreProcessor(Processor):
             da = self.pre_normalisation(var_name, da)
 
             if var_name in self._linear_trends:
-                da = self._build_linear_trend_da(da)
+                da = self._build_linear_trend_da(da, var_name)
 
             if var_name in self._no_normalise:
                 logging.info("No normalisation for {}".format(var_name))
@@ -421,7 +422,7 @@ class IceNetPreProcessor(Processor):
                                               [minimum, maximum]]))
         return new_da
 
-    def _build_linear_trend_da(self, input_da):
+    def _build_linear_trend_da(self, input_da, var_name, max_years=35):
         """
         Construct a DataArray `linear_trend_da` containing the linear trend SIC
         forecasts based on the input DataArray `input_da`.
@@ -435,31 +436,63 @@ class IceNetPreProcessor(Processor):
         # the old method doesn't work with non-contiguous forecast ranges
         trend_dates = set()
 
-        for dt in data_dates:
-            trend_dates = trend_dates.union([dt + pd.DateOffset(days=d)
-              for d in range(self._linear_trend_days)])
+        for dat_date in data_dates:
+            trend_dates = trend_dates.union(
+                [dat_date + pd.DateOffset(days=d)
+                 for d in range(self._linear_trend_days)])
 
         trend_dates = list(sorted(trend_dates))
-        logging.info("Generated {} trend dates".format(len(trend_dates)))
+        logging.info("Generating {} trend dates".format(len(trend_dates)))
 
         linear_trend_da = \
             xr.broadcast(input_da, xr.DataArray(pd.date_range(
-            data_dates[0],
-            data_dates[-1] + pd.DateOffset(days=self._linear_trend_days)),
-                dims="time"))[0]
+                data_dates[0],
+                data_dates[-1] + pd.DateOffset(days=self._linear_trend_days)),
+                    dims="time"))[0]
         linear_trend_da = linear_trend_da.sel(time=trend_dates)
         linear_trend_da.data = np.zeros(linear_trend_da.shape)
 
         land_mask = Masks(north=self.north, south=self.south).get_land_mask()
 
-        # TODO: caching
+        # Could use shelve, but more likely we'll run into concurrency issues
+        # pickleshare might be an option but a little over-engineery
+        trend_cache_path = os.path.join(
+            self.get_data_var_folder("linear_trends"),
+            "{}.nc".format(var_name))
+        trend_cache = linear_trend_da.copy()
+        trend_cache.data = np.full_like(linear_trend_da.data, np.nan)
+
+        if os.path.exists(trend_cache_path):
+            trend_cache = xr.open_dataarray(trend_cache_path)
+            logging.info("Loaded {} entries from {}".
+                         format(len(trend_cache.time), trend_cache_path))
+
+        def data_selector(da,
+                          processing_date,
+                          missing_dates=tuple()):
+            target_date = pd.to_datetime(processing_date)
+
+            date_da = da[(da.time['time.month'] == target_date.month) &
+                         (da.time['time.day'] == target_date.day) &
+                         (da.time <= target_date) &
+                         ~da.time.isin(missing_dates)].\
+                isel(time=slice(0, max_years))
+            return date_da
+
         for forecast_date in sorted(trend_dates, reverse=True):
-            output_map, sie = linear_trend_forecast(
-                forecast_date, input_da, land_mask,
-                missing_dates=self._missing_dates,
-                shape=self._data_shape)
+            if not trend_cache.sel(time=forecast_date).isnull().all():
+                output_map = trend_cache.sel(time=forecast_date)
+            else:
+                output_map = linear_trend_forecast(
+                    data_selector, forecast_date, input_da, land_mask,
+                    missing_dates=self._missing_dates,
+                    shape=self._data_shape)
 
             linear_trend_da.loc[dict(time=forecast_date)] = output_map
+
+        logging.info("Writing new trend cache for {}".format(var_name))
+        trend_cache.close()
+        linear_trend_da.to_netcdf(trend_cache_path)
 
         return linear_trend_da
 
