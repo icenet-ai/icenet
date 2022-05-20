@@ -138,20 +138,24 @@ class ClimateDownloader(Downloader):
         batches = [filelist[b:b + 1000] for b in range(0, len(filelist), 1000)]
 
         # TODO: DRY, condense to common batch method (w/download)...
-        with ThreadPoolExecutor(max_workers=
-                                min(len(batches), self._max_threads)) \
-                as executor:
-            futures = []
+        max_workers = min(len(batches), self._max_threads)
 
-            for files in batches:
-                future = executor.submit(self._batch_regrid, files)
-                futures.append(future)
+        if max_workers > 0:
+            with ThreadPoolExecutor(max_workers=max_workers) \
+                    as executor:
+                futures = []
 
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    logging.exception("Thread failure: {}".format(e))
+                for files in batches:
+                    future = executor.submit(self._batch_regrid, files)
+                    futures.append(future)
+
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        logging.exception("Thread failure: {}".format(e))
+        else:
+            logging.info("No regrid batches to processing, moving on...")
 
     def _batch_regrid(self, files):
         for datafile in files:
