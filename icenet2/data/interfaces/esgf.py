@@ -129,9 +129,13 @@ class CMIP6Downloader(ClimateDownloader):
         }
 
         var_name = "{}{}".format(var_prefix, "" if not pressure else pressure)
-        add_str = ".{}.{}".format(self.dates[0].strftime("%F"),
-                                  self.dates[-1].strftime("%F")) \
-            if self.dates[0] is not None else ""
+
+        # TODO: this might make sense, but is confusing usage wise. Come up with
+        #  a better option or clearer usage
+        # add_str = ".{}.{}".format(self.dates[0].strftime("%F"),
+        #                          self.dates[-1].strftime("%F")) \
+        #    if self.dates[0] is not None else ""
+        add_str = ""
         download_name = "download.{}.{}{}.nc".format(
             self._source, self._member, add_str)
         download_path = os.path.join(self.get_data_var_folder(var_name),
