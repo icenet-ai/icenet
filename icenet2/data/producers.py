@@ -179,7 +179,9 @@ class Processor(DataProducer):
 
             globstr = "{}/**/*.nc".format(self.source_data)
 
+            logging.debug("Globbing {} from {}".format(date_category, globstr))
             dfs = glob.glob(globstr, recursive=True)
+            logging.debug("Globbed {} files".format(len(dfs)))
 
             # Ensure we're ordered, it has repercussions for xarray
             for date in sorted(dates):

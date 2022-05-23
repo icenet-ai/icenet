@@ -46,7 +46,6 @@ def main():
         ref_procdir=args.ref,
         south=args.hemisphere == "south",
     )
-    # ./data/cmip6/north/vas/MRI-ESM2-0.r2i1p1f1/2050/latlon_2050_01_22.nc
     cmip.init_source_data(
         lag_days=args.lag,
     )
