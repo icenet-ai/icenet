@@ -9,6 +9,7 @@ import os
 import re
 
 import numpy as np
+import pandas as pd
 
 from icenet2.utils import Hemisphere, HemisphereMixin
 
@@ -177,20 +178,22 @@ class Processor(DataProducer):
                             additional_lead_dates.append(lead_day)
                 dates += list(set(additional_lead_dates))
 
-            globstr = "{}/**/*.nc".format(self.source_data)
+            globstr = "{}/**/[12]*.nc".format(self.source_data)
 
             logging.debug("Globbing {} from {}".format(date_category, globstr))
             dfs = glob.glob(globstr, recursive=True)
             logging.debug("Globbed {} files".format(len(dfs)))
 
+            # FIXME: using hyphens broadly no?
+            data_dates = [df.split(os.sep)[-1][:-3].replace("_", "-")
+                          for df in dfs]
+            dt_series = pd.Series(dfs, index=data_dates)
+
+            logging.debug("Create structure of{} files".format(len(dt_series)))
+
             # Ensure we're ordered, it has repercussions for xarray
             for date in sorted(dates):
-                match_str = date.strftime("%Y_%m_%d")
-                # TODO: test if endswith works better than re.search
-                match_dfs = [
-                    df for df in dfs
-                    if df.split(os.sep)[-1] == "{}.nc".format(match_str)
-                ]
+                match_dfs = dt_series[date]
 
                 for df in match_dfs:
                     if any([flt in os.path.split(df)[1]
