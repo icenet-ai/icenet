@@ -299,8 +299,7 @@ def main():
         var_names = args.limit_vars
         var_pressures = [None if e == "None" else [int(p)
                                                    for p in e[1:-1].split(",")]
-                         for e in re.findall(r"(None|\[[^\]]+\])",
-                                             args.limit_pressures)]
+                         for e in args.limit_pressures]
     else:
         var_names = ["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
                      "rsds", "uas", "vas", "siconca"]
