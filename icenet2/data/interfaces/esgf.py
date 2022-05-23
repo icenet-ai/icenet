@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import warnings
 
 import numpy as np
@@ -271,6 +272,8 @@ def main():
             (("-xs", "--exclude-server"),
              dict(default=[], nargs="*")),
             (("-o", "--override"), dict(required=None, type=str)),
+            (("-l", "--limit-vars"), dict(default=[], nargs="*")),
+            (("-p", "--limit-pressures"), dict(default=[], nargs="*"))
         ],
         workers=True
     )
@@ -289,13 +292,26 @@ def main():
         logging.info("{} dates specified, downloading subset".
                      format(len(dates)))
 
+    if len(args.limit_vars) > 0:
+        assert len(args.limit_pressures) == len(args.limit_vars), \
+            "Length of vars and pressures should be equal"
+
+        var_names = args.limit_vars
+        var_pressures = [None if e == "None" else [int(p)
+                                                   for p in e[1:-1].split(",")]
+                         for e in re.findall(r"(None|\[[^\]]+\])",
+                                             args.limit_pressures)]
+    else:
+        var_names = ["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
+                     "rsds", "uas", "vas", "siconca"]
+        var_pressures = [None, [500], None, None, [250, 500], [1000],
+                         None, None, None, None, None]
+
     downloader = CMIP6Downloader(
         source=args.source,
         member=args.member,
-        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-                   "rsds", "uas", "vas", "siconca"],
-        pressure_levels=[None, [500], None, None, [250, 500], [1000],
-                         None, None, None, None, None],
+        var_names=var_names,
+        pressure_levels=var_pressures,
         dates=dates,
         delete_tempfiles=args.delete,
         grid_override=args.override,
