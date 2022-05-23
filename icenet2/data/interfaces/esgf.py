@@ -298,7 +298,7 @@ def main():
 
         var_names = args.limit_vars
         var_pressures = [None if e == "None" else [int(p)
-                                                   for p in e[1:-1].split(",")]
+                                                   for p in e.split(",")]
                          for e in args.limit_pressures]
     else:
         var_names = ["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
