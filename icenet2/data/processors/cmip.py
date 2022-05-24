@@ -27,10 +27,8 @@ def main():
         extra_args=[
             (["source"], dict(type=str)),
             (["member"], dict(type=str)),
-            (["-ss", "--skip-sic"],
-             dict(type=bool, default=False, action="store_true")),
-            (["-sv", "--skip-var"],
-             dict(type=bool, default=False, action="store_true")),
+            (["-ss", "--skip-sic"], dict(default=False, action="store_true")),
+            (["-sv", "--skip-var"], dict(default=False, action="store_true")),
         ],
     )
     dates = process_date_args(args)
