@@ -223,8 +223,6 @@ class Processor(DataProducer):
             logging.info("Got {} files for {}".format(
                 len(self._var_files[var]), var))
 
-            logging.debug("FILES:\n{}".format(pformat(self._var_files[var])))
-
     @abstractmethod
     def process(self):
         raise NotImplementedError("{}.process is abstract".
