@@ -194,7 +194,6 @@ class Processor(DataProducer):
             # Ensure we're ordered, it has repercussions for xarray
             for date in sorted(dates):
                 match_dfs = dt_series[date.strftime("%Y-%m-%d")]
-                logging.debug("{} has {} files".format(date, len(match_dfs)))
 
                 for df in match_dfs:
                     if any([flt in os.path.split(df)[1]

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from scipy import interpolate
-
+from scipy.spatial.qhull import QhullError
 
 class SICInterpolation:
     @staticmethod
@@ -53,6 +53,14 @@ class SICInterpolation:
                     nan_neighbour_arr[:, -1] = \
                     nan_neighbour_arr[-1, :] = False
 
+                if np.sum(nan_neighbour_arr) == 1:
+                    res = np.where(np.array(nan_neighbour_arr) == True)
+                    logging.warning("Not enough nans for interpolation, extending {}".format(res))
+                    x_idx, y_idx = res[0][0], res[1][0]
+                    nan_neighbour_arr[x_idx-1:x_idx+2, y_idx] = True
+                    nan_neighbour_arr[x_idx, y_idx-1:y_idx+2] = True
+                    logging.debug(np.where(np.array(nan_neighbour_arr) == True))
+                
                 # Perform bilinear interpolation
                 x_valid = xx[nan_neighbour_arr]
                 y_valid = yy[nan_neighbour_arr]
@@ -61,15 +69,20 @@ class SICInterpolation:
                 x_interp = xx[~valid]
                 y_interp = yy[~valid]
 
-                if len(x_valid) or len(y_valid):
-                    interp_vals = interpolate.griddata((x_valid, y_valid),
-                                                       values,
-                                                       (x_interp, y_interp),
-                                                       method='linear')
-                    da.sel(time=date).data[~valid] = interp_vals
+                logging.debug("x/y valid shapes: {}".format((x_valid.shape, y_valid.shape)))
+                logging.debug("x/y interp shapes: {}".format((x_interp.shape, y_interp.shape)))
 
-                else:
-                    logging.warning("No valid values to interpolate with on "
-                                    "{}".format(date))
+                try:
+                    if len(x_valid) or len(y_valid):
+                        interp_vals = interpolate.griddata((x_valid, y_valid),
+                                                           values,
+                                                           (x_interp, y_interp),
+                                                           method='linear')
+                        da.sel(time=date).data[~valid] = interp_vals
+                    else:
+                        logging.warning("No valid values to interpolate with on "
+                                        "{}".format(date))
+                except QhullError:
+                    logging.exception("Geometrical degeneracy from QHull, interpolation failed")
 
         return da
