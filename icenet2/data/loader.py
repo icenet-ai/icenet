@@ -311,7 +311,9 @@ class IceNetDataLoader(Generator):
                             output_files,
                         ]
 
-                    if not os.path.exists(tf_path.format(batch_number)):
+                    if not pickup or \
+                        (pickup and
+                         not os.path.exists(tf_path.format(batch_number))):
                         futures.append(executor.submit(
                             generate_and_write,
                             tf_path.format(batch_number),
