@@ -572,16 +572,16 @@ def get_args():
                     action="store_true", dest="cfg")
 
     add_date_args(ap)
-
-    return ap.parse_args()
+    args = ap.parse_args()
+    logging.basicConfig(level=logging.INFO
+                        if not args.verbose else logging.DEBUG)
+    return args
 
 
 def main():
     args = get_args()
     dates = process_date_args(args)
 
-    logging.basicConfig(level=logging.INFO
-                        if not args.verbose else logging.DEBUG)
     dl = IceNetDataLoader("loader.{}.json".format(args.name),
                           args.forecast_name
                           if args.forecast_name else args.name,
