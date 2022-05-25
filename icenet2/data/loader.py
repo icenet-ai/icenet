@@ -15,6 +15,7 @@ import tensorflow as tf
 from icenet2.data.sic.mask import Masks
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.producers import Generator
+from icenet2.data.cli import add_date_args, process_date_args
 
 
 def generate_and_write(path, dates_args):
@@ -233,10 +234,19 @@ class IceNetDataLoader(Generator):
 
         self._write_dataset_config(counts, network_dataset=False)
 
-    def generate(self):
+    def generate(self, dates_override=None):
         # TODO: for each set, validate every variable has an appropriate file
         #  in the configuration arrays, otherwise drop the forecast date
         splits = ("train", "val", "test")
+
+        if dates_override and type(dates_override) is dict:
+            for split in splits:
+                assert split in dates_override.keys() \
+                       and type(dates_override[split]) is list, \
+                       "{} needs to be list in dates_override".format(split)
+        else:
+            raise RuntimeError("dates_override needs to be a dict if supplied")
+
         counts = {el: 0 for el in splits}
         futures = []
 
@@ -254,16 +264,23 @@ class IceNetDataLoader(Generator):
             for dataset in splits:
                 batch_number = 0
 
-                forecast_dates = sorted(list(set([dt.datetime.strptime(s,
-                                        IceNetPreProcessor.DATE_FORMAT).date()
-                                        for identity in
-                                                  self._config["sources"].keys()
-                                        for s in
-                                        self._config["sources"][identity]
-                                        ["dates"][dataset]])))
+                forecast_dates = set([dt.datetime.strptime(s,
+                                      IceNetPreProcessor.DATE_FORMAT).date()
+                                      for identity in
+                                      self._config["sources"].keys()
+                                      for s in
+                                      self._config["sources"][identity]
+                                      ["dates"][dataset]])
+
+                if dates_override:
+                    logging.info("{} available {} dates".
+                                 format(len(forecast_dates), dataset))
+                    forecast_dates.intersection(dates_override[dataset])
+                forecast_dates = sorted(list(forecast_dates))
+
                 output_dir = self.get_data_var_folder(dataset)
 
-                logging.info("{} {} dates in total, generating cache "
+                logging.info("{} {} dates to process, generating cache "
                              "data.".format(len(forecast_dates), dataset))
 
                 tf_path = os.path.join(output_dir,
@@ -554,11 +571,14 @@ def get_args():
                                              "only config", default=False,
                     action="store_true", dest="cfg")
 
+    add_date_args(ap)
+
     return ap.parse_args()
 
 
 def main():
     args = get_args()
+    dates = process_date_args(args)
 
     logging.basicConfig(level=logging.INFO
                         if not args.verbose else logging.DEBUG)
@@ -574,4 +594,5 @@ def main():
     if args.cfg:
         dl.write_dataset_config_only()
     else:
-        dl.generate()
+        dl.generate(dates_override=dates
+                    if sum([len(v) for v in dates.values()]) > 0 else None)

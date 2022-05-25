@@ -75,21 +75,10 @@ def process_args(dates=True,
     ap.add_argument("hemisphere", choices=("north", "south"))
 
     if dates:
-        ap.add_argument("-ns", "--train_start",
-                        type=dates_arg, required=False, default=[])
-        ap.add_argument("-ne", "--train_end",
-                        type=dates_arg, required=False, default=[])
-        ap.add_argument("-vs", "--val_start",
-                        type=dates_arg, required=False, default=[])
-        ap.add_argument("-ve", "--val_end",
-                        type=dates_arg, required=False, default=[])
-        ap.add_argument("-ts", "--test-start",
-                        type=dates_arg, required=False, default=[])
-        ap.add_argument("-te", "--test-end", dest="test_end",
-                        type=dates_arg, required=False, default=[])
+        add_date_args(ap)
 
         # FIXME#11: not allowing this option currently
-        ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
+        # ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
 
     if lag_lead:
         ap.add_argument("-l", "--lag", type=int, default=2)
@@ -110,6 +99,21 @@ def process_args(dates=True,
     return args
 
 
+def add_date_args(arg_parser):
+    arg_parser.add_argument("-ns", "--train_start",
+                            type=dates_arg, required=False, default=[])
+    arg_parser.add_argument("-ne", "--train_end",
+                            type=dates_arg, required=False, default=[])
+    arg_parser.add_argument("-vs", "--val_start",
+                            type=dates_arg, required=False, default=[])
+    arg_parser.add_argument("-ve", "--val_end",
+                            type=dates_arg, required=False, default=[])
+    arg_parser.add_argument("-ts", "--test-start",
+                            type=dates_arg, required=False, default=[])
+    arg_parser.add_argument("-te", "--test-end", dest="test_end",
+                            type=dates_arg, required=False, default=[])
+
+
 def process_date_args(args):
     dates = dict(train=[], val=[], test=[])
 
@@ -122,20 +126,9 @@ def process_date_args(args):
             dataset_dates += [pd.to_datetime(date).date() for date in
                               pd.date_range(period_start,
                                             period_end, freq="D")]
-        logging.info("Generated {} dates for {}".format(len(dataset_dates),
-                                                        dataset))
+        logging.info("Got {} dates for {}".format(len(dataset_dates),
+                                                  dataset))
 
-        num_dates = len(dataset_dates) * args.date_ratio
-        random.shuffle(dataset_dates)
-
-        while len(dataset_dates) > num_dates:
-            f = dataset_dates.pop \
-                if len(dataset_dates) % 2 == 0 \
-                else dataset_dates.popleft
-            f()
-
-        logging.info("After reduction we have {} {} dates".
-                     format(len(dataset_dates), dataset))
         dates[dataset] = sorted(list(dataset_dates))
     return dates
 
