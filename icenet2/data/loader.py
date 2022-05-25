@@ -235,7 +235,7 @@ class IceNetDataLoader(Generator):
 
         self._write_dataset_config(counts, network_dataset=False)
 
-    def generate(self, dates_override=None):
+    def generate(self, dates_override=None, pickup=False):
         # TODO: for each set, validate every variable has an appropriate file
         #  in the configuration arrays, otherwise drop the forecast date
         splits = ("train", "val", "test")
@@ -281,12 +281,10 @@ class IceNetDataLoader(Generator):
                 forecast_dates = sorted(list(forecast_dates))
 
                 output_dir = self.get_data_var_folder(dataset)
+                tf_path = os.path.join(output_dir, "{:08}.tfrecord")
 
                 logging.info("{} {} dates to process, generating cache "
                              "data.".format(len(forecast_dates), dataset))
-
-                tf_path = os.path.join(output_dir,
-                                       "{:08}.tfrecord")
 
                 for dates in batch(forecast_dates, self._output_batch_size):
                     args = {}
@@ -313,12 +311,14 @@ class IceNetDataLoader(Generator):
                             output_files,
                         ]
 
-                    futures.append(executor.submit(generate_and_write,
-                                                   tf_path.format(batch_number),
-                                                   args))
+                    if os.path.exists(tf_path.format(batch_number)):
+                        futures.append(executor.submit(
+                            generate_and_write,
+                            tf_path.format(batch_number),
+                            args))
 
-                    logging.debug("Submitted {} dates as batch {}".format(
-                        len(dates), batch_number))
+                        logging.debug("Submitted {} dates as batch {}".format(
+                            len(dates), batch_number))
                     batch_number += 1
                     counts[dataset] += len(dates)
 
@@ -569,6 +569,8 @@ def get_args():
                                             "generating sets",
                     type=int, default=8)
 
+    ap.add_argument("-p", "--pickup", help="Skip existing tfrecords",
+                    default=False, action="store_true")
     ap.add_argument("-c", "--cfg-only", help="Do not generate data, "
                                              "only config", default=False,
                     action="store_true", dest="cfg")
@@ -597,4 +599,5 @@ def main():
         dl.write_dataset_config_only()
     else:
         dl.generate(dates_override=dates
-                    if sum([len(v) for v in dates.values()]) > 0 else None)
+                    if sum([len(v) for v in dates.values()]) > 0 else None,
+                    pickup=args.pickup)
