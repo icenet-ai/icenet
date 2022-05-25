@@ -160,16 +160,7 @@ def write_tfrecord(writer, x, y, sample_weights):
 #  can also inherit from a new BatchGenerator - this family tree can be rich!
 class IceNetDataLoader(Generator):
     """
-    Custom data loader class for generating batches of input-output tensors for
-    training IceNet. Inherits from  keras.utils.Sequence, which ensures each the
-    network trains once on each  sample per epoch. Must implement a __len__
-    method that returns the  number of batches and a __getitem__ method that
-    returns a batch of data. The  on_epoch_end method is called after each
-    epoch.
-    See: https://www.tensorflow.org/api_docs/python/tf/keras/utils/Sequence
 
-    This inherits Generator, not a Processor, as it combines multiple Processors
-    from the configuration
     """
 
     def __init__(self,
@@ -282,49 +273,8 @@ class IceNetDataLoader(Generator):
                     args = {}
 
                     for date in dates:
-                        masks = {}
-                        var_files = {}
-
-                        for day in range(self._n_forecast_days):
-                            forecast_day = date + relativedelta(days=day)
-
-                            masks[forecast_day] = \
-                                self._masks.get_active_cell_mask(
-                                    forecast_day.month)
-
-                        for var_name in self._meta_channels:
-                            var_files[var_name] = \
-                                self._get_var_file(var_name, date, "%j")
-
-                        for var_name, num_channels in self._channels.items():
-                            if var_name in self._meta_channels:
-                                continue
-
-                            if "linear_trend" not in var_name:
-                                # Collect all lag channels + the forecast date
-                                input_days = [
-                                    date - relativedelta(days=int(lag))
-                                    for lag in
-                                    np.arange(1, num_channels + 1)]
-                            else:
-                                input_days = [
-                                    date + relativedelta(days=int(lead))
-                                    for lead in
-                                    np.arange(1, num_channels + 1)]
-
-                            var_files[var_name] = {
-                                input_date: self._get_var_file(
-                                    var_name, input_date)
-                                for input_date in set(sorted(input_days))}
-
-                        output_files = {
-                            input_date:
-                                self._get_var_file("siconca_abs", input_date)
-                            for input_date in [
-                                date + relativedelta(days=leadtime_idx)
-                                for leadtime_idx in
-                                range(self._n_forecast_days)]
-                        }
+                        var_files, masks, output_files = \
+                            self.get_sample_files(date)
 
                         # TODO: I don't like this, but I was trying to ensure
                         #  no deadlock to producing sets due to this object
@@ -362,9 +312,7 @@ class IceNetDataLoader(Generator):
 
         self._write_dataset_config(counts)
 
-    def generate_sample(self, date):
-        # TODO: UGH this is repeating due to the need to reproduce process
-        #  for DL
+    def get_sample_files(self, date):
         masks = {}
         var_files = {}
 
@@ -408,6 +356,11 @@ class IceNetDataLoader(Generator):
                 for leadtime_idx in
                 range(self._n_forecast_days)]
         }
+
+        return var_files, masks, output_files
+
+    def generate_sample(self, date):
+        var_files, masks, output_files = self.get_sample_files(date)
 
         return generate_sample(
             date,
