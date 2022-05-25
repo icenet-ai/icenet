@@ -275,7 +275,8 @@ class IceNetDataLoader(Generator):
                 if dates_override:
                     logging.info("{} available {} dates".
                                  format(len(forecast_dates), dataset))
-                    forecast_dates.intersection(dates_override[dataset])
+                    forecast_dates = forecast_dates.intersection(
+                        dates_override[dataset])
                 forecast_dates = sorted(list(forecast_dates))
 
                 output_dir = self.get_data_var_folder(dataset)
