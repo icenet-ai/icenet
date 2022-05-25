@@ -68,6 +68,7 @@ def download_args(choices=None,
 
 def process_args(dates=True,
                  lag_lead=True,
+                 ref_option=True,
                  extra_args=[]):
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
@@ -96,9 +97,10 @@ def process_args(dates=True,
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
 
-    ap.add_argument("-r", "--ref",
-                    help="Reference loader for normalisations etc",
-                    default=None, type=str)
+    if ref_option:
+        ap.add_argument("-r", "--ref",
+                        help="Reference loader for normalisations etc",
+                        default=None, type=str)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     args = ap.parse_args()
