@@ -88,6 +88,7 @@ def process_args(dates=True,
         ap.add_argument("-te", "--test-end", dest="test_end",
                         type=dates_arg, required=False, default=[])
 
+        # FIXME#11: not allowing this option currently
         ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
 
     if lag_lead:
@@ -119,8 +120,8 @@ def process_date_args(args):
                 enumerate(getattr(args, "{}_start".format(dataset))):
             period_end = getattr(args, "{}_end".format(dataset))[i]
             dataset_dates += [pd.to_datetime(date).date() for date in
-                   pd.date_range(period_start,
-                                 period_end, freq="D")]
+                              pd.date_range(period_start,
+                                            period_end, freq="D")]
         logging.info("Generated {} dates for {}".format(len(dataset_dates),
                                                         dataset))
 
