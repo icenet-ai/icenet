@@ -95,7 +95,7 @@ def generate_sample(forecast_date,
 
     if np.isnan(y).any():
         nans = np.isnan(y)
-        logging.debug("Fixing {} nans in output {}".
+        logging.warning("Fixing {} nans in output {}".
                       format(np.sum(nans), forecast_date))
         sample_weights[nans] = 0
         y[nans] = 0.
@@ -104,7 +104,7 @@ def generate_sample(forecast_date,
     m = np.isnan(y)
     if np.sum(sample_weights[m]) > 0:
         np.save("{}".format(forecast_date.strftime("%Y_%m_%d.nan.npy")),
-                            np.array([y, sample_weights]))
+                np.array([y, sample_weights]))
         raise RuntimeError("Forecast {} is a nanset".format(forecast_date))
 
     # INPUT FEATURES
@@ -349,7 +349,7 @@ class IceNetDataLoader(Generator):
 
         for var_name in self._meta_channels:
             var_files[var_name] = \
-                self._get_var_file(var_name, date, "%j")
+                self._get_var_file(var_name, date, "%j", include_year=False)
 
         for var_name, num_channels in self._channels.items():
             if var_name in self._meta_channels:
@@ -467,13 +467,13 @@ class IceNetDataLoader(Generator):
 
     def _get_var_file(self, var_name, date,
                       date_format=IceNetPreProcessor.DATE_FORMAT,
-                      filename_override=None):
-        filename = os.path.join(str(date.year),
-                                "{}.npy".format(date.strftime(date_format))) \
-            if not filename_override else filename_override
-        source_path = os.path.join(self.hemisphere_str[0],
-                                   var_name.split("_")[0],
-                                   filename)
+                      include_year=True):
+        filename = os.path.join("{}.npy".format(date.strftime(date_format)))
+        dirs = [self.hemisphere_str[0], var_name.split("_")[0]]
+
+        if include_year:
+            dirs.append(str(date.year))
+        source_path = os.path.join(*dirs, filename)
 
         files = [potential for potential in self._channel_files[var_name]
                  if source_path in potential]
