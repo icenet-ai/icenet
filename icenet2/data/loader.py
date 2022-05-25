@@ -94,10 +94,11 @@ def generate_sample(forecast_date,
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
     if np.isnan(y).any():
-        logging.debug("Fixing nans in output: {}".format(
-            np.argwhere(np.isnan(y))))
-        sample_weights[np.isnan(y)] = 0
-        y[np.isnan(y)] = 0.
+        nans = np.isnan(y)
+        logging.debug("Fixing {} nans in output {}".
+                      format(np.sum(nans), forecast_date))
+        sample_weights[nans] = 0
+        y[nans] = 0.
 
     # Check our output
     m = np.isnan(y)
