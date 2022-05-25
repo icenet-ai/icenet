@@ -461,13 +461,14 @@ class IceNetDataLoader(Generator):
                 self._config["sources"][identity]["var_files"][var_name])
 
         logging.debug("Channel quantities deduced:\n{}\n\nTotal channels: {}".
-            format(pformat(self._channels), self.num_channels))
+                      format(pformat(self._channels), self.num_channels))
 
     def _get_var_file(self, var_name, date,
                       date_format=IceNetPreProcessor.DATE_FORMAT,
                       filename_override=None):
-        filename = "{}.npy".format(date.strftime(date_format)) if not \
-            filename_override else filename_override
+        filename = os.path.join(str(date.year),
+                                "{}.npy".format(date.strftime(date_format))) \
+            if not filename_override else filename_override
         source_path = os.path.join(self.hemisphere_str[0],
                                    var_name.split("_")[0],
                                    filename)
