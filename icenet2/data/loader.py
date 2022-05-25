@@ -311,7 +311,7 @@ class IceNetDataLoader(Generator):
                             output_files,
                         ]
 
-                    if os.path.exists(tf_path.format(batch_number)):
+                    if not os.path.exists(tf_path.format(batch_number)):
                         futures.append(executor.submit(
                             generate_and_write,
                             tf_path.format(batch_number),
@@ -319,6 +319,9 @@ class IceNetDataLoader(Generator):
 
                         logging.debug("Submitted {} dates as batch {}".format(
                             len(dates), batch_number))
+                    else:
+                        logging.warning("Skipping {} on pickup run".
+                                        format(tf_path.format(batch_number)))
                     batch_number += 1
                     counts[dataset] += len(dates)
 
