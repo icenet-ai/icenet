@@ -289,31 +289,27 @@ class IceNetDataLoader(Generator):
                 for dates in batch(forecast_dates, self._output_batch_size):
                     args = {}
 
-                    for date in dates:
-                        var_files, masks, output_files = \
-                            self.get_sample_files(date)
-
-                        # TODO: I don't like this, but I was trying to ensure
-                        #  no deadlock to producing sets due to this object
-                        #  not being serializable (even though I'm sure it
-                        #  is). Refactor and clean this up!
-                        args[date] = [
-                            self._channels,
-                            self._dtype,
-                            self._loss_weight_days,
-                            masks,
-                            self._meta_channels,
-                            self._missing_dates,
-                            self._n_forecast_days,
-                            self.num_channels,
-                            self._shape,
-                            var_files,
-                            output_files,
-                        ]
-
                     if not pickup or \
                         (pickup and
                          not os.path.exists(tf_path.format(batch_number))):
+                        for date in dates:
+                            var_files, masks, output_files = \
+                                self.get_sample_files(date)
+
+                            args[date] = [
+                                self._channels,
+                                self._dtype,
+                                self._loss_weight_days,
+                                masks,
+                                self._meta_channels,
+                                self._missing_dates,
+                                self._n_forecast_days,
+                                self.num_channels,
+                                self._shape,
+                                var_files,
+                                output_files,
+                            ]
+
                         futures.append(executor.submit(
                             generate_and_write,
                             tf_path.format(batch_number),
