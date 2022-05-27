@@ -6,6 +6,7 @@ import pandas as pd
 from scipy import interpolate
 from scipy.spatial.qhull import QhullError
 
+
 class SICInterpolation:
     @staticmethod
     def interpolate(da, masks):
@@ -68,9 +69,6 @@ class SICInterpolation:
 
                 x_interp = xx[~valid]
                 y_interp = yy[~valid]
-
-                logging.debug("x/y valid shapes: {}".format((x_valid.shape, y_valid.shape)))
-                logging.debug("x/y interp shapes: {}".format((x_interp.shape, y_interp.shape)))
 
                 try:
                     if len(x_valid) or len(y_valid):

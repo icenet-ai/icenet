@@ -13,8 +13,7 @@ import numpy as np
 import tensorflow as tf
 
 from icenet2.data.loader import IceNetDataLoader
-from icenet2.data.process import IceNetPreProcessor
-from icenet2.data.producers import DataProducer
+from icenet2.data.producers import DataCollection
 
 
 def get_decoder(shape, channels, forecasts, num_vars=1, dtype="float32"):
@@ -39,64 +38,18 @@ def get_decoder(shape, channels, forecasts, num_vars=1, dtype="float32"):
     return decode_item
 
 
-class IceNetDataSet(DataProducer):
-    def __init__(self,
-                 configuration_path,
-                 *args,
-                 batch_size=4,
-                 path=os.path.join(".", "network_datasets"),
-                 **kwargs):
-        self._config = dict()
-        self._configuration_path = configuration_path
-        self._load_configuration(configuration_path)
+# TODO: define a decent interface and sort the inheritance architecture out, as
+#  this will facilitate the new datasets in #35
+class SplittingMixin:
+    _batch_size = None
+    _dtype = None
+    _num_channels = None
+    _n_forecast_days = None
+    _shape = None
 
-        super().__init__(*args,
-                         identifier=self._config["identifier"],
-                         north=bool(self._config["north"]),
-                         path=path,
-                         south=bool(self._config["south"]),
-                         **kwargs)
-
-        self._batch_size = batch_size
-        self._counts = self._config["counts"]
-        self._dtype = getattr(np, self._config["dtype"])
-        self._loader_config = self._config["loader_config"]
-        self._n_forecast_days = self._config["n_forecast_days"]
-        self._num_channels = self._config["num_channels"]
-        self._shape = tuple(self._config["shape"])
-
-        self._missing_dates = [
-            dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
-            for s in self._config["missing_dates"]]
-
-        if self._config["loader_path"] and \
-                os.path.exists(self._config["loader_path"]):
-            self.train_fns = glob.glob("{}/*.tfrecord".format(
-                self.get_data_var_folder("train"),
-                missing_error=True))
-            self.val_fns = glob.glob("{}/*.tfrecord".format(
-                self.get_data_var_folder("val"),
-                missing_error=True))
-            self.test_fns = glob.glob("{}/*.tfrecord".format(
-                self.get_data_var_folder("test"),
-                missing_error=True))
-        else:
-            logging.warning("Running in configuration only mode, tfrecords "
-                            "were not generated for this dataset")
-            self.train_fns = []
-            self.val_fns = []
-            self.test_fns = []
-
-    def _load_configuration(self, path):
-        if os.path.exists(path):
-            logging.info("Loading configuration {}".format(path))
-
-            with open(path, "r") as fh:
-                obj = json.load(fh)
-
-                self._config.update(obj)
-        else:
-            raise OSError("{} not found".format(path))
+    train_fns = []
+    test_fns = []
+    val_fns = []
 
     def get_split_datasets(self, ratio=None):
         if not (len(self.train_fns) + len(self.val_fns) + len(self.test_fns)):
@@ -140,13 +93,13 @@ class IceNetDataSet(DataProducer):
         decoder = get_decoder(self.shape,
                               self.num_channels,
                               self.n_forecast_days,
-                              dtype=self._dtype.__name__)
+                              dtype=self.dtype.__name__)
 
         train_ds = train_ds.\
-                shuffle(int(min(len(self.train_fns) / 4, 100)),
-                        reshuffle_each_iteration=True).\
-                map(decoder, num_parallel_calls=self.batch_size).\
-                batch(self.batch_size)
+            shuffle(int(min(len(self.train_fns) / 4, 100)),
+                    reshuffle_each_iteration=True).\
+            map(decoder, num_parallel_calls=self.batch_size).\
+            batch(self.batch_size)
 
         val_ds = val_ds.\
             map(decoder, num_parallel_calls=self.batch_size).\
@@ -157,8 +110,81 @@ class IceNetDataSet(DataProducer):
             batch(self.batch_size)
 
         return train_ds.prefetch(tf.data.AUTOTUNE), \
-               val_ds.prefetch(tf.data.AUTOTUNE), \
-               test_ds.prefetch(tf.data.AUTOTUNE)
+            val_ds.prefetch(tf.data.AUTOTUNE), \
+            test_ds.prefetch(tf.data.AUTOTUNE)
+
+    @property
+    def batch_size(self):
+        return self._batch_size
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @property
+    def n_forecast_days(self):
+        return self._n_forecast_days
+
+    @property
+    def num_channels(self):
+        return self._num_channels
+
+    @property
+    def shape(self):
+        return self._shape
+
+
+class IceNetDataSet(SplittingMixin, DataCollection):
+    def __init__(self,
+                 configuration_path,
+                 *args,
+                 batch_size=4,
+                 path=os.path.join(".", "network_datasets"),
+                 **kwargs):
+        self._config = dict()
+        self._configuration_path = configuration_path
+        self._load_configuration(configuration_path)
+
+        super().__init__(*args,
+                         identifier=self._config["identifier"],
+                         north=bool(self._config["north"]),
+                         path=path,
+                         south=bool(self._config["south"]),
+                         **kwargs)
+
+        self._batch_size = batch_size
+        self._counts = self._config["counts"]
+        self._dtype = getattr(np, self._config["dtype"])
+        self._loader_config = self._config["loader_config"]
+        self._n_forecast_days = self._config["n_forecast_days"]
+        self._num_channels = self._config["num_channels"]
+        self._shape = tuple(self._config["shape"])
+
+        if self._config["loader_path"] and \
+                os.path.exists(self._config["loader_path"]):
+            self.train_fns = glob.glob("{}/*.tfrecord".format(
+                os.path.join(self.base_path, self.identifier, "train")))
+            self.val_fns = glob.glob("{}/*.tfrecord".format(
+                os.path.join(self.base_path, self.identifier, "val")))
+            self.test_fns = glob.glob("{}/*.tfrecord".format(
+                os.path.join(self.base_path, self.identifier, "test")))
+        else:
+            logging.warning("Running in configuration only mode, tfrecords "
+                            "were not generated for this dataset")
+            self.train_fns = []
+            self.val_fns = []
+            self.test_fns = []
+
+    def _load_configuration(self, path):
+        if os.path.exists(path):
+            logging.info("Loading configuration {}".format(path))
+
+            with open(path, "r") as fh:
+                obj = json.load(fh)
+
+                self._config.update(obj)
+        else:
+            raise OSError("{} not found".format(path))
 
     def get_data_loader(self):
         # TODO: this invocation in config only mode will lead to the
@@ -181,8 +207,107 @@ class IceNetDataSet(DataProducer):
         return loader
 
     @property
-    def batch_size(self):
-        return self._batch_size
+    def loader_config(self):
+        return self._loader_config
+
+    @property
+    def channels(self):
+        return self._config["channels"]
+
+    @property
+    def counts(self):
+        return self._config["counts"]
+
+
+class MergedIceNetDataSet(SplittingMixin, DataCollection):
+    def __init__(self,
+                 configuration_paths,
+                 *args,
+                 batch_size=4,
+                 path=os.path.join(".", "network_datasets"),
+                 **kwargs):
+        self._config = dict()
+        self._configuration_paths = [configuration_paths] \
+            if type(configuration_paths) != list else configuration_paths
+        self._load_configurations(configuration_paths)
+
+        super().__init__(*args,
+                         identifier=self._config["identifier"],
+                         north=bool(self._config["north"]),
+                         path=path,
+                         south=bool(self._config["south"]),
+                         **kwargs)
+
+        self._batch_size = batch_size
+        self._dtype = getattr(np, self._config["dtype"])
+
+        self._init_records()
+
+    def _init_records(self):
+        for idx, loader_path in enumerate(self._config["loader_paths"]):
+            if loader_path and os.path.exists(loader_path):
+                hemi = self._config["loaders"][idx].hemisphere_str[0]
+                self.train_fns += glob.glob("{}/*.tfrecord".format(
+                    os.path.join(loader_path, hemi, "train")))
+                self.val_fns = glob.glob("{}/*.tfrecord".format(
+                    os.path.join(loader_path, hemi, "val")))
+                self.test_fns = glob.glob("{}/*.tfrecord".format(
+                    os.path.join(loader_path, hemi, "test")))
+            else:
+                logging.warning("Running in configuration only mode, tfrecords "
+                                "were not generated for this dataset")
+
+    def _load_configurations(self, paths):
+        for path in paths:
+            if os.path.exists(path):
+                logging.info("Loading configuration {}".format(path))
+
+                with open(path, "r") as fh:
+                    obj = json.load(fh)
+                    self._merge_configurations(path, obj)
+            else:
+                raise OSError("{} not found".format(path))
+
+    def _merge_configurations(self, path, other):
+        loader = IceNetDataLoader(other["loader_config"],
+                                  other["identifier"],
+                                  other["var_lag"],
+                                  dataset_config_path=os.path.dirname(path),
+                                  loss_weight_days=other["loss_weight_days"],
+                                  north=other["north"],
+                                  output_batch_size=other["output_batch_size"],
+                                  south=other["south"],
+                                  var_lag_override=other["var_lag_override"])
+
+        self._config["loaders"] = [] if "loaders" not in self._config else \
+            self._config["loaders"].push(loader)
+        self._config["loader_paths"] = [] if "loader_paths" not in self._config \
+            else self._config["loader_paths"].push(other["loader_path"])
+
+        if "counts" not in self._config:
+            self._config["counts"] = other["counts"].copy()
+        else:
+            for dataset, count in other["count"].items():
+                logging.info("Merging {} samples from {}".format(count, dataset))
+                self._config["counts"][dataset] += count
+
+        general_attrs = ["channels", "dtype", "n_forecast_days",
+                         "num_channels", "output_batch_size", "shape"]
+
+        for attr in general_attrs:
+            if attr not in self._config or getattr(self, attr) is None:
+                self._config[attr] = other[attr]
+            else:
+                assert self._config[attr] == other[attr], \
+                    "{} is not the same across configurations".format(attr)
+
+    def get_data_loader(self):
+        assert len(self._configuration_paths) == 1, "Configuration mode is " \
+                                                    "only for single loader" \
+                                                    "datasets: {}".format(
+            self._configuration_paths
+        )
+        return self._config["loader"][0]
 
     @property
     def channels(self):
@@ -190,28 +315,4 @@ class IceNetDataSet(DataProducer):
 
     @property
     def counts(self):
-        return self._counts
-
-    @property
-    def dtype(self):
-        return self._dtype
-
-    @property
-    def loader_config(self):
-        return self._loader_config
-
-    @property
-    def missing_days(self):
-        return self._missing_dates
-
-    @property
-    def n_forecast_days(self):
-        return self._n_forecast_days
-
-    @property
-    def num_channels(self):
-        return self._num_channels
-
-    @property
-    def shape(self):
-        return self._shape
+        return self._config["counts"]

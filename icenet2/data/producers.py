@@ -14,40 +14,23 @@ import pandas as pd
 from icenet2.utils import Hemisphere, HemisphereMixin
 
 
-class DataProducer(HemisphereMixin):
+# TODO: This is poorly abstracted through necessity, revise
+class DataCollection(HemisphereMixin):
 
     @abstractmethod
     def __init__(self, *args,
                  identifier=None,
-                 dry=False,
-                 overwrite=False,
                  north=True,
                  south=False,
                  path=os.path.join(".", "data"),
                  **kwargs):
-        self.dry = dry
-        self.overwrite = overwrite
-
         self._identifier = identifier
         self._path = os.path.join(path, identifier)
         self._hemisphere = (Hemisphere.NORTH if north else Hemisphere.NONE) | \
                            (Hemisphere.SOUTH if south else Hemisphere.NONE)
 
-        if os.path.exists(self._path):
-            logging.debug("{} already exists".format(self._path))
-        else:
-            if not os.path.islink(self._path):
-                logging.info("Creating path: {}".format(self._path))
-                os.makedirs(self._path, exist_ok=True)
-            else:
-                logging.info("Skipping creation for symlink: {}".format(
-                    self._path))
-
         assert self._identifier, "No identifier supplied"
         assert self._hemisphere != Hemisphere.NONE, "No hemispheres selected"
-        # NOTE: specific limitation for the DataProducers, they'll only do one
-        # hemisphere per instance
-        assert self._hemisphere != Hemisphere.BOTH, "Both hemispheres selected"
 
     @property
     def base_path(self):
@@ -61,10 +44,40 @@ class DataProducer(HemisphereMixin):
     def identifier(self):
         return self._identifier
 
+
+class DataProducer(DataCollection):
+
+    @abstractmethod
+    def __init__(self, *args,
+                 dry=False,
+                 overwrite=False,
+                 **kwargs):
+        super(DataProducer, self).__init__(*args, **kwargs)
+
+        self.dry = dry
+        self.overwrite = overwrite
+
+        if os.path.exists(self._path):
+            logging.debug("{} already exists".format(self._path))
+        else:
+            if not os.path.islink(self._path):
+                logging.info("Creating path: {}".format(self._path))
+                os.makedirs(self._path, exist_ok=True)
+            else:
+                logging.info("Skipping creation for symlink: {}".format(
+                    self._path))
+
+        # NOTE: specific limitation for the DataProducers, they'll only do one
+        # hemisphere per instance
+        assert self._hemisphere != Hemisphere.BOTH, "Both hemispheres selected"
+
     def get_data_var_folder(self, var,
-                            append=[],
+                            append=None,
                             hemisphere=None,
                             missing_error=False):
+        if not append:
+            append = []
+
         if not hemisphere:
             # We can make the assumption because this implementation is limited
             # to a single hemisphere
