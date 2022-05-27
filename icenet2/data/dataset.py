@@ -162,12 +162,13 @@ class IceNetDataSet(SplittingMixin, DataCollection):
 
         if self._config["loader_path"] and \
                 os.path.exists(self._config["loader_path"]):
-            self.train_fns = glob.glob("{}/*.tfrecord".format(
-                os.path.join(self.base_path, self.identifier, "train")))
+            hemi = self.hemisphere_str[0]
+            self.train_fns += glob.glob("{}/*.tfrecord".format(
+                os.path.join(self.base_path, hemi, "train")))
             self.val_fns = glob.glob("{}/*.tfrecord".format(
-                os.path.join(self.base_path, self.identifier, "val")))
+                os.path.join(self.base_path, hemi, "val")))
             self.test_fns = glob.glob("{}/*.tfrecord".format(
-                os.path.join(self.base_path, self.identifier, "test")))
+                os.path.join(self.base_path, hemi, "test")))
         else:
             logging.warning("Running in configuration only mode, tfrecords "
                             "were not generated for this dataset")
