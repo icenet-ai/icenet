@@ -222,6 +222,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
 
 class MergedIceNetDataSet(SplittingMixin, DataCollection):
     def __init__(self,
+                 identifier,
                  configuration_paths,
                  *args,
                  batch_size=4,
@@ -233,7 +234,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         self._load_configurations(configuration_paths)
 
         super().__init__(*args,
-                         identifier=self._config["identifier"],
+                         identifier=identifier,
                          north=bool(self._config["north"]),
                          path=path,
                          south=bool(self._config["south"]),
@@ -241,6 +242,9 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
         self._batch_size = batch_size
         self._dtype = getattr(np, self._config["dtype"])
+        self._num_channels = self._config["num_channels"]
+        self._n_forecast_days = self._config["n_forecast_days"]
+        self._shape = self._config["shape"]
 
         self._init_records()
 
@@ -259,6 +263,13 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                                 "were not generated for this dataset")
 
     def _load_configurations(self, paths):
+        self._config = dict(
+            loader_paths = [],
+            loaders = [],
+            north = False,
+            south = False
+        )
+        
         for path in paths:
             if os.path.exists(path):
                 logging.info("Loading configuration {}".format(path))
@@ -280,15 +291,13 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                                   south=other["south"],
                                   var_lag_override=other["var_lag_override"])
 
-        self._config["loaders"] = [] if "loaders" not in self._config else \
-            self._config["loaders"].push(loader)
-        self._config["loader_paths"] = [] if "loader_paths" not in self._config \
-            else self._config["loader_paths"].push(other["loader_path"])
+        self._config["loaders"].append(loader)
+        self._config["loader_paths"].append(other["loader_path"])
 
         if "counts" not in self._config:
             self._config["counts"] = other["counts"].copy()
         else:
-            for dataset, count in other["count"].items():
+            for dataset, count in other["counts"].items():
                 logging.info("Merging {} samples from {}".format(count, dataset))
                 self._config["counts"][dataset] += count
 
@@ -296,11 +305,14 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                          "num_channels", "output_batch_size", "shape"]
 
         for attr in general_attrs:
-            if attr not in self._config or getattr(self, attr) is None:
+            if attr not in self._config:
                 self._config[attr] = other[attr]
             else:
                 assert self._config[attr] == other[attr], \
                     "{} is not the same across configurations".format(attr)
+
+        self._config["north"] = True if loader.north else self._config["north"]
+        self._config["south"] = True if loader.south else self._config["south"]
 
     def get_data_loader(self):
         assert len(self._configuration_paths) == 1, "Configuration mode is " \
