@@ -326,7 +326,6 @@ class IceNetPreProcessor(Processor):
 
     @staticmethod
     def mean_and_std(array):
-
         """
         Return the mean and standard deviation of an array-like object (intended
         use case is for normalising a raw satellite data array based on a list

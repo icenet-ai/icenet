@@ -51,6 +51,18 @@ class SplittingMixin:
     test_fns = []
     val_fns = []
 
+    def add_records(self, base_path, hemi):
+        train_path = os.path.join(base_path, hemi, "train")
+        val_path = os.path.join(base_path, hemi, "val")
+        test_path = os.path.join(base_path, hemi, "test")
+
+        logging.info("Training dataset path: {}".format(train_path))
+        self.train_fns += glob.glob("{}/*.tfrecord".format(train_path))
+        logging.info("Validation dataset path: {}".format(val_path))
+        self.val_fns += glob.glob("{}/*.tfrecord".format(val_path))
+        logging.info("Test dataset path: {}".format(test_path))
+        self.test_fns += glob.glob("{}/*.tfrecord".format(test_path))
+
     def get_split_datasets(self, ratio=None):
         if not (len(self.train_fns) + len(self.val_fns) + len(self.test_fns)):
             raise RuntimeError("No files have been found, abandoning...")
@@ -163,18 +175,10 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         if self._config["loader_path"] and \
                 os.path.exists(self._config["loader_path"]):
             hemi = self.hemisphere_str[0]
-            self.train_fns += glob.glob("{}/*.tfrecord".format(
-                os.path.join(self.base_path, hemi, "train")))
-            self.val_fns = glob.glob("{}/*.tfrecord".format(
-                os.path.join(self.base_path, hemi, "val")))
-            self.test_fns = glob.glob("{}/*.tfrecord".format(
-                os.path.join(self.base_path, hemi, "test")))
+            self.add_records(self.base_path, hemi)
         else:
             logging.warning("Running in configuration only mode, tfrecords "
                             "were not generated for this dataset")
-            self.train_fns = []
-            self.val_fns = []
-            self.test_fns = []
 
     def _load_configuration(self, path):
         if os.path.exists(path):
@@ -250,24 +254,15 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
     def _init_records(self):
         for idx, loader_path in enumerate(self._config["loader_paths"]):
-            if loader_path and os.path.exists(loader_path):
-                hemi = self._config["loaders"][idx].hemisphere_str[0]
-                self.train_fns += glob.glob("{}/*.tfrecord".format(
-                    os.path.join(loader_path, hemi, "train")))
-                self.val_fns = glob.glob("{}/*.tfrecord".format(
-                    os.path.join(loader_path, hemi, "val")))
-                self.test_fns = glob.glob("{}/*.tfrecord".format(
-                    os.path.join(loader_path, hemi, "test")))
-            else:
-                logging.warning("Running in configuration only mode, tfrecords "
-                                "were not generated for this dataset")
+            hemi = self._config["loaders"][idx].hemisphere_str[0]
+            self.add_records(self.base_path, hemi)
 
     def _load_configurations(self, paths):
         self._config = dict(
-            loader_paths = [],
-            loaders = [],
-            north = False,
-            south = False
+            loader_paths=[],
+            loaders=[],
+            north=False,
+            south=False
         )
         
         for path in paths:
