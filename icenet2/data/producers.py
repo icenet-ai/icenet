@@ -206,7 +206,12 @@ class Processor(DataProducer):
 
             # Ensure we're ordered, it has repercussions for xarray
             for date in sorted(dates):
-                match_dfs = dt_series[date.strftime("%Y-%m-%d")]
+                try:
+                    match_dfs = dt_series[date.strftime("%Y-%m-%d")]
+                except KeyError:
+                    logging.info("No data found for {}, outside data boundary "
+                                 "perhaps?".format(date.strftime("%Y-%m-%d")))
+                    match_dfs = []
 
                 for df in match_dfs:
                     if any([flt in os.path.split(df)[1]
