@@ -87,6 +87,7 @@ def train_model(
             start_method="fork",
             _disable_stats=True,
         ),
+        group=run_name,
     )
 
     logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
