@@ -106,7 +106,7 @@ def train_model(
 
     if not os.path.exists(network_folder):
         logging.info("Creating network folder: {}".format(network_folder))
-        os.makedirs(network_folder)
+        os.makedirs(network_folder, exist_ok=True)
 
     network_path = os.path.join(network_folder,
                                 "{}.network_{}.{}.h5".format(run_name,
