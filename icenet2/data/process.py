@@ -280,11 +280,6 @@ class IceNetPreProcessor(Processor):
                                #  on big sets: make optional
                                parallel=True)
 
-        # Set of variables names
-        # var_set = set([next(iter(
-        #    xr.open_dataset(path).data_vars.values())).name
-        #               for path in self._var_files[var_name]])
-
         # For processing one file, we're going to assume a single non-lambert
         # variable exists at the start and rename all of them
         var_names = [name for name in list(ds.data_vars.keys())

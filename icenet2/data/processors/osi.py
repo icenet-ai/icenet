@@ -15,7 +15,6 @@ class IceNetOSIPreProcessor(IceNetPreProcessor):
 
         missing_dates_path = os.path.join(
             self._source_data,
-            *self.hemisphere_str,
             "siconca",
             "missing_days.csv")
 
