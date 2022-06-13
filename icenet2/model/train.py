@@ -63,7 +63,7 @@ def train_model(
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     wandb.init(
         project="icenet2",
-        name=run_name,
+        name="{}.{}".format(run_name, seed),
         notes="{}: run at {}{}".format(run_name,
                                        dt.datetime.now().strftime("%D %T"),
                                        "" if
