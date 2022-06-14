@@ -1,6 +1,3 @@
-"""Data Masks
-"""
-
 import datetime as dt
 import logging
 import os
@@ -14,8 +11,20 @@ from icenet2.data.producers import Generator
 from icenet2.utils import run_command
 from icenet2.data.sic.utils import SIC_HEMI_STR
 
+"""Sea Ice Masks
+
+"""
+
 
 class Masks(Generator):
+    """
+
+    :param polarhole_dates:
+    :param polarhole_radii:
+    :param data_shape:
+    :param dtype:
+    """
+
     LAND_MASK_FILENAME = "land_mask.npy"
     # FIXME: nh/sh?
     POLARHOLE_RADII = (28, 11, 3)
@@ -26,10 +35,10 @@ class Masks(Generator):
     )
 
     def __init__(self, *args,
-                 polarhole_dates=POLARHOLE_DATES,
-                 polarhole_radii=POLARHOLE_RADII,
-                 data_shape=(432, 432),
-                 dtype=np.float32,
+                 polarhole_dates: object = POLARHOLE_DATES,
+                 polarhole_radii: object = POLARHOLE_RADII,
+                 data_shape: object = (432, 432),
+                 dtype: object = np.float32,
                  **kwargs):
         super().__init__(*args, identifier="masks", **kwargs)
 
@@ -41,6 +50,9 @@ class Masks(Generator):
         self.init_params()
 
     def init_params(self):
+        """
+
+        """
         params_path = os.path.join(
             self.get_data_var_folder("masks"),
             "masks.params"
@@ -54,21 +66,24 @@ class Masks(Generator):
                                   self._polarhole_dates[i].strftime("%Y%m%d")]
                                  )))
         else:
-            lines = [l.strip().split(",")
-                     for l in open(params_path, "r").readlines()]
+            lines = [el.strip().split(",")
+                     for el in open(params_path, "r").readlines()]
             radii, dates = zip(*lines)
             self._polarhole_dates = [dt.datetime.strptime(el, "%Y%m%d").date()
                                      for el in dates]
             self._polarhole_radii = [int(r) for r in radii]
 
     def generate(self,
-                 year=2000,
-                 save_land_mask=True,
-                 save_polarhole_masks=True,
-                 remove_temp_files=False):
+                 year: int = 2000,
+                 save_land_mask: bool = True,
+                 save_polarhole_masks: bool = True,
+                 remove_temp_files: bool = False):
         """Generate a set of data masks
 
-
+        :param year:
+        :param save_land_mask:
+        :param save_polarhole_masks:
+        :param remove_temp_files:
         """
         siconca_folder = self.get_data_var_folder("siconca")
 
@@ -144,10 +159,10 @@ class Masks(Generator):
             # Generate the polar hole masks
             x = np.tile(np.arange(0, self._shape[1]).
                         reshape(self._shape[0], 1), (1, self._shape[1])).\
-                    astype(self._dtype) - 215.5
+                astype(self._dtype) - 215.5
             y = np.tile(np.arange(0, self._shape[1]).
                         reshape(1, self._shape[1]), (self._shape[0], 1)).\
-                    astype(self._dtype) - 215.5
+                astype(self._dtype) - 215.5
             squaresum = np.square(x) + np.square(y)
 
             for i, radius in enumerate(self._polarhole_radii):
@@ -160,7 +175,13 @@ class Masks(Generator):
                 logging.info("Saving polarhole {}".format(polarhole_path))
                 np.save(polarhole_path, polarhole)
 
-    def get_active_cell_mask(self, month):
+    def get_active_cell_mask(self,
+                             month: object) -> object:
+        """
+
+        :param month:
+        :return:
+        """
         mask_path = os.path.join(self.get_data_var_folder("masks"),
                                  "active_grid_cell_mask_{:02d}.npy".
                                  format(month))
@@ -173,7 +194,13 @@ class Masks(Generator):
         # logging.debug("Loading active cell mask {}".format(mask_path))
         return np.load(mask_path)
 
-    def get_land_mask(self, land_mask_filename=LAND_MASK_FILENAME):
+    def get_land_mask(self,
+                      land_mask_filename: str = LAND_MASK_FILENAME) -> object:
+        """
+
+        :param land_mask_filename:
+        :return:
+        """
         mask_path = os.path.join(self.get_data_var_folder("masks"),
                                  land_mask_filename)
 
@@ -185,7 +212,13 @@ class Masks(Generator):
         # logging.debug("Loading land mask {}".format(mask_path))
         return np.load(mask_path)
 
-    def get_polarhole_mask(self, date):
+    def get_polarhole_mask(self,
+                           date: object) -> object:
+        """
+
+        :param date:
+        :return:
+        """
         if self.south:
             return None
 
@@ -198,7 +231,11 @@ class Masks(Generator):
                 return np.load(polarhole_path)
         return None
 
-    def get_blank_mask(self):
+    def get_blank_mask(self) -> object:
+        """
+
+        :return:
+        """
         return np.full(self._shape, False)
 
 

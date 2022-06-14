@@ -5,19 +5,38 @@ from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.sic.mask import Masks
 from icenet2.data.processors.utils import SICInterpolation
 
+"""
+
+"""
+
 
 class IceNetCMIPPreProcessor(IceNetPreProcessor):
+    """
+
+    :param source:
+    :param member:
+    """
     def __init__(self,
-                 source, member, *args, **kwargs):
+                 source: str,
+                 member: str,
+                 *args, **kwargs):
         cmip_source = "{}.{}".format(source, member)
         super().__init__(*args,
                          identifier="cmip6.{}".format(cmip_source),
                          **kwargs)
 
-    def pre_normalisation(self, var_name, da):
+    def pre_normalisation(self,
+                          var_name: str,
+                          da: object):
+        """
+
+        :param var_name:
+        :param da:
+        :return:
+        """
         if var_name == "siconca":
             masks = Masks(north=self.north, south=self.south)
-            return SICInterpolation.interpolate(da, masks)
+            return interpolate(da, masks)
 
         return da
 

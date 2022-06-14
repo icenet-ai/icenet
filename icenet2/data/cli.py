@@ -2,18 +2,31 @@ import argparse
 import collections
 import datetime as dt
 import logging
-import random
 import re
 
 import pandas as pd
 
+"""
 
-def date_arg(string):
+"""
+
+
+def date_arg(string: str) -> object:
+    """
+
+    :param string: 
+    :return: 
+    """
     date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
     return dt.date(*[int(s) for s in date_match.groups()])
 
 
-def dates_arg(string):
+def dates_arg(string: str) -> object:
+    """
+
+    :param string: 
+    :return: 
+    """
     if string == "none":
         return []
 
@@ -25,12 +38,22 @@ def dates_arg(string):
     return [dt.date(*[int(s) for s in date_tuple]) for date_tuple in date_match]
 
 
-def download_args(choices=None,
-                  dates=True,
-                  dates_optional=False,
-                  skip_download=False,
-                  workers=False,
-                  extra_args=[]):
+def download_args(choices: object = None,
+                  dates: bool = True,
+                  dates_optional: bool = False,
+                  skip_download: bool = False,
+                  workers: bool = False,
+                  extra_args: object = ()) -> object:
+    """
+
+    :param choices:
+    :param dates:
+    :param dates_optional:
+    :param skip_download:
+    :param workers:
+    :param extra_args:
+    :return:
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
 
@@ -66,10 +89,18 @@ def download_args(choices=None,
     return args
 
 
-def process_args(dates=True,
-                 lag_lead=True,
-                 ref_option=True,
-                 extra_args=[]):
+def process_args(dates: bool = True,
+                 lag_lead: bool = True,
+                 ref_option: bool = True,
+                 extra_args: object = ()) -> object:
+    """
+
+    :param dates:
+    :param lag_lead:
+    :param ref_option:
+    :param extra_args:
+    :return:
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
     ap.add_argument("hemisphere", choices=("north", "south"))
@@ -99,7 +130,11 @@ def process_args(dates=True,
     return args
 
 
-def add_date_args(arg_parser):
+def add_date_args(arg_parser: object):
+    """
+
+    :param arg_parser:
+    """
     arg_parser.add_argument("-ns", "--train_start",
                             type=dates_arg, required=False, default=[])
     arg_parser.add_argument("-ne", "--train_end",
@@ -114,7 +149,12 @@ def add_date_args(arg_parser):
                             type=dates_arg, required=False, default=[])
 
 
-def process_date_args(args):
+def process_date_args(args: object) -> dict:
+    """
+
+    :param args:
+    :return:
+    """
     dates = dict(train=[], val=[], test=[])
 
     for dataset in ("train", "val", "test"):

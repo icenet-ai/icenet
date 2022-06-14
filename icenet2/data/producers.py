@@ -16,13 +16,20 @@ from icenet2.utils import Hemisphere, HemisphereMixin
 
 # TODO: This is poorly abstracted through necessity, revise
 class DataCollection(HemisphereMixin):
+    """
+
+    :param identifier:
+    :param north:
+    :param south:
+    :param path:
+    """
 
     @abstractmethod
     def __init__(self, *args,
-                 identifier=None,
-                 north=True,
-                 south=False,
-                 path=os.path.join(".", "data"),
+                 identifier: object = None,
+                 north: bool = True,
+                 south: bool = False,
+                 path: str = os.path.join(".", "data"),
                  **kwargs):
         self._identifier = identifier
         self._path = os.path.join(path, identifier)
@@ -46,11 +53,14 @@ class DataCollection(HemisphereMixin):
 
 
 class DataProducer(DataCollection):
-
+    """
+    :param dry:
+    :param overwrite:
+    """
     @abstractmethod
     def __init__(self, *args,
-                 dry=False,
-                 overwrite=False,
+                 dry: bool = False,
+                 overwrite: bool = False,
                  **kwargs):
         super(DataProducer, self).__init__(*args, **kwargs)
 
@@ -71,10 +81,18 @@ class DataProducer(DataCollection):
         # hemisphere per instance
         assert self._hemisphere != Hemisphere.BOTH, "Both hemispheres selected"
 
-    def get_data_var_folder(self, var,
-                            append=None,
-                            hemisphere=None,
-                            missing_error=False):
+    def get_data_var_folder(self, var: str,
+                            append: object = None,
+                            hemisphere: object = None,
+                            missing_error: bool = False) -> str:
+        """
+
+        :param var:
+        :param append:
+        :param hemisphere:
+        :param missing_error:
+        :return:
+        """
         if not append:
             append = []
 
@@ -98,34 +116,56 @@ class DataProducer(DataCollection):
 
 
 class Downloader(DataProducer):
+    """
+
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     @abstractmethod
     def download(self):
+        """
+
+        """
         raise NotImplementedError("{}.download is abstract".
                                   format(__class__.__name__))
 
 
 class Generator(DataProducer):
+    """
+    
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     @abstractmethod
     def generate(self):
+        """
+
+        """
         raise NotImplementedError("{}.generate is abstract".
                                   format(__class__.__name__))
 
 
 class Processor(DataProducer):
+    """
+    
+    :param identifier: 
+    :param source_data: 
+    :param *args: 
+    :param file_filters: 
+    :param test_dates: 
+    :param train_dates: 
+    :param val_dates:
+    """
     def __init__(self,
-                 identifier,
-                 source_data,
+                 identifier: str,
+                 source_data: object,
                  *args,
-                 file_filters=tuple(),
-                 test_dates=tuple(),
-                 train_dates=tuple(),
-                 val_dates=tuple(),
+                 file_filters: object = (),
+                 test_dates: object = (),
+                 train_dates: object = (),
+                 val_dates: object = (),
                  **kwargs):
         super().__init__(*args,
                          identifier=identifier,
@@ -144,7 +184,14 @@ class Processor(DataProducer):
                             val=list(val_dates),
                             test=list(test_dates))
 
-    def init_source_data(self, lag_days=None, lead_days=None):
+    def init_source_data(self,
+                         lag_days: object = None,
+                         lead_days: object = None):
+        """
+
+        :param lag_days:
+        :param lead_days:
+        """
         if not os.path.exists(self.source_data):
             raise OSError("Source data directory {} does not exist".
                           format(self.source_data))
@@ -242,10 +289,24 @@ class Processor(DataProducer):
 
     @abstractmethod
     def process(self):
+        """
+
+        """
         raise NotImplementedError("{}.process is abstract".
                                   format(__class__.__name__))
 
-    def save_processed_file(self, var_name, name, data, **kwargs):
+    def save_processed_file(self,
+                            var_name: str,
+                            name: str,
+                            data: object, **kwargs):
+        """
+
+        :param var_name:
+        :param name:
+        :param data:
+        :param kwargs:
+        :return:
+        """
         file_path = os.path.join(
             self.get_data_var_folder(var_name, **kwargs), name)
         np.save(file_path, data)

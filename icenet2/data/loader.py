@@ -17,8 +17,18 @@ from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.producers import Generator
 from icenet2.data.cli import add_date_args, process_date_args
 
+"""
 
-def generate_and_write(path, dates_args):
+"""
+
+
+def generate_and_write(path: str, dates_args: object):
+    """
+
+    :param path:
+    :param dates_args:
+    :return:
+    """
     with tf.io.TFRecordWriter(path) as writer:
         for date in dates_args.keys():
             x, y, sample_weights = generate_sample(date, *dates_args[date])
@@ -30,18 +40,34 @@ def generate_and_write(path, dates_args):
 # FIXME: I want to get rid of the datetime calculations here, it's prone to
 #  error and the ordering is already determined. Move the sample generation
 #  to a purely list based affair, guaranteeing order and reducing duplication
-def generate_sample(forecast_date,
-                    channels,
-                    dtype,
-                    loss_weight_days,
-                    masks,
-                    meta_channels,
-                    missing_dates,
-                    n_forecast_days,
-                    num_channels,
-                    shape,
-                    var_files,
-                    output_files):
+def generate_sample(forecast_date: object,
+                    channels: object,
+                    dtype: object,
+                    loss_weight_days: bool,
+                    masks: object,
+                    meta_channels: object,
+                    missing_dates: object,
+                    n_forecast_days: int,
+                    num_channels: int,
+                    shape: object,
+                    var_files: object,
+                    output_files: object):
+    """
+
+    :param forecast_date:
+    :param channels:
+    :param dtype:
+    :param loss_weight_days:
+    :param masks:
+    :param meta_channels:
+    :param missing_dates:
+    :param n_forecast_days:
+    :param num_channels:
+    :param shape:
+    :param var_files:
+    :param output_files:
+    :return:
+    """
     # logging.debug("Forecast date {}:\n{}\n{}".format(forecast_date,
     # pformat(var_files), pformat(output_files)))
     
@@ -144,7 +170,17 @@ def generate_sample(forecast_date,
     return x, y, sample_weights
 
 
-def write_tfrecord(writer, x, y, sample_weights):
+def write_tfrecord(writer: object,
+                   x: object,
+                   y: object,
+                   sample_weights: object):
+    """
+
+    :param writer:
+    :param x:
+    :param y:
+    :param sample_weights:
+    """
     record_data = tf.train.Example(features=tf.train.Features(feature={
         "x": tf.train.Feature(
             float_list=tf.train.FloatList(value=x.reshape(-1))),
@@ -163,20 +199,30 @@ def write_tfrecord(writer, x, y, sample_weights):
 class IceNetDataLoader(Generator):
     """
 
+    :param configuration_path,
+    :param identifier,
+    :param var_lag,
+    :param dataset_config_path: 
+    :param generate_workers: 
+    :param loss_weight_days: 
+    :param n_forecast_days: 
+    :param output_batch_size: 
+    :param path: 
+    :param var_lag_override: 
     """
 
     def __init__(self,
-                 configuration_path,
-                 identifier,
-                 var_lag,
+                 configuration_path: str,
+                 identifier: str,
+                 var_lag: int,
                  *args,
-                 dataset_config_path=".",
-                 generate_workers=8,
-                 loss_weight_days=True,
-                 n_forecast_days=93,
-                 output_batch_size=32,
-                 path=os.path.join(".", "network_datasets"),
-                 var_lag_override=None,
+                 dataset_config_path: str = ".",
+                 generate_workers: int = 8,
+                 loss_weight_days: bool = True,
+                 n_forecast_days: int = 93,
+                 output_batch_size: int = 32,
+                 path: str = os.path.join(".", "network_datasets"),
+                 var_lag_override: object = None,
                  **kwargs):
         super().__init__(*args,
                          identifier=identifier,
@@ -212,6 +258,9 @@ class IceNetDataLoader(Generator):
             for s in self._config["missing_dates"]]
 
     def write_dataset_config_only(self):
+        """
+
+        """
         splits = ("train", "val", "test")
         counts = {el: 0 for el in splits}
 
@@ -235,7 +284,14 @@ class IceNetDataLoader(Generator):
 
         self._write_dataset_config(counts, network_dataset=False)
 
-    def generate(self, dates_override=None, pickup=False):
+    def generate(self,
+                 dates_override: object = None,
+                 pickup: bool = False):
+        """
+
+        :param dates_override:
+        :param pickup:
+        """
         # TODO: for each set, validate every variable has an appropriate file
         #  in the configuration arrays, otherwise drop the forecast date
         splits = ("train", "val", "test")
@@ -332,7 +388,12 @@ class IceNetDataLoader(Generator):
 
         self._write_dataset_config(counts)
 
-    def get_sample_files(self, date):
+    def get_sample_files(self, date: object) -> object:
+        """
+
+        :param date:
+        :return:
+        """
         masks = {}
         var_files = {}
 
@@ -379,7 +440,12 @@ class IceNetDataLoader(Generator):
 
         return var_files, masks, output_files
 
-    def generate_sample(self, date):
+    def generate_sample(self, date: object):
+        """
+
+        :param date:
+        :return:
+        """
         var_files, masks, output_files = self.get_sample_files(date)
 
         return generate_sample(
@@ -396,7 +462,14 @@ class IceNetDataLoader(Generator):
             var_files,
             output_files)
 
-    def _add_channel_files(self, var_name, filelist):
+    def _add_channel_files(self,
+                           var_name: str,
+                           filelist: object):
+        """
+
+        :param var_name:
+        :param filelist:
+        """
         if var_name in self._channel_files:
             logging.warning("{} already has files, but more found, "
                             "this could be an unintentional merge of "
@@ -408,6 +481,9 @@ class IceNetDataLoader(Generator):
         self._channel_files[var_name] += filelist
 
     def _construct_channels(self):
+        """
+
+        """
         # As of Python 3.7 dict guarantees the order of keys based on
         # original insertion order, which is great for this method
         lag_vars = [(identity, var, data_format)
@@ -461,9 +537,17 @@ class IceNetDataLoader(Generator):
         logging.debug("Channel quantities deduced:\n{}\n\nTotal channels: {}".
                       format(pformat(self._channels), self.num_channels))
 
-    def _get_var_file(self, var_name, date,
-                      date_format=IceNetPreProcessor.DATE_FORMAT,
-                      include_year=True):
+    def _get_var_file(self, var_name: str, date: object,
+                      date_format: str = IceNetPreProcessor.DATE_FORMAT,
+                      include_year: bool = True):
+        """
+
+        :param var_name:
+        :param date:
+        :param date_format:
+        :param include_year:
+        :return:
+        """
         filename = os.path.join("{}.npy".format(date.strftime(date_format)))
         dirs = [self.hemisphere_str[0], var_name.split("_")[0]]
 
@@ -483,7 +567,11 @@ class IceNetDataLoader(Generator):
             return None
         return files[0]
 
-    def _load_configuration(self, path):
+    def _load_configuration(self, path: str):
+        """
+
+        :param path:
+        """
         if os.path.exists(path):
             logging.info("Loading configuration {}".format(path))
 
@@ -494,7 +582,15 @@ class IceNetDataLoader(Generator):
         else:
             raise OSError("{} not found".format(path))
 
-    def _write_dataset_config(self, counts, network_dataset=True):
+    def _write_dataset_config(self,
+                              counts: object,
+                              network_dataset: bool = True):
+        """
+
+        :param counts:
+        :param network_dataset:
+        :return:
+        """
         # TODO: move to utils for this and process
         def _serialize(x):
             if x is dt.date:

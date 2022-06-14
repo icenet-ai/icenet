@@ -13,6 +13,10 @@ import matplotlib.pyplot as plt
 
 
 def parse_args():
+    """
+
+    :return:
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("file")
     ap.add_argument("configuration", type=argparse.FileType("r"))

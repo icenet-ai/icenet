@@ -22,11 +22,10 @@ ice, data, and save as daily NetCDFs.
 class ERA5Downloader(ClimateDownloader):
     """Climate downloader to provide ERA5 reanalysis data from CDS API
 
-    Args:
-        identifier (string): how to identify this dataset
-        cdi_map (map): override the default ERA5Downloader.CDI_MAP variable map
-        use_toolbox (boolean): whether to use CDS toolbox for remote aggregation
-        show_progress (boolean): whether to show download progress
+    :param identifier: how to identify this dataset
+    :param cdi_map: override the default ERA5Downloader.CDI_MAP variable map
+    :param use_toolbox: whether to use CDS toolbox for remote aggregation
+    :param show_progress: whether to show download progress
     """
 
     CDI_MAP = {
@@ -44,10 +43,10 @@ class ERA5Downloader(ClimateDownloader):
 
     def __init__(self,
                  *args,
-                 identifier="era5",
-                 cdi_map=CDI_MAP,
-                 use_toolbox=True,
-                 show_progress=False,
+                 identifier: str = "era5",
+                 cdi_map: object = CDI_MAP,
+                 use_toolbox: bool = True,
+                 show_progress: bool = False,
                  **kwargs):
         super().__init__(*args,
                          identifier=identifier,
@@ -64,13 +63,15 @@ class ERA5Downloader(ClimateDownloader):
             )
             self.client.session.mount("https://", adapter)
 
-    def _single_download(self, var_prefix, pressure, req_dates):
+    def _single_download(self,
+                         var_prefix: str,
+                         pressure: object,
+                         req_dates: object):
         """Implements a single download from CDS API
 
-        Args:
-            var_prefix (string): the icenet variable name
-            pressure (int): the pressure level to download
-            req_date (datetime): the request date
+        :param var_prefix: the icenet variable name
+        :param pressure: the pressure level to download
+        :param req_dates: the request date
         """
         # FIXME: confirmed, but the year start year end naming is a bit weird,
         #  hang up from the icenet port but we might want to consider relevance,
@@ -115,12 +116,22 @@ class ERA5Downloader(ClimateDownloader):
                                          downloads)
 
     def _single_toolbox_download(self,
-                                 var_prefix,
-                                 var,
-                                 var_folder,
-                                 pressure,
-                                 req_date,
-                                 downloads):
+                                 var_prefix: str,
+                                 var: str,
+                                 var_folder: str,
+                                 pressure: object,
+                                 req_date: object,
+                                 downloads: object):
+        """Implements a single download from CDS Toolbox API
+
+        :param var_prefix: the icenet variable name
+        :param var:
+        :param var_folder:
+        :param pressure: the pressure level to download
+        :param req_date: the request date
+        :param downloads:
+        """
+
         if len(downloads) > 0:
             logging.debug("Processing {} dates".format(len(downloads)))
 
@@ -199,12 +210,22 @@ class ERA5Downloader(ClimateDownloader):
                 os.unlink(temp_download_path)
 
     def _single_api_download(self,
-                             var_prefix,
-                             var,
-                             var_folder,
-                             pressure,
-                             req_date,
-                             downloads):
+                             var_prefix: str,
+                             var: str,
+                             var_folder: str,
+                             pressure: object,
+                             req_date: object,
+                             downloads: object):
+        """Implements a single download from CDS API
+
+        :param var_prefix: the icenet variable name
+        :param var:
+        :param var_folder:
+        :param pressure: the pressure level to download
+        :param req_date: the request date
+        :param downloads:
+        """
+
         if len(downloads) > 0:
             logging.debug("Processing {} dates".format(len(downloads)))
 
@@ -251,9 +272,15 @@ class ERA5Downloader(ClimateDownloader):
             logging.debug("No dates needing downloading for {}".format(var))
 
     def _cds_file_process(self,
-                          temp_download_path,
-                          var,
-                          var_folder):
+                          temp_download_path: str,
+                          var: str,
+                          var_folder: str):
+        """Processing of downloaded files
+
+        :param temp_download_path: the downloaded file
+        :param var:
+        :param var_folder:
+        """
         da = xr.open_dataarray(temp_download_path)
 
         if 'expver' in da.coords:
@@ -278,10 +305,22 @@ class ERA5Downloader(ClimateDownloader):
                 da_daily.sel(time=slice(day, day)).to_netcdf(daily_path)
                 self._files_downloaded.append(daily_path)
 
-    def _get_dates_for_request(self):
+    def _get_dates_for_request(self) -> object:
+        """Appropriate monthly batching of dates for CDS requests
+
+        :return:
+
+        """
         return batch_requested_dates(self._dates, attribute="month")
 
-    def additional_regrid_processing(self, datafile, cube_ease):
+    def additional_regrid_processing(self,
+                                     datafile: str,
+                                     cube_ease: object):
+        """
+
+        :param datafile:
+        :param cube_ease:
+        """
         (datafile_path, datafile_name) = os.path.split(datafile)
         var_name = datafile_path.split(os.sep)[self._var_name_idx]
 

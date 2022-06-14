@@ -1,5 +1,10 @@
 import os
 
+"""
+
+# TODO: any actual usages left?
+"""
+
 FOLDERS = {
     # TODO: add cache - data is not really the dataset for the model
     'data': 'data',
@@ -16,6 +21,5 @@ FILENAMES = {
 
 
 __all__ = [
-    "ACTIVE_GRID_CELL_MASK_FORMAT",
     "FILENAMES", "FOLDERS"
 ]

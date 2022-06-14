@@ -13,8 +13,39 @@ from icenet2.data.producers import Processor
 from icenet2.data.sic.mask import Masks
 from icenet2.model.models import linear_trend_forecast
 
+"""
+
+"""
+
 
 class IceNetPreProcessor(Processor):
+    """
+
+    :param abs_vars: 
+    :param anom_vars: 
+    :param name: 
+    :param train_dates:
+    :param val_dates: 
+    :param test_dates: 
+    :param *args: 
+    :param data_shape: 
+    :param dtype: 
+    :param exclude_vars: 
+    :param file_filters: 
+    :param identifier: 
+    :param linear_trends: 
+    :param linear_trend_days: 
+    :param meta_vars: 
+    :param missing_dates: 
+    :param minmax: 
+    :param no_normalise: 
+    :param path: 
+    :param ref_procdir: 
+    :param source_data: 
+    :param update_key: 
+    :param update_loader: 
+    """
+
     DATE_FORMAT = "%Y_%m_%d"
 
     def __init__(self,
@@ -79,6 +110,9 @@ class IceNetPreProcessor(Processor):
             if update_loader else None
 
     def process(self):
+        """
+
+        """
         for var_name in self._abs_vars + self._anom_vars:
             if var_name not in self._var_files.keys():
                 logging.warning("{} does not exist".format(var_name))
@@ -88,18 +122,34 @@ class IceNetPreProcessor(Processor):
         if self._update_loader:
             self.update_loader_config()
 
-    def pre_normalisation(self, var_name, da):
+    def pre_normalisation(self, var_name: str, da: object):
+        """
+
+        :param var_name:
+        :param da:
+        :return:
+        """
         logging.debug("No pre normalisation implemented for {}".
                       format(var_name))
         return da
 
-    def post_normalisation(self, var_name, da):
+    def post_normalisation(self, var_name: str, da: object):
+        """
+
+        :param var_name:
+        :param da:
+        :return:
+        """
         logging.debug("No post normalisation implemented for {}".
                       format(var_name))
         return da
 
     # TODO: update this to store parameters, if appropriate
     def update_loader_config(self):
+        """
+
+        :return:
+        """
         def _serialize(x):
             if x is dt.date:
                 return x.strftime(IceNetPreProcessor.DATE_FORMAT)
@@ -167,7 +217,11 @@ class IceNetPreProcessor(Processor):
         with open(self._update_loader, "w") as fh:
             json.dump(configuration, fh, indent=4, default=_serialize)
 
-    def _save_variable(self, var_name):
+    def _save_variable(self, var_name: str):
+        """
+
+        :param var_name:
+        """
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             da = self._open_dataarray_from_files(var_name)
 
@@ -236,18 +290,13 @@ class IceNetPreProcessor(Processor):
 
             self._save_output(da, var_name)
 
-    def _save_output(self, da, var_name):
-
+    def _save_output(self, da: object, var_name: str):
         """
         Saves an xarray DataArray as daily averaged .npy files using the
         self.paths data structure.
-        Parameters:
-        da (xarray.DataArray): The DataArray to save.
-        dataset_type (str): Either 'obs' or 'transfer' (for CMIP6 data) - the
-        type of dataset being saved.
-        varname (str): Variable name being saved.
-        data_format (str): Either 'abs' or 'anom' - the format of the data
-        being saved.
+
+        :param da:
+        :param var_name:
         """
 
         for date in da.time.values:
@@ -259,12 +308,15 @@ class IceNetPreProcessor(Processor):
             self.save_processed_file(var_name, fname, slice,
                                      append=[str(date.year)])
 
-    def _open_dataarray_from_files(self, var_name):
+    def _open_dataarray_from_files(self, var_name: str):
 
         """
         Open the yearly xarray files, accounting for some ERA5 variables that
         have erroneous 'unknown' NetCDF variable names which prevents
         concatentation.
+
+        :param var_name:
+        :return:
         """
 
         logging.info("Opening files for {}".format(var_name))
@@ -320,11 +372,13 @@ class IceNetPreProcessor(Processor):
         return da
 
     @staticmethod
-    def mean_and_std(array):
+    def mean_and_std(array: object):
         """
         Return the mean and standard deviation of an array-like object (intended
         use case is for normalising a raw satellite data array based on a list
         of samples used for training).
+        :param array:
+        :return:
         """
 
         mean = np.nanmean(array)
@@ -335,7 +389,7 @@ class IceNetPreProcessor(Processor):
 
         return mean, std
 
-    def _normalise_array_mean(self, var_name, da):
+    def _normalise_array_mean(self, var_name: str, da: object):
 
         """
         Using the *training* data only, compute the mean and
@@ -347,11 +401,9 @@ class IceNetPreProcessor(Processor):
         those values are used rather than being computed from the training
         months.
 
-        Returns:
-        new_da (xarray.DataArray): Normalised array.
-        mean, std (float): Pre-computed mean and standard deviation for the
-        normalisation.
-        min, max (float): Pre-computed min and max for the normalisation.
+        :param var_name:
+        :param da:
+        :return:
         """
 
         if self._refdir:
@@ -384,7 +436,13 @@ class IceNetPreProcessor(Processor):
                                              [mean, std]]))
         return new_da
 
-    def _normalise_array_scaling(self, var_name, da):
+    def _normalise_array_scaling(self, var_name: str, da: object):
+        """
+
+        :param var_name:
+        :param da:
+        :return:
+        """
         if self._refdir:
             logging.info("Using alternate processing directory {} for "
                          "scaling".format(self._refdir))
@@ -416,12 +474,18 @@ class IceNetPreProcessor(Processor):
                                               [minimum, maximum]]))
         return new_da
 
-    def _build_linear_trend_da(self, input_da, var_name, max_years=35):
+    def _build_linear_trend_da(self,
+                               input_da: object,
+                               var_name: str,
+                               max_years: int = 35):
         """
         Construct a DataArray `linear_trend_da` containing the linear trend SIC
         forecasts based on the input DataArray `input_da`.
-        `input_da` (xarray.DataArray): Input DataArray to produce linear SIC
-        forecasts for.
+
+        :param input_da:
+        :param var_name:
+        :param max_years:
+        :return:
         """
 
         data_dates = sorted([pd.Timestamp(date)

@@ -1,13 +1,7 @@
-import argparse
-import concurrent.futures
-import datetime as dt
 import glob
 import json
 import logging
 import os
-
-# https://stackoverflow.com/questions/55852831/
-# tf-data-vs-keras-utils-sequence-performance
 
 import numpy as np
 import tensorflow as tf
@@ -15,8 +9,29 @@ import tensorflow as tf
 from icenet2.data.loader import IceNetDataLoader
 from icenet2.data.producers import DataCollection
 
+"""
 
-def get_decoder(shape, channels, forecasts, num_vars=1, dtype="float32"):
+
+https://stackoverflow.com/questions/55852831/
+tf-data-vs-keras-utils-sequence-performance
+
+"""
+
+
+def get_decoder(shape: object,
+                channels: object,
+                forecasts: object,
+                num_vars: int = 1,
+                dtype: str = "float32") -> object:
+    """
+
+    :param shape:
+    :param channels:
+    :param forecasts:
+    :param num_vars:
+    :param dtype:
+    :return:
+    """
     xf = tf.io.FixedLenFeature(
         [*shape, channels], getattr(tf, dtype))
     yf = tf.io.FixedLenFeature(
@@ -41,17 +56,26 @@ def get_decoder(shape, channels, forecasts, num_vars=1, dtype="float32"):
 # TODO: define a decent interface and sort the inheritance architecture out, as
 #  this will facilitate the new datasets in #35
 class SplittingMixin:
-    _batch_size = None
-    _dtype = None
-    _num_channels = None
-    _n_forecast_days = None
-    _shape = None
+    """
+
+    """
+
+    _batch_size: int
+    _dtype: object
+    _num_channels: int
+    _n_forecast_days: int
+    _shape: int
 
     train_fns = []
     test_fns = []
     val_fns = []
 
-    def add_records(self, base_path, hemi):
+    def add_records(self, base_path: str, hemi: str):
+        """
+
+        :param base_path:
+        :param hemi:
+        """
         train_path = os.path.join(base_path, hemi, "train")
         val_path = os.path.join(base_path, hemi, "val")
         test_path = os.path.join(base_path, hemi, "test")
@@ -63,7 +87,12 @@ class SplittingMixin:
         logging.info("Test dataset path: {}".format(test_path))
         self.test_fns += glob.glob("{}/*.tfrecord".format(test_path))
 
-    def get_split_datasets(self, ratio=None):
+    def get_split_datasets(self, ratio: object = None):
+        """
+
+        :param ratio:
+        :return:
+        """
         if not (len(self.train_fns) + len(self.val_fns) + len(self.test_fns)):
             raise RuntimeError("No files have been found, abandoning...")
 
@@ -147,11 +176,18 @@ class SplittingMixin:
 
 
 class IceNetDataSet(SplittingMixin, DataCollection):
+    """
+
+    :param configuration_path:
+    :param batch_size:
+    :param path:
+    """
+
     def __init__(self,
-                 configuration_path,
+                 configuration_path: str,
                  *args,
-                 batch_size=4,
-                 path=os.path.join(".", "network_datasets"),
+                 batch_size: int = 4,
+                 path: str = os.path.join(".", "network_datasets"),
                  **kwargs):
         self._config = dict()
         self._configuration_path = configuration_path
@@ -180,7 +216,11 @@ class IceNetDataSet(SplittingMixin, DataCollection):
             logging.warning("Running in configuration only mode, tfrecords "
                             "were not generated for this dataset")
 
-    def _load_configuration(self, path):
+    def _load_configuration(self, path: str):
+        """
+
+        :param path:
+        """
         if os.path.exists(path):
             logging.info("Loading configuration {}".format(path))
 
@@ -192,6 +232,10 @@ class IceNetDataSet(SplittingMixin, DataCollection):
             raise OSError("{} not found".format(path))
 
     def get_data_loader(self):
+        """
+
+        :return:
+        """
         # TODO: this invocation in config only mode will lead to the
         #  generation of a network_dataset directory unnecessarily. This
         #  loader_path logic needs sorting out a bit better, as it's gotten
@@ -225,12 +269,20 @@ class IceNetDataSet(SplittingMixin, DataCollection):
 
 
 class MergedIceNetDataSet(SplittingMixin, DataCollection):
+    """
+
+    :param identifier:
+    :param configuration_path:
+    :param batch_size:
+    :param path:
+    """
+
     def __init__(self,
-                 identifier,
-                 configuration_paths,
+                 identifier: str,
+                 configuration_paths: object,
                  *args,
-                 batch_size=4,
-                 path=os.path.join(".", "network_datasets"),
+                 batch_size: int = 4,
+                 path: str = os.path.join(".", "network_datasets"),
                  **kwargs):
         self._config = dict()
         self._configuration_paths = [configuration_paths] \
@@ -253,11 +305,18 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         self._init_records()
 
     def _init_records(self):
+        """
+
+        """
         for idx, loader_path in enumerate(self._config["loader_paths"]):
             hemi = self._config["loaders"][idx].hemisphere_str[0]
             self.add_records(self.base_path, hemi)
 
-    def _load_configurations(self, paths):
+    def _load_configurations(self, paths: object):
+        """
+
+        :param paths:
+        """
         self._config = dict(
             loader_paths=[],
             loaders=[],
@@ -275,7 +334,12 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             else:
                 raise OSError("{} not found".format(path))
 
-    def _merge_configurations(self, path, other):
+    def _merge_configurations(self, path: str, other: object):
+        """
+
+        :param path:
+        :param other:
+        """
         loader = IceNetDataLoader(other["loader_config"],
                                   other["identifier"],
                                   other["var_lag"],
@@ -310,6 +374,10 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         self._config["south"] = True if loader.south else self._config["south"]
 
     def get_data_loader(self):
+        """
+
+        :return:
+        """
         assert len(self._configuration_paths) == 1, "Configuration mode is " \
                                                     "only for single loader" \
                                                     "datasets: {}".format(
