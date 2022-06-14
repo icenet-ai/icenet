@@ -4,8 +4,6 @@ import logging
 import os
 import re
 
-from itertools import product
-
 import icenet2.model.models as models
 
 from icenet2.data.dataset import IceNetDataSet
@@ -13,18 +11,35 @@ from icenet2.data.dataset import IceNetDataSet
 import numpy as np
 import tensorflow as tf
 
+"""
+
+"""
+
 
 def predict_forecast(
-    dataset_config,
-    network_name,
-    dataset_name=None,
-    model_func=models.unet_batchnorm,
-    n_filters_factor=1/8,
-    network_folder=None,
-    seed=42,
-    start_dates=tuple([dt.datetime.now().date()]),
-    testset=False,
-):
+        dataset_config: object,
+        network_name: object,
+        dataset_name: object = None,
+        model_func: object = models.unet_batchnorm,
+        n_filters_factor: float = 1 / 8,
+        network_folder: object = None,
+        seed: int = 42,
+        start_dates: object = tuple([dt.datetime.now().date()]),
+        testset: bool = False,
+) -> object:
+    """
+
+    :param dataset_config:
+    :param network_name:
+    :param dataset_name:
+    :param model_func:
+    :param n_filters_factor:
+    :param network_folder:
+    :param seed:
+    :param start_dates:
+    :param testset:
+    :return:
+    """
     ds = IceNetDataSet(dataset_config)
     dl = ds.get_data_loader()
 
@@ -105,12 +120,21 @@ def predict_forecast(
     return predictions, gen_outputs, sample_weights
 
 
-def date_arg(string):
+def date_arg(string: str) -> object:
+    """
+
+    :param string:
+    :return:
+    """
     date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
     return dt.date(*[int(s) for s in date_match.groups()])
 
 
 def get_args():
+    """
+
+    :return:
+    """
     # -b 1 -e 1 -w 1 -n 0.125
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset")

@@ -12,7 +12,18 @@ import iris.analysis
 from icenet2.process.utils import date_arg
 
 
-def broadcast_forecast(start_date, end_date, datafiles, target=None):
+def broadcast_forecast(start_date: object,
+                       end_date: object,
+                       datafiles: object,
+                       target: object = None) -> object:
+    """
+
+    :param start_date:
+    :param end_date:
+    :param datafiles:
+    :param target:
+    :return:
+    """
     logging.info("Using {} to generate forecast through {} to {}".
                  format(", ".join(datafiles), start_date, end_date))
     ds = xr.open_mfdataset(datafiles, engine="netcdf4")
@@ -64,7 +75,15 @@ def broadcast_forecast(start_date, end_date, datafiles, target=None):
     return target_ds
 
 
-def reproject_output(forecast_file, proj_file, save_file):
+def reproject_output(forecast_file: object,
+                     proj_file: object,
+                     save_file: object) -> object:
+    """
+
+    :param forecast_file:
+    :param proj_file:
+    :param save_file:
+    """
     logging.info("Loading forecast {}".format(forecast_file))
     forecast_cube = iris.load_cube(forecast_file)
 

@@ -4,12 +4,20 @@ import os
 from icenet2.data.cli import process_args, process_date_args
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.sic.mask import Masks
-from icenet2.data.processors.utils import SICInterpolation
+from icenet2.data.processors.utils import sic_interpolate
+
+"""
+
+"""
 
 
 class IceNetOSIPreProcessor(IceNetPreProcessor):
+    """
+
+    :param missing_dates:
+    """
     def __init__(self, *args,
-                 missing_dates=None,
+                 missing_dates: object = None,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
 
@@ -27,13 +35,21 @@ class IceNetOSIPreProcessor(IceNetPreProcessor):
                               for line in fh.readlines()]
         self.missing_dates = list(set(missing_dates))
 
-    def pre_normalisation(self, var_name, da):
+    def pre_normalisation(self,
+                          var_name: str,
+                          da: object):
+        """
+
+        :param var_name:
+        :param da:
+        :return:
+        """
         if var_name != "siconca":
             raise RuntimeError("OSISAF SIC implementation should be dealing "
                                "with siconca, ")
         else:
             masks = Masks(north=self.north, south=self.south)
-            return SICInterpolation.interpolate(da, masks)
+            return interpolate(da, masks)
 
 
 def main():

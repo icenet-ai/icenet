@@ -20,16 +20,31 @@ from icenet2.utils import run_command
 import iris
 import iris.exceptions
 
+"""
+
+"""
+
 
 class ClimateDownloader(Downloader):
+    """Climate downloader base class
+
+    :param dates:
+    :param delete_tempfiles:
+    :param max_threads:
+    :param pregrid_prefix:
+    :param pressure_levels:
+    :param var_name_idx:
+    :param var_names:
+    """
+
     def __init__(self, *args,
-                 dates=(),
-                 delete_tempfiles=True,
-                 max_threads=1,
-                 pregrid_prefix="latlon_",
-                 pressure_levels=(),
-                 var_name_idx=-2,
-                 var_names=(),
+                 dates: object = (),
+                 delete_tempfiles: bool = True,
+                 max_threads: int = 1,
+                 pregrid_prefix: str = "latlon_",
+                 pressure_levels: object = (),
+                 var_name_idx: int = -2,
+                 var_names: object = (),
                  **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -53,11 +68,18 @@ class ClimateDownloader(Downloader):
         self._validate_config()
 
     def _validate_config(self):
+        """
+
+        """
         if self.hemisphere_str in os.path.split(self.base_path):
             raise RuntimeError("Don't include hemisphere string {} in "
                                "base path".format(self.hemisphere_str))
 
     def download(self):
+        """
+
+        """
+
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))
 
@@ -96,14 +118,30 @@ class ClimateDownloader(Downloader):
 
     @abstractmethod
     def _get_dates_for_request(self):
+        """
+
+        """
         raise NotImplementedError("Missing {} implementation".format(__name__))
 
     @abstractmethod
-    def _single_download(self, var_prefix, pressure, req_date):
+    def _single_download(self,
+                         var_prefix: str,
+                         pressure: int,
+                         req_date: object):
+        """
+
+        :param var_prefix:
+        :param pressure:
+        :param req_date:
+        """
         raise NotImplementedError("Missing {} implementation".format(__name__))
 
     @property
     def sic_ease_cube(self):
+        """
+
+        :return sic_cube:
+        """
         if self._hemisphere not in self._sic_ease_cubes:
             sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'. \
                 format(SIC_HEMI_STR[self.hemisphere_str[0]])
@@ -133,7 +171,11 @@ class ClimateDownloader(Downloader):
         return self._sic_ease_cubes[self._hemisphere]
 
     def regrid(self,
-               files=None):
+               files: object = None):
+        """
+
+        :param files:
+        """
         filelist = self._files_downloaded if not files else files
         batches = [filelist[b:b + 1000] for b in range(0, len(filelist), 1000)]
 
@@ -157,7 +199,12 @@ class ClimateDownloader(Downloader):
         else:
             logging.info("No regrid batches to processing, moving on...")
 
-    def _batch_regrid(self, files):
+    def _batch_regrid(self,
+                      files: object):
+        """
+
+        :param files:
+        """
         for datafile in files:
             (datafile_path, datafile_name) = os.path.split(datafile)
             # TODO: mmmm, need to keep consistent with get_daily_filenames
@@ -200,25 +247,35 @@ class ClimateDownloader(Downloader):
                 logging.info("Removing {}".format(datafile))
                 os.remove(datafile)
 
-    def convert_cube(self, cube):
+    def convert_cube(self, cube: object):
         """Converts Iris cube to be fit for regrid
 
-        Params:
-            cube:   the cube requiring alteration
-        Returns:
-            cube:   the altered cube
+        :param cube: the cube requiring alteration
+        :return cube: the altered cube
         """
 
         cube = assign_lat_lon_coord_system(cube)
         return cube
 
     @abstractmethod
-    def additional_regrid_processing(self, datafile, cube_ease):
+    def additional_regrid_processing(self,
+                                     datafile: str,
+                                     cube_ease: object):
+        """
+
+        :param datafile:
+        :param cube_ease:
+        """
         pass
 
     def rotate_wind_data(self,
-                         apply_to=("uas", "vas"),
-                         manual_files=None):
+                         apply_to: object = ("uas", "vas"),
+                         manual_files: object = None):
+        """
+
+        :param apply_to:
+        :param manual_files:
+        """
         assert len(apply_to) == 2, "Too many wind variables supplied: {}, " \
                                    "there should only be two.".\
             format(", ".join(apply_to))
@@ -301,7 +358,15 @@ class ClimateDownloader(Downloader):
                 iris.save(wind_cubes_r[apply_to[i]], temp_name)
                 os.replace(temp_name, name)
 
-    def get_daily_filenames(self, var_folder, date_str):
+    def get_daily_filenames(self,
+                            var_folder: str,
+                            date_str: str):
+        """
+
+        :param var_folder:
+        :param date_str:
+        :return:
+        """
         daily_path = os.path.join(var_folder,
                                   "{}{}.nc".format(self.pregrid_prefix,
                                                    date_str))

@@ -6,6 +6,10 @@ from enum import Flag, auto
 
 
 class Hemisphere(Flag):
+    """
+
+    """
+
     NONE = 0
     NORTH = auto()
     SOUTH = auto()
@@ -13,6 +17,10 @@ class Hemisphere(Flag):
 
 
 class HemisphereMixin:
+    """
+
+    """
+
     _hemisphere = Hemisphere.NONE
 
     @property
@@ -44,23 +52,21 @@ class HemisphereMixin:
         return self._hemisphere & Hemisphere.BOTH
 
 
-def run_command(commandstr, dry=False):
+def run_command(command: str, dry: bool = False):
     """Run a shell command
 
     A wrapper in case we want some additional handling to go in here
 
-    Args:
-        commandstr (str): command to run in a shell
-    Returns:
-        retcode (int): return code
-    Raises:
-        OSError: from subprocess
+    :param command:
+    :param dry:
+    :return:
+
     """
     if dry:
-        logging.info("Skipping dry commaand: {}".format(commandstr))
+        logging.info("Skipping dry commaand: {}".format(command))
         return 0
 
-    ret = sp.run(commandstr, shell=True)
+    ret = sp.run(command, shell=True)
     if ret.returncode < 0:
         logging.warning("Child was terminated by signal: {}".
                         format(-ret.returncode))

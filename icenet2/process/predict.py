@@ -18,12 +18,21 @@ from icenet2.utils import run_command
 from pprint import pprint
 
 
-def date_arg(string):
+def date_arg(string: str) -> object:
+    """
+
+    :param string:
+    :return:
+    """
     date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
     return dt.date(*[int(s) for s in date_match.groups()])
 
 
 def get_args():
+    """
+
+    :return:
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("name")
     ap.add_argument("dataset")
@@ -38,7 +47,13 @@ def get_args():
     return ap.parse_args()
 
 
-def get_refsic(north=True, south=False):
+def get_refsic(north: bool = True, south: bool = False) -> object:
+    """
+
+    :param north:
+    :param south:
+    :return:
+    """
     assert north or south, "Select one hemisphere at least..."
 
     str = "nh" if north else "sh"
@@ -60,7 +75,13 @@ def get_refsic(north=True, south=False):
     return os.path.join(sic_day_path, sic_day_fname)
 
 
-def get_refcube(north=True, south=False):
+def get_refcube(north: bool = True, south: bool = False) -> object:
+    """
+
+    :param north:
+    :param south:
+    :return:
+    """
     assert north or south, "Select one hemisphere at least..."
 
     path = get_refsic(north, south)
@@ -69,7 +90,16 @@ def get_refcube(north=True, south=False):
     return cube
 
 
-def get_prediction_data(root, name, date):
+def get_prediction_data(root: object,
+                        name: object,
+                        date: object) -> object:
+    """
+
+    :param root:
+    :param name:
+    :param date:
+    :return:
+    """
     logging.info("Post-processing {}".format(date))
 
     glob_str = os.path.join(root,
@@ -95,6 +125,9 @@ def get_prediction_data(root, name, date):
 
 
 def create_cf_output():
+    """
+
+    """
     args = get_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)

@@ -8,7 +8,14 @@ import pandas as pd
 import xarray as xr
 
 
-def batch_requested_dates(dates, attribute="month"):
+def batch_requested_dates(dates: object,
+                          attribute: str = "month") -> object:
+    """
+
+    :param dates:
+    :param attribute:
+    :return:
+    """
     dates = collections.deque(sorted(dates))
 
     batched_dates = []
@@ -33,9 +40,24 @@ def batch_requested_dates(dates, attribute="month"):
     return batched_dates
 
 
-def reprocess_monthlies(source, hemisphere, identifier, output_base,
-                        dry=False,
-                        var_names=[]):
+def reprocess_monthlies(source: str,
+                        hemisphere: str,
+                        identifier: str,
+                        output_base: str,
+                        dry: bool = False,
+                        var_names: object = None):
+    """
+
+    :param source:
+    :param hemisphere:
+    :param identifier:
+    :param output_base:
+    :param dry:
+    :param var_names:
+    """
+    if not var_names:
+        var_names = []
+
     for var_name in var_names:
         var_path = os.path.join(source, hemisphere, var_name)
         files = glob.glob("{}/{}_*.nc".format(var_path, var_name))
@@ -92,8 +114,19 @@ def reprocess_monthlies(source, hemisphere, identifier, output_base,
                     daily.to_netcdf(output_path)
 
 
-def add_time_dim(source, hemisphere, identifier,
-                 dry=False, var_names=[]):
+def add_time_dim(source: str,
+                 hemisphere: str,
+                 identifier: str,
+                 dry: bool = False,
+                 var_names: object = []):
+    """
+
+    :param source:
+    :param hemisphere:
+    :param identifier:
+    :param dry:
+    :param var_names:
+    """
     files = {}
 
     for var_name in var_names:
@@ -166,6 +199,10 @@ def add_time_dim(source, hemisphere, identifier,
 
 
 def get_args():
+    """
+
+    :return:
+    """
     a = argparse.ArgumentParser()
     a.add_argument("-d", "--dry", default=False, action="store_true")
     a.add_argument("-o", "--output", default="./data")
