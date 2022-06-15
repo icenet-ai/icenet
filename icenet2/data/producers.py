@@ -208,6 +208,9 @@ class Processor(DataProducer):
             for date in sorted(dates):
                 try:
                     match_dfs = dt_series[date.strftime("%Y-%m-%d")]
+
+                    if type(match_dfs) == str:
+                        match_dfs = [match_dfs]
                 except KeyError:
                     logging.info("No data found for {}, outside data boundary "
                                  "perhaps?".format(date.strftime("%Y-%m-%d")))
