@@ -224,10 +224,6 @@ def train_model(
         )
 
     if pre_load_network:
-        if not os.path.exists(pre_load_path):
-            raise RuntimeError("{} does not exist for pre load...".
-                               format(pre_load_path))
-
         logging.info("Loading network weights from {}".
                      format(pre_load_path))
         network.load_weights(pre_load_path)
