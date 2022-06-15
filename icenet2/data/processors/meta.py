@@ -7,12 +7,23 @@ from icenet2.data.cli import process_args
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.sic.mask import Masks
 
+"""
+
+"""
+
 
 class IceNetMetaPreProcessor(IceNetPreProcessor):
+    """
+
+    :param name:
+    :param include_circday:
+    :param include_land:
+    """
+
     def __init__(self,
-                 name,
-                 include_circday=True,
-                 include_land=True,
+                 name: str,
+                 include_circday: bool = True,
+                 include_land: bool = True,
                  **kwargs):
         super().__init__(abs_vars=[],
                          anom_vars=[],
@@ -27,10 +38,20 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
         self._include_circday = include_circday
         self._include_land = include_land
 
-    def init_source_data(self, lag_days=None, lead_days=None):
+    def init_source_data(self,
+                         lag_days: object = None,
+                         lead_days: object = None):
+        """
+
+        :param lag_days:
+        :param lead_days:
+        """
         raise NotImplementedError("No need to execute implementation for meta")
 
     def process(self):
+        """
+
+        """
         if self._include_circday:
             self._save_circday()
 
@@ -43,6 +64,9 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
             self.update_loader_config()
 
     def _save_land(self):
+        """
+
+        """
         land_mask = Masks(north=self.north, south=self.south).get_land_mask()
         land_map = np.ones(self._data_shape, dtype=self._dtype)
         land_map[~land_mask] = -1.
@@ -61,6 +85,9 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
             self.processed_files["land"].append(link_path)
 
     def _save_circday(self):
+        """
+
+        """
         for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
             if self.north:
                 circday = date.dayofyear

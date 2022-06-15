@@ -2,21 +2,24 @@ import tensorflow as tf
 
 
 class WeightedMSE(tf.keras.losses.MeanSquaredError):
-    ''' Custom keras loss/metric for mean squared error
-    '''
+    """Custom keras loss/metric for mean squared error
 
-    def __init__(self, name='mse', **kwargs):
+    :param name:
+    """
+
+    def __init__(self,
+                 name: str = 'mse', **kwargs):
         super().__init__(name=name, **kwargs)
 
-    def __call__(self, y_true, y_pred, sample_weight=None):
+    def __call__(self,
+                 y_true: object,
+                 y_pred: object,
+                 sample_weight: object = None):
         """
-        Parameters:
-        y_true (ndarray): Ground truth outputs
-        y_pred (ndarray): Network predictions
-        sample_weight (ndarray): Pixelwise mask weighting for metric summation
-
-        Returns:
-        Mean squared error of SIC (%) (float)
+        :param y_true: Ground truth outputs
+        :param y_pred: Network predictions
+        :param sample_weight: Pixelwise mask weighting for metric summation
+        :return: Mean squared error of SIC (%) (float)
         """
 
         # TF automatically reduces along final dimension - include dummy axis

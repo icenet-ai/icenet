@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 import icenet2
 
-"""Setup module for Icenet2 - draft module
+"""Setup module for Icenet2
 """
 
 with open("README.md", "r") as fh:

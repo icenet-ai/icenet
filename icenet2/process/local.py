@@ -10,6 +10,10 @@ from icenet2.process.utils import date_arg, destination_filename
 
 
 def upload_parse_args():
+    """
+
+    :return:
+    """
     a = argparse.ArgumentParser()
 
     a.add_argument("filename")
@@ -22,6 +26,9 @@ def upload_parse_args():
 
 
 def upload():
+    """
+
+    """
     args = upload_parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)

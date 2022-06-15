@@ -25,35 +25,68 @@ import icenet2.model.models as models
 
 
 def train_model(
-        run_name,
-        dataset_config,
-        batch_size=4,
-        checkpoint_monitor='val_rmse',
-        checkpoint_mode='min',
-        dataset_class=IceNetDataSet,
-        dataset_ratio=None,
-        early_stopping_patience=30,
-        epochs=2,
-        filter_size=3,
-        learning_rate=1e-4,
-        lr_10e_decay_fac=1.0,
-        lr_decay_start=10,
-        lr_decay_end=30,
-        max_queue_size=3,
-        model_func=models.unet_batchnorm,
-        n_filters_factor=2,
-        network_folder=None,
-        network_save=True,
-        pre_load_network=False,
-        pre_load_path=None,
-        seed=42,
-        strategy=tf.distribute.get_strategy(),
-        training_verbosity=1,
-        workers=5,
-        use_multiprocessing=True,
-        use_tensorboard=True,
-        use_wandb=True,
-        wandb_offline=False):
+        run_name: object,
+        dataset_config: object,
+        batch_size: int = 4,
+        checkpoint_monitor: str = 'val_rmse',
+        checkpoint_mode: str = 'min',
+        dataset_class: object = IceNetDataSet,
+        dataset_ratio: object = None,
+        early_stopping_patience: int = 30,
+        epochs: int = 2,
+        filter_size: float = 3,
+        learning_rate: float = 1e-4,
+        lr_10e_decay_fac: float = 1.0,
+        lr_decay_start: float = 10,
+        lr_decay_end: float = 30,
+        max_queue_size: int = 3,
+        model_func: object = models.unet_batchnorm,
+        n_filters_factor: float = 2,
+        network_folder: object = None,
+        network_save: bool = True,
+        pre_load_network: bool = False,
+        pre_load_path: object = None,
+        seed: int = 42,
+        strategy: object = tf.distribute.get_strategy(),
+        training_verbosity: int = 1,
+        workers: int = 5,
+        use_multiprocessing: bool = True,
+        use_tensorboard: bool = True,
+        use_wandb: bool = True,
+        wandb_offline: bool = False) -> object:
+    """
+
+    :param run_name:
+    :param dataset_config:
+    :param batch_size:
+    :param checkpoint_monitor:
+    :param checkpoint_mode:
+    :param dataset_class:
+    :param dataset_ratio:
+    :param early_stopping_patience:
+    :param epochs:
+    :param filter_size:
+    :param learning_rate:
+    :param lr_10e_decay_fac:
+    :param lr_decay_start:
+    :param lr_decay_end:
+    :param max_queue_size:
+    :param model_func:
+    :param n_filters_factor:
+    :param network_folder:
+    :param network_save:
+    :param pre_load_network:
+    :param pre_load_path:
+    :param seed:
+    :param strategy:
+    :param training_verbosity:
+    :param workers:
+    :param use_multiprocessing:
+    :param use_tensorboard:
+    :param use_wandb:
+    :param wandb_offline:
+    :return:
+    """
     logging.info("Setting seed value {}".format(seed))
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
@@ -191,6 +224,10 @@ def train_model(
         )
 
     if pre_load_network:
+        if not os.path.exists(pre_load_path):
+            raise RuntimeError("{} does not exist for pre load...".
+                               format(pre_load_path))
+
         logging.info("Loading network weights from {}".
                      format(pre_load_path))
         network.load_weights(pre_load_path)
@@ -216,6 +253,10 @@ def train_model(
 
 
 def get_args():
+    """
+
+    :return:
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset", type=str)
     ap.add_argument("run_name", type=str)

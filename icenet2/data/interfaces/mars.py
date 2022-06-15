@@ -13,8 +13,18 @@ from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
 from icenet2.data.interfaces.utils import batch_requested_dates
 
+"""
+
+"""
+
 
 class HRESDownloader(ClimateDownloader):
+    """Climate downloader to provide CMIP6 reanalysis data from ESGF APIs
+
+    :param identifier: how to identify this dataset
+
+    """
+
     PARAM_TABLE = 128
 
     # Background on the use of forecast and observational data
@@ -67,7 +77,7 @@ retrieve,
 
     def __init__(self,
                  *args,
-                 identifier="mars.hres",
+                 identifier: str = "mars.hres",
                  **kwargs):
         super().__init__(*args,
                          identifier=identifier,
@@ -75,10 +85,24 @@ retrieve,
 
         self._server = ecmwfapi.ECMWFService("mars")
 
-    def _get_dates_for_request(self):
+    def _get_dates_for_request(self) -> object:
+        """
+
+        :return:
+        """
         return batch_requested_dates(self._dates, attribute="month")
 
-    def _single_download(self, var_names, pressures, req_dates):
+    def _single_download(self,
+                         var_names: object,
+                         pressures: object,
+                         req_dates: object):
+        """
+
+        :param var_names:
+        :param pressures:
+        :param req_dates:
+        :return:
+        """
         levtype = "plev" if pressures else "sfc"
 
         for dt in req_dates:
@@ -224,6 +248,9 @@ retrieve,
                     os.unlink(downloaded_file)
 
     def download(self):
+        """
+
+        """
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))
 
@@ -243,7 +270,14 @@ retrieve,
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
 
-    def additional_regrid_processing(self, datafile, cube_ease):
+    def additional_regrid_processing(self,
+                                     datafile: str,
+                                     cube_ease: object):
+        """
+
+        :param datafile:
+        :param cube_ease:
+        """
         (datafile_path, datafile_name) = os.path.split(datafile)
         var_name = datafile_path.split(os.sep)[self._var_name_idx]
 

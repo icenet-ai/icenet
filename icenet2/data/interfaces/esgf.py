@@ -11,21 +11,24 @@ from icenet2.data.interfaces.downloader import ClimateDownloader
 from icenet2.data.cli import download_args
 from icenet2.data.utils import esgf_search
 
+"""
+
+"""
+
 
 class CMIP6Downloader(ClimateDownloader):
     """Climate downloader to provide CMIP6 reanalysis data from ESGF APIs
 
-    Args:
-        identifier: how to identify this dataset
-        source: source ID in ESGF node
-        member: member ID in ESGF node
-        nodes: list of ESGF nodes to query
-        experiments: experiment IDs to download
-        frequency: query parameter frequency
-        table_map: table map for
-        grid_map=GRID_MAP,
-        grid_override=None,  # EC-Earth3 wants all 'gr'
-        exclude_nodes=[],
+    :param identifier: how to identify this dataset
+    :param source: source ID in ESGF node
+    :param member: member ID in ESGF node
+    :param nodes: list of ESGF nodes to query
+    :param experiments: experiment IDs to download
+    :param frequency: query parameter frequency
+    :param table_map: table map for
+    :param grid_map:
+    :param grid_override:
+    :param exclude_nodes:
 
     "MRI-ESM2-0", "r1i1p1f1", None
     "MRI-ESM2-0", "r2i1p1f1", None
@@ -90,13 +93,13 @@ class CMIP6Downloader(ClimateDownloader):
                  *args,
                  source: str,
                  member: str,
-                 nodes: list = ESGF_NODES,
-                 experiments: tuple = ('historical', 'ssp245'),
+                 nodes: object = ESGF_NODES,
+                 experiments: object = ('historical', 'ssp245'),
                  frequency: str = "day",
-                 table_map: dict = None,
-                 grid_map: dict = None,
-                 grid_override: dict = None,
-                 exclude_nodes: list = None,
+                 table_map: object = None,
+                 grid_map: object = None,
+                 grid_override: object = None,
+                 exclude_nodes: object = None,
                  **kwargs):
         super().__init__(*args,
                          identifier="cmip6.{}.{}".format(source, member),
@@ -114,10 +117,23 @@ class CMIP6Downloader(ClimateDownloader):
         self._grid_map = grid_map if grid_map else CMIP6Downloader.GRID_MAP
         self._grid_map_override = grid_override
 
-    def _get_dates_for_request(self):
+    def _get_dates_for_request(self) -> object:
+        """
+
+        :return:
+        """
         return [None]
 
-    def _single_download(self, var_prefix, pressure, req_date):
+    def _single_download(self,
+                         var_prefix: str,
+                         pressure: object,
+                         req_date: object):
+        """
+
+        :param var_prefix:
+        :param pressure:
+        :param req_date:
+        """
         query = {
             'source_id': self._source,
             'member_id': self._member,
@@ -223,7 +239,14 @@ class CMIP6Downloader(ClimateDownloader):
             logging.info("Deleting download: {}".format(download_path))
             raise NotImplementedError("CMIP downloader doesn't delete yet")
 
-    def additional_regrid_processing(self, datafile, cube_ease):
+    def additional_regrid_processing(self,
+                                     datafile: str,
+                                     cube_ease: object):
+        """
+
+        :param datafile:
+        :param cube_ease:
+        """
         (datafile_path, datafile_name) = os.path.split(datafile)
         var_name = datafile_path.split(os.sep)[self._var_name_idx]
 
@@ -246,13 +269,11 @@ class CMIP6Downloader(ClimateDownloader):
                          format(cube_ease.data.dtype))
             cube_ease.data = cube_ease.data.astype(np.float32)
 
-    def convert_cube(self, cube):
+    def convert_cube(self, cube: object) -> object:
         """Converts Iris cube to be fit for CMIP regrid
 
-        Params:
-            cube:   the cube requiring alteration
-        Returns:
-            cube:   the altered cube
+        :param cube:   the cube requiring alteration
+        :return cube:   the altered cube
         """
 
         cs = self.sic_ease_cube.coord_system().ellipsoid

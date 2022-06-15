@@ -1,9 +1,4 @@
-import logging
-import os
-
 import numpy as np
-import pandas as pd
-import xarray as xr
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Conv2D, BatchNormalization, UpSampling2D, \
@@ -24,25 +19,48 @@ class TemperatureScale(tf.keras.layers.Layer):
     as introduced in Guo 2017 (http://proceedings.mlr.press/v70/guo17a.html).
     """
     def __init__(self, **kwargs):
-        super(TemperatureScale, self).__init__()
+        super(TemperatureScale, self).__init__(**kwargs)
         self.temp = tf.Variable(initial_value=1.0, trainable=False,
                                 dtype=tf.float32, name='temp')
 
-    def call(self, inputs):
-        """ Divide the input logits by the T value. """
+    def call(self, inputs: object, **kwargs):
+        """ Divide the input logits by the T value.
+
+        :param **kwargs:
+        :param inputs:
+        :return:
+        """
         return tf.divide(inputs, self.temp)
 
     def get_config(self):
-        """ For saving and loading networks with this custom layer. """
+        """ For saving and loading networks with this custom layer.
+
+        :return:
+        """
         return {'temp': self.temp.numpy()}
 
 
 ### Network architectures:
 # --------------------------------------------------------------------
 
-def unet_batchnorm(input_shape, loss, metrics,
-                   learning_rate=1e-4, filter_size=3,
-                   n_filters_factor=1, n_forecast_days=1):
+def unet_batchnorm(input_shape: object,
+                   loss: object,
+                   metrics: object,
+                   learning_rate: float = 1e-4,
+                   filter_size: float = 3,
+                   n_filters_factor: float = 1,
+                   n_forecast_days: int = 1) -> object:
+    """
+
+    :param input_shape:
+    :param loss:
+    :param metrics:
+    :param learning_rate:
+    :param filter_size:
+    :param n_filters_factor:
+    :param n_forecast_days:
+    :return:
+    """
     inputs = Input(shape=input_shape)
 
     conv1 = Conv2D(np.int(64*n_filters_factor), filter_size, activation='relu',
@@ -141,8 +159,22 @@ def unet_batchnorm(input_shape, loss, metrics,
     return model
 
 
-def linear_trend_forecast(usable_selector, forecast_date, da, mask,
-                          missing_dates=(), shape=(432, 432)):
+def linear_trend_forecast(usable_selector: object,
+                          forecast_date: object,
+                          da: object,
+                          mask: object,
+                          missing_dates: object = (),
+                          shape: object = (432, 432)) -> object:
+    """
+
+    :param usable_selector:
+    :param forecast_date:
+    :param da:
+    :param mask:
+    :param missing_dates:
+    :param shape:
+    :return:
+    """
     usable_data = usable_selector(da, forecast_date, missing_dates)
 
     if len(usable_data.time) < 1:

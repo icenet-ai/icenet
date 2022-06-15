@@ -17,6 +17,9 @@ from icenet2.data.sic.mask import Masks
 from icenet2.utils import Hemisphere
 from icenet2.data.sic.utils import SIC_HEMI_STR
 
+"""
+
+"""
 
 invalid_sic_days = {
     Hemisphere.NORTH: [
@@ -197,8 +200,8 @@ var_remove_list = ['time_bnds', 'raw_ice_conc_values', 'total_standard_error',
 
 
 class SICDownloader(Downloader):
-    """
-    Downloads OSI-SAF SIC data from 1979-present using OpenDAP.
+    """Downloads OSI-SAF SIC data from 1979-present using OpenDAP.
+
     The dataset comprises OSI-450 (1979-2015) and OSI-430-b (2016-ownards)
     Monthly averages are-computed on the server-side.
     This script can take about an hour to run.
@@ -208,14 +211,20 @@ class SICDownloader(Downloader):
             met.no/reprocessed/ice/conc_v2p0_nh_agg.html
         - OSI-430-b (2016-present): https://thredds.met.no/thredds/dodsC/osisaf/
             met.no/reprocessed/ice/conc_crb_nh_agg.html
+
+    :param additional_invalid_dates:
+    :param dates:
+    :param delete_tempfiles:
+    :param download:
+    :param dtype:
     """
     def __init__(self,
                  *args,
-                 additional_invalid_dates=(),
-                 dates=(),
-                 delete_tempfiles=True,
-                 download=True,
-                 dtype=np.float32,
+                 additional_invalid_dates: object = (),
+                 dates: object = (),
+                 delete_tempfiles: bool = True,
+                 download: bool = True,
+                 dtype: object = np.float32,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
 
@@ -233,6 +242,9 @@ class SICDownloader(Downloader):
         }
 
     def download(self):
+        """
+
+        """
         hs = SIC_HEMI_STR[self.hemisphere_str[0]]
 
         logging.info(
@@ -240,7 +252,6 @@ class SICDownloader(Downloader):
             "existence already" if not self._download else
             "Downloading SIC datafiles to .temp intermediates...")
 
-        #cmd = "wget -m -nH -nv --cut-dirs=4 -P {} {}"
         ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
         ftp_osi430b = "/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/"
         cache = {}
@@ -400,6 +411,10 @@ class SICDownloader(Downloader):
                 os.unlink(fpath)
 
     def missing_dates(self):
+        """
+
+        :return:
+        """
         filenames = [os.path.join(
             self.get_data_var_folder("siconca", append=[str(el.year)]),
             "{}.nc".format(el.strftime("%Y_%m_%d")))
@@ -412,7 +427,12 @@ class SICDownloader(Downloader):
                                parallel=True)
         return self._missing_dates(ds.ice_conc)
 
-    def _missing_dates(self, da):
+    def _missing_dates(self, da: object) -> object:
+        """
+
+        :param da:
+        :return:
+        """
         if pd.Timestamp(1979, 1, 2) in da.time.values \
                 and dt.date(1979, 1, 1) in self._dates\
                 and pd.Timestamp(1979, 1, 1) not in da.time.values:

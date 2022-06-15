@@ -1,6 +1,4 @@
-import argparse
 import logging
-import os
 import requests
 
 import cartopy.crs as ccrs
@@ -8,8 +6,11 @@ import iris
 import numpy as np
 
 
-def assign_lat_lon_coord_system(cube):
-    """ Assign coordinate system to iris cube to allow regridding. """
+def assign_lat_lon_coord_system(cube: object):
+    """Assign coordinate system to iris cube to allow regridding.
+
+    :param cube:
+    """
 
     # This originated from era5
     cube.coord('latitude').coord_system = iris.coord_systems.GeogCS(6367470.0)
@@ -24,13 +25,21 @@ def assign_lat_lon_coord_system(cube):
     return cube
 
 
-def rotate_grid_vectors(u_cube, v_cube, angles):
+def rotate_grid_vectors(u_cube: object,
+                        v_cube: object,
+                        angles: object):
     """
     Author: Tony Phillips (BAS)
 
     Wrapper for :func:`~iris.analysis.cartography.rotate_grid_vectors`
     that can rotate multiple masked spatial fields in one go by iterating
     over the horizontal spatial axes in slices
+
+    :param u_cube:
+    :param v_cube:
+    :param angles:
+    :return:
+
     """
     # lists to hold slices of rotated vectors
     u_r_all = iris.cube.CubeList()
@@ -55,7 +64,7 @@ def rotate_grid_vectors(u_cube, v_cube, angles):
     return u_r_all.merge_cube(), v_r_all.merge_cube()
 
 
-def gridcell_angles_from_dim_coords(cube):
+def gridcell_angles_from_dim_coords(cube: object):
     """
     Author: Tony Phillips (BAS)
 
@@ -66,6 +75,9 @@ def gridcell_angles_from_dim_coords(cube):
     The provided cube must have a coordinate system so that its
     X and Y coordinate bounds (which are derived if necessary)
     can be converted to lons and lats
+
+    :param cube:
+    :return:
     """
 
     # get the X and Y dimension coordinates for the cube
@@ -123,12 +135,13 @@ def gridcell_angles_from_dim_coords(cube):
     return angles
 
 
-def invert_gridcell_angles(angles):
+def invert_gridcell_angles(angles: object):
     """
     Author: Tony Phillips (BAS)
 
     Negate a cube of gridcell angles in place, transforming
     gridcell_angle_from_true_east <--> true_east_from_gridcell_angle
+    :param angles:
     """
     angles.data *= -1
 
@@ -138,16 +151,30 @@ def invert_gridcell_angles(angles):
         angles.rename(names[1 - names.index(name)])
 
 
-# Below taken from
-# https://hub.binder.pangeo.io/user/pangeo-data-pan--cmip6-examples-ro965nih/lab
-# and adapted slightly
-def esgf_search(server="https://esgf-node.llnl.gov/esg-search/search",
-                files_type="OPENDAP",
-                local_node=False,
-                latest=True,
-                project="CMIP6",
-                format="application%2Fsolr%2Bjson",
-                use_csrf=False, **search):
+def esgf_search(server: str = "https://esgf-node.llnl.gov/esg-search/search",
+                files_type: str = "OPENDAP",
+                local_node: bool = False,
+                latest: bool = True,
+                project: str = "CMIP6",
+                format: str = "application%2Fsolr%2Bjson",
+                use_csrf: bool = False,
+                **search):
+    """
+
+    Below taken from
+    https://hub.binder.pangeo.io/user/pangeo-data-pan--cmip6-examples-ro965nih/lab
+    and adapted slightly
+
+    :param server:
+    :param files_type:
+    :param local_node:
+    :param latest:
+    :param project:
+    :param format:
+    :param use_csrf:
+    :param search:
+    :return:
+    """
     client = requests.session()
     payload = search
     payload["project"] = project

@@ -18,8 +18,14 @@ from icenet2.process.predict import get_refcube
 
 
 # TODO: This can be a plotting or analysis util function elsewhere
-def get_dataarray_from_files(files,
-                             numpy=False):
+def get_dataarray_from_files(files: object,
+                             numpy: bool = False) -> object:
+    """
+
+    :param files:
+    :param numpy:
+    :return:
+    """
     if not numpy:
         ds = xr.open_mfdataset(files)
         # TODO: We're relying on single variable files from downloaders
@@ -62,46 +68,42 @@ def get_dataarray_from_files(files,
     return da
 
 
-def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
-                    clim=None, crop=None, data_type='abs', video_dates=None,
-                    cmap='viridis', figsize=12, dpi=150):
+def xarray_to_video(da: object,
+                    fps: int,
+                    video_path: object = None,
+                    mask: object = None,
+                    mask_type: str = 'contour',
+                    clim: object = None,
+                    crop: object = None,
+                    data_type: str = 'abs',
+                    video_dates: object = None,
+                    cmap: object = 'viridis',
+                    figsize: int = 12,
+                    dpi: int = 150) -> object:
 
     """
     Generate video of an xarray.DataArray. Optionally input a list of
     `video_dates` to show, otherwise the full set of time coordiantes
     of the dataset is used.
 
-    Parameters:
-    da (xr.DataArray): Dataset to create video of.
-
-    video_path (str): Path to save the video to.
-
-    fps (int): Frames per second of the video.
-
-    mask (np.ndarray): Boolean mask with True over masked elements to overlay
+    :param da: Dataset to create video of.
+    :param video_path: Path to save the video to.
+    :param fps: Frames per second of the video.
+    :param mask: Boolean mask with True over masked elements to overlay
     as a contour or filled contour. Defaults to None (no mask plotting).
-
-    mask_type (str): 'contour' or 'contourf' dictating whether the mask is
+    :param mask_type: 'contour' or 'contourf' dictating whether the mask is
     overlaid as a contour line or a filled contour.
-
-    data_type (str): 'abs' or 'anom' describing whether the data is in absolute
+    :param data_type: 'abs' or 'anom' describing whether the data is in absolute
     or anomaly format. If anomaly, the colorbar is centred on 0.
-
-    video_dates (list): List of Pandas Timestamps or datetime.datetime objects
+    :param video_dates: List of Pandas Timestamps or datetime.datetime objects
     to plot video from the dataset.
-
-    crop (list): [(a, b), (c, d)] to crop the video from a:b and c:d
-
-    clim (list): Colormap limits. Default is None, in which case the min and
+    :param crop: [(a, b), (c, d)] to crop the video from a:b and c:d
+    :param clim: Colormap limits. Default is None, in which case the min and
     max values of the array are used.
+    :param cmap: Matplotlib colormap.
+    :param figsize: Figure size in inches.
+    :param dpi: Figure DPI.
 
-    cmap (str): Matplotlib colormap.
-
-    figsize (int or float): Figure size in inches.
-
-    dpi (int): Figure DPI.
-
-    TODO: labels!
     """
 
     def update(date):
@@ -189,6 +191,10 @@ def xarray_to_video(da, fps, video_path=None, mask=None, mask_type='contour',
 
 
 def cli_args():
+    """
+
+    :return:
+    """
     args = argparse.ArgumentParser()
 
     args.add_argument("-f", "--fps", default=15, type=int)
@@ -214,8 +220,18 @@ def cli_args():
     return args.parse_args()
 
 
-def recurse_data_folders(base_path, lookups, children,
-                         filetype="nc"):
+def recurse_data_folders(base_path: object,
+                         lookups: object,
+                         children: object,
+                         filetype: str = "nc") -> object:
+    """
+
+    :param base_path:
+    :param lookups:
+    :param children:
+    :param filetype:
+    :return:
+    """
     logging.info("Looking at {}".format(base_path))
     files = []
 
@@ -251,7 +267,18 @@ def recurse_data_folders(base_path, lookups, children,
     return files
 
 
-def video_process(files, numpy, output_dir, fps):
+def video_process(files: object,
+                  numpy: object,
+                  output_dir: object,
+                  fps: int) -> object:
+    """
+
+    :param files:
+    :param numpy:
+    :param output_dir:
+    :param fps:
+    :return:
+    """
     path_comps = os.path.dirname(files[0]).split(os.sep)
     os.makedirs(output_dir, exist_ok=True)
     output_name = os.path.join(output_dir,
@@ -270,6 +297,9 @@ def video_process(files, numpy, output_dir, fps):
 
 
 def data_cli():
+    """
+
+    """
     args = cli_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.getLogger("matplotlib").setLevel(level=logging.WARNING)
