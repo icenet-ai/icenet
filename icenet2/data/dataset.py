@@ -268,6 +268,63 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         return self._config["counts"]
 
 
+class IceNetDataSetChecker(SplittingMixin, IceNetDataSet):
+    """IceNetDataSet implementation to facilitate consistency checking
+
+    This class won't batch/prefetch or do all the nice things we expect from
+    split datasets, but instead collects the records and allows iteration over
+    them one by one to detect errors, which is useful if the
+    icenet_dataset_create command fails (e.g. due to storage issues)
+
+    :param configuration_path:
+    :param path:
+    """
+
+    def __init__(self,
+                 configuration_path: str,
+                 *args,
+                 path: str = os.path.join(".", "network_datasets"),
+                 **kwargs):
+        self._config = dict()
+        self._configuration_path = configuration_path
+        self._load_configuration(configuration_path)
+
+        super().__init__(*args,
+                         identifier=self._config["identifier"],
+                         north=bool(self._config["north"]),
+                         path=path,
+                         south=bool(self._config["south"]),
+                         **kwargs)
+
+        self._counts = self._config["counts"]
+        self._dtype = getattr(np, self._config["dtype"])
+        self._loader_config = self._config["loader_config"]
+        self._n_forecast_days = self._config["n_forecast_days"]
+        self._num_channels = self._config["num_channels"]
+        self._shape = tuple(self._config["shape"])
+
+        if self._config["loader_path"] and \
+                os.path.exists(self._config["loader_path"]):
+            hemi = self.hemisphere_str[0]
+            self.add_records(self.base_path, hemi)
+        else:
+            logging.warning("Running in configuration only mode, tfrecords "
+                            "were not generated for this dataset")
+
+    def get_split_datasets(self, ratio: object = None):
+        raise RuntimeError("Use IceNetDataSet if you want split datasets, this "
+                           "is a diagnostic implementation: {}".
+                           format(self.__class__.__name__))
+
+    def check_dataset(self,
+                      dataset: str = "train"):
+        logging.debug("Checking dataset {}".format(dataset))
+        pass
+
+    def get_next_record(self):
+        pass
+
+
 class MergedIceNetDataSet(SplittingMixin, DataCollection):
     """
 
