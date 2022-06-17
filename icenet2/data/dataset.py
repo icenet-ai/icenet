@@ -154,6 +154,33 @@ class SplittingMixin:
             val_ds.prefetch(tf.data.AUTOTUNE), \
             test_ds.prefetch(tf.data.AUTOTUNE)
 
+    def check_dataset(self,
+                      dataset: str = "train"):
+        logging.debug("Checking dataset {}".format(dataset))
+
+        decoder = get_decoder(self.shape,
+                              self.num_channels,
+                              self.n_forecast_days,
+                              dtype=self.dtype.__name__)
+
+        for df in getattr(self, "{}_fns".format(dataset)):
+            logging.debug("Getting records from {}".format(df))
+            try:
+                raw_dataset = tf.data.TFRecordDataset([df])
+                raw_dataset = raw_dataset.map(decoder)
+
+                for i, (x, y, sw) in enumerate(raw_dataset):
+                    logging.debug("Got record {} with x {} y {} sw {}".
+                                  format(i,
+                                         x.numpy().shape,
+                                         y.numpy().shape,
+                                         sw.numpy.shape()))
+            except tf.errors.DataLossError as e:
+                logging.warning("{}: data loss error {}".format(df, e.message))
+            except tf.errors.OpError as e:
+                logging.warning("{}: tensorflow error {}".format(df, e.message))
+            # We don't except any non-tensorflow errors to prevent progression
+
     @property
     def batch_size(self):
         return self._batch_size
@@ -266,63 +293,6 @@ class IceNetDataSet(SplittingMixin, DataCollection):
     @property
     def counts(self):
         return self._config["counts"]
-
-
-class IceNetDataSetChecker(SplittingMixin, IceNetDataSet):
-    """IceNetDataSet implementation to facilitate consistency checking
-
-    This class won't batch/prefetch or do all the nice things we expect from
-    split datasets, but instead collects the records and allows iteration over
-    them one by one to detect errors, which is useful if the
-    icenet_dataset_create command fails (e.g. due to storage issues)
-
-    :param configuration_path:
-    :param path:
-    """
-
-    def __init__(self,
-                 configuration_path: str,
-                 *args,
-                 path: str = os.path.join(".", "network_datasets"),
-                 **kwargs):
-        self._config = dict()
-        self._configuration_path = configuration_path
-        self._load_configuration(configuration_path)
-
-        super().__init__(*args,
-                         identifier=self._config["identifier"],
-                         north=bool(self._config["north"]),
-                         path=path,
-                         south=bool(self._config["south"]),
-                         **kwargs)
-
-        self._counts = self._config["counts"]
-        self._dtype = getattr(np, self._config["dtype"])
-        self._loader_config = self._config["loader_config"]
-        self._n_forecast_days = self._config["n_forecast_days"]
-        self._num_channels = self._config["num_channels"]
-        self._shape = tuple(self._config["shape"])
-
-        if self._config["loader_path"] and \
-                os.path.exists(self._config["loader_path"]):
-            hemi = self.hemisphere_str[0]
-            self.add_records(self.base_path, hemi)
-        else:
-            logging.warning("Running in configuration only mode, tfrecords "
-                            "were not generated for this dataset")
-
-    def get_split_datasets(self, ratio: object = None):
-        raise RuntimeError("Use IceNetDataSet if you want split datasets, this "
-                           "is a diagnostic implementation: {}".
-                           format(self.__class__.__name__))
-
-    def check_dataset(self,
-                      dataset: str = "train"):
-        logging.debug("Checking dataset {}".format(dataset))
-        pass
-
-    def get_next_record(self):
-        pass
 
 
 class MergedIceNetDataSet(SplittingMixin, DataCollection):
@@ -442,6 +412,11 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         )
         return self._config["loader"][0]
 
+    def check_dataset(self,
+                      dataset: str = "train"):
+        raise NotImplementedError("Checking not implemented for merged sets, "
+                                  "consider doing them individually")
+
     @property
     def channels(self):
         return self._config['channels']
@@ -449,3 +424,8 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
     @property
     def counts(self):
         return self._config["counts"]
+
+
+if __name__ == "__main__":
+    ds = IceNetDataSet("dataset_config.south_train.json")
+    ds.check_dataset()
