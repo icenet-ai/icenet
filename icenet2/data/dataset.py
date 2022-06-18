@@ -174,7 +174,7 @@ class SplittingMixin:
                                   format(i,
                                          x.numpy().shape,
                                          y.numpy().shape,
-                                         sw.numpy.shape()))
+                                         sw.numpy().shape))
             except tf.errors.DataLossError as e:
                 logging.warning("{}: data loss error {}".format(df, e.message))
             except tf.errors.OpError as e:
