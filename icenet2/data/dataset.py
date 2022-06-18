@@ -1,3 +1,4 @@
+import argparse
 import json
 import logging
 import os
@@ -241,6 +242,14 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         return self._config["counts"]
 
 
-if __name__ == "__main__":
-    ds = IceNetDataSet("dataset_config.south_train.json")
+def check_dataset():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("dataset")
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+    args = ap.parse_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
+    ds = IceNetDataSet(args.dataset)
     ds.check_dataset()

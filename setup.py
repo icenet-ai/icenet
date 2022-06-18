@@ -60,7 +60,7 @@ setup(
 
             "icenet_process_metadata = icenet2.data.processors.meta:main",
 
-            "icenet_dataset_check = icenet2.data.utils:check",
+            "icenet_dataset_check = icenet2.data.dataset:check_dataset",
             "icenet_dataset_create = icenet2.data.loader:main",
 
             "icenet_train = icenet2.model.train:main",
