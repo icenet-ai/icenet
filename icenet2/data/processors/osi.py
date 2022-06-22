@@ -49,7 +49,7 @@ class IceNetOSIPreProcessor(IceNetPreProcessor):
                                "with siconca, ")
         else:
             masks = Masks(north=self.north, south=self.south)
-            return interpolate(da, masks)
+            return sic_interpolate(da, masks)
 
 
 def main():
