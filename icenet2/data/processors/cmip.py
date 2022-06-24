@@ -3,7 +3,6 @@ import logging
 from icenet2.data.cli import process_args, process_date_args
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.sic.mask import Masks
-from icenet2.data.processors.utils import SICInterpolation
 
 """
 
