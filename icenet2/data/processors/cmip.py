@@ -3,6 +3,7 @@ import logging
 from icenet2.data.cli import process_args, process_date_args
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.sic.mask import Masks
+from icenet2.data.processors.utils import sic_interpolate
 
 """
 
@@ -35,7 +36,7 @@ class IceNetCMIPPreProcessor(IceNetPreProcessor):
         """
         if var_name == "siconca":
             masks = Masks(north=self.north, south=self.south)
-            return interpolate(da, masks)
+            return sic_interpolate(da, masks)
 
         return da
 
