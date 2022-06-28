@@ -211,7 +211,7 @@ def cli_args():
 
     args.add_argument("datasets", type=lambda s: s.split(","))
     args.add_argument("hemisphere", default=[],
-                      choices=["nh", "sh"], nargs="?")
+                      choices=["north", "south"], nargs="?")
     args.add_argument("vars", default=[],
                       nargs="?", type=lambda s: s.split(","))
     args.add_argument("years", default=[],
