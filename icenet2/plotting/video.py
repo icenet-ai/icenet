@@ -51,7 +51,7 @@ def get_dataarray_from_files(files: object,
 
         # FIXME: naive implementations abound
         path_comps = os.path.dirname(files[0]).split(os.sep)
-        ref_cube = get_refcube("nh" in path_comps, "sh" in path_comps)
+        ref_cube = get_refcube("north" in path_comps, "south" in path_comps)
         var_name = path_comps[-2]
 
         da = xr.DataArray(
@@ -241,7 +241,7 @@ def recurse_data_folders(base_path: object,
         files = sorted(
             [os.path.join(base_path, f) for f in os.listdir(base_path)
              if os.path.splitext(f)[1] == ".{}".format(filetype)])
-
+        
         if not len(files):
             return None
     else:
@@ -252,7 +252,7 @@ def recurse_data_folders(base_path: object,
                 continue
 
             if not len(lookups) or \
-                    (len(lookups) and subdir in lookups):
+                    (len(lookups) and subdir in [str(s) for s in lookups]):
                 subdir_files = recurse_data_folders(
                     new_path,
                     children[0]
@@ -314,6 +314,7 @@ def data_cli():
         # TODO: GH#3
         path_children += [years]
 
+    logging.debug("Path children: {}".format(path_children))
     video_batches = recurse_data_folders(args.path,
                                          args.datasets,
                                          path_children,
