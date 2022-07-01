@@ -301,7 +301,7 @@ class IceNetDataLoader(Generator):
                 assert split in dates_override.keys() \
                        and type(dates_override[split]) is list, \
                        "{} needs to be list in dates_override".format(split)
-        else:
+        elif dates_override:
             raise RuntimeError("dates_override needs to be a dict if supplied")
 
         counts = {el: 0 for el in splits}
