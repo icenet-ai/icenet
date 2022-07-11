@@ -128,7 +128,7 @@ def condense_data(identifier: str,
     """
     logging.info("Condensing data into singular file")
 
-    dp = DataProducer(identifier,
+    dp = DataProducer(identifier=identifier,
                       north=getattr(Hemisphere,
                                     hemisphere.upper()) == Hemisphere.NORTH,
                       south=getattr(Hemisphere,
@@ -140,8 +140,8 @@ def condense_data(identifier: str,
     dfs = glob.glob(os.path.join(data_path, "**",
                                  "*.nc" if not numpy else "*.npy"))
     output_path = os.path.join(data_path, "{}.nc".format(variable))
-    logging.debug("Got {} files, collecting to {}".format(len(dfs),
-                                                          output_path))
+    logging.debug("Got {} files, collecting to {}...".format(len(dfs),
+                                                             data_path))
 
     logging.info("Loading")
     ds = xr.open_mfdataset(dfs)
