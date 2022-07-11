@@ -139,7 +139,6 @@ def condense_data(identifier: str,
     logging.debug("Collecting files from {}".format(data_path))
     dfs = glob.glob(os.path.join(data_path, "**",
                                  "*.nc" if not numpy else "*.npy"))
-    output_path = os.path.join(data_path, "{}.nc".format(variable))
     logging.debug("Got {} files, collecting to {}...".format(len(dfs),
                                                              data_path))
 
