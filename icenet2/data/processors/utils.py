@@ -139,12 +139,16 @@ def condense_data(identifier: str,
     logging.debug("Collecting files from {}".format(data_path))
     dfs = glob.glob(os.path.join(data_path, "**",
                                  "*.nc" if not numpy else "*.npy"))
-    logging.debug("Got {} files, collecting to {}...".format(len(dfs),
-                                                             data_path))
 
-    logging.info("Loading")
-    ds = xr.open_mfdataset(dfs)
-    years, datasets = zip(*ds.groupby("time.year"))
-    paths = [os.path.join(data_path, "{}.nc".format(year)) for year in years]
-    logging.info("Saving across {} files".format(len(paths)))
-    xr.save_mfdataset(datasets, paths)
+    if len(dfs):
+        logging.debug("Got {} files, collecting to {}...".format(len(dfs),
+                                                                 data_path))
+
+        logging.info("Loading")
+        ds = xr.open_mfdataset(dfs)
+        years, datasets = zip(*ds.groupby("time.year"))
+        paths = [os.path.join(data_path, "{}.nc".format(year)) for year in years]
+        logging.info("Saving across {} files".format(len(paths)))
+        xr.save_mfdataset(datasets, paths)
+    else:
+        logging.info("No valid files found.")
