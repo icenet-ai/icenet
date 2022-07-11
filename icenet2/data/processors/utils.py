@@ -1,7 +1,14 @@
+import argparse
+import glob
 import logging
+import os
 
 import numpy as np
 import pandas as pd
+import xarray as xr
+
+from icenet2.utils import Hemisphere
+from icenet2.data.producers import DataProducer
 
 from scipy import interpolate
 from scipy.spatial.qhull import QhullError
@@ -93,3 +100,52 @@ def sic_interpolate(da: object,
                 logging.exception("Geometrical degeneracy from QHull, interpolation failed")
 
     return da
+
+
+def condense_main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("identifier")
+    ap.add_argument("hemisphere", choices=("north", "south"))
+    ap.add_argument("variable")
+
+    ap.add_argument("-n", "--numpy", action="store_true", default=False)
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+    args = ap.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    condense_data(args.identifier, args.hemisphere, args.variable)
+
+
+def condense_data(identifier: str,
+                  hemisphere: str,
+                  variable: str,
+                  numpy: bool = False):
+    """
+
+    :param identifier:
+    :param hemisphere:
+    :param variable:
+    :param numpy:
+    """
+    logging.info("Condensing data into singular file")
+
+    dp = DataProducer(identifier,
+                      north=getattr(Hemisphere,
+                                    hemisphere.upper()) == Hemisphere.NORTH,
+                      south=getattr(Hemisphere,
+                                    hemisphere.upper()) == Hemisphere.SOUTH)
+
+    data_path = dp.get_data_var_folder(variable, missing_error=True)
+
+    logging.debug("Collecting files from {}".format(data_path))
+    dfs = glob.glob(os.path.join(data_path, "**",
+                                 "*.nc" if not numpy else "*.npy"))
+    output_path = os.path.join(data_path, "{}.nc".format(variable))
+    logging.debug("Got {} files, collecting to {}".format(len(dfs),
+                                                          output_path))
+
+    logging.info("Loading")
+    ds = xr.open_mfdataset(dfs)
+    years, datasets = zip(*ds.groupby("time.year"))
+    paths = [os.path.join(data_path, "{}.nc".format(year)) for year in years]
+    logging.info("Saving across {} files".format(len(paths)))
+    xr.save_mfdataset(datasets, paths)
