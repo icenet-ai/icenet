@@ -60,6 +60,9 @@ setup(
 
             "icenet_process_metadata = icenet2.data.processors.meta:main",
 
+            "icenet_process_condense = "
+            "icenet2.data.processors.utils:condense_main",
+
             "icenet_dataset_check = icenet2.data.dataset:check_dataset",
             "icenet_dataset_create = icenet2.data.loader:main",
 
