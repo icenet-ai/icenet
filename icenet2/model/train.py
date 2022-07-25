@@ -19,18 +19,17 @@ import icenet2.model.losses as losses
 import icenet2.model.metrics as metrics
 from icenet2.model.utils import make_exp_decay_lr_schedule
 
-from icenet2.data.dataset import IceNetDataSet
+from icenet2.data.dataset import IceNetDataSet, MergedIceNetDataSet
 import icenet2.model.models as models
 
 
 def train_model(
         run_name: object,
-        dataset_config: object,
+        dataset: object,
         batch_size: int = 4,
         checkpoint_monitor: str = 'val_rmse',
         checkpoint_mode: str = 'min',
-        dataset_class: object = IceNetDataSet,
-        dataset_ratio: object = None,
+        dataset_ratio: float = 1.0,
         early_stopping_patience: int = 30,
         epochs: int = 2,
         filter_size: float = 3,
@@ -56,11 +55,10 @@ def train_model(
     """
 
     :param run_name:
-    :param dataset_config:
+    :param dataset:
     :param batch_size:
     :param checkpoint_monitor:
     :param checkpoint_mode:
-    :param dataset_class:
     :param dataset_ratio:
     :param early_stopping_patience:
     :param epochs:
@@ -124,10 +122,7 @@ def train_model(
 
     logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
 
-    ds = dataset_class(dataset_config, batch_size=batch_size)
-
-    input_shape = (*ds.shape, ds.num_channels)
-    train_ds, val_ds, test_ds = ds.get_split_datasets(ratio=dataset_ratio)
+    input_shape = (*dataset.shape, dataset.num_channels)
 
     if pre_load_network and not os.path.exists(pre_load_path):
         raise RuntimeError("{} is not available, so you cannot preload the "
@@ -142,16 +137,10 @@ def train_model(
 
     network_path = os.path.join(network_folder,
                                 "{}.network_{}.{}.h5".format(run_name,
-                                                             ds.identifier,
+                                                             dataset.identifier,
                                                              seed))
 
-    ratio = dataset_ratio if dataset_ratio else 1.0
-    logging.info("# training samples: {}".format(ds.counts["train"] * ratio))
-    logging.info("# validation samples: {}".format(ds.counts["val"] * ratio))
-    logging.info("# input channels: {}".format(ds.num_channels))
-
     prev_best = None
-
     callbacks_list = list()
 
     # Checkpoint the model weights when a validation metric is improved
@@ -219,7 +208,7 @@ def train_model(
             learning_rate=learning_rate,
             filter_size=filter_size,
             n_filters_factor=n_filters_factor,
-            n_forecast_days=ds.n_forecast_days,
+            n_forecast_days=dataset.n_forecast_days,
         )
 
     if pre_load_network:
@@ -228,6 +217,12 @@ def train_model(
         network.load_weights(pre_load_path)
 
     network.summary()
+
+    ratio = dataset_ratio if dataset_ratio else 1.0
+    logging.info("# training samples: {}".format(dataset.counts["train"] * ratio))
+    logging.info("# validation samples: {}".format(dataset.counts["val"] * ratio))
+    logging.info("# input channels: {}".format(dataset.num_channels))
+    train_ds, val_ds, test_ds = dataset.get_split_datasets(ratio=dataset_ratio)
 
     model_history = network.fit(
         train_ds,
@@ -260,6 +255,8 @@ def get_args():
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     ap.add_argument("-b", "--batch-size", type=int, default=4)
+    ap.add_argument("-ds", "--additional-dataset",
+                    dest="additional", nargs="*", default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
     ap.add_argument("-m", "--multiprocessing", action="store_true",
                     default=False)
@@ -267,7 +264,7 @@ def get_args():
     ap.add_argument("-nw", "--no-wandb", default=False, action="store_true")
     ap.add_argument("-p", "--preload", type=str)
     ap.add_argument("-qs", "--max-queue-size", default=10, type=int)
-    ap.add_argument("-r", "--ratio", default=None, type=float)
+    ap.add_argument("-r", "--ratio", default=1.0, type=float)
     ap.add_argument("-s", "--strategy", default="default",
                     choices=("default", "mirrored", "central"))
     ap.add_argument("--gpus", default=None)
@@ -292,8 +289,17 @@ def main():
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-    dataset_config = \
-        os.path.join(".", "dataset_config.{}.json".format(args.dataset))
+    # TODO: this should come from a factory in the future - not the only place
+    #  that merged datasets are going to be available
+    if len(args.additional) == 0:
+        dataset = IceNetDataSet("dataset_config.{}.json".format(args.dataset),
+                                batch_size=args.batch_size)
+    else:
+        dataset = MergedIceNetDataSet([
+            "dataset_config.{}.json".format(el) for el in [
+                args.dataset, *args.additional
+            ]
+        ])
 
     strategy = tf.distribute.MirroredStrategy() \
         if args.strategy == "mirrored" \
@@ -303,7 +309,7 @@ def main():
 
     trained_path, history = \
         train_model(args.run_name,
-                    dataset_config,
+                    dataset,
                     batch_size=args.batch_size,
                     dataset_ratio=args.ratio,
                     epochs=args.epochs,
