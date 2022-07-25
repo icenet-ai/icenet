@@ -115,13 +115,12 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
     """
 
     :param identifier:
-    :param configuration_path:
+    :param configuration_paths: List of configurations to load
     :param batch_size:
     :param path:
     """
 
     def __init__(self,
-                 identifier: str,
                  configuration_paths: object,
                  *args,
                  batch_size: int = 4,
@@ -131,6 +130,9 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         self._configuration_paths = [configuration_paths] \
             if type(configuration_paths) != list else configuration_paths
         self._load_configurations(configuration_paths)
+
+        identifier = ".".join([loader.identifier
+                               for loader in self._config["loaders"]])
 
         super().__init__(*args,
                          identifier=identifier,
