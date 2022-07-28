@@ -8,6 +8,7 @@ import sys
 from pprint import pprint, pformat
 
 import dask
+from dask.distributed import Client, LocalCluster
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -435,6 +436,7 @@ class IceNetDataLoader(Generator):
             kwargs = dict(
                 chunks=dict(time=1),
                 drop_variables=["month"],
+                parallel=True,
             )
             self._channel_ds["linear_trends"] = \
                 xr.open_mfdataset(trend_files, **kwargs)
@@ -646,7 +648,8 @@ def get_args():
 
     ap.add_argument("-ob", "--output-batch-size", dest="batch_size", type=int,
                     default=8)
-    # FIXME: this will return with dask usage
+
+    ap.add_argument("-dp", "--dask-port", type=int, default=8888)
     ap.add_argument("-w", "--workers", help="Number of workers to use "
                                             "generating sets",
                     type=int, default=8)
@@ -680,9 +683,16 @@ def main():
     if args.cfg:
         dl.write_dataset_config_only()
     else:
-        dl.generate(dates_override=dates
-                    if sum([len(v) for v in dates.values()]) > 0 else None,
-                    pickup=args.pickup)
+        cluster = LocalCluster(
+            n_workers=args.workers,
+            scheduler_port=0,
+            dashboard_address="localhost:{}".format(args.dask_port),
+        )
+        with Client(cluster) as client:
+            logging.info("Using dask client {}".format(client))
+            dl.generate(dates_override=dates
+                        if sum([len(v) for v in dates.values()]) > 0 else None,
+                        pickup=args.pickup)
 
 
 class IceNetDataWarning(RuntimeWarning):
