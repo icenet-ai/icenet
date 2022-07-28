@@ -160,7 +160,7 @@ def condense_data(identifier: str,
                 logging.info("Loading {}".format(year))
                 ds = xr.open_mfdataset(year_files)
                 years, datasets = zip(*ds.groupby("time.year"))
-                if len(years) > 0:
+                if len(years) > 1:
                     raise RuntimeError("Too many years in one file {}".
                                        format(years))
                 logging.info("Saving to {}".format(year_path))
