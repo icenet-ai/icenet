@@ -25,7 +25,7 @@ def main():
     pp = IceNetERA5PreProcessor(
         ["uas", "vas"],
         ["tas", "ta500", "tos", "psl", "zg500", "zg250", "rsds", "rlds",
-         "hus1000"],
+         "hus1000", "uas", "vas"],
         args.name,
         dates["train"],
         dates["val"],

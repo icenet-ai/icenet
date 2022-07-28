@@ -117,14 +117,12 @@ def condense_main():
 
 def condense_data(identifier: str,
                   hemisphere: str,
-                  variable: str,
-                  numpy: bool = False):
+                  variable: str):
     """
 
     :param identifier:
     :param hemisphere:
     :param variable:
-    :param numpy:
     """
     logging.info("Condensing data into singular file")
 
@@ -137,8 +135,7 @@ def condense_data(identifier: str,
     data_path = dp.get_data_var_folder(variable, missing_error=True)
 
     logging.debug("Collecting files from {}".format(data_path))
-    dfs = glob.glob(os.path.join(data_path, "**",
-                                 "*.nc" if not numpy else "*.npy"))
+    dfs = glob.glob(os.path.join(data_path, "**", "*.nc"))
 
     if len(dfs):
         logging.debug("Got {} files, collecting to {}...".format(len(dfs),

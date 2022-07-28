@@ -2,7 +2,6 @@ import datetime as dt
 import json
 import logging
 import os
-import pickle
 
 import dask
 import numpy as np
@@ -113,11 +112,14 @@ class IceNetPreProcessor(Processor):
         """
 
         """
-        for var_name in self._abs_vars + self._anom_vars:
-            if var_name not in self._var_files.keys():
-                logging.warning("{} does not exist".format(var_name))
-                continue
-            self._save_variable(var_name)
+        var_suffixes = ["abs", "anom"]
+        var_lists = [self._abs_vars, self._anom_vars]
+        for var_suffix, var_list in zip(var_suffixes, var_lists):
+            for var_name in var_list:
+                if var_name not in self._var_files.keys():
+                    logging.warning("{} does not exist".format(var_name))
+                    continue
+                self._save_variable(var_name, var_suffix)
 
         if self._update_loader:
             self.update_loader_config()
@@ -217,7 +219,7 @@ class IceNetPreProcessor(Processor):
         with open(self._update_loader, "w") as fh:
             json.dump(configuration, fh, indent=4, default=_serialize)
 
-    def _save_variable(self, var_name: str):
+    def _save_variable(self, var_name: str, var_suffix: str):
         """
 
         :param var_name:
@@ -284,29 +286,13 @@ class IceNetPreProcessor(Processor):
                 logging.info("Normalising {}".format(var_name))
                 da = self._normalise(var_name, da)
 
-            da.data[np.isnan(da.data)] = 0.
-
+            # da.data[np.isnan(da.data)] = 0.
             da = self.post_normalisation(var_name, da)
 
-            self._save_output(da, var_name)
-
-    def _save_output(self, da: object, var_name: str):
-        """
-        Saves an xarray DataArray as daily averaged .npy files using the
-        self.paths data structure.
-
-        :param da:
-        :param var_name:
-        """
-
-        for date in da.time.values:
-            slice = da.sel(time=date).data
-            date = pd.Timestamp(date)
-            fname = "{:04d}_{:02d}_{:02d}.npy".\
-                format(date.year, date.month, date.day)
-
-            self.save_processed_file(var_name, fname, slice,
-                                     append=[str(date.year)])
+            self.save_processed_file(var_name,
+                                     "{}_{}.nc".format(var_name, var_suffix),
+                                     da.rename(
+                                         "_".join([var_name, var_suffix])))
 
     def _open_dataarray_from_files(self, var_name: str):
 
@@ -369,6 +355,10 @@ class IceNetPreProcessor(Processor):
         logging.info("Filtered to {} units long based on configuration "
                      "requirements".format(len(da.time)))
 
+        for coord in ["yc", "xc"]:
+            if getattr(da, coord).attrs['units'] == "km":
+                da[coord] = da[coord] * 1000
+                da[coord].attrs['units'] = "meters"
         return da
 
     @staticmethod
@@ -515,8 +505,9 @@ class IceNetPreProcessor(Processor):
         # Could use shelve, but more likely we'll run into concurrency issues
         # pickleshare might be an option but a little over-engineery
         trend_cache_path = os.path.join(
-            self.get_data_var_folder("linear_trends"),
-            "{}.nc".format(var_name))
+            self.get_data_var_folder(var_name),
+            "{}_linear_trend.nc".format(var_name)
+        )
         trend_cache = linear_trend_da.copy()
         trend_cache.data = np.full_like(linear_trend_da.data, np.nan)
 
@@ -550,7 +541,11 @@ class IceNetPreProcessor(Processor):
 
         logging.info("Writing new trend cache for {}".format(var_name))
         trend_cache.close()
-        linear_trend_da.to_netcdf(trend_cache_path)
+        linear_trend_da = linear_trend_da.rename(
+            "{}_linear_trend".format(var_name))
+        self.save_processed_file(var_name,
+                                 "{}_linear_trend.nc".format(var_name),
+                                 linear_trend_da)
 
         return linear_trend_da
 
