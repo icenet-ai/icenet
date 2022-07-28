@@ -144,7 +144,8 @@ def condense_data(identifier: str,
 
         for year_el in df_years:
             year_dfs = [el for el in filenames
-                        if os.path.split(os.path.dirname(el))[-1] == year_el]
+                        if os.path.split(os.path.dirname(el))[-1] == year_el
+                        and not os.path.split(el)[1].startswith("latlon")]
             logging.debug("{} has {} files".format(year_el, len(year_dfs)))
             yield year_el, year_dfs
 
