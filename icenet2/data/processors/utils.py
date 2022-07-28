@@ -2,6 +2,7 @@ import argparse
 import glob
 import logging
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -137,15 +138,26 @@ def condense_data(identifier: str,
     logging.debug("Collecting files from {}".format(data_path))
     dfs = glob.glob(os.path.join(data_path, "**", "*.nc"))
 
+    def year_batch(filenames):
+        df_years = set([os.path.split(os.path.dirname(f_year))[-1]
+                        for f_year in filenames])
+
+        for year_el in df_years:
+            year_dfs = [el for el in filenames
+                        if os.path.split(os.path.dirname(el))[-1] == year_el]
+            logging.debug("{} has {} files".format(year_el, len(year_dfs)))
+            yield year_el, year_dfs
+
     if len(dfs):
         logging.debug("Got {} files, collecting to {}...".format(len(dfs),
                                                                  data_path))
 
-        logging.info("Loading")
-        ds = xr.open_mfdataset(dfs)
-        years, datasets = zip(*ds.groupby("time.year"))
-        paths = [os.path.join(data_path, "{}.nc".format(year)) for year in years]
-        logging.info("Saving across {} files".format(len(paths)))
-        xr.save_mfdataset(datasets, paths)
+        for year, year_files in year_batch(dfs):
+            logging.info("Loading {}".format(year))
+            ds = xr.open_mfdataset(year_files)
+            years, datasets = zip(*ds.groupby("time.year"))
+            paths = [os.path.join(data_path, "{}.nc".format(year)) for year in years]
+            logging.info("Saving across {} files".format(len(paths)))
+            xr.save_mfdataset(datasets, paths)
     else:
         logging.info("No valid files found.")
