@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from icenet2.data.cli import process_args
 from icenet2.data.process import IceNetPreProcessor
@@ -74,39 +75,43 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
         if "land" not in self._meta_vars:
             self._meta_vars.append("land")
 
-        land_path = self.save_processed_file("land", "land.npy", land_map)
-
-        for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
-            link_path = os.path.join(os.path.dirname(land_path),
-                                     date.strftime('%j.npy'))
-
-            if not os.path.islink(link_path):
-                os.symlink(os.path.basename(land_path), link_path)
-            self.processed_files["land"].append(link_path)
+        da = xr.DataArray(
+            data=land_map,
+            dims=["yc", "xc"],
+            attrs=dict(description="IceNet land mask metadata")
+        )
+        land_path = self.save_processed_file("land", "land.nc", da)
 
     def _save_circday(self):
         """
 
         """
+        cos = []
+        sin = []
+
         for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
             if self.north:
                 circday = date.dayofyear
             else:
                 circday = date.dayofyear + 365.25 / 2
 
-            cos_day = np.cos(2 * np.pi * circday / 366, dtype=self._dtype)
-            sin_day = np.sin(2 * np.pi * circday / 366, dtype=self._dtype)
-
-            self.save_processed_file("cos",
-                                     date.strftime('%j.npy'),
-                                     cos_day)
-            self.save_processed_file("sin",
-                                     date.strftime('%j.npy'),
-                                     sin_day)
+            cos.append(np.cos(2 * np.pi * circday / 366, dtype=self._dtype))
+            sin.append(np.sin(2 * np.pi * circday / 366, dtype=self._dtype))
 
         for var_name in ["sin", "cos"]:
             if var_name not in self._meta_vars:
                 self._meta_vars.append(var_name)
+
+            da = xr.DataArray(
+                data=eval(var_name),
+                dims=["time"],
+                coords=dict(
+                    time=pd.date_range(start='2012-1-1', end='2012-12-31')
+                ),
+                attrs=dict(
+                    description="IceNet {} mask metadata".format(var_name))
+            )
+            self.save_processed_file(var_name, "{}.nc".format(var_name), da)
 
 
 def main():

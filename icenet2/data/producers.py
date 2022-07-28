@@ -312,7 +312,7 @@ class Processor(DataProducer):
         """
         file_path = os.path.join(
             self.get_data_var_folder(var_name, **kwargs), name)
-        np.save(file_path, data)
+        data.to_netcdf(file_path)
 
         if var_name not in self._processed_files.keys():
             self._processed_files[var_name] = list()
