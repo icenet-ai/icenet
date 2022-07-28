@@ -164,6 +164,6 @@ def condense_data(identifier: str,
                     raise RuntimeError("Too many years in one file {}".
                                        format(years))
                 logging.info("Saving to {}".format(year_path))
-                xr.save_mfdataset(datasets, year_path)
+                xr.save_mfdataset(datasets, [year_path])
     else:
         logging.info("No valid files found.")
