@@ -154,11 +154,16 @@ def condense_data(identifier: str,
                                                                  data_path))
 
         for year, year_files in year_batch(dfs):
-            logging.info("Loading {}".format(year))
-            ds = xr.open_mfdataset(year_files)
-            years, datasets = zip(*ds.groupby("time.year"))
-            paths = [os.path.join(data_path, "{}.nc".format(year)) for year in years]
-            logging.info("Saving across {} files".format(len(paths)))
-            xr.save_mfdataset(datasets, paths)
+            year_path = os.path.join(data_path, "{}.nc".format(year))
+
+            if not os.path.exists(year_path):
+                logging.info("Loading {}".format(year))
+                ds = xr.open_mfdataset(year_files)
+                years, datasets = zip(*ds.groupby("time.year"))
+                if len(years) > 0:
+                    raise RuntimeError("Too many years in one file {}".
+                                       format(years))
+                logging.info("Saving to {}".format(year_path))
+                xr.save_mfdataset(datasets, year_path)
     else:
         logging.info("No valid files found.")
