@@ -370,7 +370,10 @@ class SICDownloader(Downloader):
                         raise RuntimeError("First file missing lat vals for "
                                            "replacement in others")
 
-                da.coords['lat'] = lat_vals
+                if 'lat' not in da.coords:
+                    logging.warning("Adding lat vals to coords, as missing in "
+                                    "this set: {}".format(file))
+                    da.coords['lat'] = lat_vals
 
                 # TODO: clean up
                 if len(da.time.values) > 1:
