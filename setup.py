@@ -45,6 +45,7 @@ setup(
 
             "icenet_data_cmip = icenet2.data.interfaces.esgf:main",
             "icenet_data_era5 = icenet2.data.interfaces.cds:main",
+            "icenet_data_oras5 = icenet2.data.interfaces.cmems:main",
             "icenet_data_hres = icenet2.data.interfaces.mars:main",
             "icenet_data_sic = icenet2.data.sic.osisaf:main",
 
@@ -55,6 +56,7 @@ setup(
 
             "icenet_process_cmip = icenet2.data.processors.cmip:main",
             "icenet_process_era5 = icenet2.data.processors.era5:main",
+            "icenet_process_oras5 = icenet2.data.processors.oras5:main",
             "icenet_process_hres = icenet2.data.processors.hres:main",
             "icenet_process_sic = icenet2.data.processors.osi:main",
 

@@ -254,7 +254,7 @@ class Processor(DataProducer):
             # Ensure we're ordered, it has repercussions for xarray
             for date in sorted(dates):
                 try:
-                    match_dfs = dt_series[date.strftime("%Y-%m-%d")]
+                    match_dfs = dt_series[date.strftime("%Y")]
 
                     if type(match_dfs) == str:
                         match_dfs = [match_dfs]
