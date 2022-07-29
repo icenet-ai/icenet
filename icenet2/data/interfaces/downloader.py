@@ -367,12 +367,12 @@ class ClimateDownloader(Downloader):
         :param date_str:
         :return:
         """
-        daily_path = os.path.join(var_folder,
-                                  "{}{}.nc".format(self.pregrid_prefix,
-                                                   date_str))
+        latlon_path = os.path.join(var_folder,
+                                   "{}{}.nc".format(self.pregrid_prefix,
+                                                    date_str))
         regridded_name = os.path.join(var_folder,
                                       "{}.nc".format(date_str))
-        return daily_path, regridded_name
+        return latlon_path, regridded_name
 
     @property
     def pregrid_prefix(self):
