@@ -71,7 +71,6 @@ def run_command(command: str, dry: bool = False):
         logging.warning("Child was terminated by signal: {}".
                         format(-ret.returncode))
     else:
-        logging.info("Child returned: {}".
-                     format(-ret.returncode))
+        logging.info("Child returned: {}".format(-ret.returncode))
 
-    return ret.returncode
+    return ret
