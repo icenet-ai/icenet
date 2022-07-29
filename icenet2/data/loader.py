@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 from pprint import pprint, pformat
 
@@ -24,24 +25,36 @@ from icenet2.data.cli import add_date_args, process_date_args
 """
 
 
-def generate_and_write(path: str, dates_args: object):
+def generate_and_write(path: str,
+                       dates_args: object,
+                       dry: bool = False):
     """
 
     :param path:
     :param dates_args:
+    :param dry:
     :return:
     """
     count = 0
+    times = []
 
     with tf.io.TFRecordWriter(path) as writer:
         for date in dates_args.keys():
+            start = time.time()
+
             try:
                 x, y, sample_weights = generate_sample(date, *dates_args[date])
-                write_tfrecord(writer, x, y, sample_weights)
+                if not dry:
+                    write_tfrecord(writer, x, y, sample_weights)
                 count += 1
-            except IceNetDataWarning as e:
-                logging.warning(e)
-    return path, count
+            except IceNetDataWarning:
+                continue
+
+            end = time.time()
+            times.append(end - start)
+            logging.debug("Time taken to produce {}: {}".
+                          format(date, times[-1]))
+    return path, count, times
 
 
 # FIXME: I want to get rid of the datetime calculations here, it's prone to
@@ -148,19 +161,18 @@ def generate_sample(forecast_date: object,
             x[:, :, v1] = meta[var_name]
         v1 += channels[var_name]
 
-    logging.debug("x shape {}, y shape {}".format(x.shape, y.shape))
+    y_nans = np.sum(np.isnan(y))
+    x_nans = np.sum(np.isnan(x))
+    sw_nans = np.sum(np.isnan(sample_weights))
 
-    if data_check:
-        y_nans = np.sum(np.isnan(y))
-        x_nans = np.sum(np.isnan(x))
-        sw_nans = np.sum(np.isnan(sample_weights))
+    if y_nans + x_nans + sw_nans > 0:
+        logging.warning("NaNs detected {}: input = {}, "
+                        "output = {}, weights = {}".
+                        format(forecast_date, x_nans, y_nans, sw_nans))
 
-        if y_nans + x_nans + sw_nans > 0:
-            logging.warning("NaNs detected: input = {}, "
-                            "output = {}, weights = {}".
-                            format(x_nans, y_nans, sw_nans))
-
-            raise IceNetDataWarning("NaNs detected in data")
+        if data_check:
+            raise IceNetDataWarning("NaNs detected in data for {}".
+                                    format(forecast_date))
 
     return x, y, sample_weights
 
@@ -212,6 +224,7 @@ class IceNetDataLoader(Generator):
                  var_lag: int,
                  *args,
                  dataset_config_path: str = ".",
+                 dry: bool = False,
                  generate_workers: int = 8,
                  loss_weight_days: bool = True,
                  n_forecast_days: int = 93,
@@ -231,6 +244,7 @@ class IceNetDataLoader(Generator):
         self._configuration_path = configuration_path
         self._dataset_config_path = dataset_config_path
         self._config = dict()
+        self._dry = dry
         self._loss_weight_days = loss_weight_days
         self._masks = Masks(north=self.north, south=self.south)
         self._meta_channels = []
@@ -301,6 +315,7 @@ class IceNetDataLoader(Generator):
             raise RuntimeError("dates_override needs to be a dict if supplied")
 
         counts = {el: 0 for el in splits}
+        exec_times = []
 
         def batch(batch_dates, num):
             i = 0
@@ -364,9 +379,11 @@ class IceNetDataLoader(Generator):
                             masks
                         ]
 
-                    tf_data, samples = generate_and_write(
-                        tf_path.format(batch_number), args)
-                    logging.info("Finished output {}".format(tf_data))
+                    tf_data, samples, times = generate_and_write(
+                        tf_path.format(batch_number), args, dry=self._dry)
+                    if samples > 0:
+                        logging.info("Finished output {}".format(tf_data))
+                        exec_times += times
                 else:
                     logging.warning("Skipping {} on pickup run".
                                     format(tf_path.format(batch_number)))
@@ -374,6 +391,9 @@ class IceNetDataLoader(Generator):
                 batch_number += 1 if samples > 0 else 0
                 counts[dataset] += samples
 
+        if len(exec_times) > 0:
+            logging.info("Average sample generation time: {}".
+                         format(np.average(exec_times)))
         self._write_dataset_config(counts)
 
     def generate_sample(self, date: object):
@@ -654,11 +674,14 @@ def get_args():
                                             "generating sets",
                     type=int, default=8)
 
-    ap.add_argument("-p", "--pickup", help="Skip existing tfrecords",
-                    default=False, action="store_true")
     ap.add_argument("-c", "--cfg-only", help="Do not generate data, "
                                              "only config", default=False,
                     action="store_true", dest="cfg")
+    ap.add_argument("-d", "--dry",
+                    help="Don't output files, just generate data",
+                    default=False, action="store_true")
+    ap.add_argument("-p", "--pickup", help="Skip existing tfrecords",
+                    default=False, action="store_true")
 
     add_date_args(ap)
     args = ap.parse_args()
@@ -675,6 +698,7 @@ def main():
                           args.forecast_name
                           if args.forecast_name else args.name,
                           args.lag,
+                          dry=args.dry,
                           n_forecast_days=args.forecast_days,
                           north=args.hemisphere == "north",
                           south=args.hemisphere == "south",
@@ -683,11 +707,14 @@ def main():
     if args.cfg:
         dl.write_dataset_config_only()
     else:
+        dashboard = "localhost:{}".format(args.dask_port)
         cluster = LocalCluster(
             n_workers=args.workers,
             scheduler_port=0,
-            dashboard_address="localhost:{}".format(args.dask_port),
+            dashboard_address=dashboard,
         )
+        logging.info("Dashboard at {}".format(dashboard))
+
         with Client(cluster) as client:
             logging.info("Using dask client {}".format(client))
             dl.generate(dates_override=dates
