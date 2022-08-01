@@ -56,6 +56,13 @@ class HRESDownloader(ClimateDownloader):
         # plev  129.128 / 130.128 / 133.128
         # sfc   31.128 / 34.128 / 134.128 /
         #       165.128 / 166.128 / 167.128 / 169.128 / 177.128
+
+        # ORAS5 variables in param-db (need to consider depth)
+        #"thetao":       (151129, "thetao"),
+        #"so":           (151130, "so"),
+        # Better matches than equivalent X / Y parameters in param-db
+        #"uo":           (151131, "uo"),
+        #"vo":           (151132, "vo"),
     }
 
     MARS_TEMPLATE = """
