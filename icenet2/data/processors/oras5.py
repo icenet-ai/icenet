@@ -19,10 +19,12 @@ def main():
         (tuple(["--abs"]), dict(
             help="Comma separated list of abs vars",
             type=lambda x: x.split(",") if "," in x else [x],
+            default=[],
         )),
         (tuple(["--anom"]), dict(
             help="Comma separated list of anom vars",
             type=lambda x: x.split(",") if "," in x else [x],
+            default=[],
         )),
     ])
     dates = process_date_args(args)
