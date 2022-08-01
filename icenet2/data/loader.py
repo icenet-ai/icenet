@@ -170,7 +170,10 @@ def generate_sample(forecast_date: object,
                         "output = {}, weights = {}".
                         format(forecast_date, x_nans, y_nans, sw_nans))
 
-        if data_check:
+        if data_check and np.sum(sample_weights[np.isnan(y)]) > 0:
+            raise IceNetDataWarning("NaNs in output with non-zero weights")
+
+        if data_check and x_nans > 0:
             raise IceNetDataWarning("NaNs detected in data for {}".
                                     format(forecast_date))
 
@@ -672,7 +675,7 @@ def get_args():
     ap.add_argument("-dp", "--dask-port", type=int, default=8888)
     ap.add_argument("-w", "--workers", help="Number of workers to use "
                                             "generating sets",
-                    type=int, default=8)
+                    type=int, default=2)
 
     ap.add_argument("-c", "--cfg-only", help="Do not generate data, "
                                              "only config", default=False,

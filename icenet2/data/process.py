@@ -223,6 +223,7 @@ class IceNetPreProcessor(Processor):
         """
 
         :param var_name:
+        :param var_suffix:
         """
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             da = self._open_dataarray_from_files(var_name)
@@ -276,9 +277,14 @@ class IceNetPreProcessor(Processor):
             da.data = np.asarray(da.data, dtype=self._dtype)
 
             da = self.pre_normalisation(var_name, da)
+            # We don't do this (https://github.com/tom-andersson/icenet2/blob/
+            # 4ca0f1300fbd82335d8bb000c85b1e71855630fa/icenet2/utils.py#L520)
+            # any more
 
             if var_name in self._linear_trends:
-                da = self._build_linear_trend_da(da, var_name)
+                # TODO: verify, this used to be da = , but we should not be
+                #  overwriting the abs da with linear trend da
+                self._build_linear_trend_da(da, var_name)
 
             if var_name in self._no_normalise:
                 logging.info("No normalisation for {}".format(var_name))
@@ -286,7 +292,6 @@ class IceNetPreProcessor(Processor):
                 logging.info("Normalising {}".format(var_name))
                 da = self._normalise(var_name, da)
 
-            # da.data[np.isnan(da.data)] = 0.
             da = self.post_normalisation(var_name, da)
 
             self.save_processed_file(var_name,
@@ -469,7 +474,7 @@ class IceNetPreProcessor(Processor):
                                var_name: str,
                                max_years: int = 35):
         """
-        Construct a DataArray `linear_trend_da` containing the linear trend SIC
+        Construct a DataArray `linear_trend_da` containing the linear trend
         forecasts based on the input DataArray `input_da`.
 
         :param input_da:
