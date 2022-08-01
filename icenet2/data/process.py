@@ -86,8 +86,8 @@ class IceNetPreProcessor(Processor):
                          test_dates=test_dates,
                          **kwargs)
 
-        self._abs_vars = abs_vars
-        self._anom_vars = anom_vars
+        self._abs_vars = abs_vars if abs_vars else []
+        self._anom_vars = anom_vars if anom_vars else []
         # TODO: Ugh, this should not be here any longer
         self._meta_vars = list(meta_vars)
 
