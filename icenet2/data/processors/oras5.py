@@ -26,6 +26,11 @@ def main():
             type=lambda x: x.split(",") if "," in x else [x],
             default=[],
         )),
+        (tuple(["--trend"]), dict(
+            help="Comma separated list of vars to produce trends for",
+            type=lambda x: x.split(",") if "," in x else [x],
+            default=[],
+        ))
     ])
     dates = process_date_args(args)
 
@@ -36,7 +41,7 @@ def main():
         dates["train"],
         dates["val"],
         dates["test"],
-        linear_trends=tuple(),
+        linear_trends=args.trend,
         north=args.hemisphere == "north",
         ref_procdir=args.ref,
         south=args.hemisphere == "south"
