@@ -458,7 +458,7 @@ class IceNetDataLoader(Generator):
 
             kwargs = dict(
                 chunks=dict(time=1),
-                drop_variables=["month"],
+                drop_variables=["month", "plev", "realization"],
                 parallel=True,
             )
             self._channel_ds["linear_trends"] = \
