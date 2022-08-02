@@ -9,6 +9,7 @@ import icenet2.model.models as models
 from icenet2.data.dataset import IceNetDataSet
 
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 """
@@ -20,12 +21,13 @@ def predict_forecast(
         dataset_config: object,
         network_name: object,
         dataset_name: object = None,
-        model_func: object = models.unet_batchnorm,
+        model_func: callable = models.unet_batchnorm,
         n_filters_factor: float = 1 / 8,
         network_folder: object = None,
+        output_folder: object = None,
         seed: int = 42,
         start_dates: object = tuple([dt.datetime.now().date()]),
-        testset: bool = False,
+        test_set: bool = False,
 ) -> object:
     """
 
@@ -35,59 +37,14 @@ def predict_forecast(
     :param model_func:
     :param n_filters_factor:
     :param network_folder:
+    :param output_folder:
     :param seed:
     :param start_dates:
-    :param testset:
+    :param test_set:
     :return:
     """
     ds = IceNetDataSet(dataset_config)
     dl = ds.get_data_loader()
-
-    if not testset:
-        logging.info("Generating forecast inputs from processed/ files")
-
-        forecast_inputs, gen_outputs, sample_weights = \
-            list(zip(*[dl.generate_sample(date) for date in start_dates]))
-    else:
-        # TODO: This is horrible behaviour, rethink and refactor: we should
-        #  be able to pull from the test set in a nicer and more efficient
-        #  fashion
-        _, _, test_inputs = ds.get_split_datasets()
-
-        source_key = [k for k in dl.config['sources'].keys() if k != "meta"][0]
-        # FIXME: should be using date format from class
-        test_dates = [dt.date(*[int(v) for v in d.split("_")]) for d in
-                      dl.config["sources"][source_key]["dates"]["test"]]
-
-        if len(test_dates) == 0:
-            raise RuntimeError("No processed files were produced for the test "
-                               "set")
-
-        missing = set(start_dates).difference(test_dates)
-        if len(missing) > 0:
-            raise RuntimeError("{} are not in the test set".
-                               format(", ".join([str(pd.to_datetime(el).date()) 
-                                                 for el in missing])))
-
-        forecast_inputs, gen_outputs, sample_weights = [], [], []
-
-        data_iter = test_inputs.as_numpy_iterator()
-        # FIXME: this is broken, this entry never gets added to the set?
-        data = next(data_iter)
-        x, y, sw = data
-        batch = 0
-
-        for i, idx in enumerate([test_dates.index(sd) for sd in start_dates]):
-            while batch < int(idx / ds.batch_size):
-                data = next(data_iter)
-                x, y, sw = data
-                batch += 1
-            arr_idx = idx % ds.batch_size
-            logging.info("Processing batch {} - item {}".format(
-                batch + 1, arr_idx))
-            forecast_inputs.append(x[arr_idx, ...])
-            gen_outputs.append(y[arr_idx, ...])
-            sample_weights.append(sw[arr_idx, ...])
 
     if not network_folder:
         network_folder = os.path.join(".", "results", "networks", network_name)
@@ -111,13 +68,89 @@ def predict_forecast(
     )
     network.load_weights(network_path)
 
-    predictions = []
+    if not test_set:
+        logging.info("Generating forecast inputs from processed/ files")
 
-    for i, net_input in enumerate(forecast_inputs):
-        logging.info("Running prediction {} - {}".format(i, start_dates[i]))
-        pred = network(tf.convert_to_tensor([net_input]), training=False)
-        predictions.append(pred)
-    return predictions, gen_outputs, sample_weights
+        for date in start_dates:
+            run_prediction(network,
+                           date,
+                           output_folder,
+                           *dl.generate_sample(date))
+    else:
+        # TODO: This is horrible behaviour, rethink and refactor: we should
+        #  be able to pull from the test set in a nicer and more efficient
+        #  fashion
+        _, _, test_inputs = ds.get_split_datasets()
+
+        source_key = [k for k in dl.config['sources'].keys() if k != "meta"][0]
+        # FIXME: should be using date format from class
+        test_dates = [dt.date(*[int(v) for v in d.split("_")]) for d in
+                      dl.config["sources"][source_key]["dates"]["test"]]
+
+        if len(test_dates) == 0:
+            raise RuntimeError("No processed files were produced for the test "
+                               "set")
+
+        missing = set(start_dates).difference(test_dates)
+        if len(missing) > 0:
+            raise RuntimeError("{} are not in the test set".
+                               format(", ".join([str(pd.to_datetime(el).date()) 
+                                                 for el in missing])))
+
+        data_iter = test_inputs.as_numpy_iterator()
+        # FIXME: this is broken, this entry never gets added to the set?
+        data = next(data_iter)
+        x, y, sw = data
+        batch = 0
+
+        for i, idx in enumerate([test_dates.index(sd) for sd in start_dates]):
+            while batch < int(idx / ds.batch_size):
+                data = next(data_iter)
+                x, y, sw = data
+                batch += 1
+            arr_idx = idx % ds.batch_size
+            logging.info("Processing test batch {}, item {} (date {})".format(
+                batch + 1, arr_idx, test_dates[idx]))
+
+            run_prediction(network,
+                           test_dates[idx],
+                           output_folder,
+                           x[arr_idx, ...],
+                           y[arr_idx, ...],
+                           sw[arr_idx, ...])
+
+
+def run_prediction(network, date, output_folder,
+                   net_input, net_output, sample_weights):
+    logging.info("Running prediction {}".format(date))
+    pred = network(tf.convert_to_tensor([net_input]), training=False)
+
+    if os.path.exists(output_folder):
+        logging.warning("{} output already exists".format(output_folder))
+    os.makedirs(output_folder, exist_ok=output_folder)
+    output_path = os.path.join(output_folder, date.strftime("%Y_%m_%d.npy"))
+
+    logging.info("Saving {} - forecast output {}".format(date, pred.shape))
+
+    # FIXME: active_grid_cell mask
+    np.save(output_path, pred)
+
+    logging.debug("Saving loader generated data for reference...")
+
+    for date, output, directory in \
+            ((date, net_input, "input"),
+             (date, net_output, "outputs"),
+             (date, sample_weights, "weights")):
+        output_directory = os.path.join(output_folder, "loader", directory)
+        os.makedirs(output_directory, exist_ok=True)
+        loader_output_path = os.path.join(output_directory,
+                                          date.strftime("%Y_%m_%d.npy"))
+
+        logging.info("Saving {} - generated {} {}".
+                     format(date, directory, output.shape))
+        np.save(loader_output_path, output)
+
+    return output_path
 
 
 def date_arg(string: str) -> object:
@@ -135,7 +168,6 @@ def get_args():
 
     :return:
     """
-    # -b 1 -e 1 -w 1 -n 0.125
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset")
     ap.add_argument("network_name")
@@ -146,7 +178,6 @@ def get_args():
     ap.add_argument("-i", "--train-identifier", dest="ident",
                     help="Train dataset identifier", type=str, default=None)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
-    ap.add_argument("-o", "--skip-outputs", default=False, action="store_true")
     ap.add_argument("-t", "--testset", default=False, action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
@@ -166,50 +197,21 @@ def main():
              for s in date_content.split()]
     args.datefile.close()
 
-    output_dir = os.path.join(".", "results", "predict",
-                              args.output_name,
-                              "{}.{}".format(args.network_name, args.seed))
+    output_folder = os.path.join(".", "results", "predict",
+                                 args.output_name,
+                                 "{}.{}".format(args.network_name, args.seed))
 
-    forecasts, gen_outputs, sample_weights = \
-        predict_forecast(dataset_config,
-                         args.network_name,
-                         # FIXME: this is turning into a mapping mess,
-                         #  do we need to retain the train SD name in the
-                         #  network?
-                         dataset_name=
-                         args.ident if args.ident else args.dataset,
-                         n_filters_factor=
-                         args.n_filters_factor,
-                         seed=args.seed,
-                         start_dates=dates,
-                         testset=args.testset)
-
-    if os.path.exists(output_dir):
-        raise RuntimeError("{} output already exists".format(output_dir))
-    os.makedirs(output_dir)
-
-    for date, forecast in zip(dates, forecasts):
-        output_path = os.path.join(output_dir, date.strftime("%Y_%m_%d.npy"))
-
-        logging.info("Saving {} - forecast output {}".
-                     format(date, forecast.shape))
-        np.save(output_path, forecast)
-
-    if not args.skip_outputs:
-        logging.info("Saving outputs generated for these inputs as well...")
-        gen_dir = os.path.join(output_dir, "loader")
-
-        outputs = ((dates, gen_outputs, "outputs"),
-                   (dates, sample_weights, "weights"))
-
-        for dates, outputs, directory in outputs:
-            for date, output in zip(dates, outputs):
-                output_directory = os.path.join(gen_dir, directory)
-                os.makedirs(output_directory, exist_ok=True)
-                output_path = os.path.join(output_directory,
-                                           date.strftime("%Y_%m_%d.npy"))
-
-                logging.info("Saving {} - generated {} {}".
-                             format(date, directory, output.shape))
-                np.save(output_path, output)
+    predict_forecast(dataset_config,
+                     args.network_name,
+                     # FIXME: this is turning into a mapping mess,
+                     #  do we need to retain the train SD name in the
+                     #  network?
+                     dataset_name=
+                     args.ident if args.ident else args.dataset,
+                     n_filters_factor=
+                     args.n_filters_factor,
+                     output_folder=output_folder,
+                     seed=args.seed,
+                     start_dates=dates,
+                     test_set=args.testset)
 
