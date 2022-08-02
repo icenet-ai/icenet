@@ -18,16 +18,16 @@ import tensorflow as tf
 
 
 def predict_forecast(
-        dataset_config: object,
-        network_name: object,
-        dataset_name: object = None,
-        model_func: callable = models.unet_batchnorm,
-        n_filters_factor: float = 1 / 8,
-        network_folder: object = None,
-        output_folder: object = None,
-        seed: int = 42,
-        start_dates: object = tuple([dt.datetime.now().date()]),
-        test_set: bool = False,
+    dataset_config: object,
+    network_name: object,
+    dataset_name: object = None,
+    model_func: callable = models.unet_batchnorm,
+    n_filters_factor: float = 1 / 8,
+    network_folder: object = None,
+    output_folder: object = None,
+    seed: int = 42,
+    start_dates: object = tuple([dt.datetime.now().date()]),
+    test_set: bool = False,
 ) -> object:
     """
 
@@ -43,14 +43,13 @@ def predict_forecast(
     :param test_set:
     :return:
     """
+    # TODO: going to need to be able to handle merged datasets
     ds = IceNetDataSet(dataset_config)
     dl = ds.get_data_loader()
 
     if not network_folder:
         network_folder = os.path.join(".", "results", "networks", network_name)
 
-    # FIXME: this is a mess as we have seed duplication in filename, sort it out
-    # FIXME: this is a pain in the arse for non-train datasets, sort it out
     dataset_name = dataset_name if dataset_name else ds.identifier
     network_path = os.path.join(network_folder,
                                 "{}.network_{}.{}.h5".format(network_name,
@@ -131,8 +130,6 @@ def run_prediction(network, date, output_folder,
     output_path = os.path.join(output_folder, date.strftime("%Y_%m_%d.npy"))
 
     logging.info("Saving {} - forecast output {}".format(date, pred.shape))
-
-    # FIXME: active_grid_cell mask
     np.save(output_path, pred)
 
     logging.debug("Saving loader generated data for reference...")
