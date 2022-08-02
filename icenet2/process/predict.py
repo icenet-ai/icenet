@@ -166,8 +166,8 @@ def create_cf_output():
 
         for idx, forecast_date in enumerate(dates):
             for lead_idx in np.arange(0, arr.shape[3], 1):
-                lead_dt = forecast_date + dt.timedelta(days=lead_idx + 1)
-                logging.debug("Active grid cell mask start {} forecast date".
+                lead_dt = forecast_date + dt.timedelta(days=int(lead_idx) + 1)
+                logging.debug("Active grid cell mask start {} forecast date {}".
                               format(forecast_date, lead_dt))
 
                 grid_cell_mask = mask_gen.get_active_cell_mask(lead_dt.month)
