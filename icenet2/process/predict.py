@@ -171,8 +171,8 @@ def create_cf_output():
                               format(forecast_date, lead_dt))
 
                 grid_cell_mask = mask_gen.get_active_cell_mask(lead_dt.month)
-                sic_mean[idx, grid_cell_mask, lead_idx] = 0
-                sic_stddev[idx, grid_cell_mask, lead_idx] = 0
+                sic_mean[idx, ~grid_cell_mask, lead_idx] = 0
+                sic_stddev[idx, ~grid_cell_mask, lead_idx] = 0
 
     xarr = xr.Dataset(
         data_vars=dict(
