@@ -711,18 +711,20 @@ def main():
         dl.write_dataset_config_only()
     else:
         dashboard = "localhost:{}".format(args.dask_port)
-        cluster = LocalCluster(
-            n_workers=args.workers,
-            scheduler_port=0,
-            dashboard_address=dashboard,
-        )
-        logging.info("Dashboard at {}".format(dashboard))
+        # TODO: bad times, but DASK__TEMPORARY_DIRECTORY didn't work
+        with dask.config.set({"temporary_directory": "/local/tmp"}):
+            cluster = LocalCluster(
+                n_workers=args.workers,
+                scheduler_port=0,
+                dashboard_address=dashboard,
+            )
+            logging.info("Dashboard at {}".format(dashboard))
 
-        with Client(cluster) as client:
-            logging.info("Using dask client {}".format(client))
-            dl.generate(dates_override=dates
-                        if sum([len(v) for v in dates.values()]) > 0 else None,
-                        pickup=args.pickup)
+            with Client(cluster) as client:
+                logging.info("Using dask client {}".format(client))
+                dl.generate(dates_override=dates
+                            if sum([len(v) for v in dates.values()]) > 0 else None,
+                            pickup=args.pickup)
 
 
 class IceNetDataWarning(RuntimeWarning):
