@@ -4,6 +4,8 @@ import datetime as dt
 import logging
 import re
 
+from pprint import pformat
+
 import pandas as pd
 
 from icenet2.utils import setup_logging
@@ -47,12 +49,12 @@ def csv_arg(string: str) -> list:
     :return:
     """
     csv_items = []
-
+    print("{}".format(string))
     for el in string.split(","):
         if len(el) == 0:
             csv_items.append(None)
         else:
-            csv_items.append(el.split("|"))
+            csv_items.append(el.split("|") if "|" in el else el)
     return csv_items
 
 
@@ -74,7 +76,7 @@ def download_args(choices: object = None,
                   dates: bool = True,
                   dates_optional: bool = False,
                   skip_download: bool = False,
-                  vars: bool = True,
+                  var_specs: bool = True,
                   workers: bool = False,
                   extra_args: object = ()) -> object:
     """
@@ -83,7 +85,7 @@ def download_args(choices: object = None,
     :param dates:
     :param dates_optional:
     :param skip_download:
-    :param vars:
+    :param var_specs:
     :param workers:
     :param extra_args:
     :return:
@@ -112,7 +114,7 @@ def download_args(choices: object = None,
                     action="store_false", default=True)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
-    if vars:
+    if var_specs:
         ap.add_argument("--vars",
                         help="Comma separated list of abs vars",
                         type=csv_arg,
@@ -127,8 +129,7 @@ def download_args(choices: object = None,
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
 
-    args = ap.parse_args()
-    return args
+    return ap.parse_args()
 
 
 @setup_logging

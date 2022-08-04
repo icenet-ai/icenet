@@ -502,7 +502,7 @@ class SICDownloader(Downloader):
 
 
 def main():
-    args = download_args(skip_download=True, vars=False)
+    args = download_args(skip_download=True, var_specs=False)
 
     logging.info("OSASIF-SIC Data Downloading")
     sic = SICDownloader(
