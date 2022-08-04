@@ -350,13 +350,10 @@ def main():
 
     logging.info("ERA5 Data Downloading")
     era5 = ERA5Downloader(
-        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds", "rsds",
-                   "uas", "vas"],
-        pressure_levels=[None, [500], None, None, [250, 500], [1000], None,
-                         None, None, None],
+        var_names=args.vars,
+        pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
-               pd.date_range(args.start_date, args.end_date,
-                             freq="D")],
+               pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         max_threads=args.workers,
         north=args.hemisphere == "north",

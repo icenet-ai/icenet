@@ -38,6 +38,22 @@ def dates_arg(string: str) -> object:
     return [dt.date(*[int(s) for s in date_tuple]) for date_tuple in date_match]
 
 
+def csv_arg(string: str) -> list:
+    """
+
+    :param string:
+    :return:
+    """
+    csv_items = []
+
+    for el in string.split(","):
+        if len(el) == 0:
+            csv_items.append(None)
+        else:
+            csv_items.append(el.split("|"))
+    return csv_items
+
+
 def download_args(choices: object = None,
                   dates: bool = True,
                   dates_optional: bool = False,
@@ -77,6 +93,17 @@ def download_args(choices: object = None,
                     action="store_false", default=True)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
+    ap.add_argument("--vars",
+                    help="Comma separated list of abs vars",
+                    type=csv_arg,
+                    default=[])
+    ap.add_argument("--levels",
+                    help="Comma separated list of pressures/depths as needed, "
+                         "use zero length string if None (e.g. ',,500,,,') and "
+                         "pipes for multiple per var (e.g. ',,250|500,,'",
+                    type=csv_arg,
+                    default=[])
+
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
 
@@ -90,7 +117,6 @@ def download_args(choices: object = None,
 
 
 def process_args(dates: bool = True,
-                 lag_lead: bool = True,
                  ref_option: bool = True,
                  extra_args: object = ()) -> object:
     """
@@ -111,9 +137,25 @@ def process_args(dates: bool = True,
         # FIXME#11: not allowing this option currently
         # ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
 
-    if lag_lead:
-        ap.add_argument("-l", "--lag", type=int, default=2)
-        ap.add_argument("-f", "--forecast-days", type=int, default=93)
+    ap.add_argument("-l", "--lag", type=int, default=2)
+    ap.add_argument("-f", "--forecast", type=int, default=93)
+
+    ap.add_argument("--abs",
+                    help="Comma separated list of abs vars",
+                    type=csv_arg,
+                    default=[])
+    ap.add_argument("--anom",
+                    help="Comma separated list of abs vars",
+                    type=csv_arg,
+                    default=[])
+    ap.add_argument("--trends",
+                    help="Comma separated list of abs vars",
+                    type=csv_arg,
+                    default=[])
+    ap.add_argument("--trend-lead",
+                    help="Time steps in the future for linear trends",
+                    type=int,
+                    default=93)
 
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
@@ -123,6 +165,12 @@ def process_args(dates: bool = True,
                         help="Reference loader for normalisations etc",
                         default=None, type=str)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
+
+    ap.add_argument("-u", "--update-key",
+                    default=None,
+                    help="Add update key to processor to avoid overwriting default"
+                         "entries in the loader configuration",
+                    type=str)
 
     args = ap.parse_args()
 

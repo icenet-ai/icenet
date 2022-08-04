@@ -31,7 +31,7 @@ class HRESDownloader(ClimateDownloader):
     # https://confluence.ecmwf.int/pages/viewpage.action?pageId=85402030
     # https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation#ERA5:datadocumentation-Dateandtimespecification
     HRES_PARAMS = {
-        "siconca":      (31, "siconc"),     # sea_ice_area_fraction
+        "siconca":      (31, "siconc"),     # sea_ice_area_fraction (SEAS5)
         "tos":          (34, "sst"),    # sea surface temperature (actually
                                         # sst?)
         "zg":           (129, "z"),     # geopotential
@@ -65,6 +65,7 @@ class HRESDownloader(ClimateDownloader):
         #"vo":           (151132, "vo"),
     }
 
+    # https://confluence.ecmwf.int/display/UDOC/Keywords+in+MARS+and+Dissemination+requests
     MARS_TEMPLATE = """
 retrieve,
   class=od,
@@ -212,7 +213,6 @@ retrieve,
                     downloaded_files.append(request_target)
 
         ds = xr.open_mfdataset(downloaded_files)
-
         ds = ds.resample(time='1D').reduce(np.mean)
 
         for day in ds.time.values:
@@ -319,13 +319,10 @@ def main():
 
     logging.info("ERA5 HRES Data Downloading")
     hres = HRESDownloader(
-        var_names=["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-                   "rsds", "uas", "vas", "siconca"],
-        pressure_levels=[None, [500], None, None, [250, 500], [1000],
-                         None, None, None, None, None],
+        var_names=args.vars,
+        pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
-               pd.date_range(args.start_date, args.end_date,
-                             freq="D")],
+               pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south"
@@ -334,6 +331,3 @@ def main():
     hres.regrid()
     hres.rotate_wind_data()
 
-
-if __name__ == "__main__":
-    main()

@@ -163,6 +163,7 @@ class Processor(DataProducer):
                  source_data: object,
                  *args,
                  file_filters: object = (),
+                 lead_time: int = 93,
                  test_dates: object = (),
                  train_dates: object = (),
                  val_dates: object = (),
@@ -172,6 +173,7 @@ class Processor(DataProducer):
                          **kwargs)
 
         self._file_filters = list(file_filters)
+        self._lead_time = lead_time
         self._source_data = os.path.join(source_data,
                                          identifier,
                                          self.hemisphere_str[0])
@@ -185,13 +187,12 @@ class Processor(DataProducer):
                             test=list(test_dates))
 
     def init_source_data(self,
-                         lag_days: object = None,
-                         lead_days: object = None):
+                         lag_days: object = None):
         """
 
         :param lag_days:
-        :param lead_days:
         """
+
         if not os.path.exists(self.source_data):
             raise OSError("Source data directory {} does not exist".
                           format(self.source_data))
@@ -226,13 +227,13 @@ class Processor(DataProducer):
             # FIXME: this is conveniently supplied for siconca_abs on
             #  training with OSISAF data, but are we exploiting the
             #  convenient usage of this data for linear trends?
-            if lead_days:
-                logging.info("Including lead of {} days".format(lead_days))
+            if self._lead_time:
+                logging.info("Including lead of {} days".format(self._lead_time))
 
                 additional_lead_dates = []
 
                 for date in dates:
-                    for day in range(lead_days):
+                    for day in range(self._lead_time):
                         lead_day = date + dt.timedelta(days=day + 1)
                         if lead_day not in dates:
                             additional_lead_dates.append(lead_day)
@@ -328,6 +329,10 @@ class Processor(DataProducer):
     @property
     def dates(self):
         return self._dates
+
+    @property
+    def lead_time(self):
+        return self._lead_time
 
     @property
     def processed_files(self):

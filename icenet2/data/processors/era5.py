@@ -22,20 +22,21 @@ def main():
     args = process_args()
     dates = process_date_args(args)
 
-    pp = IceNetERA5PreProcessor(
-        ["uas", "vas"],
-        ["tas", "ta500", "tos", "psl", "zg500", "zg250", "rsds", "rlds",
-         "hus1000", "uas", "vas"],
+    era5 = IceNetERA5PreProcessor(
+        args.abs,
+        args.anom,
         args.name,
         dates["train"],
         dates["val"],
         dates["test"],
-        linear_trends=tuple(),
+        linear_trends=args.trends,
+        linear_trend_days=args.trend_lead,
         north=args.hemisphere == "north",
         ref_procdir=args.ref,
-        south=args.hemisphere == "south"
+        south=args.hemisphere == "south",
+        update_key=args.update_key,
     )
-    pp.init_source_data(
+    era5.init_source_data(
         lag_days=args.lag,
     )
-    pp.process()
+    era5.process()

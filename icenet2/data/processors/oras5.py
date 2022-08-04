@@ -15,38 +15,24 @@ class IceNetORAS5PreProcessor(IceNetPreProcessor):
 
 
 def main():
-    args = process_args(extra_args=[
-        (tuple(["--abs"]), dict(
-            help="Comma separated list of abs vars",
-            type=lambda x: x.split(",") if "," in x else [x],
-            default=[],
-        )),
-        (tuple(["--anom"]), dict(
-            help="Comma separated list of anom vars",
-            type=lambda x: x.split(",") if "," in x else [x],
-            default=[],
-        )),
-        (tuple(["--trend"]), dict(
-            help="Comma separated list of vars to produce trends for",
-            type=lambda x: x.split(",") if "," in x else [x],
-            default=[],
-        ))
-    ])
+    args = process_args()
     dates = process_date_args(args)
 
-    pp = IceNetORAS5PreProcessor(
+    oras5 = IceNetORAS5PreProcessor(
         args.abs,
         args.anom,
         args.name,
         dates["train"],
         dates["val"],
         dates["test"],
-        linear_trends=args.trend,
+        linear_trends=args.trends,
+        linear_trend_days=args.trend_lead,
         north=args.hemisphere == "north",
         ref_procdir=args.ref,
-        south=args.hemisphere == "south"
+        south=args.hemisphere == "south",
+        update_key=args.update_key,
     )
-    pp.init_source_data(
+    oras5.init_source_data(
         lag_days=args.lag,
     )
-    pp.process()
+    oras5.process()

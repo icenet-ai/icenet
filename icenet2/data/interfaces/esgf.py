@@ -293,8 +293,6 @@ def main():
             (("-xs", "--exclude-server"),
              dict(default=[], nargs="*")),
             (("-o", "--override"), dict(required=None, type=str)),
-            (("-l", "--limit-vars"), dict(default=[], nargs="*")),
-            (("-p", "--limit-pressures"), dict(default=[], nargs="*"))
         ],
         workers=True
     )
@@ -313,25 +311,11 @@ def main():
         logging.info("{} dates specified, downloading subset".
                      format(len(dates)))
 
-    if len(args.limit_vars) > 0:
-        assert len(args.limit_pressures) == len(args.limit_vars), \
-            "Length of vars and pressures should be equal"
-
-        var_names = args.limit_vars
-        var_pressures = [None if e == "None" else [int(p)
-                                                   for p in e.split(",")]
-                         for e in args.limit_pressures]
-    else:
-        var_names = ["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-                     "rsds", "uas", "vas", "siconca"]
-        var_pressures = [None, [500], None, None, [250, 500], [1000],
-                         None, None, None, None, None]
-
     downloader = CMIP6Downloader(
         source=args.source,
         member=args.member,
-        var_names=var_names,
-        pressure_levels=var_pressures,
+        var_names=args.vars,
+        pressure_levels=args.levels,
         dates=dates,
         delete_tempfiles=args.delete,
         grid_override=args.override,
@@ -347,6 +331,3 @@ def main():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         downloader.regrid()
-
-    # Issue#24: don't think there's a need to rotate wind data
-

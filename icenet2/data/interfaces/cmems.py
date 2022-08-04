@@ -210,7 +210,7 @@ def main():
     logging.info("ERA5 Data Downloading")
     oras5 = ORAS5Downloader(
         var_names=args.vars,
-        pressure_levels=[None for _ in args.vars],
+        pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
