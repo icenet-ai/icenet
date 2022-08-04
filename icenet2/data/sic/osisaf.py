@@ -502,13 +502,12 @@ class SICDownloader(Downloader):
 
 
 def main():
-    args = download_args(skip_download=True)
+    args = download_args(skip_download=True, vars=False)
 
     logging.info("OSASIF-SIC Data Downloading")
     sic = SICDownloader(
         dates=[pd.to_datetime(date).date() for date in
-               pd.date_range(args.start_date, args.end_date,
-                             freq="D")],
+               pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",

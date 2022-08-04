@@ -74,6 +74,7 @@ def download_args(choices: object = None,
                   dates: bool = True,
                   dates_optional: bool = False,
                   skip_download: bool = False,
+                  vars: bool = True,
                   workers: bool = False,
                   extra_args: object = ()) -> object:
     """
@@ -82,6 +83,7 @@ def download_args(choices: object = None,
     :param dates:
     :param dates_optional:
     :param skip_download:
+    :param vars:
     :param workers:
     :param extra_args:
     :return:
@@ -110,16 +112,17 @@ def download_args(choices: object = None,
                     action="store_false", default=True)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
-    ap.add_argument("--vars",
-                    help="Comma separated list of abs vars",
-                    type=csv_arg,
-                    default=[])
-    ap.add_argument("--levels",
-                    help="Comma separated list of pressures/depths as needed, "
-                         "use zero length string if None (e.g. ',,500,,,') and "
-                         "pipes for multiple per var (e.g. ',,250|500,,'",
-                    type=csv_arg,
-                    default=[])
+    if vars:
+        ap.add_argument("--vars",
+                        help="Comma separated list of abs vars",
+                        type=csv_arg,
+                        default=[])
+        ap.add_argument("--levels",
+                        help="Comma separated list of pressures/depths as needed, "
+                             "use zero length string if None (e.g. ',,500,,,') and "
+                             "pipes for multiple per var (e.g. ',,250|500,,'",
+                        type=csv_arg,
+                        default=[])
 
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
@@ -135,7 +138,6 @@ def process_args(dates: bool = True,
     """
 
     :param dates:
-    :param lag_lead:
     :param ref_option:
     :param extra_args:
     :return:
@@ -168,7 +170,7 @@ def process_args(dates: bool = True,
                     default=[])
     ap.add_argument("--trend-lead",
                     help="Time steps in the future for linear trends",
-                    type=trend_arg,
+                    type=int_or_list_arg,
                     default=93)
 
     for arg in extra_args:
