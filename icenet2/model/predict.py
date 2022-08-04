@@ -4,13 +4,14 @@ import logging
 import os
 import re
 
-import icenet2.model.models as models
-
-from icenet2.data.dataset import IceNetDataSet
-
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+
+import icenet2.model.models as models
+
+from icenet2.data.dataset import IceNetDataSet
+from icenet2.utils import setup_logging
 
 """
 
@@ -160,6 +161,7 @@ def date_arg(string: str) -> object:
     return dt.date(*[int(s) for s in date_match.groups()])
 
 
+@setup_logging
 def get_args():
     """
 
@@ -183,8 +185,6 @@ def get_args():
 
 def main():
     args = get_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     dataset_config = \
         os.path.join(".", "dataset_config.{}.json".format(args.dataset))

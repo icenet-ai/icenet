@@ -5,9 +5,10 @@ import os
 
 import numpy as np
 
-from icenet2.data.datasets.utils import SplittingMixin, get_decoder
+from icenet2.data.datasets.utils import SplittingMixin
 from icenet2.data.loader import IceNetDataLoader
 from icenet2.data.producers import DataCollection
+from icenet2.utils import setup_logging
 
 """
 
@@ -244,14 +245,16 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         return self._config["counts"]
 
 
-def check_dataset():
+@setup_logging
+def get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     args = ap.parse_args()
+    return args
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
+def check_dataset():
+    args = get_args()
     ds = IceNetDataSet(args.dataset)
     ds.check_dataset()

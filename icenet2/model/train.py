@@ -15,12 +15,12 @@ from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
 from wandb.keras import WandbCallback
 
+from icenet2.data.dataset import IceNetDataSet, MergedIceNetDataSet
 import icenet2.model.losses as losses
 import icenet2.model.metrics as metrics
 from icenet2.model.utils import make_exp_decay_lr_schedule
-
-from icenet2.data.dataset import IceNetDataSet, MergedIceNetDataSet
 import icenet2.model.models as models
+from icenet2.utils import setup_logging
 
 
 def train_model(
@@ -242,6 +242,7 @@ def train_model(
     return network_path, model_history
 
 
+@setup_logging
 def get_args():
     """
 
@@ -251,8 +252,6 @@ def get_args():
     ap.add_argument("dataset", type=str)
     ap.add_argument("run_name", type=str)
     ap.add_argument("seed", type=int)
-
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     ap.add_argument("-b", "--batch-size", type=int, default=4)
     ap.add_argument("-ds", "--additional-dataset",
@@ -268,6 +267,7 @@ def get_args():
     ap.add_argument("-s", "--strategy", default="default",
                     choices=("default", "mirrored", "central"))
     ap.add_argument("--gpus", default=None)
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-w", "--workers", type=int, default=4)
     ap.add_argument("-wo", "--wandb-offline", default=False, action="store_true")
 
@@ -284,10 +284,6 @@ def get_args():
 
 def main():
     args = get_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     # TODO: this should come from a factory in the future - not the only place
     #  that merged datasets are going to be available

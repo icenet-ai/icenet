@@ -7,11 +7,13 @@ import subprocess
 import numpy as np
 import tensorflow as tf
 
-from icenet2.data.dataset import get_decoder
+from icenet2.data.datasets.utils import get_decoder
+from icenet2.utils import setup_logging
 
 import matplotlib.pyplot as plt
 
 
+@setup_logging
 def parse_args():
     """
 
@@ -28,8 +30,6 @@ def parse_args():
 
 def main():
     args = parse_args()
-    logging.getLogger().setLevel(logging.DEBUG)
-    logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
     ds = tf.data.TFRecordDataset([args.file])
     config = json.load(args.configuration)
@@ -77,7 +77,3 @@ def main():
             ax.contourf(y_out)
             plt.savefig(output_path)
             plt.close()
-
-
-if __name__ == "__main__":
-    main()

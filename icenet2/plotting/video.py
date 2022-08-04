@@ -15,6 +15,7 @@ from matplotlib.animation import FuncAnimation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet2.process.predict import get_refcube
+from icenet2.utils import setup_logging
 
 
 # TODO: This can be a plotting or analysis util function elsewhere
@@ -190,36 +191,6 @@ def xarray_to_video(da: object,
     return animation
 
 
-def cli_args():
-    """
-
-    :return:
-    """
-    args = argparse.ArgumentParser()
-
-    args.add_argument("-f", "--fps", default=15, type=int)
-    args.add_argument("-n", "--numpy", action="store_true", default=False)
-    args.add_argument("-o", "--output-dir", dest="output_dir", type=str,
-                      default="plot")
-    args.add_argument("-p", "--path", default="data", type=str)
-    args.add_argument("-sy", "--skip-years",
-                      help="Don't include years in paths",
-                      default=False, action="store_true")
-    args.add_argument("-w", "--workers", default=8, type=int)
-
-    args.add_argument("-v", "--verbose", action="store_true", default=False)
-
-    args.add_argument("datasets", type=lambda s: s.split(","))
-    args.add_argument("hemisphere", default=[],
-                      choices=["north", "south"], nargs="?")
-    args.add_argument("vars", default=[],
-                      nargs="?", type=lambda s: s.split(","))
-    args.add_argument("years", default=[],
-                      nargs="?", type=lambda s: s.split(","))
-
-    return args.parse_args()
-
-
 def recurse_data_folders(base_path: object,
                          lookups: object,
                          children: object,
@@ -296,13 +267,42 @@ def video_process(files: object,
     return output_name
 
 
+@setup_logging
+def cli_args():
+    """
+
+    :return:
+    """
+    args = argparse.ArgumentParser()
+
+    args.add_argument("-f", "--fps", default=15, type=int)
+    args.add_argument("-n", "--numpy", action="store_true", default=False)
+    args.add_argument("-o", "--output-dir", dest="output_dir", type=str,
+                      default="plot")
+    args.add_argument("-p", "--path", default="data", type=str)
+    args.add_argument("-sy", "--skip-years",
+                      help="Don't include years in paths",
+                      default=False, action="store_true")
+    args.add_argument("-w", "--workers", default=8, type=int)
+
+    args.add_argument("-v", "--verbose", action="store_true", default=False)
+
+    args.add_argument("datasets", type=lambda s: s.split(","))
+    args.add_argument("hemisphere", default=[],
+                      choices=["north", "south"], nargs="?")
+    args.add_argument("vars", default=[],
+                      nargs="?", type=lambda s: s.split(","))
+    args.add_argument("years", default=[],
+                      nargs="?", type=lambda s: s.split(","))
+
+    return args.parse_args()
+
+
 def data_cli():
     """
 
     """
     args = cli_args()
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("matplotlib").setLevel(level=logging.WARNING)
 
     hemis = [args.hemisphere] if len(args.hemisphere) else ["nh", "sh"]
     years = [int(year) for year in args.years] if args.years else args.years

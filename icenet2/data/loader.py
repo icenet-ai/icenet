@@ -19,6 +19,7 @@ from icenet2.data.sic.mask import Masks
 from icenet2.data.process import IceNetPreProcessor
 from icenet2.data.producers import Generator
 from icenet2.data.cli import add_date_args, process_date_args
+from icenet2.utils import setup_logging
 
 """
 
@@ -655,6 +656,7 @@ class IceNetDataLoader(Generator):
         return sum(self._channels.values())
 
 
+@setup_logging
 def get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
@@ -688,8 +690,6 @@ def get_args():
 
     add_date_args(ap)
     args = ap.parse_args()
-    logging.basicConfig(level=logging.INFO
-                        if not args.verbose else logging.DEBUG)
     return args
 
 

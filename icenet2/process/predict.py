@@ -13,36 +13,7 @@ import xarray as xr
 from icenet2 import __version__ as icenet_version
 from icenet2.data.dataset import IceNetDataSet
 from icenet2.data.sic.mask import Masks
-from icenet2.utils import run_command
-
-
-def date_arg(string: str) -> object:
-    """
-
-    :param string:
-    :return:
-    """
-    date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
-    return dt.date(*[int(s) for s in date_match.groups()])
-
-
-def get_args():
-    """
-
-    :return:
-    """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("name")
-    ap.add_argument("dataset")
-    ap.add_argument("datefile", type=argparse.FileType("r"))
-
-    ap.add_argument("-m", "--mask", default=False, action="store_true")
-    ap.add_argument("-o", "--output-dir", default=".")
-    ap.add_argument("-r", "--root", type=str, default=".")
-
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
-
-    return ap.parse_args()
+from icenet2.utils import run_command, setup_logging
 
 
 def get_refsic(north: bool = True, south: bool = False) -> object:
@@ -122,13 +93,41 @@ def get_prediction_data(root: object,
         axis=-1).squeeze()
 
 
+def date_arg(string: str) -> object:
+    """
+
+    :param string:
+    :return:
+    """
+    date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
+    return dt.date(*[int(s) for s in date_match.groups()])
+
+
+@setup_logging
+def get_args():
+    """
+
+    :return:
+    """
+    ap = argparse.ArgumentParser()
+    ap.add_argument("name")
+    ap.add_argument("dataset")
+    ap.add_argument("datefile", type=argparse.FileType("r"))
+
+    ap.add_argument("-m", "--mask", default=False, action="store_true")
+    ap.add_argument("-o", "--output-dir", default=".")
+    ap.add_argument("-r", "--root", type=str, default=".")
+
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+
+    return ap.parse_args()
+
+
 def create_cf_output():
     """
 
     """
     args = get_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     dataset_config = \
         os.path.join(args.root, "dataset_config.{}.json".format(args.dataset))

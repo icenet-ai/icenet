@@ -1,7 +1,6 @@
 import argparse
 import datetime as dt
 import logging
-import os
 
 import iris
 import pandas as pd
@@ -10,6 +9,7 @@ import xarray as xr
 import iris.analysis
 
 from icenet2.process.utils import date_arg
+from icenet2.utils import setup_logging
 
 
 def broadcast_forecast(start_date: object,
@@ -99,23 +99,33 @@ def reproject_output(forecast_file: object,
     iris.save(latlon_cube, save_file)
 
 
-def broadcast_main():
-    logging.basicConfig(level=logging.INFO)
+@setup_logging
+def broadcast_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("-o", "--output-target", dest="target", default=None)
     ap.add_argument("start_date", type=date_arg)
     ap.add_argument("end_date", type=date_arg)
     ap.add_argument("datafiles", nargs="+")
     args = ap.parse_args()
+    return args
+
+
+def broadcast_main():
+    args = broadcast_args()
     broadcast_forecast(args.start_date, args.end_date,
                        args.datafiles, args.target)
 
 
-def reproject_main():
-    logging.basicConfig(level=logging.INFO)
+@setup_logging
+def reproject_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("forecast_file")
     ap.add_argument("proj_file")
     ap.add_argument("save_file")
     args = ap.parse_args()
+    return args
+
+
+def reproject_main():
+    args = reproject_args()
     reproject_output(args.forecast_file, args.proj_file, args.save_file)

@@ -6,6 +6,8 @@ import re
 
 import pandas as pd
 
+from icenet2.utils import setup_logging
+
 """
 
 """
@@ -54,6 +56,7 @@ def csv_arg(string: str) -> list:
     return csv_items
 
 
+@setup_logging
 def download_args(choices: object = None,
                   dates: bool = True,
                   dates_optional: bool = False,
@@ -70,6 +73,7 @@ def download_args(choices: object = None,
     :param extra_args:
     :return:
     """
+
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
 
@@ -108,14 +112,10 @@ def download_args(choices: object = None,
         ap.add_argument(*arg[0], **arg[1])
 
     args = ap.parse_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("cdsapi").setLevel(logging.WARNING)
     return args
 
 
+@setup_logging
 def process_args(dates: bool = True,
                  ref_option: bool = True,
                  extra_args: object = ()) -> object:
@@ -127,6 +127,7 @@ def process_args(dates: bool = True,
     :param extra_args:
     :return:
     """
+
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
     ap.add_argument("hemisphere", choices=("north", "south"))
@@ -173,8 +174,6 @@ def process_args(dates: bool = True,
                     type=str)
 
     args = ap.parse_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     return args
 
 

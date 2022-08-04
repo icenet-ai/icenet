@@ -23,6 +23,8 @@ FTP ENDPOINT: ftp://my.cmems-du.eu/Core/GLOBAL_REANALYSIS_PHY_001_031/global-rea
 class ORAS5Downloader(ClimateDownloader):
     """Climate downloader to provide ORAS5 reanalysis data from CMEMS API
 
+    These aren't available for CMIP training at daily frequencies
+
     :param identifier: how to identify this dataset
     :param var_map: override the default ERA5Downloader.CDI_MAP variable map
     """
@@ -34,13 +36,12 @@ class ORAS5Downloader(ClimateDownloader):
     }
 
     VAR_MAP = {
-        "thetao": "thetao_oras",  # sea_water_potential_temperature
-        "so": "so_oras",      # sea_water_salinity
-        "uo": "uo_oras",      # eastward_sea_water_velocity
-        "vo": "vo_oras",     # northward_sea_water_velocity
-        # Not used by Tom
-        # zos   # sea_surface_height_above_geoid
-        # mlotst # ocean_mixed_layer_thickness_defined_by_sigma_theta
+        "thetao": "thetao_oras",    # sea_water_potential_temperature
+        "so": "so_oras",            # sea_water_salinity
+        "uo": "uo_oras",            # eastward_sea_water_velocity
+        "vo": "vo_oras",            # northward_sea_water_velocity
+        "zos": "zos_oras",          # sea_surface_height_above_geoid
+        "mlotst": "mlotst_oras",    # ocean_mixed_layer_thickness_defined_by_sigma_theta
     }
 
     def __init__(self,

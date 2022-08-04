@@ -73,8 +73,7 @@ setup(
             "icenet_upload_azure = icenet2.process.azure:upload",
             "icenet_upload_local = icenet2.process.local:upload",
 
-            "icenet_plot_set = icenet2.plotting.data:plot_set",
-
+            "icenet_plot_set = icenet2.plotting.plot_set:main",
             "icenet_video_data = icenet2.plotting.video:data_cli",
 
             "icenet_output = icenet2.process.predict:create_cf_output",

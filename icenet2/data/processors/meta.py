@@ -81,6 +81,7 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
             attrs=dict(description="IceNet land mask metadata")
         )
         land_path = self.save_processed_file("land", "land.nc", da)
+        return land_path
 
     def _save_circday(self):
         """
@@ -88,6 +89,7 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
         """
         cos = []
         sin = []
+        paths = []
 
         for date in pd.date_range(start='2012-1-1', end='2012-12-31'):
             if self.north:
@@ -111,7 +113,10 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
                 attrs=dict(
                     description="IceNet {} mask metadata".format(var_name))
             )
-            self.save_processed_file(var_name, "{}.nc".format(var_name), da)
+            paths.append(
+                self.save_processed_file(var_name, "{}.nc".format(var_name),
+                                         da))
+        return paths
 
 
 def main():

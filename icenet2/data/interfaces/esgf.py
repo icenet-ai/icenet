@@ -19,6 +19,8 @@ from icenet2.data.utils import esgf_search
 class CMIP6Downloader(ClimateDownloader):
     """Climate downloader to provide CMIP6 reanalysis data from ESGF APIs
 
+    Useful CMIP6 guidance: https://pcmdi.llnl.gov/CMIP6/Guide/dataUsers.html
+
     :param identifier: how to identify this dataset
     :param source: source ID in ESGF node
     :param member: member ID in ESGF node

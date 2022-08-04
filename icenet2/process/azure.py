@@ -1,22 +1,21 @@
 import argparse
-import datetime as dt
 import configparser
 import logging
 import os
-import re
 import shutil
 import tempfile
 
 import xarray as xr
+
+from icenet2.process.utils import date_arg, destination_filename
+from icenet2.utils import setup_logging
 
 from azure.storage.blob import ContainerClient
 
 # https://docs.microsoft.com/en-us/azure/developer/python/sdk/storage/storage-blob-readme?view=storage-py-v12#next-steps
 
 
-from icenet2.process.utils import date_arg, destination_filename
-
-
+@setup_logging
 def upload_parse_args():
     """
 
@@ -40,8 +39,6 @@ def upload():
 
     """
     args = upload_parse_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.info("Azure upload facility")
 
     url = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
@@ -86,6 +83,3 @@ def upload():
             logging.info("Removing {}".format(tmpdir))
             shutil.rmtree(tmpdir)
 
-
-if __name__ == "__main__":
-    upload()
