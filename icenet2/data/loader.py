@@ -524,7 +524,7 @@ class IceNetDataLoader(Generator):
                  if var_prefix in os.path.split(el)[1]])
 
         trend_names = [(identity, var,
-                        self._config["sources"][identity]["linear_trend_days"])
+                        self._config["sources"][identity]["linear_trend_steps"])
                        for identity in
                        sorted(self._config["sources"].keys())
                        for var in
