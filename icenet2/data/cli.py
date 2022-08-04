@@ -56,6 +56,19 @@ def csv_arg(string: str) -> list:
     return csv_items
 
 
+def int_or_list_arg(string: str) -> object:
+    """
+
+    :param string:
+    :return:
+    """
+    try:
+        val = int(string)
+    except TypeError:
+        val = string.split(",")
+    return val
+
+
 @setup_logging
 def download_args(choices: object = None,
                   dates: bool = True,
@@ -155,7 +168,7 @@ def process_args(dates: bool = True,
                     default=[])
     ap.add_argument("--trend-lead",
                     help="Time steps in the future for linear trends",
-                    type=int,
+                    type=trend_arg,
                     default=93)
 
     for arg in extra_args:

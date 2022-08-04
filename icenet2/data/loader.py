@@ -58,9 +58,6 @@ def generate_and_write(path: str,
     return path, count, times
 
 
-# FIXME: I want to get rid of the datetime calculations here, it's prone to
-#  error and the ordering is already determined. Move the sample generation
-#  to a purely list based affair, guaranteeing order and reducing duplication
 def generate_sample(forecast_date: object,
                     channels: object,
                     dtype: object,
@@ -70,6 +67,7 @@ def generate_sample(forecast_date: object,
                     n_forecast_days: int,
                     num_channels: int,
                     shape: object,
+                    trend_steps: object,
                     var_ds: object,
                     trend_ds: object,
                     meta: object,
@@ -86,6 +84,7 @@ def generate_sample(forecast_date: object,
     :param n_forecast_days:
     :param num_channels:
     :param shape:
+    :param trend_steps:
     :param var_ds:
     :param trend_ds:
     :param meta:
@@ -134,9 +133,15 @@ def generate_sample(forecast_date: object,
 
         v2 += num_channels
 
-        channel_ds = trend_ds if var_name.endswith("linear_trend") else var_ds
-        channel_dates = [pd.Timestamp(forecast_date - dt.timedelta(days=n))
-                         for n in range(num_channels)]
+        if var_name.endswith("linear_trend"):
+            channel_ds = trend_ds
+            channel_dates = [pd.Timestamp(forecast_date + dt.timedelta(days=n))
+                             for n in trend_steps[var_name]]
+        else:
+            channel_ds = var_ds
+            channel_dates = [pd.Timestamp(forecast_date - dt.timedelta(days=n))
+                             for n in range(num_channels)]
+
         channel_data = []
         for cdate in channel_dates:
             try:
@@ -255,6 +260,7 @@ class IceNetDataLoader(Generator):
         self._missing_dates = []
         self._n_forecast_days = n_forecast_days
         self._output_batch_size = output_batch_size
+        self._trend_steps = dict()
         self._workers = generate_workers
 
         self._var_lag = var_lag
@@ -377,6 +383,7 @@ class IceNetDataLoader(Generator):
                             self._n_forecast_days,
                             self.num_channels,
                             self._shape,
+                            self._trend_steps,
                             var_ds,
                             trend_ds,
                             meta,
@@ -418,6 +425,7 @@ class IceNetDataLoader(Generator):
             self._n_forecast_days,
             self.num_channels,
             self._shape,
+            self._trend_steps,
             var_ds,
             trend_ds,
             meta,
@@ -531,10 +539,11 @@ class IceNetDataLoader(Generator):
                        sorted(
                            self._config["sources"][identity]["linear_trends"])]
 
-        for identity, var_name, trend_days in trend_names:
+        for identity, var_name, trend_steps in trend_names:
             var_prefix = "{}_linear_trend".format(var_name)
 
-            self._channels[var_prefix] = int(trend_days)
+            self._channels[var_prefix] = len(trend_steps)
+            self._trend_steps[var_prefix] = trend_steps
             filelist = [el for el in
                         self._config["sources"][identity]["var_files"][var_name]
                         if "linear_trend" in os.path.split(el)[1]]

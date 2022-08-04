@@ -97,7 +97,9 @@ class IceNetPreProcessor(Processor):
         self._dtype = dtype
         self._exclude_vars = exclude_vars
         self._linear_trends = linear_trends
-        self._linear_trend_steps = linear_trend_steps
+        self._linear_trend_steps = sorted(
+            [int(el) for el in range(linear_trend_steps)]
+            if type(linear_trend_steps) == int else linear_trend_steps),
         self._missing_dates = list(missing_dates)
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
@@ -173,7 +175,7 @@ class IceNetPreProcessor(Processor):
                                  for d in self._dates.test],
             },
             "linear_trends":    self._linear_trends,
-            "linear_trend_steps":   self._linear_trend_steps,
+            "linear_trend_steps": self._linear_trend_steps,
             "meta":             self._meta_vars,
             # TODO: intention should perhaps be to strip these from
             #  other date sets, this is just an indicative placeholder
@@ -488,11 +490,15 @@ class IceNetPreProcessor(Processor):
 
         # the old method doesn't work with non-contiguous forecast ranges
         trend_dates = set()
+        trend_steps = max(self._linear_trend_steps)
+
+        logging.info("Generating trend data {} steps ahead for {} dates".
+                     format(trend_steps, len(data_dates)))
 
         for dat_date in data_dates:
             trend_dates = trend_dates.union(
                 [dat_date + pd.DateOffset(days=d)
-                 for d in range(self._linear_trend_steps)])
+                 for d in range(trend_steps)])
 
         trend_dates = list(sorted(trend_dates))
         logging.info("Generating {} trend dates".format(len(trend_dates)))
@@ -500,7 +506,7 @@ class IceNetPreProcessor(Processor):
         linear_trend_da = \
             xr.broadcast(input_da, xr.DataArray(pd.date_range(
                 data_dates[0],
-                data_dates[-1] + pd.DateOffset(days=self._linear_trend_steps)),
+                data_dates[-1] + pd.DateOffset(days=trend_steps)),
                     dims="time"))[0]
         linear_trend_da = linear_trend_da.sel(time=trend_dates)
         linear_trend_da.data = np.zeros(linear_trend_da.shape)
