@@ -251,7 +251,7 @@ class ERA5Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args(choices=["toolbox", "cdsapi"], workers=True)
+    args = download_args(choices=["cdsapi", "toolbox"], workers=True)
 
     logging.info("ERA5 Data Downloading")
     era5 = ERA5Downloader(
