@@ -46,7 +46,7 @@ class ERA5Downloader(ClimateDownloader):
                  *args,
                  identifier: str = "era5",
                  cdi_map: object = CDI_MAP,
-                 use_toolbox: bool = True,
+                 use_toolbox: bool = False,
                  show_progress: bool = False,
                  **kwargs):
         super().__init__(*args,
