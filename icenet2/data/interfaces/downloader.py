@@ -15,10 +15,12 @@ from icenet2.data.utils import assign_lat_lon_coord_system, \
     gridcell_angles_from_dim_coords, \
     invert_gridcell_angles, \
     rotate_grid_vectors
+from icenet2.data.interfaces.utils import batch_requested_dates
 from icenet2.utils import run_command
 
 import iris
 import iris.exceptions
+import pandas as pd
 
 """
 
@@ -40,6 +42,7 @@ class ClimateDownloader(Downloader):
     def __init__(self, *args,
                  dates: object = (),
                  delete_tempfiles: bool = True,
+                 group_dates_by: str = "year",
                  max_threads: int = 1,
                  pregrid_prefix: str = "latlon_",
                  pressure_levels: object = (),
@@ -48,22 +51,23 @@ class ClimateDownloader(Downloader):
                  **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._sic_ease_cubes = dict()
-        self._files_downloaded = []
-
         self._dates = list(dates)
+        self._delete = delete_tempfiles
+        self._files_downloaded = []
+        self._group_dates_by = group_dates_by
         self._masks = Masks(north=self.north, south=self.south)
         self._max_threads = max_threads
         self._pregrid_prefix = pregrid_prefix
         self._pressure_levels = list(pressure_levels)
+        self._sic_ease_cubes = dict()
         self._var_name_idx = var_name_idx
         self._var_names = list(var_names)
-
-        self._delete = delete_tempfiles
 
         assert len(self._var_names), "No variables requested"
         assert len(self._pressure_levels) == len(self._var_names), \
             "# of pressures must match # vars"
+
+        self._download_method = None
 
         self._validate_config()
 
@@ -89,7 +93,9 @@ class ClimateDownloader(Downloader):
             pressures = [None] if not self.pressure_levels[idx] else \
                 self._pressure_levels[idx]
 
-            dates_per_request = self._get_dates_for_request()
+            dates_per_request = \
+                batch_requested_dates(self._dates,
+                                      attribute=self._group_dates_by)
 
             for var_prefix, pressure, req_date in \
                     product([var_name], pressures, dates_per_request):
@@ -116,25 +122,86 @@ class ClimateDownloader(Downloader):
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
 
-    @abstractmethod
-    def _get_dates_for_request(self):
-        """
-
-        """
-        raise NotImplementedError("Missing {} implementation".format(__name__))
-
-    @abstractmethod
-    def _single_download(self,
-                         var_prefix: str,
-                         pressure: int,
-                         req_date: object):
+    def filter_dates_on_data(self,
+                             var_prefix: str,
+                             level: object,
+                             req_dates: object):
         """
 
         :param var_prefix:
-        :param pressure:
-        :param req_date:
+        :param level:
+        :param req_dates:
+        :return: req_dates(list), merge_files(list)
         """
-        raise NotImplementedError("Missing {} implementation".format(__name__))
+        logging.warning("NOT IMPLEMENTED YET, WE'LL JUST DOWNLOAD ANYWAY")
+        # TODO: check existing yearly file for req_dates if already in place
+        return req_dates, []
+
+    # FIXME: this can be migrated for Dev#45 and we register in the subclass
+    #  the potential implementations (e.g. CDS has toolbox and API, CMEMS has
+    #  up to four implementations)
+    def _single_download(self,
+                         var_prefix: str,
+                         level: object,
+                         req_dates: object):
+        """Implements a single download from CMEMS
+
+        :param var_prefix: the icenet variable name
+        :param level: the height to download
+        :param req_dates: the request date
+        """
+
+        logging.info("Processing single download for {} @ {} with {} dates".
+                     format(var_prefix, level, len(req_dates)))
+        var = var_prefix if not level else \
+            "{}{}".format(var_prefix, level)
+        var_folder = self.get_data_var_folder(var)
+
+        latlon_path, regridded_name = \
+            self.get_req_filenames(var_folder, req_dates[0])
+
+        req_dates, merge_files = \
+            self.filter_dates_on_data(var_prefix, level, req_dates)
+
+        if not os.path.exists(latlon_path):
+            success = self.download_method(var,
+                                           level,
+                                           req_dates,
+                                           latlon_path)
+
+            if success:
+                logging.info("Downloaded to {}".format(latlon_path))
+                self.postprocess(var, latlon_path)
+
+        if not os.path.exists(regridded_name):
+            self._files_downloaded.append(latlon_path)
+
+    @abstractmethod
+    def postprocess(self, var, download_path):
+        logging.debug("No postprocessing in place for {}: {}".
+                      format(var, download_path))
+
+    def save_temporal_files(self, var, da, freq=None):
+        """
+
+        :param var:
+        :param da:
+        :param freq:
+        """
+        var_folder = self.get_data_var_folder(var)
+        group_by = "time.{}".format(self._group_dates_by) if not freq else freq
+
+        for year, year_da in da.groupby(group_by):
+            req_date = pd.to_datetime(year_da.time.values[0])
+            latlon_path, regridded_name = \
+                self.get_req_filenames(var_folder, req_date)
+
+            logging.info("Retrieving and saving {}".format(latlon_path))
+            year_da.compute()
+            year_da.to_netcdf(latlon_path)
+
+            if not os.path.exists(regridded_name):
+                self._files_downloaded.append(latlon_path)
 
     @property
     def sic_ease_cube(self):
@@ -358,38 +425,54 @@ class ClimateDownloader(Downloader):
                 iris.save(wind_cubes_r[apply_to[i]], temp_name)
                 os.replace(temp_name, name)
 
-    def get_daily_filenames(self,
-                            var_folder: str,
-                            date_str: str):
+    def get_req_filenames(self,
+                          var_folder: str,
+                          req_date: object):
         """
 
         :param var_folder:
-        :param date_str:
+        :param req_date:
         :return:
         """
-        latlon_path = os.path.join(var_folder,
-                                   "{}{}.nc".format(self.pregrid_prefix,
-                                                    date_str))
-        regridded_name = os.path.join(var_folder,
-                                      "{}.nc".format(date_str))
+        latlon_path = os.path.join(
+            var_folder, "{}{}.nc".format(
+                self.pregrid_prefix,
+                getattr(req_date, self._group_dates_by)))
+
+        regridded_name = os.path.join(
+            var_folder, "{}.nc".format(
+                getattr(req_date, self._group_dates_by)))
+
         return latlon_path, regridded_name
-
-    @property
-    def pregrid_prefix(self):
-        return self._pregrid_prefix
-
-    @property
-    def delete(self):
-        return self._delete
 
     @property
     def dates(self):
         return self._dates
 
     @property
-    def var_names(self):
-        return self._var_names
+    def delete(self):
+        return self._delete
+
+    @property
+    def download_method(self) -> callable:
+        if not self._download_method:
+            raise RuntimeError("Downloader has no method set, "
+                               "implementation error")
+        return self._download_method
+
+    @download_method.setter
+    def download_method(self, method: callable):
+        self._download_method = method
+
+    @property
+    def pregrid_prefix(self):
+        return self._pregrid_prefix
 
     @property
     def pressure_levels(self):
         return self._pressure_levels
+
+    @property
+    def var_names(self):
+        return self._var_names
+

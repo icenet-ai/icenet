@@ -3,14 +3,12 @@ import logging
 import os
 import time
 
-import iris
 import numpy as np
 import pandas as pd
 import xarray as xr
 
 from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
-from icenet2.data.interfaces.utils import batch_requested_dates
 from icenet2.utils import run_command
 
 """
@@ -72,54 +70,31 @@ class ORAS5Downloader(ClimateDownloader):
             assert var_name in self._var_map.keys(), \
                 "{} not in ORAS5 var map".format(var_name)
 
-    # FIXME: this can be migrated for Dev#45 and we register in the subclass
-    #  the potential implementations (e.g. CDS has toolbox and API, CMEMS has
-    #  up to four implementations)
-    def _single_download(self,
-                         var_prefix: str,
-                         pressure: object,
-                         req_dates: object):
-        """Implements a single download from CMEMS
+        self.download_method = self._single_motu_download
 
-        :param var_prefix: the icenet variable name
-        :param pressure: the height to download
-        :param req_dates: the request date
+    def postprocess(self,
+                    var: str,
+                    download_path: object):
         """
 
-        for dt in req_dates:
-            assert dt.year == req_dates[0].year
-
-        var_folder = self.get_data_var_folder(var_prefix)
-
-        latlon_path, regridded_name = \
-            self.get_daily_filenames(var_folder, req_dates[0].year)
-
-        if not os.path.exists(latlon_path):
-            success = self._single_motu_download(var_prefix,
-                                                 req_dates,
-                                                 latlon_path)
-
-            if success:
-                logging.info("Downloaded to {}".format(latlon_path))
-                self.postprocess(var_prefix, latlon_path)
-
-        if not os.path.exists(regridded_name):
-            self._files_downloaded.append(latlon_path)
-
-    def postprocess(self, var, latlon_path):
-        logging.info("Postprocessing {} to {}".format(var, latlon_path))
-        ds = xr.open_dataset(latlon_path)
+        :param var:
+        :param download_path:
+        """
+        logging.info("Postprocessing {} to {}".format(var, download_path))
+        ds = xr.open_dataset(download_path)
 
         da = getattr(ds, self._var_map[var]).rename(var)
         da = da.mean("depth").compute()
-        da.to_netcdf(latlon_path)
+        da.to_netcdf(download_path)
 
     def _single_motu_download(self,
                               var: str,
+                              level: object,
                               req_dates: int,
                               download_path: object):
         """Implements a single download from ... server
         :param var:
+        :param level:
         :param req_dates:
         :param download_path:
         :return:
@@ -179,14 +154,6 @@ class ORAS5Downloader(ClimateDownloader):
                                                          dur % 60))
         return success
 
-    def _get_dates_for_request(self) -> object:
-        """Appropriate monthly batching of dates for CMEMS requests
-
-        :return:
-
-        """
-        return batch_requested_dates(self._dates, attribute="year")
-
     def additional_regrid_processing(self,
                                      datafile: object,
                                      cube_ease: object) -> object:
@@ -201,17 +168,13 @@ class ORAS5Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args(extra_args=[
-        (tuple(["--vars"]), dict(
-            help="Comma separated list of vars",
-            type=lambda x: x.split(",") if "," in x else [x],
-        ))
-    ], workers=True)
+    args = download_args(workers=True)
 
-    logging.info("ERA5 Data Downloading")
+    logging.info("ORAS5 Data Downloading")
     oras5 = ORAS5Downloader(
         var_names=args.vars,
-        pressure_levels=args.levels,
+        # TODO: currently hardcoded
+        pressure_levels=[None for _ in args.vars],
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,

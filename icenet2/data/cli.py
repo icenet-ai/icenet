@@ -49,12 +49,26 @@ def csv_arg(string: str) -> list:
     :return:
     """
     csv_items = []
-    print("{}".format(string))
     for el in string.split(","):
         if len(el) == 0:
             csv_items.append(None)
         else:
-            csv_items.append(el.split("|") if "|" in el else el)
+            csv_items.append(el)
+    return csv_items
+
+
+def csv_of_csv_arg(string: str) -> list:
+    """
+
+    :param string:
+    :return:
+    """
+    csv_items = []
+    for el in string.split(","):
+        if len(el) == 0:
+            csv_items.append(None)
+        else:
+            csv_items.append(el.split("|"))
     return csv_items
 
 
@@ -75,7 +89,6 @@ def int_or_list_arg(string: str) -> object:
 def download_args(choices: object = None,
                   dates: bool = True,
                   dates_optional: bool = False,
-                  skip_download: bool = False,
                   var_specs: bool = True,
                   workers: bool = False,
                   extra_args: object = ()) -> object:
@@ -84,7 +97,6 @@ def download_args(choices: object = None,
     :param choices:
     :param dates:
     :param dates_optional:
-    :param skip_download:
     :param var_specs:
     :param workers:
     :param extra_args:
@@ -103,10 +115,6 @@ def download_args(choices: object = None,
         ap.add_argument(*pos_args[0], type=date_arg, default=None)
         ap.add_argument(*pos_args[1], type=date_arg, default=None)
 
-    if skip_download:
-        ap.add_argument("-s", "--skip-download", default=False,
-                        action="store_true")
-
     if workers:
         ap.add_argument("-w", "--workers", default=8, type=int)
 
@@ -123,13 +131,13 @@ def download_args(choices: object = None,
                         help="Comma separated list of pressures/depths as needed, "
                              "use zero length string if None (e.g. ',,500,,,') and "
                              "pipes for multiple per var (e.g. ',,250|500,,'",
-                        type=csv_arg,
+                        type=csv_of_csv_arg,
                         default=[])
 
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
-
-    return ap.parse_args()
+    args = ap.parse_args()
+    return args
 
 
 @setup_logging

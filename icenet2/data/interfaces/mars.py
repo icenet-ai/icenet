@@ -11,7 +11,6 @@ import xarray as xr
 
 from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
-from icenet2.data.interfaces.utils import batch_requested_dates
 
 """
 
@@ -92,13 +91,6 @@ retrieve,
                          **kwargs)
 
         self._server = ecmwfapi.ECMWFService("mars")
-
-    def _get_dates_for_request(self) -> object:
-        """
-
-        :return:
-        """
-        return batch_requested_dates(self._dates, attribute="month")
 
     def _single_download(self,
                          var_names: object,

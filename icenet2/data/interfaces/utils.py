@@ -14,6 +14,9 @@ def batch_requested_dates(dates: object,
                           attribute: str = "month") -> object:
     """
 
+    TODO: should be using Pandas DatetimeIndexes / Periods for this, but the
+     need to refactor slightly, and this is working for the moment
+
     :param dates:
     :param attribute:
     :return:

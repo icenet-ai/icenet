@@ -1,5 +1,4 @@
 import logging
-import os
 import subprocess as sp
 
 from enum import Flag, auto
@@ -78,7 +77,7 @@ def run_command(command: str, dry: bool = False):
 
 
 def setup_logging(func,
-                  log_format="[%(asctime)-20s :%(levelname)-8s] - %(message)s"):
+                  log_format="[%(asctime)-17s :%(levelname)-8s] - %(message)s"):
     @wraps(func)
     def wrapper(*args, **kwargs):
         parsed_args = func(*args, **kwargs)

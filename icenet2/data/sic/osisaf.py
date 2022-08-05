@@ -257,10 +257,11 @@ class SICDownloader(Downloader):
         cache = {}
         osi430b_start = dt.date(2016, 1, 1)
 
-        # Bit wasteful
+        # TODO: filter based on existing data
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
         data_files = []
         ftp = None
+        var = "siconca"
 
         while len(dt_arr):
             el = dt_arr.pop()
@@ -271,16 +272,16 @@ class SICDownloader(Downloader):
 
             date_str = el.strftime("%Y_%m_%d")
             temp_path = os.path.join(
-                self.get_data_var_folder("siconca", append=[str(el.year)]),
+                self.get_data_var_folder(var, append=[str(el.year)]),
                 "{}.temp".format(date_str))
             nc_path = os.path.join(
-                self.get_data_var_folder("siconca", append=[str(el.year)]),
+                self.get_data_var_folder(var, append=[str(el.year)]),
                 "{}.nc".format(date_str))
 
             if not self._download:
                 if os.path.exists(nc_path):
                     reproc_path = os.path.join(
-                        self.get_data_var_folder("siconca",
+                        self.get_data_var_folder(var,
                                                  append=[str(el.year)]),
                         "{}.reproc.nc".format(date_str))
 
@@ -348,64 +349,54 @@ class SICDownloader(Downloader):
         logging.debug("Files being processed: {}".format(data_files))
 
         if len(data_files):
-            lat_vals = None
+            ds = xr.open_mfdataset(data_files,
+                                   combine="nested",
+                                   concat_dim="time",
+                                   data_vars=["ice_conc"],
+                                   drop_variables=var_remove_list,
+                                   engine="netcdf4")
 
-            for file in data_files:
-                ds = xr.open_dataset(file, engine="netcdf4")
+            logging.debug("Processing out extraneous data")
 
-                logging.debug("Processing out extraneous data")
+            ds = ds.drop_vars(var_remove_list, errors="ignore")
+            da = ds.resample(time="1D").mean().ice_conc
 
-                ds = ds.drop_vars(var_remove_list, errors="ignore")
-                da = ds.resample(time="1D").mean().ice_conc
+            da = da.where(da < 9.9e+36, 0.)  # Missing values
+            da /= 100.  # Convert from SIC % to fraction
 
-                if self._download:
-                    da /= 100.  # Convert from SIC % to fraction
+            if 'lat' not in da.coords:
+                raise RuntimeError("latitude missing, fix required that has "
+                                   "been removed in this version")
+                # TODO: ref another file if this is missing, but hopefully the
+                #  coordinates will be projected from mfdataset
+                # logging.warning("Adding lat vals to coords, as missing in "
+                #                "this set: {}".format(file))
+                # da.coords['lat'] = lat_vals
 
-                # xarray override the boolean equality operator, meaning you
-                # can't use the obvious NoneType if clause laziness. Interesting
-                if isinstance(lat_vals, type(None)):
-                    if hasattr(da, "lat"):
-                        lat_vals = da.coords['lat']
-                    else:
-                        raise RuntimeError("First file missing lat vals for "
-                                           "replacement in others")
+            # In experimenting, I don't think this is actually required
+            for month, mask in self._mask_dict.items():
+                da.loc[dict(time=(da['time.month'] == month))].values[:, ~mask] = 0.
 
-                if 'lat' not in da.coords:
-                    logging.warning("Adding lat vals to coords, as missing in "
-                                    "this set: {}".format(file))
-                    da.coords['lat'] = lat_vals
+            for date in da.time.values:
+                day_da = da.sel(time=slice(date, date))
 
-                # TODO: clean up
-                if len(da.time.values) > 1:
-                    raise RuntimeError("Too many dates: {}".format(da.time))
+                if np.sum(np.isnan(day_da.data)) > 0:
+                    logging.warning("NaNs detected, adding to invalid "
+                                    "list: {}".format(date))
+                    self._invalid_dates.append(pd.to_datetime(date))
 
-                for date in da.time.values:
-                    date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
-                    fpath = os.path.join(
-                        self.get_data_var_folder(
-                            "siconca", append=[str(pd.to_datetime(date).year)]),
-                        "{}.nc".format(date_str))
+            var_folder = self.get_data_var_folder(var)
+            group_by = "time.year"
 
-                    logging.debug("Processing {}".format(date_str))
+            for year, year_da in da.groupby(group_by):
+                req_date = pd.to_datetime(year_da.time.values[0])
+                year_path = os.path.join(
+                    var_folder, "{}.nc".format(
+                        getattr(req_date, "year")))
 
-                    if not os.path.exists(fpath):
-                        day_da = da.sel(time=slice(date, date))
-
-                        mask = self._mask_dict[pd.to_datetime(date).month]
-
-                        # TODO: active grid cell mask possibly should move to
-                        #  preproc Set outside mask to zero
-                        day_da.data[0][~mask] = 0.
-
-                        if np.sum(np.isnan(day_da.data)) > 0:
-                            logging.warning("NaNs detected, adding to invalid "
-                                            "list: {}".format(date_str))
-                            self._invalid_dates.append(pd.to_datetime(date))
-                        else:
-                            logging.info("Writing {}".format(fpath))
-                            day_da.to_netcdf(fpath)
-
-                ds.close()
+                logging.info("Saving {}".format(year_path))
+                year_da.compute()
+                year_da.to_netcdf(year_path)
 
         self.missing_dates()
 
@@ -418,12 +409,13 @@ class SICDownloader(Downloader):
 
         :return:
         """
-        filenames = [os.path.join(
-            self.get_data_var_folder("siconca", append=[str(el.year)]),
-            "{}.nc".format(el.strftime("%Y_%m_%d")))
-            for el in self._dates]
+        filenames = set([os.path.join(
+            self.get_data_var_folder("siconca"),
+            "{}.nc".format(el.strftime("%Y")))
+            for el in self._dates])
         filenames = [f for f in filenames if os.path.exists(f)]
 
+        logging.info("Opening for interpolation: {}".format(filenames))
         ds = xr.open_mfdataset(filenames,
                                combine="nested",
                                concat_dim="time",
@@ -472,7 +464,7 @@ class SICDownloader(Downloader):
         for date in missing_dates:
             # TODO: test, but overcomes issue with reprocessing
             if pd.Timestamp(date) not in da.time.values:
-                logging.debug("Interpolating {}".format(date))
+                logging.info("Interpolating {}".format(date))
                 da = xr.concat([da,
                                 da.interp(time=pd.to_datetime(date))],
                                dim='time')
@@ -487,7 +479,7 @@ class SICDownloader(Downloader):
             fpath = os.path.join(
                 self.get_data_var_folder(
                     "siconca", append=[str(pd.to_datetime(date).year)]),
-                "{}.nc".format(date_str))
+                "missing.{}.nc".format(date_str))
 
             if not os.path.exists(fpath):
                 day_da = da.sel(time=slice(date, date))
@@ -502,7 +494,7 @@ class SICDownloader(Downloader):
 
 
 def main():
-    args = download_args(skip_download=True, var_specs=False)
+    args = download_args(var_specs=False)
 
     logging.info("OSASIF-SIC Data Downloading")
     sic = SICDownloader(
@@ -511,6 +503,5 @@ def main():
         delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
-        download=not args.skip_download
     )
     sic.download()
