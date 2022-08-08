@@ -246,7 +246,6 @@ class ClimateDownloader(Downloader):
         filelist = self._files_downloaded if not files else files
         batches = [filelist[b:b + 1000] for b in range(0, len(filelist), 1000)]
 
-        # TODO: DRY, condense to common batch method (w/download)...
         max_workers = min(len(batches), self._max_threads)
 
         if max_workers > 0:
@@ -427,21 +426,24 @@ class ClimateDownloader(Downloader):
 
     def get_req_filenames(self,
                           var_folder: str,
-                          req_date: object):
+                          req_date: object,
+                          date_format: str = None):
         """
 
         :param var_folder:
         :param req_date:
+        :param date_format:
         :return:
         """
+
+        filename_date = getattr(req_date, self._group_dates_by) \
+            if not date_format else req_date.strftime(date_format)
+
         latlon_path = os.path.join(
-            var_folder, "{}{}.nc".format(
-                self.pregrid_prefix,
-                getattr(req_date, self._group_dates_by)))
+            var_folder, "{}{}.nc".format(self.pregrid_prefix, filename_date))
 
         regridded_name = os.path.join(
-            var_folder, "{}.nc".format(
-                getattr(req_date, self._group_dates_by)))
+            var_folder, "{}.nc".format(filename_date))
 
         return latlon_path, regridded_name
 

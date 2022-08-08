@@ -1,6 +1,7 @@
 import datetime
 import logging
 import os
+import sys
 
 from itertools import product
 
@@ -11,6 +12,7 @@ import xarray as xr
 
 from icenet2.data.cli import download_args
 from icenet2.data.interfaces.downloader import ClimateDownloader
+from icenet2.data.interfaces.utils import batch_requested_dates
 
 """
 
@@ -103,84 +105,29 @@ retrieve,
         :param req_dates:
         :return:
         """
-        levtype = "plev" if pressures else "sfc"
 
         for dt in req_dates:
             assert dt.year == req_dates[0].year
-            assert dt.month == req_dates[0].month
 
-        request_month = req_dates[0].strftime("%Y%m")
-        request_target = "{}.{}.{}.nc".format(
-            self.hemisphere_str[0], levtype, request_month)
-        partial_request_target = "partial.{}".format(request_target)
+        downloads = []
+        levtype = "plev" if pressures else "sfc"
 
-        download_dates = []
+        for req_batch in batch_requested_dates(req_dates, attribute="month"):
+            req_batch = sorted(req_batch)
+            request_month = req_dates[0].strftime("%Y%m")
 
-        for var_name, pressure in product(var_names, pressures.split('/')
-                                          if pressures else [None]):
-            var = var_name if not pressure else \
-                "{}{}".format(var_name, pressure)
-            var_folder = self.get_data_var_folder(
-                var, append=[str(req_dates[0].year)])
+            if req_batch[-1] - datetime.datetime.utcnow().date() == \
+                    datetime.timedelta(days=-1):
+                logging.warning("Not allowing partial requests at present, "
+                                "removing {}".format(req_batch[-1]))
+                req_batch = req_batch[:-1]
 
-            for destination_date in req_dates:
-                daily_path, regridded_name = self.get_daily_filenames(
-                    var_folder, destination_date.strftime("%Y_%m_%d"))
+            request_target = "{}.{}.{}.nc".format(
+                self.hemisphere_str[0], levtype, request_month)
 
-                if not os.path.exists(daily_path) \
-                        and not os.path.exists(regridded_name):
-                    if destination_date not in download_dates:
-                        download_dates.append(destination_date)
-                elif not os.path.exists(regridded_name):
-                    self._files_downloaded.append(daily_path)
-
-        download_dates = sorted(list(set(download_dates)))
-
-        if not len(download_dates):
-            logging.info("We have all the files we need from MARS API")
-            return
-
-        downloaded_files = []
-
-        if download_dates[-1] - datetime.datetime.utcnow().date() == \
-            datetime.timedelta(days=-1):
-            partial_request = HRESDownloader.MARS_TEMPLATE.format(
-                area="/".join([str(s) for s in self.hemisphere_loc]),
-                date=download_dates[-1].strftime("%Y%m%d"),
-                levtype=levtype,
-                levlist="levelist={},\n  ".format(pressures) if pressures else "",
-                params="/".join(
-                    ["{}.{}".format(
-                        HRESDownloader.HRES_PARAMS[v][0],
-                        HRESDownloader.PARAM_TABLE)
-                        for v in var_names]),
-                target=partial_request_target,
-                # We are only allowed date prior to -24 hours ago, dynamically
-                # retrieve if date is today
-                step="/".join([str(i) for i in
-                               range(datetime.datetime.utcnow().hour)]),
-            )
-
-            logging.debug("PART STEP MARS REQUEST: \n{}\n".
-                          format(partial_request))
-
-            if not os.path.exists(partial_request_target):
-                try:
-                    self._server.execute(partial_request,
-                                         partial_request_target)
-                except ecmwfapi.api.APIException as e:
-                    logging.exception("Could not complete partial ECMWF "
-                                      "request".format(e))
-                else:
-                    downloaded_files.append(partial_request_target)
-                    partial_datetime = download_dates.pop()
-                    logging.warning("Removed partial date {}".
-                                    format(partial_datetime.strftime("%Y%m%d")))
-
-        if len(download_dates) > 0:
             request = HRESDownloader.MARS_TEMPLATE.format(
                 area="/".join([str(s) for s in self.hemisphere_loc]),
-                date="/".join([el.strftime("%Y%m%d") for el in download_dates]),
+                date="/".join([el.strftime("%Y%m%d") for el in req_batch]),
                 levtype=levtype,
                 levlist="levelist={},\n  ".format(pressures) if pressures else "",
                 params="/".join(
@@ -194,54 +141,36 @@ retrieve,
                 step="/".join([str(i) for i in range(24)]),
             )
 
-            logging.debug("MARS REQUEST: \n{}\n".format(request))
-
             if not os.path.exists(request_target):
+                logging.debug("MARS REQUEST: \n{}\n".format(request))
+
                 try:
                     self._server.execute(request, request_target)
                 except ecmwfapi.api.APIException:
                     logging.exception("Could not complete ECMWF request: {}")
                 else:
-                    downloaded_files.append(request_target)
+                    downloads.append(request_target)
 
-        ds = xr.open_mfdataset(downloaded_files)
-        ds = ds.resample(time='1D').reduce(np.mean)
+        ds = xr.open_mfdataset(downloads)
+        ds = ds.resample(time='1D').mean()
 
-        for day in ds.time.values:
-            date_str = pd.to_datetime(day).strftime("%Y_%m_%d")
+        for var_name, pressure in product(var_names, pressures.split('/')
+                                          if pressures else [None]):
+            var = var_name if not pressure else \
+                "{}{}".format(var_name, pressure)
 
-            for var_name, pressure in product(var_names, pressures.split('/')
-                                              if pressures else [None]):
-                var = var_name if not pressure else \
-                    "{}{}".format(var_name, pressure)
-                var_folder = self.get_data_var_folder(
-                    var, append=[str(pd.to_datetime(day).year)])
+            da = getattr(ds,
+                         HRESDownloader.HRES_PARAMS[var_name][1])
 
-                # For the year component - 365 * 50 is a lot of files ;)
-                os.makedirs(var_folder, exist_ok=True)
+            if pressure:
+                da = da.sel(level=int(pressure))
 
-                daily_path, _ = self.get_daily_filenames(var_folder, date_str)
-
-                da = getattr(ds,
-                             HRESDownloader.HRES_PARAMS[var_name][1])
-
-                if pressure:
-                    da = da.sel(level=int(pressure))
-
-                # Just to make sure
-                da_daily = da.sel(time=slice(
-                    pd.to_datetime(day), pd.to_datetime(day)))
-
-                logging.info("Saving new daily file: {}".format(daily_path))
-                da_daily.to_netcdf(daily_path)
-
-                if daily_path not in self._files_downloaded:
-                    self._files_downloaded.append(daily_path)
+            self.save_temporal_files(var, da)
 
         ds.close()
 
         if self.delete:
-            for downloaded_file in [request_target, partial_request_target]:
+            for downloaded_file in downloads:
                 if os.path.exists(downloaded_file):
                     logging.info("Removing {}".format(downloaded_file))
                     os.unlink(downloaded_file)
@@ -260,7 +189,11 @@ retrieve,
         pressures = "/".join([str(s) for s in sorted(set(
             [p for ps in self.pressure_levels if ps for p in ps]))])
 
-        dates_per_request = self._get_dates_for_request()
+        # req_dates = self.filter_dates_on_data()
+
+        dates_per_request = \
+            batch_requested_dates(self._dates,
+                                  attribute=self._group_dates_by)
 
         for req_batch in dates_per_request:
             self._single_download(sfc_vars, None, req_batch)
