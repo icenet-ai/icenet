@@ -168,7 +168,11 @@ class ORAS5Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args(workers=True)
+    args = download_args(workers=True, extra_args=(
+        (("-n", "--do-not-download"),
+         dict(dest="download", action="store_false", default=True)),
+        (("-p", "--do-not-postprocess"),
+         dict(dest="postprocess", action="store_false", default=True))))
 
     logging.info("ORAS5 Data Downloading")
     oras5 = ORAS5Downloader(
@@ -178,7 +182,9 @@ def main():
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
+        download=args.delete,
         max_threads=args.workers,
+        postprocess=args.postprocess,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
     )

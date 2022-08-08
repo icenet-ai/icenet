@@ -313,6 +313,7 @@ class IceNetPreProcessor(Processor):
         """
 
         logging.info("Opening files for {}".format(var_name))
+        logging.debug("Files: {}".format(self._var_files[var_name]))
         ds = xr.open_mfdataset(self._var_files[var_name],
                                # Solves issue with inheriting files without
                                # time dimension (only having coordinate)
@@ -490,8 +491,7 @@ class IceNetPreProcessor(Processor):
 
         # the old method doesn't work with non-contiguous forecast ranges
         trend_dates = set()
-        trend_steps = max(self._linear_trend_steps)
-
+        trend_steps = int(np.max(self._linear_trend_steps))
         logging.info("Generating trend data {} steps ahead for {} dates".
                      format(trend_steps, len(data_dates)))
 

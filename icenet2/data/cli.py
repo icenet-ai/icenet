@@ -80,7 +80,7 @@ def int_or_list_arg(string: str) -> object:
     """
     try:
         val = int(string)
-    except TypeError:
+    except ValueError:
         val = string.split(",")
     return val
 
