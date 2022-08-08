@@ -8,6 +8,8 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from itertools import product
 
+import numpy as np
+
 from icenet2.data.sic.mask import Masks
 from icenet2.data.sic.utils import SIC_HEMI_STR
 from icenet2.data.producers import Downloader
@@ -317,7 +319,7 @@ class ClimateDownloader(Downloader):
             # TODO: filename chain can be handled better for sharing between
             #  methods
             logging.info("Saving regridded data to {}... ".format(new_datafile))
-            iris.save(cube_ease, new_datafile)
+            iris.save(cube_ease, new_datafile, fill_value=np.nan)
 
             if self.delete:
                 logging.info("Removing {}".format(datafile))

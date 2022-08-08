@@ -135,11 +135,13 @@ def generate_sample(forecast_date: object,
 
         if var_name.endswith("linear_trend"):
             channel_ds = trend_ds
-            if type(trend_steps[var_name]) == list:
-                channel_dates = [pd.Timestamp(forecast_date + dt.timedelta(days=n))
-                                 for n in trend_steps[var_name]]
+            if type(trend_steps) == list:
+                channel_dates = [pd.Timestamp(forecast_date +
+                                              dt.timedelta(days=int(n)))
+                                 for n in trend_steps]
             else:
-                channel_dates = [pd.Timestamp(forecast_date + dt.timedelta(days=n))
+                channel_dates = [pd.Timestamp(forecast_date +
+                                              dt.timedelta(days=n))
                                  for n in range(num_channels)]
         else:
             channel_ds = var_ds
@@ -557,7 +559,7 @@ class IceNetDataLoader(Generator):
         for identity, var_name, trend_steps in trend_names:
             var_prefix = "{}_linear_trend".format(var_name)
 
-            self._channels[var_prefix] = int(trend_steps)
+            self._channels[var_prefix] = len(trend_steps)
             self._trend_steps[var_prefix] = trend_steps
             filelist = [el for el in
                         self._config["sources"][identity]["var_files"][var_name]
@@ -686,31 +688,32 @@ def get_args():
     ap.add_argument("name", type=str)
     ap.add_argument("hemisphere", choices=("north", "south"))
 
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
-
-    ap.add_argument("-l", "--lag", type=int, default=2)
-
-    ap.add_argument("-fn", "--forecast-name", dest="forecast_name",
-                    default=None, type=str)
-    ap.add_argument("-fd", "--forecast-days", dest="forecast_days",
-                    default=93, type=int)
-
-    ap.add_argument("-ob", "--output-batch-size", dest="batch_size", type=int,
-                    default=8)
-
-    ap.add_argument("-dp", "--dask-port", type=int, default=8888)
-    ap.add_argument("-w", "--workers", help="Number of workers to use "
-                                            "generating sets",
-                    type=int, default=2)
-
     ap.add_argument("-c", "--cfg-only", help="Do not generate data, "
                                              "only config", default=False,
                     action="store_true", dest="cfg")
     ap.add_argument("-d", "--dry",
                     help="Don't output files, just generate data",
                     default=False, action="store_true")
+    ap.add_argument("-dp", "--dask-port", type=int, default=8888)
+    ap.add_argument("-fn", "--forecast-name", dest="forecast_name",
+                    default=None, type=str)
+    ap.add_argument("-fd", "--forecast-days", dest="forecast_days",
+                    default=93, type=int)
+
+    ap.add_argument("-l", "--lag", type=int, default=2)
+
+    ap.add_argument("-ob", "--output-batch-size", dest="batch_size", type=int,
+                    default=8)
+
     ap.add_argument("-p", "--pickup", help="Skip existing tfrecords",
                     default=False, action="store_true")
+    ap.add_argument("-t", "--tmp-dir", help="Temporary directory",
+                    default="/local/tmp", type=str)
+
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+    ap.add_argument("-w", "--workers", help="Number of workers to use "
+                                            "generating sets",
+                    type=int, default=2)
 
     add_date_args(ap)
     args = ap.parse_args()
@@ -736,7 +739,7 @@ def main():
     else:
         dashboard = "localhost:{}".format(args.dask_port)
         # TODO: bad times, but DASK__TEMPORARY_DIRECTORY didn't work
-        with dask.config.set({"temporary_directory": "/local/tmp"}):
+        with dask.config.set({"temporary_directory": args.tmp_dir}):
             cluster = LocalCluster(
                 n_workers=args.workers,
                 scheduler_port=0,

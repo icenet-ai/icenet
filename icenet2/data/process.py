@@ -491,7 +491,8 @@ class IceNetPreProcessor(Processor):
 
         # the old method doesn't work with non-contiguous forecast ranges
         trend_dates = set()
-        trend_steps = int(np.max(self._linear_trend_steps))
+        # TODO: fix config
+        trend_steps = max([int(el) for el in self._linear_trend_steps[0]])
         logging.info("Generating trend data {} steps ahead for {} dates".
                      format(trend_steps, len(data_dates)))
 
