@@ -135,8 +135,12 @@ def generate_sample(forecast_date: object,
 
         if var_name.endswith("linear_trend"):
             channel_ds = trend_ds
-            channel_dates = [pd.Timestamp(forecast_date + dt.timedelta(days=n))
-                             for n in trend_steps[var_name]]
+            if type(trend_steps[var_name]) == list:
+                channel_dates = [pd.Timestamp(forecast_date + dt.timedelta(days=n))
+                                 for n in trend_steps[var_name]]
+            else:
+                channel_dates = [pd.Timestamp(forecast_date + dt.timedelta(days=n))
+                                 for n in range(num_channels)]
         else:
             channel_ds = var_ds
             channel_dates = [pd.Timestamp(forecast_date - dt.timedelta(days=n))
@@ -180,8 +184,19 @@ def generate_sample(forecast_date: object,
             raise IceNetDataWarning("NaNs in output with non-zero weights")
 
         if data_check and x_nans > 0:
-            raise IceNetDataWarning("NaNs detected in data for {}".
-                                    format(forecast_date))
+            channel_idxs = list(set(np.where(np.isnan(x))[-1]))
+            channel_names = []
+            for k, n in channels.items():
+                channel_names += ["{}-{}".format(k, el) for el in range(n)]
+
+            for i in channel_idxs:
+                logging.debug("NaNs in {}".format(channel_names[i]))
+                
+                if np.sum(np.isnan(x[channel_idxs])) == np.multiply(*shape):
+                    raise IceNetDataWarning("Too many NaNs detected in input for {}".
+                                            format(forecast_date))
+                    
+            x[np.isnan(x)] = 0.
 
     return x, y, sample_weights
 
@@ -542,7 +557,7 @@ class IceNetDataLoader(Generator):
         for identity, var_name, trend_steps in trend_names:
             var_prefix = "{}_linear_trend".format(var_name)
 
-            self._channels[var_prefix] = len(trend_steps)
+            self._channels[var_prefix] = int(trend_steps)
             self._trend_steps[var_prefix] = trend_steps
             filelist = [el for el in
                         self._config["sources"][identity]["var_files"][var_name]
