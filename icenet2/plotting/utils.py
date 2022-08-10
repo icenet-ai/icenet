@@ -32,7 +32,10 @@ def get_forecast_obs_ds(hemisphere: str,
     forecast_date = pd.to_datetime(forecast_date)
 
     forecast_ds = xr.open_dataset(forecast_file)
-    forecast_ds = forecast_ds.sel(time=forecast_date)
+    forecast_ds = forecast_ds.sel(time=slice(forecast_date,forecast_date))
+
+    if len(forecast_ds.time) != 1:
+        raise ValueError("Dataset does not contain {}: \n{}".format(forecast_date, forecast_ds))
 
     obs_years = [forecast_date.year]
     max_lead_year = (forecast_date +

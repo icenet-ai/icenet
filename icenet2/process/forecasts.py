@@ -38,6 +38,8 @@ def broadcast_forecast(start_date: object,
     dates = pd.date_range(start_date, end_date)
     i = 0
 
+    logging.debug("Dataset summary: \n{}".format(dataset))
+
     if len(dataset.time.values) > 1:
         while dataset.time.values[i + 1] < dates[0]:
             i += 1
@@ -63,7 +65,9 @@ def broadcast_forecast(start_date: object,
                         continue
 
                 logging.debug("Selecting date {} and lead {}".
-                              format(dataset.time.values[i], d_lead))
+                              format(pd.to_datetime(
+                                     dataset.time.values[i]).strftime("%D"), 
+                                     d_lead))
 
                 arr = dataset.sel(time=dataset.time.values[i],
                                   leadtime=d_lead).\

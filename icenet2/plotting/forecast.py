@@ -31,8 +31,8 @@ def sic_error_args() -> object:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
-    ap.add_argument("forecast-file", type=str)
-    ap.add_argument("forecast-date", type=date_arg)
+    ap.add_argument("forecast_file", type=str)
+    ap.add_argument("forecast_date", type=date_arg)
 
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
