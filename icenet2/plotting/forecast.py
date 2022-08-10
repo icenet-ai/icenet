@@ -134,5 +134,5 @@ def sic_error():
 
     plot_sic_error(*get_forecast_obs_ds(args.hemisphere,
                                         args.forecast_file,
-                                        args.forecast_date,
-                                        args.output_path))
+                                        args.forecast_date),
+                   output_path=args.output_path)
