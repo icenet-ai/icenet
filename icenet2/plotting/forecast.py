@@ -95,7 +95,8 @@ def plot_sic_error(fc_da: object,
 
     animation = FuncAnimation(fig,
                               update,
-                              range(1, len(fc_da.time)),
+                              range(0, len(fc_da.time)),
+                              blit=True,
                               interval=100)
 
     plt.close()
@@ -118,6 +119,8 @@ def sic_error_args() -> object:
     ap.add_argument("forecast_file", type=str)
     ap.add_argument("forecast_date", type=date_arg)
 
+    ap.add_argument("-o", "--output-path", type=str,
+                    default=os.path.join("plot", "sic_error.mp4"))
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     args = ap.parse_args()
@@ -131,4 +134,5 @@ def sic_error():
 
     plot_sic_error(*get_forecast_obs_ds(args.hemisphere,
                                         args.forecast_file,
-                                        args.forecast_date))
+                                        args.forecast_date,
+                                        args.output_path))
