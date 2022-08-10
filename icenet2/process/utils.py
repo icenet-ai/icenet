@@ -1,6 +1,6 @@
 import datetime as dt
-import os
 import re
+import os
 
 
 def date_arg(string: str) -> object:
