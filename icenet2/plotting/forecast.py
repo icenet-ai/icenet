@@ -45,6 +45,6 @@ def sic_error():
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
-    plot_sic_error(get_forecast_obs_ds(args.hemisphere,
-                                       args.forecast_file,
-                                       args.forecast_date))
+    plot_sic_error(*get_forecast_obs_ds(args.hemisphere,
+                                        args.forecast_file,
+                                        args.forecast_date))
