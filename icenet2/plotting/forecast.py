@@ -35,17 +35,17 @@ def plot_sic_error(fc_da: object,
     def update(date):
         logging.debug("Plotting {}".format(date))
 
-        maps[0].set_title("IceNet {}".format(
+        tic = maps[0].set_title("IceNet {}".format(
             pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
-        maps[1].set_title("OSISAF Obs {}".format(
+        tio = maps[1].set_title("OSISAF Obs {}".format(
             pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
 
-        maps[0].contourf(fc_plot, **contour_kwargs)
-        maps[1].contourf(obs_plot, **contour_kwargs)
-        maps[2].contourf(diff_plot, **diff_kwargs,
+        ctf = maps[0].contourf(fc_plot, **contour_kwargs)
+        cto = maps[1].contourf(obs_plot, **contour_kwargs)
+        ctd = maps[2].contourf(diff_plot, **diff_kwargs,
                          vmin=-1, vmax=1, cmap="RdBu_r")
 
-        return maps
+        return tic, tio, ctf, cto, ctd
 
     fig, maps = plt.subplots(nrows=1, ncols=3, figsize=(18, 5))
     fig.set_dpi(150)
@@ -69,9 +69,9 @@ def plot_sic_error(fc_da: object,
     ctd = maps[2].contourf(diff_plot, **diff_kwargs,
                            vmin=-1, vmax=1, cmap="RdBu_r")
 
-    maps[0].set_title("IceNet {}".format(
+    tic = maps[0].set_title("IceNet {}".format(
         pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
-    maps[1].set_title("OSISAF Obs {}".format(
+    tio = maps[1].set_title("OSISAF Obs {}".format(
         pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
     maps[2].set_title("Diff")
 
