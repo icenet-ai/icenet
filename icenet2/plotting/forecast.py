@@ -41,18 +41,15 @@ def plot_sic_error(fc_da: object,
     diff_plot = diff.isel(time=leadtime).to_numpy()
 
     contour_kwargs = dict(
-        levels=200,
         vmin=0,
         vmax=1,
         cmap='YlOrRd'
     )
-    diff_kwargs = {k: v for k, v in contour_kwargs.items()
-                   if k not in ["vmin", "vmax", "cmap"]}
 
-    ctf = maps[0].contourf(fc_plot, **contour_kwargs)
-    cto = maps[1].contourf(obs_plot, **contour_kwargs)
-    ctd = maps[2].contourf(diff_plot, **diff_kwargs,
-                           vmin=-1, vmax=1, cmap="RdBu_r")
+    im1 = maps[0].imshow(fc_plot, **contour_kwargs)
+    im2 = maps[1].imshow(obs_plot, **contour_kwargs)
+    im3 = maps[2].imshow(diff_plot, 
+                         vmin=-1, vmax=1, cmap="RdBu_r")
 
     tic = maps[0].set_title("IceNet {}".format(
         pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
@@ -65,10 +62,10 @@ def plot_sic_error(fc_da: object,
     p2 = maps[2].get_position().get_points().flatten()
 
     ax_cbar = fig.add_axes([p0[0], 0, p1[2]-p0[0], 0.05])
-    plt.colorbar(cto, cax=ax_cbar, orientation='horizontal')
+    plt.colorbar(im1, cax=ax_cbar, orientation='horizontal')
 
     ax_cbar1 = fig.add_axes([p2[0], 0, p2[2]-p2[0], 0.05])
-    plt.colorbar(ctd, cax=ax_cbar1, orientation='horizontal')
+    plt.colorbar(im3, cax=ax_cbar1, orientation='horizontal')
 
     for m_ax in maps[0:3]:
         m_ax.contourf(land_mask,
@@ -80,30 +77,25 @@ def plot_sic_error(fc_da: object,
 
     def update(date):
         logging.debug("Plotting {}".format(date))
-        global tic, tio, ctf, cto, ctd
 
-        tic = maps[0].set_title("IceNet {}".format(
+        fc_plot = fc_da.isel(time=leadtime).to_numpy()
+        obs_plot = obs_da.isel(time=leadtime).to_numpy()
+        diff_plot = diff.isel(time=leadtime).to_numpy()
+        
+        tic.set_text("IceNet {}".format(
             pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
-        tio = maps[1].set_title("OSISAF Obs {}".format(
+        tio.set_text("OSISAF Obs {}".format(
             pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
 
-        for c in ctf.collections:
-            c.remove()
-        for c in cto.collections:
-            c.remove()
-        for c in ctd.collections:
-            c.remove()
+        im1.set_data(fc_plot)
+        im2.set_data(obs_plot)
+        im3.set_data(diff_plot)
 
-        ctf = maps[0].contourf(fc_plot, **contour_kwargs)
-        cto = maps[1].contourf(obs_plot, **contour_kwargs)
-        ctd = maps[2].contourf(diff_plot, **diff_kwargs,
-                               vmin=-1, vmax=1, cmap="RdBu_r")
-        return tic, tio, ctf, cto, ctd
+        return tic, tio, im1, im2, im3
 
     animation = FuncAnimation(fig,
                               update,
                               range(0, len(fc_da.time)),
-                              blit=True,
                               interval=100)
 
     plt.close()
