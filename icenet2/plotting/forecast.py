@@ -6,6 +6,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
+import pandas as pd
+
 from icenet2.data.cli import date_arg
 from icenet2.plotting.utils import get_forecast_obs_ds
 
@@ -31,12 +33,12 @@ def plot_sic_error(fc_da: object,
     diff = fc_da - obs_da
 
     def update(date):
-        logging.debug("Plotting {}".format(date.strftime("%D")))
+        logging.debug("Plotting {}".format(date))
 
         maps[0].set_title("IceNet {}".format(
-            fc_da.isel(time=date).time.strftime("%d/%m/%Y")))
+            pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
         maps[1].set_title("OSISAF Obs {}".format(
-            obs_da.isel(time=date).time.strftime("%d/%m/%Y")))
+            pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
 
         maps[0].contourf(fc_plot, **contour_kwargs)
         maps[1].contourf(obs_plot, **contour_kwargs)
@@ -68,9 +70,9 @@ def plot_sic_error(fc_da: object,
                            vmin=-1, vmax=1, cmap="RdBu_r")
 
     maps[0].set_title("IceNet {}".format(
-        fc_da.isel(time=leadtime).time.strftime("%d/%m/%Y")))
+        pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
     maps[1].set_title("OSISAF Obs {}".format(
-        obs_da.isel(time=leadtime).time.strftime("%d/%m/%Y")))
+        pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
     maps[2].set_title("Diff")
 
     p0 = maps[0].get_position().get_points().flatten()
@@ -98,9 +100,6 @@ def plot_sic_error(fc_da: object,
 
     plt.close()
 
-    output_file = os.path.join("plot", ".2020-10-1.{}.png".format(leadtime))
-    logging.info("Saved {}".format(output_file))
-    fig.savefig(output_file)
     logging.info("Saving plot to {}".format(output_path))
     animation.save(output_path,
                    fps=10,
