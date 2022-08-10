@@ -32,28 +32,6 @@ def plot_sic_error(fc_da: object,
 
     diff = fc_da - obs_da
 
-    def update(date):
-        logging.debug("Plotting {}".format(date))
-        global tic, tio, ctf, cto, ctd
-
-        tic = maps[0].set_title("IceNet {}".format(
-            pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
-        tio = maps[1].set_title("OSISAF Obs {}".format(
-            pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
-
-        for c in ctf.collections:
-            c.remove()
-        for c in cto.collections:
-            c.remove()
-        for c in ctd.collections:
-            c.remove()
-
-        ctf = maps[0].contourf(fc_plot, **contour_kwargs)
-        cto = maps[1].contourf(obs_plot, **contour_kwargs)
-        ctd = maps[2].contourf(diff_plot, **diff_kwargs,
-                               vmin=-1, vmax=1, cmap="RdBu_r")
-        return tic, tio, ctf, cto, ctd
-
     fig, maps = plt.subplots(nrows=1, ncols=3, figsize=(18, 5))
     fig.set_dpi(150)
 
@@ -99,6 +77,28 @@ def plot_sic_error(fc_da: object,
                       zorder=3)
 
     fig.subplots_adjust(hspace=0.2, wspace=0.2)
+
+    def update(date):
+        logging.debug("Plotting {}".format(date))
+        global tic, tio, ctf, cto, ctd
+
+        tic = maps[0].set_title("IceNet {}".format(
+            pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
+        tio = maps[1].set_title("OSISAF Obs {}".format(
+            pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
+
+        for c in ctf.collections:
+            c.remove()
+        for c in cto.collections:
+            c.remove()
+        for c in ctd.collections:
+            c.remove()
+
+        ctf = maps[0].contourf(fc_plot, **contour_kwargs)
+        cto = maps[1].contourf(obs_plot, **contour_kwargs)
+        ctd = maps[2].contourf(diff_plot, **diff_kwargs,
+                               vmin=-1, vmax=1, cmap="RdBu_r")
+        return tic, tio, ctf, cto, ctd
 
     animation = FuncAnimation(fig,
                               update,
