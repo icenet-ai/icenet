@@ -78,14 +78,14 @@ def plot_sic_error(fc_da: object,
     def update(date):
         logging.debug("Plotting {}".format(date))
 
-        fc_plot = fc_da.isel(time=leadtime).to_numpy()
-        obs_plot = obs_da.isel(time=leadtime).to_numpy()
-        diff_plot = diff.isel(time=leadtime).to_numpy()
+        fc_plot = fc_da.isel(time=date).to_numpy()
+        obs_plot = obs_da.isel(time=date).to_numpy()
+        diff_plot = diff.isel(time=date).to_numpy()
         
         tic.set_text("IceNet {}".format(
-            pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
+            pd.to_datetime(fc_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
         tio.set_text("OSISAF Obs {}".format(
-            pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
+            pd.to_datetime(obs_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
 
         im1.set_data(fc_plot)
         im2.set_data(obs_plot)
