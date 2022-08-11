@@ -10,6 +10,8 @@ from pprint import pprint, pformat
 
 import dask
 from dask.distributed import Client, LocalCluster
+
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -708,7 +710,7 @@ def get_args():
     ap.add_argument("-p", "--pickup", help="Skip existing tfrecords",
                     default=False, action="store_true")
     ap.add_argument("-t", "--tmp-dir", help="Temporary directory",
-                    default="/local/tmp", type=str)
+                    default="/local/tmp", dest="tmp_dir", type=str)
 
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-w", "--workers", help="Number of workers to use "
@@ -750,7 +752,8 @@ def main():
             with Client(cluster) as client:
                 logging.info("Using dask client {}".format(client))
                 dl.generate(dates_override=dates
-                            if sum([len(v) for v in dates.values()]) > 0 else None,
+                            if sum([len(v) for v in dates.values()]) > 0
+                            else None,
                             pickup=args.pickup)
 
 
