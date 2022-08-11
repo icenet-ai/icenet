@@ -114,7 +114,9 @@ retrieve,
 
         for req_batch in batch_requested_dates(req_dates, attribute="month"):
             req_batch = sorted(req_batch)
-            request_month = req_dates[0].strftime("%Y%m")
+            request_month = req_batch[0].strftime("%Y%m")
+
+            logging.info("Downloading month file {}".format(request_month))
 
             if req_batch[-1] - datetime.datetime.utcnow().date() == \
                     datetime.timedelta(days=-1):
@@ -151,6 +153,11 @@ retrieve,
                     logging.exception("Could not complete ECMWF request: {}")
                 else:
                     downloads.append(request_target)
+            else:
+                logging.debug("Already have {}".format(request_target))
+                downloads.append(request_target)
+
+        logging.debug("Files downloaded: {}".format(downloads))
 
         ds = xr.open_mfdataset(downloads)
         ds = ds.resample(time='1D').mean()
