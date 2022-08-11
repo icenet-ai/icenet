@@ -14,24 +14,34 @@ from icenet2.utils import setup_logging
 
 def broadcast_forecast(start_date: object,
                        end_date: object,
-                       datafiles: object,
+                       datafiles: object = None,
+                       dataset: object = None,
                        target: object = None) -> object:
     """
 
     :param start_date:
     :param end_date:
     :param datafiles:
+    :param dataset:
     :param target:
     :return:
     """
-    logging.info("Using {} to generate forecast through {} to {}".
-                 format(", ".join(datafiles), start_date, end_date))
-    ds = xr.open_mfdataset(datafiles, engine="netcdf4")
+
+    assert (not datafiles) ^ (not dataset), "Only one of datafiles and " \
+                                            "dataset can be set"
+
+    if datafiles:
+        logging.info("Using {} to generate forecast through {} to {}".
+                     format(", ".join(datafiles), start_date, end_date))
+        dataset = xr.open_mfdataset(datafiles, engine="netcdf4")
+
     dates = pd.date_range(start_date, end_date)
     i = 0
 
-    if len(ds.time.values) > 1:
-        while ds.time.values[i + 1] < dates[0]:
+    logging.debug("Dataset summary: \n{}".format(dataset))
+
+    if len(dataset.time.values) > 1:
+        while dataset.time.values[i + 1] < dates[0]:
             i += 1
 
     logging.info("Starting index will be {} for {} - {}".
@@ -43,21 +53,24 @@ def broadcast_forecast(start_date: object,
         arr = None
 
         while not arr:
-            if d >= ds.time.values[i]:
-                d_lead = (d - ds.time.values[i]).days
+            if d >= dataset.time.values[i]:
+                d_lead = (d - dataset.time.values[i]).days
 
-                if i + 1 < len(ds.time.values):
-                    if pd.to_datetime(ds.time.values[i]) + \
+                if i + 1 < len(dataset.time.values):
+                    if pd.to_datetime(dataset.time.values[i]) + \
                             dt.timedelta(days=d_lead) >= \
-                            pd.to_datetime(ds.time.values[i + 1]) + \
+                            pd.to_datetime(dataset.time.values[i + 1]) + \
                             dt.timedelta(days=1):
                         i += 1
                         continue
 
                 logging.debug("Selecting date {} and lead {}".
-                              format(ds.time.values[i], d_lead))
+                              format(pd.to_datetime(
+                                     dataset.time.values[i]).strftime("%D"), 
+                                     d_lead))
 
-                arr = ds.sel(time=ds.time.values[i], leadtime=d_lead).\
+                arr = dataset.sel(time=dataset.time.values[i],
+                                  leadtime=d_lead).\
                     copy().\
                     drop("time").\
                     assign_coords(dict(time=d)).\
@@ -70,7 +83,7 @@ def broadcast_forecast(start_date: object,
     target_ds = xr.concat(dt_arr, dim="time")
 
     if target:
-        logging.info("Generating dataset to {}".format(target))
+        logging.info("Saving dataset to {}".format(target))
         target_ds.to_netcdf(target)
     return target_ds
 
