@@ -10,7 +10,6 @@ from pprint import pprint, pformat
 
 import dask
 import dask.array as da
-import dask.dataframe as ddf
 from dask.distributed import Client, LocalCluster
 
 
@@ -59,7 +58,7 @@ def generate_and_write(path: str,
             times.append(end - start)
             logging.debug("Time taken to produce {}: {}".
                           format(date, times[-1]))
-    return count, times
+    return path, count, times
 
 
 def generate_sample(forecast_date: object,
@@ -206,11 +205,11 @@ def generate_sample(forecast_date: object,
 
             for i in channel_idxs:
                 logging.debug("NaNs in {}".format(channel_names[i]))
-
+                
                 if np.sum(np.isnan(x[channel_idxs])) == np.multiply(*shape):
                     raise IceNetDataWarning("Too many NaNs detected in input for {}".
                                             format(forecast_date))
-
+                    
             x[np.isnan(x)] = 0.
 
     return x, y, sample_weights
@@ -262,7 +261,6 @@ class IceNetDataLoader(Generator):
                  identifier: str,
                  var_lag: int,
                  *args,
-                 client: object = None,
                  dataset_config_path: str = ".",
                  dry: bool = False,
                  generate_workers: int = 8,
@@ -280,7 +278,7 @@ class IceNetDataLoader(Generator):
         self._channels = dict()
         self._channel_files = dict()
         self._channel_ds = None
-        self._client = client
+
         self._configuration_path = configuration_path
         self._dataset_config_path = dataset_config_path
         self._config = dict()
@@ -355,14 +353,14 @@ class IceNetDataLoader(Generator):
         elif dates_override:
             raise RuntimeError("dates_override needs to be a dict if supplied")
 
+        counts = {el: 0 for el in splits}
+        exec_times = []
+
         def batch(batch_dates, num):
             i = 0
             while i < len(batch_dates):
                 yield batch_dates[i:i + num]
                 i += num
-
-        counts = {el: 0 for el in splits}
-        exec_times = []
 
         # This was a quick and dirty beef-up of the implementation as it's
         # very I/O bursty work. It significantly reduces the overall time
@@ -394,8 +392,6 @@ class IceNetDataLoader(Generator):
             logging.info("{} {} dates to process, generating cache "
                          "data.".format(len(forecast_dates), dataset))
 
-            futures = []
-
             for dates in batch(forecast_dates, self._output_batch_size):
                 args = {}
                 samples = 0
@@ -423,28 +419,17 @@ class IceNetDataLoader(Generator):
                             masks
                         ]
 
-#                    if self.client:
-                    fut = self.client.submit(generate_and_write,
-                                             tf_path.format(batch_number),
-                                             args,
-                                             dry=self._dry)
-                    futures.append(fut)
-#                    else:
-#                        path, count, times = generate_and_write(
-#                        tf_path.format(batch_number), args, dry=self._dry)
-                    #if samples > 0:
-                    #    logging.info("Finished output {}".
-                    #                 format(tf_path.format(batch_number)))
-                    #exec_times += times
+                    tf_data, samples, times = generate_and_write(
+                        tf_path.format(batch_number), args, dry=self._dry)
+                    if samples > 0:
+                        logging.info("Finished output {}".format(tf_data))
+                        exec_times += times
                 else:
                     logging.warning("Skipping {} on pickup run".
                                     format(tf_path.format(batch_number)))
 
-                batch_number += 1
-
-            for samples, gen_time in self.client.gather(futures):
+                batch_number += 1 if samples > 0 else 0
                 counts[dataset] += samples
-                exec_times.append(gen_time)
 
         if len(exec_times) > 0:
             logging.info("Average sample generation time: {}".
@@ -701,14 +686,6 @@ class IceNetDataLoader(Generator):
             json.dump(configuration, fh, indent=4, default=_serialize)
 
     @property
-    def client(self):
-        return self._client
-
-    @client.setter
-    def client(self, client):
-        self._client = client
-
-    @property
     def config(self):
         return self._config
 
@@ -784,7 +761,6 @@ def main():
 
             with Client(cluster) as client:
                 logging.info("Using dask client {}".format(client))
-                dl.client = client
                 dl.generate(dates_override=dates
                             if sum([len(v) for v in dates.values()]) > 0
                             else None,
