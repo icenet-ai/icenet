@@ -199,16 +199,17 @@ class ERA5Downloader(ClimateDownloader):
         :param var:
         :param download_path:
         """
-        if not self._use_toolbox:
-            da = xr.open_dataarray(download_path)
+        # if not self._use_toolbox:
+        logging.info("Postprocessing CDS API data at {}".format(download_path))
+        da = xr.open_dataarray(download_path)
 
-            if 'expver' in da.coords:
-                raise RuntimeError("fix_near_real_time_era5_coords no longer "
-                                   "exists in the codebase for expver "
-                                   "in coordinates")
+        if 'expver' in da.coords:
+            raise RuntimeError("fix_near_real_time_era5_coords no longer "
+                               "exists in the codebase for expver "
+                               "in coordinates")
 
-            da = da.resample(time='1D').mean().compute()
-            da.to_netcdf(download_path)
+        da = da.resample(time='1D').mean().compute()
+        da.to_netcdf(download_path)
 
     def _get_dates_for_request(self) -> object:
         """Appropriate monthly batching of dates for CDS requests
@@ -251,7 +252,12 @@ class ERA5Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args(choices=["cdsapi", "toolbox"], workers=True)
+    args = download_args(choices=["cdsapi", "toolbox"],
+                         workers=True, extra_args=(
+        (("-n", "--do-not-download"),
+         dict(dest="download", action="store_false", default=True)),
+        (("-p", "--do-not-postprocess"),
+         dict(dest="postprocess", action="store_false", default=True))))
 
     logging.info("ERA5 Data Downloading")
     era5 = ERA5Downloader(
@@ -260,7 +266,9 @@ def main():
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
+        download=args.download,
         max_threads=args.workers,
+        postprocess=args.postprocess,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
         use_toolbox=args.choice == "toolbox"

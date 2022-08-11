@@ -8,6 +8,8 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from itertools import product
 
+import numpy as np
+
 from icenet2.data.sic.mask import Masks
 from icenet2.data.sic.utils import SIC_HEMI_STR
 from icenet2.data.producers import Downloader
@@ -32,7 +34,10 @@ class ClimateDownloader(Downloader):
 
     :param dates:
     :param delete_tempfiles:
+    :param download:
+    :param group_dates_by:
     :param max_threads:
+    :param postprocess:
     :param pregrid_prefix:
     :param pressure_levels:
     :param var_name_idx:
@@ -42,8 +47,10 @@ class ClimateDownloader(Downloader):
     def __init__(self, *args,
                  dates: object = (),
                  delete_tempfiles: bool = True,
+                 download: bool = True,
                  group_dates_by: str = "year",
                  max_threads: int = 1,
+                 postprocess: bool = True,
                  pregrid_prefix: str = "latlon_",
                  pressure_levels: object = (),
                  var_name_idx: int = -2,
@@ -53,10 +60,12 @@ class ClimateDownloader(Downloader):
 
         self._dates = list(dates)
         self._delete = delete_tempfiles
+        self._download = download
         self._files_downloaded = []
         self._group_dates_by = group_dates_by
         self._masks = Masks(north=self.north, south=self.south)
         self._max_threads = max_threads
+        self._postprocess = postprocess
         self._pregrid_prefix = pregrid_prefix
         self._pressure_levels = list(pressure_levels)
         self._sic_ease_cubes = dict()
@@ -163,15 +172,18 @@ class ClimateDownloader(Downloader):
         req_dates, merge_files = \
             self.filter_dates_on_data(var_prefix, level, req_dates)
 
-        if not os.path.exists(latlon_path):
-            success = self.download_method(var,
-                                           level,
-                                           req_dates,
-                                           latlon_path)
+        if self.download and not os.path.exists(latlon_path):
+            self.download_method(var,
+                                 level,
+                                 req_dates,
+                                 latlon_path)
 
-            if success:
-                logging.info("Downloaded to {}".format(latlon_path))
-                self.postprocess(var, latlon_path)
+            logging.info("Downloaded to {}".format(latlon_path))
+        else:
+            logging.info("Skipping actual download")
+
+        if self._postprocess:
+            self.postprocess(var, latlon_path)
 
         if not os.path.exists(regridded_name):
             self._files_downloaded.append(latlon_path)
@@ -307,7 +319,7 @@ class ClimateDownloader(Downloader):
             # TODO: filename chain can be handled better for sharing between
             #  methods
             logging.info("Saving regridded data to {}... ".format(new_datafile))
-            iris.save(cube_ease, new_datafile)
+            iris.save(cube_ease, new_datafile, fill_value=np.nan)
 
             if self.delete:
                 logging.info("Removing {}".format(datafile))
