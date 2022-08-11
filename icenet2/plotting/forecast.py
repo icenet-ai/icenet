@@ -57,7 +57,7 @@ def plot_binary_accuracy(masks: object,
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_minor_locator(mdates.DayLocator())
     ax.legend(loc='lower right')
-    fig.save_fig(output_path)
+    plt.savefig(output_path)
 
     return binacc_fc, binacc_cmp
 
@@ -186,10 +186,9 @@ def binary_accuracy():
                                      args.forecast_date)
 
     hres, _, _ = get_forecast_hres_obs_da(args.hemisphere,
-                                          args.forecast_file,
-                                          args.forecast_date)
+                                          obs.time.values[0],
+                                          obs.time.values[-1])
 
-    # TODO: Validate date ranges across calls
     # TODO: split down the get_*_da methods
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")

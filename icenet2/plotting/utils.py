@@ -34,8 +34,8 @@ def get_forecast_hres_obs_da(hemisphere: str,
     land_mask = masks.get_land_mask()
 
     start_date, end_date = pd.to_datetime(start_date), pd.to_datetime(end_date)
-    hres_years = list(set(start_date.year, end_date.year))
-    hres_files = [os.path.join(source_path, hemisphere, "{}.nc".format(yr))
+    hres_years = list(set([start_date.year, end_date.year]))
+    hres_files = [os.path.join(source_path, hemisphere, "siconca", "{}.nc".format(yr))
                   for yr in hres_years]
     hres_ds = xr.open_mfdataset(hres_files)
 
