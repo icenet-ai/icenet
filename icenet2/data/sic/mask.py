@@ -4,6 +4,7 @@ import os
 import shutil
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from icenet2.data.cli import download_args
@@ -193,6 +194,24 @@ class Masks(Generator):
 
         # logging.debug("Loading active cell mask {}".format(mask_path))
         return np.load(mask_path)
+
+    def get_active_cell_da(self,
+                           src_da: object) -> object:
+        """
+
+        :param src_da:
+        """
+
+        return xr.DataArray(
+            [self.get_active_cell_mask(pd.to_datetime(date).month)
+             for date in src_da.time.values],
+            dims=('time', 'yc', 'xc'),
+            coords={
+                'time': src_da.time.values,
+                'yc': src_da.yc.values,
+                'xc': src_da.xc.values,
+            }
+        )
 
     def get_land_mask(self,
                       land_mask_filename: str = LAND_MASK_FILENAME) -> object:

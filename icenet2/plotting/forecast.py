@@ -4,12 +4,16 @@ import os
 
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
 
+import numpy as np
 import pandas as pd
 
 from icenet2.data.cli import date_arg
-from icenet2.plotting.utils import get_forecast_obs_ds
+from icenet2.data.sic.mask import Masks
+from icenet2.plotting.utils import \
+    get_forecast_obs_da, get_forecast_hres_obs_da
 
 matplotlib.rcParams.update({
     'figure.facecolor': 'w',
@@ -17,11 +21,52 @@ matplotlib.rcParams.update({
 })
 
 
-def plot_sic_error(fc_da: object,
-                   obs_da: object,
-                   land_mask: object,
-                   output_path: object =
-                   os.path.join("plot", "sic_error.mp4")) -> object:
+def plot_binary_accuracy(masks: object,
+                         fc_da: object,
+                         cmp_da: object,
+                         obs_da: object,
+                         output_path: object =
+                         os.path.join("plot", "binacc.png")) -> object:
+    """
+    TODO: Split out getting and plotting binary accuracy
+    :param masks:
+    :param fc_da:
+    :param cmp_da:
+    :param obs_da:
+    :param output_path:
+    :return:
+    """
+    agcm = masks.get_active_cell_da(obs_da)
+    binary_obs_da = obs_da > 0.15
+    binary_fc_da = fc_da > 0.15
+    binary_cmp_da = cmp_da > 0.15
+
+    binary_fc_da = (binary_fc_da == binary_obs_da).\
+        astype(np.float16).weighted(agcm)
+    binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
+    binary_cmp_da = (binary_cmp_da == binary_obs_da).\
+        astype(np.float16).weighted(agcm)
+    binacc_cmp = (binary_cmp_da.mean(dim=['yc', 'xc']) * 100)
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.set_title("Binary accuracy comparison")
+    ax.plot(binacc_fc.time, binacc_fc.values, label="IceNet")
+    ax.plot(binacc_cmp.time, binacc_cmp.values, label="HRES")
+    ax.xaxis.set_major_formatter(
+        mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    ax.xaxis.set_major_locator(mdates.MonthLocator())
+    ax.xaxis.set_minor_locator(mdates.DayLocator())
+    ax.legend(loc='lower right')
+    fig.save_fig(output_path)
+
+    return binacc_fc, binacc_cmp
+
+
+def sic_error_video(fc_da: object,
+                    obs_da: object,
+                    land_mask: object,
+                    output_path: object =
+                    os.path.join("plot", "sic_error.mp4")) -> object:
     """
 
     :param fc_da:
@@ -107,7 +152,7 @@ def plot_sic_error(fc_da: object,
     return animation
 
 
-def sic_error_args() -> object:
+def forecast_plot_args() -> object:
     """
 
     :return:
@@ -118,20 +163,54 @@ def sic_error_args() -> object:
     ap.add_argument("forecast_file", type=str)
     ap.add_argument("forecast_date", type=date_arg)
 
-    ap.add_argument("-o", "--output-path", type=str,
-                    default=os.path.join("plot", "sic_error.mp4"))
+    ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     args = ap.parse_args()
-    return args
 
-
-def sic_error():
-    args = sic_error_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
-    plot_sic_error(*get_forecast_obs_ds(args.hemisphere,
-                                        args.forecast_file,
-                                        args.forecast_date),
-                   output_path=args.output_path)
+    return args
+
+
+def binary_accuracy():
+    args = forecast_plot_args()
+    kwargs = {}
+
+    if args.output_path:
+        kwargs["output_path"] = args.output_path
+
+    fc, obs, _ = get_forecast_obs_da(args.hemisphere,
+                                     args.forecast_file,
+                                     args.forecast_date)
+
+    hres, _, _ = get_forecast_hres_obs_da(args.hemisphere,
+                                          args.forecast_file,
+                                          args.forecast_date)
+
+    # TODO: Validate date ranges across calls
+    # TODO: split down the get_*_da methods
+    masks = Masks(north=args.hemisphere == "north",
+                  south=args.hemisphere == "south")
+    plot_binary_accuracy(masks,
+                         fc,
+                         hres,
+                         obs,
+                         **kwargs)
+
+
+def sic_error():
+    """
+    TODO: Allow single frame rendering
+    """
+    args = forecast_plot_args()
+    kwargs = {}
+
+    if args.output_path:
+        kwargs["output_path"] = args.output_path
+
+    sic_error_video(*get_forecast_obs_da(args.hemisphere,
+                                         args.forecast_file,
+                                         args.forecast_date),
+                    **kwargs)

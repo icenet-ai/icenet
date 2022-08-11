@@ -70,6 +70,8 @@ setup(
 
             "icenet_plot_set = icenet2.plotting.data:plot_set",
             "icenet_plot_sic_error = icenet2.plotting.forecast:sic_error",
+            "icenet_plot_bin_accuracy = "
+            "icenet2.plotting.forecast:binary_accuracy",
 
             "icenet_video_data = icenet2.plotting.video:data_cli",
 
