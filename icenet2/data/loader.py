@@ -371,7 +371,6 @@ class IceNetDataLoader(Generator):
         #
         # EDIT: updated for xarray intermediary
         for dataset in splits:
-            start = time.time()
             batch_number = 0
 
             forecast_dates = set([dt.datetime.strptime(s,
@@ -425,10 +424,9 @@ class IceNetDataLoader(Generator):
                         ]
 
 #                    if self.client:
-                    data = self.client.scatter(args)
                     fut = self.client.submit(generate_and_write,
                                              tf_path.format(batch_number),
-                                             data,
+                                             args,
                                              dry=self._dry)
                     futures.append(fut)
 #                    else:
@@ -447,9 +445,6 @@ class IceNetDataLoader(Generator):
             for samples, gen_time in self.client.gather(futures):
                 counts[dataset] += samples
                 exec_times.append(gen_time)
-
-            end = time.time()
-            logging.info("Total {} time == {}".format(dataset, end - start))
 
         if len(exec_times) > 0:
             logging.info("Average sample generation time: {}".
