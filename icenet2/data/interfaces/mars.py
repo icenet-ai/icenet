@@ -76,7 +76,7 @@ retrieve,
   {levlist}param={params},
   step={step},
   stream=oper,
-  time=00:00:00,
+  time=12:00:00,
   type=fc,
   area={area},
   grid=0.25/0.25,
@@ -138,7 +138,8 @@ retrieve,
                 target=request_target,
                 # We are only allowed date prior to -24 hours ago, dynamically
                 # retrieve if date is today
-                step="/".join([str(i) for i in range(24)]),
+                # TODO: too big - step="/".join([str(i) for i in range(24)]),
+                step=0,
             )
 
             if not os.path.exists(request_target):
@@ -196,8 +197,11 @@ retrieve,
                                   attribute=self._group_dates_by)
 
         for req_batch in dates_per_request:
-            self._single_download(sfc_vars, None, req_batch)
-            self._single_download(plev_vars, pressures, req_batch)
+            if len(sfc_vars) > 0:
+                self._single_download(sfc_vars, None, req_batch)
+
+            if len(plev_vars) > 0:
+                self._single_download(plev_vars, pressures, req_batch)
 
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
