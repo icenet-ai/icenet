@@ -9,6 +9,7 @@ import time
 from pprint import pprint, pformat
 
 import dask
+import dask.array as da
 from dask.distributed import Client, LocalCluster
 
 
@@ -99,10 +100,10 @@ def generate_sample(forecast_date: object,
     forecast_dts = [forecast_date + dt.timedelta(days=n)
                     for n in range(n_forecast_days)]
     var_ds = var_ds.transpose("xc", "yc", "time")
-    sample_output = var_ds.siconca_abs.sel(time=forecast_dts).to_numpy()
+    sample_output = var_ds.siconca_abs.sel(time=forecast_dts)
 
-    y = np.zeros((*shape, n_forecast_days, 1), dtype=dtype)
-    sample_weights = np.zeros((*shape, n_forecast_days, 1), dtype=dtype)
+    y = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
+    sample_weights = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
 
     y[:, :, :, 0] = sample_output
 
@@ -112,7 +113,7 @@ def generate_sample(forecast_date: object,
 
         if any([forecast_day == missing_date
                 for missing_date in missing_dates]):
-            sample_weight = np.zeros(shape, dtype)
+            sample_weight = da.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
             sample_weight = masks[forecast_day]
@@ -121,12 +122,12 @@ def generate_sample(forecast_date: object,
             # Scale the loss for each month s.t. March is
             #   scaled by 1 and Sept is scaled by 1.77
             if loss_weight_days:
-                sample_weight *= 33928. / np.sum(sample_weight)
+                sample_weight *= 33928. / sample_weight.sum()
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
     # INPUT FEATURES
-    x = np.zeros((*shape, num_channels), dtype=dtype)
+    x = da.zeros((*shape, num_channels), dtype=dtype)
     v1, v2 = 0, 0
 
     for var_name, num_channels in channels.items():
@@ -154,11 +155,11 @@ def generate_sample(forecast_date: object,
         for cdate in channel_dates:
             try:
                 channel_data.append(getattr(channel_ds, var_name).
-                                    sel(time=cdate).to_numpy())
+                                            sel(time=cdate))
             except KeyError:
-                channel_data.append(np.zeros(shape))
+                channel_data.append(da.zeros(shape))
 
-        x[:, :, v1:v2] = np.transpose(channel_data, [1, 2, 0])
+        x[:, :, v1:v2] = da.from_array(channel_data).transpose([1, 2, 0])
         v1 += num_channels
 
     for var_name in meta_channels:
@@ -170,14 +171,23 @@ def generate_sample(forecast_date: object,
             ref_date = "2012-{}-{}".format(forecast_date.month,
                                            forecast_date.day)
             trig_val = meta[var_name].sel(time=ref_date).to_numpy()
-            np.broadcast_to([trig_val], shape)
+            x[:, :, v1] = np.broadcast_to([trig_val], shape)
         else:
             x[:, :, v1] = meta[var_name]
         v1 += channels[var_name]
 
-    y_nans = np.sum(np.isnan(y))
-    x_nans = np.sum(np.isnan(x))
-    sw_nans = np.sum(np.isnan(sample_weights))
+    #    x.visualize(filename='x.svg', optimize_graph=True)
+    #    y.visualize(filename='y.svg', optimize_graph=True)
+    #    sample_weights.visualize(filename='sample_weights.svg', optimize_graph=True)
+    #    import sys
+    #    sys.exit(0)
+
+    y_nans = da.isnan(y).sum()
+    x_nans = da.isnan(x).sum()
+    sw_nans = da.isnan(sample_weights).sum()
+
+    x, y, sample_weights, y_nans, x_nans, sw_nans = \
+        dask.compute(x, y, sample_weights, y_nans, x_nans, sw_nans)
 
     if y_nans + x_nans + sw_nans > 0:
         logging.warning("NaNs detected {}: input = {}, "
