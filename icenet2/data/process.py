@@ -283,10 +283,15 @@ class IceNetPreProcessor(Processor):
             # 4ca0f1300fbd82335d8bb000c85b1e71855630fa/icenet2/utils.py#L520)
             # any more
 
-            if var_name in self._linear_trends:
+            if var_name in self._linear_trends and var_suffix == "abs":
                 # TODO: verify, this used to be da = , but we should not be
                 #  overwriting the abs da with linear trend da
                 self._build_linear_trend_da(da, var_name)
+            elif var_name in self._linear_trends \
+                    and var_name not in self._abs_vars:
+                raise NotImplementedError("You've asked for linear trend "
+                                          "without an  absolute value var: {}".
+                                          format(var_name))
 
             if var_name in self._no_normalise:
                 logging.info("No normalisation for {}".format(var_name))
