@@ -424,11 +424,12 @@ class IceNetDataLoader(Generator):
                     if samples > 0:
                         logging.info("Finished output {}".format(tf_data))
                         exec_times += times
+                        batch_number += 1
                 else:
                     logging.warning("Skipping {} on pickup run".
                                     format(tf_path.format(batch_number)))
+                    batch_number += 1
 
-                batch_number += 1 if samples > 0 else 0
                 counts[dataset] += samples
 
         if len(exec_times) > 0:
