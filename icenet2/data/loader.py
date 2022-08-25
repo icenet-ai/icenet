@@ -729,7 +729,7 @@ def get_args():
                     default=False, action="store_true")
     ap.add_argument("-dt", "--dask-timeouts", type=int, default=120)
     ap.add_argument("-dp", "--dask-port", type=int, default=8888)
-    ap.add_argument("-f", "--futures-per-worker", type=int, default=2,
+    ap.add_argument("-f", "--futures-per-worker", type=float, default=2.,
                     dest="futures")
     ap.add_argument("-fn", "--forecast-name", dest="forecast_name",
                     default=None, type=str)
