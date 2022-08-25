@@ -784,6 +784,7 @@ def main():
             cluster = LocalCluster(
                 dashboard_address=dashboard,
                 n_workers=args.workers,
+                threads_per_worker=1,
                 scheduler_port=0,
             )
             logging.info("Dashboard at {}".format(dashboard))
