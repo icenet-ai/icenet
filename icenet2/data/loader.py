@@ -386,12 +386,6 @@ class IceNetDataLoader(Generator):
                 yield batch_dates[i:i + num]
                 i += num
 
-        # This was a quick and dirty beef-up of the implementation as it's
-        # very I/O bursty work. It significantly reduces the overall time
-        # taken to produce a full dataset at BAS so we can use this as a
-        # paradigm moving forward (with a slightly cleaner implementation)
-        #
-        # EDIT: updated for xarray intermediary
         for dataset in splits:
             batch_number = 0
             futures = []
@@ -444,14 +438,27 @@ class IceNetDataLoader(Generator):
                                         dry=self._dry)
                     futures.append(fut)
 
+                    # Use this to limit the future list, to avoid crashing the
+                    # distributed scheduler / workers (task list gets too big!)
+                    if len(futures) >= self._workers:
+                        for tf_data, samples, gen_times \
+                                in client.gather(futures):
+                            logging.info("Finished output {}".format(tf_data))
+                            counts[dataset] += samples
+                            exec_times += gen_times
+                        futures = []
+
                     # tf_data, samples, times = generate_and_write(
                     #    tf_path.format(batch_number), args, dry=self._dry)
                 else:
                     logging.warning("Skipping {} on pickup run".
                                     format(tf_path.format(batch_number)))
+
                 batch_number += 1
 
-            for tf_data, samples, gen_times in client.gather(futures):
+            # Hoover up remaining futures
+            for tf_data, samples, gen_times \
+                    in client.gather(futures):
                 logging.info("Finished output {}".format(tf_data))
                 counts[dataset] += samples
                 exec_times += gen_times
