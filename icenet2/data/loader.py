@@ -30,24 +30,62 @@ from icenet2.utils import setup_logging
 
 
 def generate_and_write(path: str,
-                       dates_args: object,
+                       var_files: object,
+                       dates: object,
+                       args: object,
                        dry: bool = False):
     """
 
     :param path:
-    :param dates_args:
+    :param var_files:
+    :param dates:
+    :param args:
     :param dry:
     :return:
     """
     count = 0
     times = []
 
+    ds_kwargs = dict(
+        chunks=dict(time=1),
+        drop_variables=["month", "plev", "realization"],
+        parallel=True,
+    )
+
+    # TODO: refactor, this is very smelly - with new data throughput args
+    # will always be the same
+    (channels,
+     dtype,
+     loss_weight_days,
+     meta_channels,
+     missing_dates,
+     n_forecast_days,
+     num_channels,
+     shape,
+     trend_steps,
+     masks,
+     data_check) = args
+
+    var_ds = xr.open_mfdataset(
+        [v for k, v in var_files.items()
+         if k not in meta_channels and not k.endswith("linear_trend")],
+        **ds_kwargs)
+    trend_ds = xr.open_mfdataset(
+        [v for k, v in var_files.items()
+         if k.endswith("linear_trend")],
+        **ds_kwargs)
+    var_ds = var_ds.transpose("xc", "yc", "time")
+
     with tf.io.TFRecordWriter(path) as writer:
-        for date in dates_args.keys():
+        for date in dates:
             start = time.time()
 
             try:
-                x, y, sample_weights = generate_sample(date, *dates_args[date])
+                x, y, sample_weights = generate_sample(date,
+                                                       var_ds,
+                                                       var_files,
+                                                       trend_ds,
+                                                       *args)
                 if not dry:
                     write_tfrecord(writer, x, y, sample_weights)
                 count += 1
@@ -62,6 +100,9 @@ def generate_and_write(path: str,
 
 
 def generate_sample(forecast_date: object,
+                    var_ds: object,
+                    var_files: object,
+                    trend_ds: object,
                     channels: object,
                     dtype: object,
                     loss_weight_days: bool,
@@ -71,9 +112,8 @@ def generate_sample(forecast_date: object,
                     num_channels: int,
                     shape: object,
                     trend_steps: object,
-                    var_files: object,
                     masks: object,
-                    data_check: bool = True):
+                    data_check: bool):
     """
 
     :param forecast_date:
@@ -94,12 +134,6 @@ def generate_sample(forecast_date: object,
     :return:
     """
 
-    ds_kwargs = dict(
-        chunks=dict(time=1),
-        drop_variables=["month", "plev", "realization"],
-        parallel=True,
-    )
-
     agcm = {}
     for day in range(n_forecast_days):
         forecast_day = forecast_date + dt.timedelta(days=day)
@@ -111,16 +145,6 @@ def generate_sample(forecast_date: object,
     forecast_dts = [forecast_date + dt.timedelta(days=n)
                     for n in range(n_forecast_days)]
 
-    var_ds = xr.open_mfdataset(
-        [v for k, v in var_files.items()
-         if k not in meta_channels and not k.endswith("linear_trend")],
-        **ds_kwargs)
-    trend_ds = xr.open_mfdataset(
-        [v for k, v in var_files.items()
-         if k.endswith("linear_trend")],
-        **ds_kwargs)
-
-    var_ds = var_ds.transpose("xc", "yc", "time")
     sample_output = var_ds.siconca_abs.sel(time=forecast_dts)
 
     y = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
@@ -412,28 +436,27 @@ class IceNetDataLoader(Generator):
                          "data.".format(len(forecast_dates), dataset))
 
             for dates in batch(forecast_dates, self._output_batch_size):
-                args = {}
-
                 if not pickup or \
                     (pickup and
                      not os.path.exists(tf_path.format(batch_number))):
-                    for date in dates:
-                        args[date] = [
-                            self._channels,
-                            self._dtype,
-                            self._loss_weight_days,
-                            self._meta_channels,
-                            self._missing_dates,
-                            self._n_forecast_days,
-                            self.num_channels,
-                            self._shape,
-                            self._trend_steps,
-                            self.get_sample_files(),
-                            self._masks
-                        ]
+                    args = [
+                        self._channels,
+                        self._dtype,
+                        self._loss_weight_days,
+                        self._meta_channels,
+                        self._missing_dates,
+                        self._n_forecast_days,
+                        self.num_channels,
+                        self._shape,
+                        self._trend_steps,
+                        self._masks,
+                        True
+                    ]
 
                     fut = client.submit(generate_and_write,
                                         tf_path.format(batch_number),
+                                        self.get_sample_files(),
+                                        dates,
                                         args,
                                         dry=self._dry)
                     futures.append(fut)
@@ -474,6 +497,7 @@ class IceNetDataLoader(Generator):
         :param date:
         :return:
         """
+        raise NotImplementedError("Currently not working")
         return generate_sample(
             date,
             self._channels,
@@ -487,7 +511,7 @@ class IceNetDataLoader(Generator):
             self._trend_steps,
             self.get_sample_files(),
             self._masks,
-            data_check=False)
+            False)
 
     def get_sample_files(self) -> object:
         """
@@ -706,6 +730,7 @@ def get_args():
     ap.add_argument("-d", "--dry",
                     help="Don't output files, just generate data",
                     default=False, action="store_true")
+    ap.add_argument("-dt", "--dask-timeouts", type=int, default=120)
     ap.add_argument("-dp", "--dask-port", type=int, default=8888)
     ap.add_argument("-fn", "--forecast-name", dest="forecast_name",
                     default=None, type=str)
@@ -750,8 +775,12 @@ def main():
         dl.write_dataset_config_only()
     else:
         dashboard = "localhost:{}".format(args.dask_port)
-        # TODO: bad times, but DASK__TEMPORARY_DIRECTORY didn't work
-        with dask.config.set({"temporary_directory": args.tmp_dir}):
+
+        with dask.config.set({
+            "temporary_directory": args.tmp_dir,
+            "distributed.comm.timeouts.connect": args.dask_timeouts,
+            "distributed.comm.timeouts.tcp": args.dask_timeouts,
+        }):
             cluster = LocalCluster(
                 dashboard_address=dashboard,
                 n_workers=args.workers,
