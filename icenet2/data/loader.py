@@ -300,6 +300,7 @@ class IceNetDataLoader(Generator):
                  *args,
                  dataset_config_path: str = ".",
                  dry: bool = False,
+                 futures_per_worker: int = 2,
                  generate_workers: int = 8,
                  loss_weight_days: bool = True,
                  n_forecast_days: int = 93,
@@ -319,6 +320,7 @@ class IceNetDataLoader(Generator):
         self._dataset_config_path = dataset_config_path
         self._config = dict()
         self._dry = dry
+        self._futures = futures_per_worker
         self._loss_weight_days = loss_weight_days
         self._meta_channels = []
         self._missing_dates = []
@@ -458,7 +460,7 @@ class IceNetDataLoader(Generator):
 
                     # Use this to limit the future list, to avoid crashing the
                     # distributed scheduler / workers (task list gets too big!)
-                    if len(futures) >= self._workers * 4:
+                    if len(futures) >= self._workers * self._futures:
                         for tf_data, samples, gen_times \
                                 in client.gather(futures):
                             logging.info("Finished output {}".format(tf_data))
@@ -727,6 +729,8 @@ def get_args():
                     default=False, action="store_true")
     ap.add_argument("-dt", "--dask-timeouts", type=int, default=120)
     ap.add_argument("-dp", "--dask-port", type=int, default=8888)
+    ap.add_argument("-f", "--futures-per-worker", type=int, default=2,
+                    dest="futures")
     ap.add_argument("-fn", "--forecast-name", dest="forecast_name",
                     default=None, type=str)
     ap.add_argument("-fd", "--forecast-days", dest="forecast_days",
@@ -765,7 +769,8 @@ def main():
                           north=args.hemisphere == "north",
                           south=args.hemisphere == "south",
                           output_batch_size=args.batch_size,
-                          generate_workers=args.workers)
+                          generate_workers=args.workers,
+                          futures_per_worker=args.futures)
     if args.cfg:
         dl.write_dataset_config_only()
     else:
