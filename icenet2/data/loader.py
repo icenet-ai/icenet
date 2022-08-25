@@ -46,14 +46,8 @@ def generate_and_write(path: str,
     count = 0
     times = []
 
-    ds_kwargs = dict(
-        chunks=dict(time=1),
-        drop_variables=["month", "plev", "realization"],
-        parallel=True,
-    )
-
     # TODO: refactor, this is very smelly - with new data throughput args
-    # will always be the same
+    #  will always be the same
     (channels,
      dtype,
      loss_weight_days,
@@ -66,6 +60,12 @@ def generate_and_write(path: str,
      masks,
      data_check) = args
 
+    ds_kwargs = dict(
+        chunks=dict(time=1, yc=shape[0], xc=shape[1]),
+        drop_variables=["month", "plev", "realization"],
+        parallel=True,
+    )
+
     var_ds = xr.open_mfdataset(
         [v for k, v in var_files.items()
          if k not in meta_channels and not k.endswith("linear_trend")],
@@ -74,6 +74,7 @@ def generate_and_write(path: str,
         [v for k, v in var_files.items()
          if k.endswith("linear_trend")],
         **ds_kwargs)
+
     var_ds = var_ds.transpose("xc", "yc", "time")
 
     with tf.io.TFRecordWriter(path) as writer:
@@ -87,7 +88,10 @@ def generate_and_write(path: str,
                                                        trend_ds,
                                                        *args)
                 if not dry:
-                    write_tfrecord(writer, x, y, sample_weights)
+                    write_tfrecord(writer,
+                                   x, y, sample_weights,
+                                   data_check,
+                                   date)
                 count += 1
             except IceNetDataWarning:
                 continue
@@ -113,7 +117,7 @@ def generate_sample(forecast_date: object,
                     shape: object,
                     trend_steps: object,
                     masks: object,
-                    data_check: bool):
+                    *args):
     """
 
     :param forecast_date:
@@ -133,12 +137,6 @@ def generate_sample(forecast_date: object,
     :param data_check:
     :return:
     """
-
-    agcm = {}
-    for day in range(n_forecast_days):
-        forecast_day = forecast_date + dt.timedelta(days=day)
-        agcm[forecast_day] = \
-            masks.get_active_cell_mask(forecast_day.month)
 
     ### Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_days)
@@ -161,7 +159,7 @@ def generate_sample(forecast_date: object,
             sample_weight = da.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
-            sample_weight = agcm[forecast_day]
+            sample_weight = masks[forecast_day.month - 1]
             sample_weight = sample_weight.astype(dtype)
 
             # Scale the loss for each month s.t. March is
@@ -218,9 +216,9 @@ def generate_sample(forecast_date: object,
             ref_date = "2012-{}-{}".format(forecast_date.month,
                                            forecast_date.day)
             trig_val = meta_ds.sel(time=ref_date).to_numpy()
-            x[:, :, v1] = np.broadcast_to([trig_val], shape)
+            x[:, :, v1] = da.broadcast_to([trig_val], shape)
         else:
-            x[:, :, v1] = meta_ds.to_numpy()
+            x[:, :, v1] = da.array(meta_ds.to_numpy())
         v1 += channels[var_name]
 
     #    x.visualize(filename='x.svg', optimize_graph=True)
@@ -229,50 +227,42 @@ def generate_sample(forecast_date: object,
     #    import sys
     #    sys.exit(0)
 
-    y_nans = da.isnan(y).sum()
-    x_nans = da.isnan(x).sum()
-    sw_nans = da.isnan(sample_weights).sum()
-
-    x, y, sample_weights, y_nans, x_nans, sw_nans = \
-        dask.compute(x, y, sample_weights, y_nans, x_nans, sw_nans)
-
-    if y_nans + x_nans + sw_nans > 0:
-        logging.warning("NaNs detected {}: input = {}, "
-                        "output = {}, weights = {}".
-                        format(forecast_date, x_nans, y_nans, sw_nans))
-
-        if data_check and np.sum(sample_weights[np.isnan(y)]) > 0:
-            raise IceNetDataWarning("NaNs in output with non-zero weights")
-
-        if data_check and x_nans > 0:
-            channel_idxs = list(set(np.where(np.isnan(x))[-1]))
-            channel_names = []
-            for k, n in channels.items():
-                channel_names += ["{}-{}".format(k, el) for el in range(n)]
-
-            for i in channel_idxs:
-                logging.debug("NaNs in {}".format(channel_names[i]))
-                
-                if np.sum(np.isnan(x[channel_idxs])) == np.multiply(*shape):
-                    raise IceNetDataWarning("Too many NaNs detected in input "
-                                            "for {}".format(forecast_date))
-                    
-            x[np.isnan(x)] = 0.
-
     return x, y, sample_weights
 
 
 def write_tfrecord(writer: object,
                    x: object,
                    y: object,
-                   sample_weights: object):
+                   sample_weights: object,
+                   data_check: bool,
+                   forecast_date: object):
     """
 
     :param writer:
     :param x:
     :param y:
     :param sample_weights:
+    :param data_check:
     """
+
+#    y_nans = da.isnan(y).sum()
+#    x_nans = da.isnan(x).sum()
+#    sw_nans = da.isnan(sample_weights).sum()
+
+#    if y_nans + x_nans + sw_nans > 0:
+#        logging.warning("NaNs detected {}: input = {}, "
+#                        "output = {}, weights = {}".
+#                        format(forecast_date, x_nans, y_nans, sw_nans))
+
+#        if data_check and sample_weights[da.isnan(y)].sum() > 0:
+#            raise IceNetDataWarning("NaNs in output with non-zero weights")
+
+#        if data_check and x_nans > 0:
+    x[da.isnan(x)] = 0.
+
+    x, y, sample_weights = dask.compute(x, y, sample_weights,
+                                        optimize_graph=True)
+
     record_data = tf.train.Example(features=tf.train.Features(feature={
         "x": tf.train.Feature(
             float_list=tf.train.FloatList(value=x.reshape(-1))),
@@ -330,7 +320,6 @@ class IceNetDataLoader(Generator):
         self._config = dict()
         self._dry = dry
         self._loss_weight_days = loss_weight_days
-        self._masks = Masks(north=self.north, south=self.south)
         self._meta_channels = []
         self._missing_dates = []
         self._n_forecast_days = n_forecast_days
@@ -347,6 +336,10 @@ class IceNetDataLoader(Generator):
 
         self._dtype = getattr(np, self._config["dtype"])
         self._shape = tuple(self._config["shape"])
+
+        masks = Masks(north=self.north, south=self.south)
+        self._masks = da.array([
+            masks.get_active_cell_mask(month) for month in range(1, 13)])
 
         self._missing_dates = [
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
@@ -410,6 +403,8 @@ class IceNetDataLoader(Generator):
                 yield batch_dates[i:i + num]
                 i += num
 
+        masks = client.scatter(self._masks, broadcast=True)
+
         for dataset in splits:
             batch_number = 0
             futures = []
@@ -449,7 +444,7 @@ class IceNetDataLoader(Generator):
                         self.num_channels,
                         self._shape,
                         self._trend_steps,
-                        self._masks,
+                        masks,
                         True
                     ]
 
@@ -463,7 +458,7 @@ class IceNetDataLoader(Generator):
 
                     # Use this to limit the future list, to avoid crashing the
                     # distributed scheduler / workers (task list gets too big!)
-                    if len(futures) >= self._workers:
+                    if len(futures) >= self._workers * 4:
                         for tf_data, samples, gen_times \
                                 in client.gather(futures):
                             logging.info("Finished output {}".format(tf_data))
