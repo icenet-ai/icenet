@@ -71,9 +71,7 @@ def generate_sample(forecast_date: object,
                     num_channels: int,
                     shape: object,
                     trend_steps: object,
-                    var_ds: object,
-                    trend_ds: object,
-                    meta: object,
+                    var_files: object,
                     masks: object,
                     data_check: bool = True):
     """
@@ -88,17 +86,40 @@ def generate_sample(forecast_date: object,
     :param num_channels:
     :param shape:
     :param trend_steps:
-    :param var_ds:
-    :param trend_ds:
-    :param meta:
+    :param var_files:
+    :param trend_files:
+    :param meta_ds:
     :param masks:
     :param data_check:
     :return:
     """
 
+    ds_kwargs = dict(
+        chunks=dict(time=1),
+        drop_variables=["month", "plev", "realization"],
+        parallel=True,
+    )
+
+    agcm = {}
+    for day in range(n_forecast_days):
+        forecast_day = forecast_date + dt.timedelta(days=day)
+        agcm[forecast_day] = \
+            masks.get_active_cell_mask(forecast_day.month)
+
+    ### Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_days)
     forecast_dts = [forecast_date + dt.timedelta(days=n)
                     for n in range(n_forecast_days)]
+
+    var_ds = xr.open_mfdataset(
+        [v for k, v in var_files.items()
+         if k not in meta_channels and not k.endswith("linear_trend")],
+        **ds_kwargs)
+    trend_ds = xr.open_mfdataset(
+        [v for k, v in var_files.items()
+         if k.endswith("linear_trend")],
+        **ds_kwargs)
+
     var_ds = var_ds.transpose("xc", "yc", "time")
     sample_output = var_ds.siconca_abs.sel(time=forecast_dts)
 
@@ -116,7 +137,7 @@ def generate_sample(forecast_date: object,
             sample_weight = da.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
-            sample_weight = masks[forecast_day]
+            sample_weight = agcm[forecast_day]
             sample_weight = sample_weight.astype(dtype)
 
             # Scale the loss for each month s.t. March is
@@ -167,13 +188,15 @@ def generate_sample(forecast_date: object,
             raise RuntimeError("{} meta variable cannot have more than "
                                "one channel".format(var_name))
 
+        meta_ds = xr.open_dataarray(var_files[var_name])
+
         if var_name in ["sin", "cos"]:
             ref_date = "2012-{}-{}".format(forecast_date.month,
                                            forecast_date.day)
-            trig_val = meta[var_name].sel(time=ref_date).to_numpy()
+            trig_val = meta_ds.sel(time=ref_date).to_numpy()
             x[:, :, v1] = np.broadcast_to([trig_val], shape)
         else:
-            x[:, :, v1] = meta[var_name]
+            x[:, :, v1] = meta_ds.to_numpy()
         v1 += channels[var_name]
 
     #    x.visualize(filename='x.svg', optimize_graph=True)
@@ -207,8 +230,8 @@ def generate_sample(forecast_date: object,
                 logging.debug("NaNs in {}".format(channel_names[i]))
                 
                 if np.sum(np.isnan(x[channel_idxs])) == np.multiply(*shape):
-                    raise IceNetDataWarning("Too many NaNs detected in input for {}".
-                                            format(forecast_date))
+                    raise IceNetDataWarning("Too many NaNs detected in input "
+                                            "for {}".format(forecast_date))
                     
             x[np.isnan(x)] = 0.
 
@@ -277,7 +300,6 @@ class IceNetDataLoader(Generator):
 
         self._channels = dict()
         self._channel_files = dict()
-        self._channel_ds = None
 
         self._configuration_path = configuration_path
         self._dataset_config_path = dataset_config_path
@@ -334,10 +356,12 @@ class IceNetDataLoader(Generator):
         self._write_dataset_config(counts, network_dataset=False)
 
     def generate(self,
+                 client: object = None,
                  dates_override: object = None,
                  pickup: bool = False):
         """
 
+        :param client:
         :param dates_override:
         :param pickup:
         """
@@ -370,6 +394,7 @@ class IceNetDataLoader(Generator):
         # EDIT: updated for xarray intermediary
         for dataset in splits:
             batch_number = 0
+            futures = []
 
             forecast_dates = set([dt.datetime.strptime(s,
                                   IceNetPreProcessor.DATE_FORMAT).date()
@@ -394,15 +419,11 @@ class IceNetDataLoader(Generator):
 
             for dates in batch(forecast_dates, self._output_batch_size):
                 args = {}
-                samples = 0
 
                 if not pickup or \
                     (pickup and
                      not os.path.exists(tf_path.format(batch_number))):
                     for date in dates:
-                        var_ds, trend_ds, meta, masks = \
-                            self.get_sample_ds(date)
-
                         args[date] = [
                             self._channels,
                             self._dtype,
@@ -413,24 +434,27 @@ class IceNetDataLoader(Generator):
                             self.num_channels,
                             self._shape,
                             self._trend_steps,
-                            var_ds,
-                            trend_ds,
-                            meta,
-                            masks
+                            self.get_sample_files(),
+                            self._masks
                         ]
 
-                    tf_data, samples, times = generate_and_write(
-                        tf_path.format(batch_number), args, dry=self._dry)
-                    if samples > 0:
-                        logging.info("Finished output {}".format(tf_data))
-                        exec_times += times
-                        batch_number += 1
+                    fut = client.submit(generate_and_write,
+                                        tf_path.format(batch_number),
+                                        args,
+                                        dry=self._dry)
+                    futures.append(fut)
+
+                    # tf_data, samples, times = generate_and_write(
+                    #    tf_path.format(batch_number), args, dry=self._dry)
                 else:
                     logging.warning("Skipping {} on pickup run".
                                     format(tf_path.format(batch_number)))
-                    batch_number += 1
+                batch_number += 1
 
+            for tf_data, samples, gen_times in client.gather(futures):
+                logging.info("Finished output {}".format(tf_data))
                 counts[dataset] += samples
+                exec_times += gen_times
 
         if len(exec_times) > 0:
             logging.info("Average sample generation time: {}".
@@ -443,8 +467,6 @@ class IceNetDataLoader(Generator):
         :param date:
         :return:
         """
-        var_ds, trend_ds, meta, masks = self.get_sample_ds(date)
-
         return generate_sample(
             date,
             self._channels,
@@ -456,66 +478,36 @@ class IceNetDataLoader(Generator):
             self.num_channels,
             self._shape,
             self._trend_steps,
-            var_ds,
-            trend_ds,
-            meta,
-            masks,
+            self.get_sample_files(),
+            self._masks,
             data_check=False)
 
-    def get_sample_ds(self, date: object) -> object:
+    def get_sample_files(self) -> object:
         """
 
         :param date:
         :return:
         """
-        if not self._channel_ds:
-            self._channel_ds = dict(
-                linear_trends=None,
-                masks={},
-                meta=dict(sin=None, cos=None, land=None),
-                vars=None,
-            )
+        # FIXME: is this not just the same as _channel_files now?
+        # FIXME: still experimental code, move to multiple implementations
+        # FIXME: CLEAN THIS ALL UP ONCE VERIFIED FOR local/shared STORAGE!
+        var_files = dict()
 
-            for var_name in self._meta_channels:
-                self._channel_ds["meta"][var_name] = \
-                    xr.open_dataarray(self._get_var_file(var_name))
+        for var_name, num_channels in self._channels.items():
+            var_file = self._get_var_file(var_name)
 
-            var_files = []
-            trend_files = []
+            if not var_file:
+                raise RuntimeError("No file returned for {}".format(var_name))
 
-            for var_name, num_channels in self._channels.items():
-                if var_name in self._meta_channels:
-                    continue
+            if var_name not in var_files:
+                var_files[var_name] = var_file
+            elif var_file != var_files[var_name]:
+                raise RuntimeError("Differing files? {} {} vs {}".
+                                   format(var_name,
+                                          var_file,
+                                          var_files[var_name]))
 
-                var_file = self._get_var_file(var_name)
-
-                if var_file:
-                    if var_name.endswith("linear_trend"):
-                        trend_files.append(var_file)
-                    else:
-                        var_files.append(var_file)
-
-            kwargs = dict(
-                chunks=dict(time=1),
-                drop_variables=["month", "plev", "realization"],
-                parallel=True,
-            )
-            self._channel_ds["linear_trends"] = \
-                xr.open_mfdataset(trend_files, **kwargs)
-            self._channel_ds["vars"] = \
-                xr.open_mfdataset(var_files, **kwargs)
-
-        self._channel_ds["masks"] = {}
-        for day in range(self._n_forecast_days):
-            forecast_day = date + dt.timedelta(days=day)
-
-            self._channel_ds["masks"][forecast_day] = \
-                self._masks.get_active_cell_mask(forecast_day.month)
-
-        return self._channel_ds["vars"], \
-            self._channel_ds["linear_trends"], \
-            self._channel_ds["meta"], \
-            self._channel_ds["masks"]
+        return var_files
 
     def _add_channel_files(self,
                            var_name: str,
@@ -754,15 +746,16 @@ def main():
         # TODO: bad times, but DASK__TEMPORARY_DIRECTORY didn't work
         with dask.config.set({"temporary_directory": args.tmp_dir}):
             cluster = LocalCluster(
+                dashboard_address=dashboard,
                 n_workers=args.workers,
                 scheduler_port=0,
-                dashboard_address=dashboard,
             )
             logging.info("Dashboard at {}".format(dashboard))
 
             with Client(cluster) as client:
                 logging.info("Using dask client {}".format(client))
-                dl.generate(dates_override=dates
+                dl.generate(client,
+                            dates_override=dates
                             if sum([len(v) for v in dates.values()]) > 0
                             else None,
                             pickup=args.pickup)
