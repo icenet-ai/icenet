@@ -32,7 +32,7 @@ from icenet2.utils import setup_logging
 def generate_and_write(path: str,
                        var_files: object,
                        dates: object,
-                       args: object,
+                       args: tuple,
                        dry: bool = False):
     """
 
@@ -89,9 +89,7 @@ def generate_and_write(path: str,
                                                        *args)
                 if not dry:
                     write_tfrecord(writer,
-                                   x, y, sample_weights,
-                                   data_check,
-                                   date)
+                                   x, y, sample_weights)
                 count += 1
             except IceNetDataWarning:
                 continue
@@ -233,9 +231,7 @@ def generate_sample(forecast_date: object,
 def write_tfrecord(writer: object,
                    x: object,
                    y: object,
-                   sample_weights: object,
-                   data_check: bool,
-                   forecast_date: object):
+                   sample_weights: object):
     """
 
     :param writer:
@@ -245,19 +241,23 @@ def write_tfrecord(writer: object,
     :param data_check:
     """
 
-#    y_nans = da.isnan(y).sum()
-#    x_nans = da.isnan(x).sum()
-#    sw_nans = da.isnan(sample_weights).sum()
+    # FIXME: this will trigger eager computation of the dataset, should be
+    #  optional but for the moment is commented out. It's potentially better
+    #  situated elsewhere too
+    #
+    #    y_nans = da.isnan(y).sum()
+    #    x_nans = da.isnan(x).sum()
+    #    sw_nans = da.isnan(sample_weights).sum()
 
-#    if y_nans + x_nans + sw_nans > 0:
-#        logging.warning("NaNs detected {}: input = {}, "
-#                        "output = {}, weights = {}".
-#                        format(forecast_date, x_nans, y_nans, sw_nans))
+    #    if y_nans + x_nans + sw_nans > 0:
+    #        logging.warning("NaNs detected {}: input = {}, "
+    #                        "output = {}, weights = {}".
+    #                        format(forecast_date, x_nans, y_nans, sw_nans))
 
-#        if data_check and sample_weights[da.isnan(y)].sum() > 0:
-#            raise IceNetDataWarning("NaNs in output with non-zero weights")
+    #        if data_check and sample_weights[da.isnan(y)].sum() > 0:
+    #            raise IceNetDataWarning("NaNs in output with non-zero weights")
 
-#        if data_check and x_nans > 0:
+    #        if data_check and x_nans > 0:
     x[da.isnan(x)] = 0.
 
     x, y, sample_weights = dask.compute(x, y, sample_weights,
