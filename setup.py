@@ -66,7 +66,8 @@ setup(
             "icenet2.data.processors.utils:condense_main",
 
             "icenet_dataset_check = icenet2.data.dataset:check_dataset",
-            "icenet_dataset_create = icenet2.data.loader:main",
+            "icenet_dataset_create = icenet2.data.loader:create",
+            "icenet_loader_sample = icenet2.data.loader:get_sample",
 
             "icenet_train = icenet2.model.train:main",
             "icenet_predict = icenet2.model.predict:main",

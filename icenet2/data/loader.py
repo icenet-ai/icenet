@@ -29,6 +29,10 @@ from icenet2.utils import setup_logging
 """
 
 
+class IceNetDataWarning(RuntimeWarning):
+    pass
+
+
 def generate_and_write(path: str,
                        var_files: object,
                        dates: object,
@@ -740,7 +744,7 @@ class IceNetDataLoader(Generator):
 
 
 @setup_logging
-def get_args():
+def create_get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
     ap.add_argument("hemisphere", choices=("north", "south"))
@@ -780,8 +784,8 @@ def get_args():
     return args
 
 
-def main():
-    args = get_args()
+def create():
+    args = create_get_args()
     dates = process_date_args(args)
 
     dl = IceNetDataLoader("loader.{}.json".format(args.name),
@@ -821,6 +825,5 @@ def main():
                             else None,
                             pickup=args.pickup)
 
-
-class IceNetDataWarning(RuntimeWarning):
-    pass
+def get_sample():
+    raise NotImplementedError("get_sample is yet to be implemented")
