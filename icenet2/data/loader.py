@@ -494,9 +494,27 @@ class IceNetDataLoader(Generator):
         :param date:
         :return:
         """
-        raise NotImplementedError("Currently not working")
-        return generate_sample(
-            date,
+
+        ds_kwargs = dict(
+            chunks=dict(time=1, yc=self._shape[0], xc=self._shape[1]),
+            drop_variables=["month", "plev", "realization"],
+            parallel=True,
+        )
+        var_files = self.get_sample_files()
+
+        var_ds = xr.open_mfdataset(
+            [v for k, v in var_files.items()
+             if k not in self._meta_channels
+             and not k.endswith("linear_trend")],
+            **ds_kwargs)
+        trend_ds = xr.open_mfdataset(
+            [v for k, v in var_files.items()
+             if k.endswith("linear_trend")],
+            **ds_kwargs)
+
+        var_ds = var_ds.transpose("xc", "yc", "time")
+
+        args = [
             self._channels,
             self._dtype,
             self._loss_weight_days,
@@ -506,9 +524,15 @@ class IceNetDataLoader(Generator):
             self.num_channels,
             self._shape,
             self._trend_steps,
-            self.get_sample_files(),
             self._masks,
-            False)
+            False
+        ]
+
+        return generate_sample(date,
+                               var_ds,
+                               var_files,
+                               trend_ds,
+                               *args)
 
     def get_sample_files(self) -> object:
         """
