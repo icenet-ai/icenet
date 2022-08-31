@@ -432,8 +432,10 @@ class IceNetPreProcessor(Processor):
                                "must be supplied")
 
         new_da = (da - mean) / std
-        open(mean_path, "w").write(",".join([str(f) for f in
-                                             [mean, std]]))
+
+        if not self._refdir:
+            open(mean_path, "w").write(",".join([str(f) for f in
+                                                [mean, std]]))
         return new_da
 
     def _normalise_array_scaling(self, var_name: str, da: object):
@@ -470,8 +472,9 @@ class IceNetPreProcessor(Processor):
                                "must be supplied")
 
         new_da = (da - minimum) / (maximum - minimum)
-        open(scale_path, "w").write(",".join([str(f) for f in
-                                              [minimum, maximum]]))
+        if not self._refdir:
+            open(scale_path, "w").write(",".join([str(f) for f in
+                                                 [minimum, maximum]]))
         return new_da
 
     def _build_linear_trend_da(self,
