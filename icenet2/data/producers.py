@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 from pprint import pformat
 
 import collections
@@ -14,8 +14,7 @@ import pandas as pd
 from icenet2.utils import Hemisphere, HemisphereMixin
 
 
-# TODO: This is poorly abstracted through necessity, revise
-class DataCollection(HemisphereMixin):
+class DataCollection(HemisphereMixin, metaclass=ABCMeta):
     """
 
     :param identifier:
