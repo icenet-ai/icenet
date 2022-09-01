@@ -84,11 +84,6 @@ def train_model(
     :param wandb_offline:
     :return:
     """
-    logging.info("Setting seed value {}".format(seed))
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    tf.random.set_seed(seed)
 
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     wandb.init(
@@ -284,6 +279,12 @@ def get_args():
 
 def main():
     args = get_args()
+
+    logging.info("Setting seed value {}".format(args.seed))
+    os.environ['PYTHONHASHSEED'] = str(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    tf.random.set_seed(args.seed)
 
     # TODO: this should come from a factory in the future - not the only place
     #  that merged datasets are going to be available
