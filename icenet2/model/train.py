@@ -191,6 +191,7 @@ def train_model(
         loss = losses.WeightedMSE()
         metrics_list = [
             # metrics.weighted_MAE,
+            metrics.WeightedBinaryAccuracy(),
             metrics.WeightedMAE(),
             metrics.WeightedRMSE(),
             losses.WeightedMSE()
