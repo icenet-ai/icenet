@@ -258,7 +258,8 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
              if k.endswith("linear_trend")],
             **ds_kwargs)
 
-        var_ds = var_ds.transpose("xc", "yc", "time")
+        var_ds = var_ds.transpose("yc", "xc", "time")
+        trend_ds = trend_ds.transpose("yc", "xc", "time")
 
         args = [
             self._channels,
@@ -327,7 +328,8 @@ def generate_and_write(path: str,
          if k.endswith("linear_trend")],
         **ds_kwargs)
 
-    var_ds = var_ds.transpose("xc", "yc", "time")
+    var_ds = var_ds.transpose("yc", "xc", "time")
+    trend_ds = trend_ds.transpose("yc", "xc", "time")
 
     with tf.io.TFRecordWriter(path) as writer:
         for date in dates:

@@ -497,9 +497,7 @@ class IceNetPreProcessor(Processor):
         data_dates = sorted([pd.Timestamp(date)
                              for date in input_da.time.values])
 
-        # the old method doesn't work with non-contiguous forecast ranges
         trend_dates = set()
-        # TODO: fix config
         trend_steps = max([int(el) for el in self._linear_trend_steps[0]])
         logging.info("Generating trend data {} steps ahead for {} dates".
                      format(trend_steps, len(data_dates)))
