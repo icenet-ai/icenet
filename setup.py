@@ -74,7 +74,9 @@ setup(
             "icenet_upload_azure = icenet2.process.azure:upload",
             "icenet_upload_local = icenet2.process.local:upload",
 
-            "icenet_plot_set = icenet2.plotting.data:plot_set",
+            "icenet_plot_sample = icenet2.plotting.data:plot_sample",
+            "icenet_plot_record = icenet2.plotting.data:plot_tfrecord",
+
             "icenet_plot_sic_error = icenet2.plotting.forecast:sic_error",
             "icenet_plot_bin_accuracy = "
             "icenet2.plotting.forecast:binary_accuracy",
