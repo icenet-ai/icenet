@@ -1,5 +1,6 @@
 import argparse
 import datetime as dt
+import json
 import logging
 import os
 import random
@@ -298,6 +299,11 @@ def evaluate_model(model_path: object,
         workers=workers,
         use_multiprocessing=use_multiprocessing,
     )
+
+    results_path = "{}.results.json".format(model_path)
+    with open(results_path, "w") as fh:
+        json.dump(results, fh)
+
     logging.debug(results)
     logging.info("Done in {:.1f}s".format(time.time() - tic))
 
@@ -308,7 +314,8 @@ def evaluate_model(model_path: object,
 
     # Log each metric vs. leadtime as a plot to wandb
     for name in metric_names:
-        wandb.log({f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
+        wandb.log(
+            {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
 
 
 @setup_logging
