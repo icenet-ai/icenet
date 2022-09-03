@@ -3,6 +3,7 @@ import datetime as dt
 import logging
 import os
 import random
+import time
 
 from pprint import pformat
 
@@ -13,6 +14,7 @@ import wandb
 
 from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
+from tensorflow.keras.models import load_model
 from wandb.keras import WandbCallback
 
 from icenet2.data.dataset import IceNetDataSet, MergedIceNetDataSet
@@ -130,10 +132,17 @@ def train_model(
         logging.info("Creating network folder: {}".format(network_folder))
         os.makedirs(network_folder, exist_ok=True)
 
-    network_path = os.path.join(network_folder,
+    weights_path = os.path.join(network_folder,
                                 "{}.network_{}.{}.h5".format(run_name,
                                                              dataset.identifier,
                                                              seed))
+    model_path = os.path.join(network_folder,
+                              "{}.model_{}.{}".format(run_name,
+                                                      dataset.identifier,
+                                                      seed))
+
+    history_path = os.path.join(network_folder,
+                                "{}_{}_history.json".format(run_name, seed))
 
     prev_best = None
     callbacks_list = list()
@@ -141,7 +150,7 @@ def train_model(
     # Checkpoint the model weights when a validation metric is improved
     callbacks_list.append(
         ModelCheckpoint(
-            filepath=network_path,
+            filepath=weights_path,
             monitor=checkpoint_monitor,
             verbose=1,
             mode=checkpoint_mode,
@@ -232,10 +241,74 @@ def train_model(
     )
 
     if network_save:
-        logging.info("Saving network to: {}".format(network_path))
-        network.save_weights(network_path)
+        logging.info("Saving network to: {}".format(weights_path))
+        network.save_weights(weights_path)
+        network.save_model(model_path)
 
-    return network_path, model_history
+        with open(history_path, 'w') as fh:
+            pd.DataFrame(model_history.history).to_json(fh)
+
+    return weights_path, model_path
+
+
+def evaluate_model(model_path: object,
+                   dataset: object,
+                   dataset_ratio: float = 1.0,
+                   max_queue_size: int = 3,
+                   workers: int = 5,
+                   use_multiprocessing: bool = True):
+    """
+
+    :param model_path:
+    :param dataset:
+    :param dataset_ratio:
+    :param max_queue_size:
+    :param workers:
+    :param use_multiprocessing:
+    """
+    logging.info("Running evaluation against test set")
+    network = load_model(model_path, compile=False)
+
+    _, val_ds, test_ds = dataset.get_split_datasets(ratio=dataset_ratio)
+    eval_data = val_ds
+
+    if dataset.counts["test"] > 0:
+        logging.warning("Using validation data source for evaluation, rather "
+                        "than test set")
+        eval_data = test_ds
+
+    lead_times = list(range(1, dataset.n_forecast_days))
+
+    metric_names = ['mae', 'rmse', 'binacc']
+    metrics_classes = [
+        metrics.WeightedBinaryAccuracy,
+        metrics.WeightedMAE,
+        metrics.WeightedRMSE,
+    ]
+    metrics_list = [cls(leadtime_idx=lt - 1)
+                    for lt in lead_times for cls in metrics_classes]
+
+    network.compile(weighted_metrics=metrics_list)
+
+    logging.info('Evaluating... ')
+    tic = time.time()
+    results = network.evaluate(
+        eval_data, return_dict=True, verbose=0,
+        max_queue_size=max_queue_size,
+        workers=workers,
+        use_multiprocessing=use_multiprocessing,
+    )
+    logging.debug(results)
+    logging.info("Done in {:.1f}s".format(time.time() - tic))
+
+    metric_vals = [[results[f'{name}{lt}']
+                    for lt in lead_times] for name in metric_names]
+    table_data = list(zip(lead_times, *metric_vals))
+    table = wandb.Table(data=table_data, columns=['leadtime', *metric_names])
+
+    # Log each metric vs. leadtime as a plot to wandb
+    for name in metric_names:
+        wandb.log({f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
 
 
 @setup_logging
@@ -305,7 +378,7 @@ def main():
         if args.strategy == "central" \
         else tf.distribute.get_strategy()
 
-    trained_path, history = \
+    weights_path, model_path = \
         train_model(args.run_name,
                     dataset,
                     batch_size=args.batch_size,
@@ -325,13 +398,11 @@ def main():
                     use_multiprocessing=args.multiprocessing,
                     use_wandb=not args.no_wandb,
                     wandb_offline=args.wandb_offline,
-                    workers=args.workers, )
+                    workers=args.workers)
 
-    history_path = os.path.join(os.path.dirname(trained_path),
-                                "{}_{}_history.json".
-                                format(args.run_name, args.seed))
-    with open(history_path, 'w') as fh:
-        pd.DataFrame(history.history).to_json(fh)
-
-    # TODO: we don't run through the test dates...
-
+    evaluate_model(model_path,
+                   dataset,
+                   dataset_ratio=args.ratio,
+                   max_queue_size=args.max_queue_size,
+                   use_multiprocessing=args.multiprocessing,
+                   workers=args.workers)
