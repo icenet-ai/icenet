@@ -362,10 +362,14 @@ def main():
     args = get_args()
 
     logging.info("Setting seed value {}".format(args.seed))
+    # determinism is not guaranteed across different versions of TensorFlow.
+    # determinism is not guaranteed across different hardware.
     os.environ['PYTHONHASHSEED'] = str(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
     tf.random.set_seed(args.seed)
+    tf.keras.utils.set_random_seed(args.seed)
+    tf.config.experimental.enable_op_determinism()
 
     # TODO: this should come from a factory in the future - not the only place
     #  that merged datasets are going to be available
