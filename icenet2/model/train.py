@@ -342,6 +342,8 @@ def get_args():
     ap.add_argument("-r", "--ratio", default=1.0, type=float)
     ap.add_argument("-s", "--strategy", default="default",
                     choices=("default", "mirrored", "central"))
+    ap.add_argument("-st", "--shuffle-train", default=False,
+                    action="store_true", help="Shuffle the training set")
     ap.add_argument("--gpus", default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-w", "--workers", type=int, default=4)
@@ -377,13 +379,16 @@ def main():
     #  that merged datasets are going to be available
     if len(args.additional) == 0:
         dataset = IceNetDataSet("dataset_config.{}.json".format(args.dataset),
-                                batch_size=args.batch_size)
+                                batch_size=args.batch_size,
+                                shuffling=args.shuffle_train)
     else:
         dataset = MergedIceNetDataSet([
             "dataset_config.{}.json".format(el) for el in [
                 args.dataset, *args.additional
             ]
-        ])
+        ],
+            batch_size=args.batch_size,
+            shuffling=args.shuffle_train)
 
     strategy = tf.distribute.MirroredStrategy() \
         if args.strategy == "mirrored" \

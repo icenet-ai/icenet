@@ -52,6 +52,7 @@ class SplittingMixin:
     _num_channels: int
     _n_forecast_days: int
     _shape: int
+    _shuffling: bool
 
     train_fns = []
     test_fns = []
@@ -123,9 +124,15 @@ class SplittingMixin:
                               self.n_forecast_days,
                               dtype=self.dtype.__name__)
 
+        if self.shuffling:
+            logging.info("Training dataset(s) marked to be shuffled")
+            # FIXME: this is not a good calculation, but we don't have access
+            #  in the mixin to the configuration that generated the dataset #57
+            train_ds = train_ds.shuffle(
+                int(self.train_fns * self.batch_size),
+                reshuffle_each_iteration=True)
+
         train_ds = train_ds.\
-            shuffle(int(min(len(self.train_fns) / 4, 100)),
-                    reshuffle_each_iteration=True).\
             map(decoder, num_parallel_calls=self.batch_size).\
             batch(self.batch_size)
 
@@ -187,3 +194,7 @@ class SplittingMixin:
     @property
     def shape(self):
         return self._shape
+
+    @property
+    def shuffling(self):
+        return self._shuffling

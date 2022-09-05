@@ -126,6 +126,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                  *args,
                  batch_size: int = 4,
                  path: str = os.path.join(".", "network_datasets"),
+                 shuffling: bool = False,
                  **kwargs):
         self._config = dict()
         self._configuration_paths = [configuration_paths] \
@@ -147,6 +148,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         self._num_channels = self._config["num_channels"]
         self._n_forecast_days = self._config["n_forecast_days"]
         self._shape = self._config["shape"]
+        self._shuffling = shuffling
 
         self._init_records()
 
