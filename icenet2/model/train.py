@@ -361,10 +361,12 @@ def get_args():
 def main():
     args = get_args()
 
-    logging.info("Setting seed value {}".format(args.seed))
+    logging.warning("Setting seed for best attempt at determinism, value {}".
+                    format(args.seed))
     # determinism is not guaranteed across different versions of TensorFlow.
     # determinism is not guaranteed across different hardware.
     os.environ['PYTHONHASHSEED'] = str(args.seed)
+    # numpy.random.default_rng ignores this, WARNING!
     np.random.seed(args.seed)
     random.seed(args.seed)
     tf.random.set_seed(args.seed)
