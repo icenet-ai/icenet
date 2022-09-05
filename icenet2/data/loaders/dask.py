@@ -323,13 +323,17 @@ def generate_and_write(path: str,
         [v for k, v in var_files.items()
          if k not in meta_channels and not k.endswith("linear_trend")],
         **ds_kwargs)
-    trend_ds = xr.open_mfdataset(
-        [v for k, v in var_files.items()
-         if k.endswith("linear_trend")],
-        **ds_kwargs)
-
     var_ds = var_ds.transpose("yc", "xc", "time")
-    trend_ds = trend_ds.transpose("yc", "xc", "time")
+
+    trend_files = [v for k, v in var_files.items()
+                   if k.endswith("linear_trend")]
+    trend_ds = None
+
+    if len(trend_files):
+        trend_ds = xr.open_mfdataset(
+            trend_files,
+            **ds_kwargs)
+        trend_ds = trend_ds.transpose("yc", "xc", "time")
 
     with tf.io.TFRecordWriter(path) as writer:
         for date in dates:
@@ -395,7 +399,7 @@ def generate_sample(forecast_date: object,
     :return:
     """
 
-    ### Prepare data sample
+    # Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_days)
     forecast_dts = [forecast_date + dt.timedelta(days=n)
                     for n in range(n_forecast_days)]
