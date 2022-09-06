@@ -333,6 +333,7 @@ def get_args():
     ap.add_argument("-ds", "--additional-dataset",
                     dest="additional", nargs="*", default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
+    ap.add_argument("-es", "--early-stopping", type=int, default=50)
     ap.add_argument("-m", "--multiprocessing", action="store_true",
                     default=False)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
@@ -401,6 +402,7 @@ def main():
                     dataset,
                     batch_size=args.batch_size,
                     dataset_ratio=args.ratio,
+                    early_stopping_patience=args.early_stopping,
                     epochs=args.epochs,
                     learning_rate=args.lr,
                     lr_10e_decay_fac=args.lr_10e_decay_fac,
