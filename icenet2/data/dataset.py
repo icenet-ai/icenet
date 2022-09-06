@@ -53,7 +53,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         self._num_channels = self._config["num_channels"]
         self._shape = tuple(self._config["shape"])
         self._shuffling = shuffling
-        
+
         if self._config["loader_path"] and \
                 os.path.exists(self._config["loader_path"]):
             hemi = self.hemisphere_str[0]
