@@ -32,6 +32,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
                  *args,
                  batch_size: int = 4,
                  path: str = os.path.join(".", "network_datasets"),
+                 shuffling: bool = False,
                  **kwargs):
         self._config = dict()
         self._configuration_path = configuration_path
@@ -51,7 +52,8 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         self._n_forecast_days = self._config["n_forecast_days"]
         self._num_channels = self._config["num_channels"]
         self._shape = tuple(self._config["shape"])
-
+        self._shuffling = shuffling
+        
         if self._config["loader_path"] and \
                 os.path.exists(self._config["loader_path"]):
             hemi = self.hemisphere_str[0]
