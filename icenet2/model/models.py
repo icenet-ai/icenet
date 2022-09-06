@@ -152,7 +152,7 @@ def unet_batchnorm(input_shape: object,
     model = Model(inputs, final_layer)
 
     model.compile(
-        optimizer=Adam(lr=learning_rate),
+        optimizer=Adam(learning_rate=learning_rate),
         loss=loss,
         metrics=metrics)
 
