@@ -333,7 +333,7 @@ def get_args():
     ap.add_argument("-ds", "--additional-dataset",
                     dest="additional", nargs="*", default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
-    ap.add_argument("-es", "--early-stopping", type=int, default=50)
+    ap.add_argument("--early-stopping", type=int, default=50)
     ap.add_argument("-m", "--multiprocessing", action="store_true",
                     default=False)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
@@ -343,7 +343,7 @@ def get_args():
     ap.add_argument("-r", "--ratio", default=1.0, type=float)
     ap.add_argument("-s", "--strategy", default="default",
                     choices=("default", "mirrored", "central"))
-    ap.add_argument("-st", "--shuffle-train", default=False,
+    ap.add_argument("--shuffle-train", default=False,
                     action="store_true", help="Shuffle the training set")
     ap.add_argument("--gpus", default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
