@@ -6,7 +6,7 @@ import os
 import numpy as np
 
 from icenet2.data.datasets.utils import SplittingMixin
-from icenet2.data.loader import IceNetDataLoader
+from icenet2.data.loader import IceNetDataLoaderFactory
 from icenet2.data.producers import DataCollection
 from icenet2.utils import setup_logging
 
@@ -80,23 +80,21 @@ class IceNetDataSet(SplittingMixin, DataCollection):
 
         :return:
         """
-        # TODO: this invocation in config only mode will lead to the
-        #  generation of a network_dataset directory unnecessarily. This
-        #  loader_path logic needs sorting out a bit better, as it's gotten
-        #  messy
-        loader = IceNetDataLoader(self.loader_config,
-                                  self.identifier,
-                                  self._config["var_lag"],
-                                  dataset_config_path=os.path.dirname(
-                                      self._configuration_path),
-                                  loss_weight_days=self._config[
-                                      "loss_weight_days"],
-                                  north=self.north,
-                                  output_batch_size=self._config[
-                                      "output_batch_size"],
-                                  south=self.south,
-                                  var_lag_override=self._config[
-                                      "var_lag_override"])
+        loader = IceNetDataLoaderFactory().create_data_loader(
+            "dask",
+            self.loader_config,
+            self.identifier,
+            self._config["var_lag"],
+            dataset_config_path=os.path.dirname(
+                self._configuration_path),
+            loss_weight_days=self._config[
+                "loss_weight_days"],
+            north=self.north,
+            output_batch_size=self._config[
+                "output_batch_size"],
+            south=self.south,
+            var_lag_override=self._config[
+                "var_lag_override"])
         return loader
 
     @property
@@ -188,15 +186,17 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         :param path:
         :param other:
         """
-        loader = IceNetDataLoader(other["loader_config"],
-                                  other["identifier"],
-                                  other["var_lag"],
-                                  dataset_config_path=os.path.dirname(path),
-                                  loss_weight_days=other["loss_weight_days"],
-                                  north=other["north"],
-                                  output_batch_size=other["output_batch_size"],
-                                  south=other["south"],
-                                  var_lag_override=other["var_lag_override"])
+        loader = IceNetDataLoaderFactory().create_data_loader(
+            "dask",
+            other["loader_config"],
+            other["identifier"],
+            other["var_lag"],
+            dataset_config_path=os.path.dirname(path),
+            loss_weight_days=other["loss_weight_days"],
+            north=other["north"],
+            output_batch_size=other["output_batch_size"],
+            south=other["south"],
+            var_lag_override=other["var_lag_override"])
 
         self._config["loaders"].append(loader)
         self._config["loader_paths"].append(other["loader_path"])
