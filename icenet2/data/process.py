@@ -97,10 +97,6 @@ class IceNetPreProcessor(Processor):
         self._dtype = dtype
         self._exclude_vars = exclude_vars
         self._linear_trends = linear_trends
-        self._linear_trend_steps = sorted(
-            [int(el) for el in range(1, linear_trend_steps + 1)]
-            if type(linear_trend_steps) == int else
-            [int(el) for el in linear_trend_steps]),
         self._missing_dates = list(missing_dates)
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
@@ -110,6 +106,13 @@ class IceNetPreProcessor(Processor):
         self._update_loader = os.path.join(".",
                                            "loader.{}.json".format(name)) \
             if update_loader else None
+
+        if type(linear_trend_steps) == int:
+            logging.debug("Setting range for linear trend steps based on {}".
+                          format(linear_trend_steps))
+            self._linear_trend_steps = list(range(1, linear_trend_steps + 1))
+        else:
+            self._linear_trend_steps = [int(el) for el in linear_trend_steps]
 
     def process(self):
         """
@@ -500,12 +503,12 @@ class IceNetPreProcessor(Processor):
 
         trend_dates = set()
         trend_steps = max(self._linear_trend_steps)
-        logging.info("Generating trend data {} steps ahead for {} dates".
+        logging.info("Generating trend data up to {} steps ahead for {} dates".
                      format(trend_steps, len(data_dates)))
 
         for dat_date in data_dates:
             trend_dates = trend_dates.union(
-                [dat_date + pd.DateOffset(days=d) for d in trend_steps])
+                [dat_date + pd.DateOffset(days=d) for d in self._linear_trend_steps])
 
         trend_dates = list(sorted(trend_dates))
         logging.info("Generating {} trend dates".format(len(trend_dates)))
