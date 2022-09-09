@@ -99,7 +99,8 @@ class IceNetPreProcessor(Processor):
         self._linear_trends = linear_trends
         self._linear_trend_steps = sorted(
             [int(el) for el in range(1, linear_trend_steps + 1)]
-            if type(linear_trend_steps) == int else linear_trend_steps),
+            if type(linear_trend_steps) == int else
+            [int(el) for el in linear_trend_steps]),
         self._missing_dates = list(missing_dates)
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
