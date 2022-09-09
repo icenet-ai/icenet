@@ -98,7 +98,7 @@ class IceNetPreProcessor(Processor):
         self._exclude_vars = exclude_vars
         self._linear_trends = linear_trends
         self._linear_trend_steps = sorted(
-            [int(el) for el in range(linear_trend_steps)]
+            [int(el) for el in range(1, linear_trend_steps + 1)]
             if type(linear_trend_steps) == int else linear_trend_steps),
         self._missing_dates = list(missing_dates)
         self._no_normalise = no_normalise
@@ -498,7 +498,7 @@ class IceNetPreProcessor(Processor):
                              for date in input_da.time.values])
 
         trend_dates = set()
-        trend_steps = max([int(el) for el in self._linear_trend_steps[0]])
+        trend_steps = max(self._linear_trend_steps)
         logging.info("Generating trend data {} steps ahead for {} dates".
                      format(trend_steps, len(data_dates)))
 
