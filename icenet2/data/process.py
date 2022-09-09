@@ -505,8 +505,7 @@ class IceNetPreProcessor(Processor):
 
         for dat_date in data_dates:
             trend_dates = trend_dates.union(
-                [dat_date + pd.DateOffset(days=d)
-                 for d in range(trend_steps)])
+                [dat_date + pd.DateOffset(days=d) for d in trend_steps])
 
         trend_dates = list(sorted(trend_dates))
         logging.info("Generating {} trend dates".format(len(trend_dates)))
