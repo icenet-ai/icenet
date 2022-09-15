@@ -68,6 +68,7 @@ def create():
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
         output_batch_size=args.batch_size,
+        pickup=args.pickup,
         generate_workers=args.workers,
         dask_port=args.dask_port,
         futures_per_worker=args.futures)
