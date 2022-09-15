@@ -54,7 +54,7 @@ def plot_tfrecord():
     output_dir = os.path.join(args.output, "plot_set")
     os.makedirs(output_dir, exist_ok=True)
     subprocess.run("rm -v {}/{}.*.png".format(
-        output_dir, args["identifier"]), shell=True)
+        output_dir, config["identifier"]), shell=True)
 
     for i, channel in enumerate(config['channels']):
         output_path = os.path.join(output_dir, "{}.{:03d}_{}.png".
@@ -68,7 +68,7 @@ def plot_tfrecord():
 
     for i in range(config['n_forecast_days']):
         output_path = os.path.join(output_dir, "{}.y.{:03d}.png".
-                                   format(args["identifier"], i + 1))
+                                   format(config["identifier"], i + 1))
         y_out = y[0, ..., i, 0]
 
         logging.info("Producing {}".format(output_path))
