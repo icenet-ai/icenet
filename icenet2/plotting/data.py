@@ -58,7 +58,7 @@ def plot_tfrecord():
 
     for i, channel in enumerate(config['channels']):
         output_path = os.path.join(output_dir, "{}.{:03d}_{}.png".
-                                   format(args["identifier"], i, channel))
+                                   format(config["identifier"], i, channel))
         logging.info("Producing {}".format(output_path))
 
         fig, ax = plt.subplots()
