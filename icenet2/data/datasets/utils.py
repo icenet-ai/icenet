@@ -129,7 +129,7 @@ class SplittingMixin:
             # FIXME: this is not a good calculation, but we don't have access
             #  in the mixin to the configuration that generated the dataset #57
             train_ds = train_ds.shuffle(
-                int(self.train_fns * self.batch_size),
+                int(len(self.train_fns) * self.batch_size),
                 reshuffle_each_iteration=True)
 
         train_ds = train_ds.\
