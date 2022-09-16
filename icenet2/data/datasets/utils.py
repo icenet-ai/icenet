@@ -2,6 +2,7 @@ import glob
 import logging
 import os
 
+import numpy as np
 import tensorflow as tf
 
 
@@ -163,12 +164,27 @@ class SplittingMixin:
                 raw_dataset = raw_dataset.map(decoder)
 
                 for i, (x, y, sw) in enumerate(raw_dataset):
+                    x = x.numpy()
+                    y = y.numpy()
+                    sw = sw.numpy()
+
                     logging.debug("Got record {} with x {} y {} sw {}".
                                   format(i,
-                                         x.numpy().shape,
-                                         y.numpy().shape,
-                                         sw.numpy().shape))
+                                         x.shape,
+                                         y.shape,
+                                         sw.shape))
 
+                    input_nans = np.isnan(x).sum()
+                    output_nans = np.isnan(y[sw > 0.]).sum()
+
+                    if input_nans > 0:
+                        logging.warning("Input NaNs detected in {}:{}".
+                                        format(df, i))
+
+                    if output_nans > 0:
+                        logging.warning("Output NaNs detected in {}:{}, not "
+                                        "accounted for by sample weighting".
+                                        format(df, i))
             except tf.errors.DataLossError as e:
                 logging.warning("{}: data loss error {}".format(df, e.message))
             except tf.errors.OpError as e:
