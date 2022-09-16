@@ -280,6 +280,8 @@ class IceNetPreProcessor(Processor):
                 else:
                     da = da.groupby("time.month") - climatology
 
+            # FIXME: this is not the way to reconvert underlying data on
+            #  dask arrays
             da.data = np.asarray(da.data, dtype=self._dtype)
 
             da = self.pre_normalisation(var_name, da)
