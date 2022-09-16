@@ -217,6 +217,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                     # tf_data, samples, times = generate_and_write(
                     #    tf_path.format(batch_number), args, dry=self._dry)
                 else:
+                    counts[dataset] += len(dates)
                     logging.warning("Skipping {} on pickup run".
                                     format(tf_path.format(batch_number)))
 
@@ -459,7 +460,7 @@ def generate_sample(forecast_date: object,
         for cdate in channel_dates:
             try:
                 channel_data.append(getattr(channel_ds, var_name).
-                                            sel(time=cdate))
+                                    sel(time=cdate))
             except KeyError:
                 channel_data.append(da.zeros(shape))
 
