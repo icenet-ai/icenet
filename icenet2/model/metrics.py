@@ -125,6 +125,7 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
         # TF automatically reduces along final dimension - include dummy axis
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
+
         if sample_weight is not None:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
@@ -163,7 +164,7 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
         self.leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
-
+    
     def update_state(self,
                      y_true: object,
                      y_pred: object,
@@ -186,8 +187,8 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
         y_pred = tf.expand_dims(y_pred, axis=-1)
 
         if sample_weight is not None:
-            sample_weight = tf.expand_dims(sample_weight, axis=-1)
-
+            pass
+            #sample_weight = tf.expand_dims(sample_weight, axis=-1)
         return super().update_state(y_true, y_pred, sample_weight=sample_weight)
 
     def result(self):
@@ -289,6 +290,7 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
         # TF automatically reduces along final dimension - include dummy axis
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
+
         if sample_weight is not None:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
