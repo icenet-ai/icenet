@@ -424,6 +424,9 @@ def generate_sample(forecast_date: object,
             sample_weight = masks[forecast_day.month - 1]
             sample_weight = sample_weight.astype(dtype)
 
+            # We can pick up nans, which messes up training
+            sample_weight[da.isnan(y)] = 0
+
             # Scale the loss for each month s.t. March is
             #   scaled by 1 and Sept is scaled by 1.77
             if loss_weight_days:
