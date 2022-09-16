@@ -29,7 +29,7 @@ class WeightedMSE(tf.keras.losses.MeanSquaredError):
         if sample_weight is not None:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
-        return super()(y_true, y_pred, sample_weight=sample_weight)
+        return super().__call__(y_true, y_pred, sample_weight=sample_weight)
 
     def result(self):
         """
