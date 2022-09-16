@@ -425,7 +425,7 @@ def generate_sample(forecast_date: object,
             sample_weight = sample_weight.astype(dtype)
 
             # We can pick up nans, which messes up training
-            sample_weight[da.isnan(y)] = 0
+            sample_weight[da.isnan(y[..., leadtime_idx, 0])] = 0
 
             # Scale the loss for each month s.t. March is
             #   scaled by 1 and Sept is scaled by 1.77
