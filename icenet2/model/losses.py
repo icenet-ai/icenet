@@ -26,5 +26,17 @@ class WeightedMSE(tf.keras.losses.MeanSquaredError):
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
 
-        # Convert to SIC (%)
-        return super().__call__(100*y_true, 100*y_pred, sample_weight)
+        if sample_weight is not None:
+            sample_weight = tf.expand_dims(sample_weight, axis=-1)
+
+        return super()(y_true, y_pred, sample_weight=sample_weight)
+
+    def result(self):
+        """
+
+        :return:
+        """
+        return 100 * super().result()
+
+#        # Convert to SIC (%)
+#        return super().__call__(100*y_true, 100*y_pred, sample_weight)
