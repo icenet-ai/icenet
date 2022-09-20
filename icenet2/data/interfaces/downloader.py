@@ -188,7 +188,6 @@ class ClimateDownloader(Downloader):
         if not os.path.exists(regridded_name):
             self._files_downloaded.append(latlon_path)
 
-    @abstractmethod
     def postprocess(self, var, download_path):
         logging.debug("No postprocessing in place for {}: {}".
                       format(var, download_path))
