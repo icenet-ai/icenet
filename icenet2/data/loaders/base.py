@@ -112,10 +112,13 @@ class IceNetBaseDataLoader(Generator):
         self._write_dataset_config(counts, network_dataset=False)
 
     @abstractmethod
-    def generate_sample(self, date: object):
+    def generate_sample(self,
+                        date: object,
+                        prediction: bool = False):
         """
 
         :param date:
+        :param prediction:
         :return:
         """
         pass

@@ -75,7 +75,7 @@ def predict_forecast(
             run_prediction(network,
                            date,
                            output_folder,
-                           *dl.generate_sample(date))
+                           *dl.generate_sample(date, prediction=True))
     else:
         # TODO: This is horrible behaviour, rethink and refactor: we should
         #  be able to pull from the test set in a nicer and more efficient

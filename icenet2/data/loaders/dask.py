@@ -99,10 +99,13 @@ class DaskMultiSharingWorkerLoader(DaskBaseDataLoader):
         """
         pass
 
-    def generate_sample(self, date: object):
+    def generate_sample(self,
+                        date: object,
+                        prediction: bool = False):
         """
 
         :param date:
+        :param prediction:
         """
         pass
 
@@ -193,7 +196,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                         self._shape,
                         self._trend_steps,
                         masks,
-                        True
+                        False
                     ]
 
                     fut = client.submit(generate_and_write,
@@ -235,10 +238,13 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                          format(np.average(exec_times)))
         self._write_dataset_config(counts)
 
-    def generate_sample(self, date: object):
+    def generate_sample(self,
+                        date: object,
+                        prediction: bool = False):
         """
 
         :param date:
+        :param prediction:
         :return:
         """
 
@@ -273,7 +279,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
             self._shape,
             self._trend_steps,
             self._masks,
-            False
+            prediction
         ]
 
         return generate_sample(date,
@@ -312,7 +318,7 @@ def generate_and_write(path: str,
      shape,
      trend_steps,
      masks,
-     data_check) = args
+     prediction) = args
 
     ds_kwargs = dict(
         chunks=dict(time=1, yc=shape[0], xc=shape[1]),
@@ -378,7 +384,7 @@ def generate_sample(forecast_date: object,
                     shape: object,
                     trend_steps: object,
                     masks: object,
-                    *args):
+                    prediction: bool = False):
     """
 
 
@@ -396,7 +402,7 @@ def generate_sample(forecast_date: object,
     :param shape:
     :param trend_steps:
     :param masks:
-    :param args:
+    :param prediction:
     :return:
     """
 
@@ -405,12 +411,18 @@ def generate_sample(forecast_date: object,
     forecast_dts = [forecast_date + dt.timedelta(days=n)
                     for n in range(n_forecast_days)]
 
-    sample_output = var_ds.siconca_abs.sel(time=forecast_dts)
-
     y = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
 
-    y[:, :, :, 0] = sample_output
+    if not prediction:
+        try:
+            sample_output = var_ds.siconca_abs.sel(time=forecast_dts)
+        except KeyError as sic_ex:
+            logging.exception("Issue selecting data for non-prediction sample, "
+                              "please review siconca ground-truth: dates {}".
+                              format(forecast_dts))
+            raise RuntimeError(sic_ex)
+        y[:, :, :, 0] = sample_output
 
     # Masked recomposition of output
     for leadtime_idx in range(n_forecast_days):

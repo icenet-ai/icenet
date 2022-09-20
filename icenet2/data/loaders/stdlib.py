@@ -23,9 +23,12 @@ class IceNetDataLoader(IceNetBaseDataLoader):
         """
         pass
 
-    def generate_sample(self, date: object):
+    def generate_sample(self,
+                        date: object,
+                        prediction: bool = False):
         """
 
         :param date:
+        :param prediction:
         """
         pass
