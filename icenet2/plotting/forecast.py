@@ -38,20 +38,25 @@ def plot_binary_accuracy(masks: object,
     """
     agcm = masks.get_active_cell_da(obs_da)
     binary_obs_da = obs_da > 0.15
-    binary_fc_da = fc_da > 0.15
-    binary_cmp_da = cmp_da > 0.15
-
-    binary_fc_da = (binary_fc_da == binary_obs_da).\
-        astype(np.float16).weighted(agcm)
-    binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
-    binary_cmp_da = (binary_cmp_da == binary_obs_da).\
-        astype(np.float16).weighted(agcm)
-    binacc_cmp = (binary_cmp_da.mean(dim=['yc', 'xc']) * 100)
 
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.set_title("Binary accuracy comparison")
+
+    binary_fc_da = fc_da > 0.15
+    binary_fc_da = (binary_fc_da == binary_obs_da).\
+        astype(np.float16).weighted(agcm)
+    binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
     ax.plot(binacc_fc.time, binacc_fc.values, label="IceNet")
-    ax.plot(binacc_cmp.time, binacc_cmp.values, label="HRES")
+
+    if cmp_da is not None:
+        binary_cmp_da = cmp_da > 0.15
+        binary_cmp_da = (binary_cmp_da == binary_obs_da).\
+            astype(np.float16).weighted(agcm)
+        binacc_cmp = (binary_cmp_da.mean(dim=['yc', 'xc']) * 100)
+        ax.plot(binacc_cmp.time, binacc_cmp.values, label="HRES")
+    else:
+        binacc_cmp = None
+
     ax.xaxis.set_major_formatter(
         mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
@@ -165,6 +170,7 @@ def forecast_plot_args() -> object:
 
     ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
+    ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
 
     args = ap.parse_args()
 
@@ -185,9 +191,12 @@ def binary_accuracy():
                                      args.forecast_file,
                                      args.forecast_date)
 
-    hres, _, _ = get_forecast_hres_obs_da(args.hemisphere,
-                                          obs.time.values[0],
-                                          obs.time.values[-1])
+    hres = None
+
+    if args.ecmwf:
+        hres, _, _ = get_forecast_hres_obs_da(args.hemisphere,
+                                              obs.time.values[0],
+                                              obs.time.values[-1])
 
     # TODO: split down the get_*_da methods
     masks = Masks(north=args.hemisphere == "north",
