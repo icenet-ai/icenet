@@ -282,11 +282,12 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
             prediction
         ]
 
-        return generate_sample(date,
-                               var_ds,
-                               var_files,
-                               trend_ds,
-                               *args)
+        x, y, sw = generate_sample(date,
+                                   var_ds,
+                                   var_files,
+                                   trend_ds,
+                                   *args)
+        return x.compute(), y.compute(), sw.compute()
 
 
 def generate_and_write(path: str,
