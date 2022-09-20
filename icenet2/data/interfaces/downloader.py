@@ -53,7 +53,7 @@ class ClimateDownloader(Downloader):
                  postprocess: bool = True,
                  pregrid_prefix: str = "latlon_",
                  pressure_levels: object = (),
-                 var_name_idx: int = -2,
+                 var_name_idx: int = -1,
                  var_names: object = (),
                  **kwargs):
         super().__init__(*args, **kwargs)
