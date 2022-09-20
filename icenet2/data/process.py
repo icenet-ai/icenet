@@ -292,7 +292,18 @@ class IceNetPreProcessor(Processor):
             if var_name in self._linear_trends and var_suffix == "abs":
                 # TODO: verify, this used to be da = , but we should not be
                 #  overwriting the abs da with linear trend da
-                self._build_linear_trend_da(da, var_name)
+                ref_da = None
+
+                if self._refdir:
+                    logging.info("We have a reference {}, so will load "
+                                 "and supply abs from that for linear trend of "
+                                 "{}".format(self._refdir, var_name))
+                    ref_da = xr.open_dataarray(
+                        os.path.join(self._refdir, var_name,
+                                     "{}_{}.nc".format(var_name, var_suffix)))
+
+                self._build_linear_trend_da(da, var_name, ref_da=ref_da)
+
             elif var_name in self._linear_trends \
                     and var_name not in self._abs_vars:
                 raise NotImplementedError("You've asked for linear trend "
@@ -489,7 +500,8 @@ class IceNetPreProcessor(Processor):
     def _build_linear_trend_da(self,
                                input_da: object,
                                var_name: str,
-                               max_years: int = 35):
+                               max_years: int = 35,
+                               ref_da: object = None):
         """
         Construct a DataArray `linear_trend_da` containing the linear trend
         forecasts based on the input DataArray `input_da`.
@@ -497,9 +509,12 @@ class IceNetPreProcessor(Processor):
         :param input_da:
         :param var_name:
         :param max_years:
+        :param ref_da:
         :return:
         """
 
+        if not ref_da:
+            ref_da = input_da
         data_dates = sorted([pd.Timestamp(date)
                              for date in input_da.time.values])
 
@@ -510,7 +525,8 @@ class IceNetPreProcessor(Processor):
 
         for dat_date in data_dates:
             trend_dates = trend_dates.union(
-                [dat_date + pd.DateOffset(days=d) for d in self._linear_trend_steps])
+                [dat_date + pd.DateOffset(days=d)
+                 for d in self._linear_trend_steps])
 
         trend_dates = list(sorted(trend_dates))
         logging.info("Generating {} trend dates".format(len(trend_dates)))
@@ -556,7 +572,7 @@ class IceNetPreProcessor(Processor):
                 output_map = trend_cache.sel(time=forecast_date)
             else:
                 output_map = linear_trend_forecast(
-                    data_selector, forecast_date, input_da, land_mask,
+                    data_selector, forecast_date, ref_da, land_mask,
                     missing_dates=self._missing_dates,
                     shape=self._data_shape)
 

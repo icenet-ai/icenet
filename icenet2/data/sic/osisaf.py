@@ -388,6 +388,7 @@ class SICDownloader(Downloader):
             var_folder = self.get_data_var_folder(var)
             group_by = "time.year"
 
+            # xr.concat([ds, ds2], dim="time").sortby("time")
             for year, year_da in da.groupby(group_by):
                 req_date = pd.to_datetime(year_da.time.values[0])
                 year_path = os.path.join(
