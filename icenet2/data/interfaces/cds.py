@@ -6,6 +6,7 @@ import requests.adapters
 from pprint import pformat
 
 import cdsapi as cds
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -241,10 +242,11 @@ class ERA5Downloader(ClimateDownloader):
         
         if var_name == 'tos':
             # Overwrite maksed values with zeros
-            logging.debug("ERA5 additional regrid: {}".format(var_name))
+            logging.debug("ERA5 regrid postprocess: {}".format(var_name))
             cube_ease.data[cube_ease.data.mask] = 0.
             cube_ease.data[:, self._masks.get_land_mask()] = 0.
             cube_ease.data = cube_ease.data.data
+            cube_ease.data = np.where(np.isnan(cube_ease.data), 0., cube_ease.data)
         elif var_name in ['zg500', 'zg250']:
             # Convert from geopotential to geopotential height
             logging.debug("ERA5 additional regrid: {}".format(var_name))

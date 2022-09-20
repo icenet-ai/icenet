@@ -513,7 +513,7 @@ class IceNetPreProcessor(Processor):
         :return:
         """
 
-        if not ref_da:
+        if ref_da is None:
             ref_da = input_da
         data_dates = sorted([pd.Timestamp(date)
                              for date in input_da.time.values])
