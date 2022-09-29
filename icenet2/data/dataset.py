@@ -143,6 +143,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                          south=bool(self._config["south"]),
                          **kwargs)
 
+        self._base_path = path
         self._batch_size = batch_size
         self._dtype = getattr(np, self._config["dtype"])
         self._num_channels = self._config["num_channels"]
@@ -158,7 +159,9 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         """
         for idx, loader_path in enumerate(self._config["loader_paths"]):
             hemi = self._config["loaders"][idx].hemisphere_str[0]
-            self.add_records(self.base_path, hemi)
+            base_path = os.path.join(self._base_path,
+                                     self._config["loaders"][idx].identifier)
+            self.add_records(base_path, hemi)
 
     def _load_configurations(self, paths: object):
         """
