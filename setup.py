@@ -2,19 +2,14 @@ from setuptools import setup, find_packages
 
 import icenet2
 
-"""Setup module for Icenet2
+"""Setup module for icenet
 """
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
 
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
+def get_content(filename):
+    with open(filename, "r") as fh:
+        return fh.read()
 
-# FIXME: we're predominantly using conda for the pipeline, port back to pip?
-requirements = []
-
-test_requirements = ['pytest>=3', ]
 
 setup(
     name=icenet2.__name__,
@@ -22,10 +17,12 @@ setup(
     author=icenet2.__author__,
     author_email=icenet2.__email__,
     description="Library for operational IceNet forecasting",
-    long_description=long_description + '\n\n' + history,
+    long_description="""{}\n---\n""".
+                     format(get_content("README.md"),
+                            get_content("HISTORY.rst")),
     long_description_content_type="text/markdown",
-    url="https://www.bas.ac.uk",
-    packages=find_packages(include=['icenet2', 'icenet2.*']),
+    url="https://github.com/icenet-ai",
+    packages=find_packages(),
     keywords="",
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -37,9 +34,10 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
     ],
     entry_points={
-        # TODO: refactor to single entry point using click
         "console_scripts": [
             "icenet_data_masks = icenet2.data.sic.mask:main",
 
@@ -91,9 +89,13 @@ setup(
         ],
     },
     python_requires='>=3.7, <4',
-    install_requires=requirements,
+    install_requires=get_content("requirements.txt"),
     include_package_data=True,
+    extras_require={
+        "dev": get_content("requirements_dev.txt"),
+        "docs": get_content("docs/requirements.txt"),
+    },
     test_suite='tests',
-    tests_require=test_requirements,
+    tests_require=['pytest>=3'],
     zip_safe=False,
 )
