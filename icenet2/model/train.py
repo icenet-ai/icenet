@@ -225,10 +225,7 @@ def train_model(
     network.summary()
 
     ratio = dataset_ratio if dataset_ratio else 1.0
-    logging.info("# training samples: {}".format(dataset.counts["train"] * ratio))
-    logging.info("# validation samples: {}".format(dataset.counts["val"] * ratio))
-    logging.info("# input channels: {}".format(dataset.num_channels))
-    train_ds, val_ds, test_ds = dataset.get_split_datasets(ratio=dataset_ratio)
+    train_ds, val_ds, test_ds = dataset.get_split_datasets(ratio=ratio)
 
     model_history = network.fit(
         train_ds,
