@@ -2,7 +2,6 @@ import datetime as dt
 import json
 import logging
 import os
-import pickle
 
 import dask
 import numpy as np
@@ -66,7 +65,7 @@ class IceNetPreProcessor(Processor):
                  file_filters=tuple(["latlon_"]),
                  identifier=None,
                  linear_trends=tuple(["siconca"]),
-                 linear_trend_days=7,
+                 linear_trend_steps=7,
                  meta_vars=tuple(),
                  missing_dates=tuple(),
                  minmax=True,
@@ -87,8 +86,8 @@ class IceNetPreProcessor(Processor):
                          test_dates=test_dates,
                          **kwargs)
 
-        self._abs_vars = abs_vars
-        self._anom_vars = anom_vars
+        self._abs_vars = abs_vars if abs_vars else []
+        self._anom_vars = anom_vars if anom_vars else []
         # TODO: Ugh, this should not be here any longer
         self._meta_vars = list(meta_vars)
 
@@ -98,7 +97,6 @@ class IceNetPreProcessor(Processor):
         self._dtype = dtype
         self._exclude_vars = exclude_vars
         self._linear_trends = linear_trends
-        self._linear_trend_days = linear_trend_days
         self._missing_dates = list(missing_dates)
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
@@ -109,15 +107,25 @@ class IceNetPreProcessor(Processor):
                                            "loader.{}.json".format(name)) \
             if update_loader else None
 
+        if type(linear_trend_steps) == int:
+            logging.debug("Setting range for linear trend steps based on {}".
+                          format(linear_trend_steps))
+            self._linear_trend_steps = list(range(1, linear_trend_steps + 1))
+        else:
+            self._linear_trend_steps = [int(el) for el in linear_trend_steps]
+
     def process(self):
         """
 
         """
-        for var_name in self._abs_vars + self._anom_vars:
-            if var_name not in self._var_files.keys():
-                logging.warning("{} does not exist".format(var_name))
-                continue
-            self._save_variable(var_name)
+        var_suffixes = ["abs", "anom"]
+        var_lists = [self._abs_vars, self._anom_vars]
+        for var_suffix, var_list in zip(var_suffixes, var_lists):
+            for var_name in var_list:
+                if var_name not in self._var_files.keys():
+                    logging.warning("{} does not exist".format(var_name))
+                    continue
+                self._save_variable(var_name, var_suffix)
 
         if self._update_loader:
             self.update_loader_config()
@@ -171,7 +179,7 @@ class IceNetPreProcessor(Processor):
                                  for d in self._dates.test],
             },
             "linear_trends":    self._linear_trends,
-            "linear_trend_days": self._linear_trend_days,
+            "linear_trend_steps": self._linear_trend_steps,
             "meta":             self._meta_vars,
             # TODO: intention should perhaps be to strip these from
             #  other date sets, this is just an indicative placeholder
@@ -217,10 +225,11 @@ class IceNetPreProcessor(Processor):
         with open(self._update_loader, "w") as fh:
             json.dump(configuration, fh, indent=4, default=_serialize)
 
-    def _save_variable(self, var_name: str):
+    def _save_variable(self, var_name: str, var_suffix: str):
         """
 
         :param var_name:
+        :param var_suffix:
         """
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             da = self._open_dataarray_from_files(var_name)
@@ -271,12 +280,35 @@ class IceNetPreProcessor(Processor):
                 else:
                     da = da.groupby("time.month") - climatology
 
+            # FIXME: this is not the way to reconvert underlying data on
+            #  dask arrays
             da.data = np.asarray(da.data, dtype=self._dtype)
 
             da = self.pre_normalisation(var_name, da)
+            # We don't do this (https://github.com/tom-andersson/icenet2/blob/
+            # 4ca0f1300fbd82335d8bb000c85b1e71855630fa/icenet2/utils.py#L520)
+            # any more
 
-            if var_name in self._linear_trends:
-                da = self._build_linear_trend_da(da, var_name)
+            if var_name in self._linear_trends and var_suffix == "abs":
+                # TODO: verify, this used to be da = , but we should not be
+                #  overwriting the abs da with linear trend da
+                ref_da = None
+
+                if self._refdir:
+                    logging.info("We have a reference {}, so will load "
+                                 "and supply abs from that for linear trend of "
+                                 "{}".format(self._refdir, var_name))
+                    ref_da = xr.open_dataarray(
+                        os.path.join(self._refdir, var_name,
+                                     "{}_{}.nc".format(var_name, var_suffix)))
+
+                self._build_linear_trend_da(da, var_name, ref_da=ref_da)
+
+            elif var_name in self._linear_trends \
+                    and var_name not in self._abs_vars:
+                raise NotImplementedError("You've asked for linear trend "
+                                          "without an  absolute value var: {}".
+                                          format(var_name))
 
             if var_name in self._no_normalise:
                 logging.info("No normalisation for {}".format(var_name))
@@ -284,29 +316,12 @@ class IceNetPreProcessor(Processor):
                 logging.info("Normalising {}".format(var_name))
                 da = self._normalise(var_name, da)
 
-            da.data[np.isnan(da.data)] = 0.
-
             da = self.post_normalisation(var_name, da)
 
-            self._save_output(da, var_name)
-
-    def _save_output(self, da: object, var_name: str):
-        """
-        Saves an xarray DataArray as daily averaged .npy files using the
-        self.paths data structure.
-
-        :param da:
-        :param var_name:
-        """
-
-        for date in da.time.values:
-            slice = da.sel(time=date).data
-            date = pd.Timestamp(date)
-            fname = "{:04d}_{:02d}_{:02d}.npy".\
-                format(date.year, date.month, date.day)
-
-            self.save_processed_file(var_name, fname, slice,
-                                     append=[str(date.year)])
+            self.save_processed_file(var_name,
+                                     "{}_{}.nc".format(var_name, var_suffix),
+                                     da.rename(
+                                         "_".join([var_name, var_suffix])))
 
     def _open_dataarray_from_files(self, var_name: str):
 
@@ -320,6 +335,7 @@ class IceNetPreProcessor(Processor):
         """
 
         logging.info("Opening files for {}".format(var_name))
+        logging.debug("Files: {}".format(self._var_files[var_name]))
         ds = xr.open_mfdataset(self._var_files[var_name],
                                # Solves issue with inheriting files without
                                # time dimension (only having coordinate)
@@ -369,6 +385,10 @@ class IceNetPreProcessor(Processor):
         logging.info("Filtered to {} units long based on configuration "
                      "requirements".format(len(da.time)))
 
+        for coord in ["yc", "xc"]:
+            if getattr(da, coord).attrs['units'] == "km":
+                da[coord] = da[coord] * 1000
+                da[coord].attrs['units'] = "meters"
         return da
 
     @staticmethod
@@ -480,27 +500,33 @@ class IceNetPreProcessor(Processor):
     def _build_linear_trend_da(self,
                                input_da: object,
                                var_name: str,
-                               max_years: int = 35):
+                               max_years: int = 35,
+                               ref_da: object = None):
         """
-        Construct a DataArray `linear_trend_da` containing the linear trend SIC
+        Construct a DataArray `linear_trend_da` containing the linear trend
         forecasts based on the input DataArray `input_da`.
 
         :param input_da:
         :param var_name:
         :param max_years:
+        :param ref_da:
         :return:
         """
 
+        if ref_da is None:
+            ref_da = input_da
         data_dates = sorted([pd.Timestamp(date)
                              for date in input_da.time.values])
 
-        # the old method doesn't work with non-contiguous forecast ranges
         trend_dates = set()
+        trend_steps = max(self._linear_trend_steps)
+        logging.info("Generating trend data up to {} steps ahead for {} dates".
+                     format(trend_steps, len(data_dates)))
 
         for dat_date in data_dates:
             trend_dates = trend_dates.union(
                 [dat_date + pd.DateOffset(days=d)
-                 for d in range(self._linear_trend_days)])
+                 for d in self._linear_trend_steps])
 
         trend_dates = list(sorted(trend_dates))
         logging.info("Generating {} trend dates".format(len(trend_dates)))
@@ -508,7 +534,7 @@ class IceNetPreProcessor(Processor):
         linear_trend_da = \
             xr.broadcast(input_da, xr.DataArray(pd.date_range(
                 data_dates[0],
-                data_dates[-1] + pd.DateOffset(days=self._linear_trend_days)),
+                data_dates[-1] + pd.DateOffset(days=trend_steps)),
                     dims="time"))[0]
         linear_trend_da = linear_trend_da.sel(time=trend_dates)
         linear_trend_da.data = np.zeros(linear_trend_da.shape)
@@ -518,8 +544,9 @@ class IceNetPreProcessor(Processor):
         # Could use shelve, but more likely we'll run into concurrency issues
         # pickleshare might be an option but a little over-engineery
         trend_cache_path = os.path.join(
-            self.get_data_var_folder("linear_trends"),
-            "{}.nc".format(var_name))
+            self.get_data_var_folder(var_name),
+            "{}_linear_trend.nc".format(var_name)
+        )
         trend_cache = linear_trend_da.copy()
         trend_cache.data = np.full_like(linear_trend_da.data, np.nan)
 
@@ -545,7 +572,7 @@ class IceNetPreProcessor(Processor):
                 output_map = trend_cache.sel(time=forecast_date)
             else:
                 output_map = linear_trend_forecast(
-                    data_selector, forecast_date, input_da, land_mask,
+                    data_selector, forecast_date, ref_da, land_mask,
                     missing_dates=self._missing_dates,
                     shape=self._data_shape)
 
@@ -553,7 +580,11 @@ class IceNetPreProcessor(Processor):
 
         logging.info("Writing new trend cache for {}".format(var_name))
         trend_cache.close()
-        linear_trend_da.to_netcdf(trend_cache_path)
+        linear_trend_da = linear_trend_da.rename(
+            "{}_linear_trend".format(var_name))
+        self.save_processed_file(var_name,
+                                 "{}_linear_trend.nc".format(var_name),
+                                 linear_trend_da)
 
         return linear_trend_da
 

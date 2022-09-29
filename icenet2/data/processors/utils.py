@@ -1,7 +1,15 @@
+import argparse
+import glob
 import logging
+import os
+import sys
 
 import numpy as np
 import pandas as pd
+import xarray as xr
+
+from icenet2.utils import Hemisphere
+from icenet2.data.producers import DataProducer
 
 from scipy import interpolate
 from scipy.spatial.qhull import QhullError
@@ -93,3 +101,69 @@ def sic_interpolate(da: object,
                 logging.exception("Geometrical degeneracy from QHull, interpolation failed")
 
     return da
+
+
+def condense_main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("identifier")
+    ap.add_argument("hemisphere", choices=("north", "south"))
+    ap.add_argument("variable")
+
+    ap.add_argument("-n", "--numpy", action="store_true", default=False)
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+    args = ap.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    condense_data(args.identifier, args.hemisphere, args.variable)
+
+
+def condense_data(identifier: str,
+                  hemisphere: str,
+                  variable: str):
+    """
+
+    :param identifier:
+    :param hemisphere:
+    :param variable:
+    """
+    logging.info("Condensing data into singular file")
+
+    dp = DataProducer(identifier=identifier,
+                      north=getattr(Hemisphere,
+                                    hemisphere.upper()) == Hemisphere.NORTH,
+                      south=getattr(Hemisphere,
+                                    hemisphere.upper()) == Hemisphere.SOUTH)
+
+    data_path = dp.get_data_var_folder(variable, missing_error=True)
+
+    logging.debug("Collecting files from {}".format(data_path))
+    dfs = glob.glob(os.path.join(data_path, "**", "*.nc"))
+
+    def year_batch(filenames):
+        df_years = set([os.path.split(os.path.dirname(f_year))[-1]
+                        for f_year in filenames])
+
+        for year_el in df_years:
+            year_dfs = [el for el in filenames
+                        if os.path.split(os.path.dirname(el))[-1] == year_el
+                        and not os.path.split(el)[1].startswith("latlon")]
+            logging.debug("{} has {} files".format(year_el, len(year_dfs)))
+            yield year_el, year_dfs
+
+    if len(dfs):
+        logging.debug("Got {} files, collecting to {}...".format(len(dfs),
+                                                                 data_path))
+
+        for year, year_files in year_batch(dfs):
+            year_path = os.path.join(data_path, "{}.nc".format(year))
+
+            if not os.path.exists(year_path):
+                logging.info("Loading {}".format(year))
+                ds = xr.open_mfdataset(year_files)
+                years, datasets = zip(*ds.groupby("time.year"))
+                if len(years) > 1:
+                    raise RuntimeError("Too many years in one file {}".
+                                       format(years))
+                logging.info("Saving to {}".format(year_path))
+                xr.save_mfdataset(datasets, [year_path])
+    else:
+        logging.info("No valid files found.")

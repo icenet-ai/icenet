@@ -28,6 +28,8 @@ class ConstructLeadtimeAccuracy(tf.keras.metrics.CategoricalAccuracy):
         self.use_all_forecast_months = use_all_forecast_months
         self.single_forecast_leadtime_idx = single_forecast_leadtime_idx
 
+        raise NotImplementedError("Not updated for daily usage")
+
     def update_state(self,
                      y_true: object,
                      y_pred: object,
@@ -123,6 +125,7 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
         # TF automatically reduces along final dimension - include dummy axis
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
+
         if sample_weight is not None:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
@@ -161,7 +164,7 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
         self.leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
-
+    
     def update_state(self,
                      y_true: object,
                      y_pred: object,
@@ -183,7 +186,17 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
 
-        return super().update_state(100*y_true, 100*y_pred, sample_weight)
+        if sample_weight is not None:
+            pass
+            #sample_weight = tf.expand_dims(sample_weight, axis=-1)
+        return super().update_state(y_true, y_pred, sample_weight=sample_weight)
+
+    def result(self):
+        """
+
+        :return:
+        """
+        return 100 * super().result()
 
 
 class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
@@ -225,7 +238,17 @@ class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
 
-        return super().update_state(100*y_true, 100*y_pred, sample_weight)
+        if sample_weight is not None:
+            sample_weight = tf.expand_dims(sample_weight, axis=-1)
+
+        return super().update_state(y_true, y_pred, sample_weight=sample_weight)
+
+    def result(self):
+        """
+
+        :return:
+        """
+        return 100 * super().result()
 
 
 class WeightedMSE(tf.keras.metrics.MeanSquaredError):
@@ -267,7 +290,16 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
         # TF automatically reduces along final dimension - include dummy axis
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
+
         if sample_weight is not None:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
-        return super().update_state(100*y_true, 100*y_pred, sample_weight)
+        return super().update_state(y_true, y_pred, sample_weight=sample_weight)
+
+    def result(self):
+        """
+
+        :return:
+        """
+        return 100 * super().result()
+

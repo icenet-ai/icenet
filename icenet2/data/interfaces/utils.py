@@ -7,10 +7,15 @@ import os
 import pandas as pd
 import xarray as xr
 
+from icenet2.utils import setup_logging
+
 
 def batch_requested_dates(dates: object,
                           attribute: str = "month") -> object:
     """
+
+    TODO: should be using Pandas DatetimeIndexes / Periods for this, but the
+     need to refactor slightly, and this is working for the moment
 
     :param dates:
     :param attribute:
@@ -198,6 +203,7 @@ def add_time_dim(source: str,
             logging.info("Would process out: {}".format(year_files))
 
 
+@setup_logging
 def get_args():
     """
 
@@ -206,6 +212,7 @@ def get_args():
     a = argparse.ArgumentParser()
     a.add_argument("-d", "--dry", default=False, action="store_true")
     a.add_argument("-o", "--output", default="./data")
+    a.add_argument("-v", "--verbose", default=False, action="store_true")
     a.add_argument("source")
     a.add_argument("hemisphere", choices=["nh", "sh"])
     a.add_argument("identifier")
@@ -214,14 +221,11 @@ def get_args():
 
 
 def add_time_dim_main():
-    """CLI operation to sort out missing time dimensions in daily data
-
-    :return:
+    """CLI stub to sort out missing time dimensions in daily data
     """
-    logging.getLogger().setLevel(logging.DEBUG)
-    logging.info("Temporary solution for sorting missing time dim in files")
 
     args = get_args()
+    logging.info("Temporary solution for sorting missing time dim in files")
 
     if args.output != "./data":
         raise RuntimeError("output is not used for this command: {}".format(
@@ -233,10 +237,10 @@ def add_time_dim_main():
 
 
 def reprocess_main():
-    logging.getLogger().setLevel(logging.DEBUG)
-    logging.info("Temporary solution for reprocessing monthly files")
-
+    """CLI stub solution for reprocessing monthly files
+    """
     args = get_args()
+    logging.info("Temporary solution for reprocessing monthly files")
     reprocess_monthlies(args.source, args.hemisphere, args.identifier,
                         output_base=args.output,
                         dry=args.dry,

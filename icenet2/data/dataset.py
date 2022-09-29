@@ -5,9 +5,10 @@ import os
 
 import numpy as np
 
-from icenet2.data.datasets.utils import SplittingMixin, get_decoder
-from icenet2.data.loader import IceNetDataLoader
+from icenet2.data.datasets.utils import SplittingMixin
+from icenet2.data.loader import IceNetDataLoaderFactory
 from icenet2.data.producers import DataCollection
+from icenet2.utils import setup_logging
 
 """
 
@@ -31,6 +32,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
                  *args,
                  batch_size: int = 4,
                  path: str = os.path.join(".", "network_datasets"),
+                 shuffling: bool = False,
                  **kwargs):
         self._config = dict()
         self._configuration_path = configuration_path
@@ -50,6 +52,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         self._n_forecast_days = self._config["n_forecast_days"]
         self._num_channels = self._config["num_channels"]
         self._shape = tuple(self._config["shape"])
+        self._shuffling = shuffling
 
         if self._config["loader_path"] and \
                 os.path.exists(self._config["loader_path"]):
@@ -79,23 +82,21 @@ class IceNetDataSet(SplittingMixin, DataCollection):
 
         :return:
         """
-        # TODO: this invocation in config only mode will lead to the
-        #  generation of a network_dataset directory unnecessarily. This
-        #  loader_path logic needs sorting out a bit better, as it's gotten
-        #  messy
-        loader = IceNetDataLoader(self.loader_config,
-                                  self.identifier,
-                                  self._config["var_lag"],
-                                  dataset_config_path=os.path.dirname(
-                                      self._configuration_path),
-                                  loss_weight_days=self._config[
-                                      "loss_weight_days"],
-                                  north=self.north,
-                                  output_batch_size=self._config[
-                                      "output_batch_size"],
-                                  south=self.south,
-                                  var_lag_override=self._config[
-                                      "var_lag_override"])
+        loader = IceNetDataLoaderFactory().create_data_loader(
+            "dask",
+            self.loader_config,
+            self.identifier,
+            self._config["var_lag"],
+            dataset_config_path=os.path.dirname(
+                self._configuration_path),
+            loss_weight_days=self._config[
+                "loss_weight_days"],
+            north=self.north,
+            output_batch_size=self._config[
+                "output_batch_size"],
+            south=self.south,
+            var_lag_override=self._config[
+                "var_lag_override"])
         return loader
 
     @property
@@ -115,22 +116,25 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
     """
 
     :param identifier:
-    :param configuration_path:
+    :param configuration_paths: List of configurations to load
     :param batch_size:
     :param path:
     """
 
     def __init__(self,
-                 identifier: str,
                  configuration_paths: object,
                  *args,
                  batch_size: int = 4,
                  path: str = os.path.join(".", "network_datasets"),
+                 shuffling: bool = False,
                  **kwargs):
         self._config = dict()
         self._configuration_paths = [configuration_paths] \
             if type(configuration_paths) != list else configuration_paths
         self._load_configurations(configuration_paths)
+
+        identifier = ".".join([loader.identifier
+                               for loader in self._config["loaders"]])
 
         super().__init__(*args,
                          identifier=identifier,
@@ -144,6 +148,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         self._num_channels = self._config["num_channels"]
         self._n_forecast_days = self._config["n_forecast_days"]
         self._shape = self._config["shape"]
+        self._shuffling = shuffling
 
         self._init_records()
 
@@ -183,15 +188,17 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         :param path:
         :param other:
         """
-        loader = IceNetDataLoader(other["loader_config"],
-                                  other["identifier"],
-                                  other["var_lag"],
-                                  dataset_config_path=os.path.dirname(path),
-                                  loss_weight_days=other["loss_weight_days"],
-                                  north=other["north"],
-                                  output_batch_size=other["output_batch_size"],
-                                  south=other["south"],
-                                  var_lag_override=other["var_lag_override"])
+        loader = IceNetDataLoaderFactory().create_data_loader(
+            "dask",
+            other["loader_config"],
+            other["identifier"],
+            other["var_lag"],
+            dataset_config_path=os.path.dirname(path),
+            loss_weight_days=other["loss_weight_days"],
+            north=other["north"],
+            output_batch_size=other["output_batch_size"],
+            south=other["south"],
+            var_lag_override=other["var_lag_override"])
 
         self._config["loaders"].append(loader)
         self._config["loader_paths"].append(other["loader_path"])
@@ -242,14 +249,16 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         return self._config["counts"]
 
 
-def check_dataset():
+@setup_logging
+def get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     args = ap.parse_args()
+    return args
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
+def check_dataset():
+    args = get_args()
     ds = IceNetDataSet(args.dataset)
     ds.check_dataset()

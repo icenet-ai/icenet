@@ -2,6 +2,7 @@ import glob
 import logging
 import os
 
+import numpy as np
 import tensorflow as tf
 
 
@@ -52,6 +53,7 @@ class SplittingMixin:
     _num_channels: int
     _n_forecast_days: int
     _shape: int
+    _shuffling: bool
 
     train_fns = []
     test_fns = []
@@ -123,9 +125,14 @@ class SplittingMixin:
                               self.n_forecast_days,
                               dtype=self.dtype.__name__)
 
+        if self.shuffling:
+            logging.info("Training dataset(s) marked to be shuffled")
+            # FIXME: this is not a good calculation, but we don't have access
+            #  in the mixin to the configuration that generated the dataset #57
+            train_ds = train_ds.shuffle(
+                min(int(len(self.train_fns) * self.batch_size), 366))
+
         train_ds = train_ds.\
-            shuffle(int(min(len(self.train_fns) / 4, 100)),
-                    reshuffle_each_iteration=True).\
             map(decoder, num_parallel_calls=self.batch_size).\
             batch(self.batch_size)
 
@@ -157,11 +164,27 @@ class SplittingMixin:
                 raw_dataset = raw_dataset.map(decoder)
 
                 for i, (x, y, sw) in enumerate(raw_dataset):
+                    x = x.numpy()
+                    y = y.numpy()
+                    sw = sw.numpy()
+
                     logging.debug("Got record {} with x {} y {} sw {}".
                                   format(i,
-                                         x.numpy().shape,
-                                         y.numpy().shape,
-                                         sw.numpy().shape))
+                                         x.shape,
+                                         y.shape,
+                                         sw.shape))
+
+                    input_nans = np.isnan(x).sum()
+                    output_nans = np.isnan(y[sw > 0.]).sum()
+
+                    if input_nans > 0:
+                        logging.warning("Input NaNs detected in {}:{}".
+                                        format(df, i))
+
+                    if output_nans > 0:
+                        logging.warning("Output NaNs detected in {}:{}, not "
+                                        "accounted for by sample weighting".
+                                        format(df, i))
             except tf.errors.DataLossError as e:
                 logging.warning("{}: data loss error {}".format(df, e.message))
             except tf.errors.OpError as e:
@@ -187,3 +210,7 @@ class SplittingMixin:
     @property
     def shape(self):
         return self._shape
+
+    @property
+    def shuffling(self):
+        return self._shuffling

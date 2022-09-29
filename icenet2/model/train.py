@@ -1,8 +1,10 @@
 import argparse
 import datetime as dt
+import json
 import logging
 import os
 import random
+import time
 
 from pprint import pformat
 
@@ -13,24 +15,24 @@ import wandb
 
 from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
+from tensorflow.keras.models import load_model
 from wandb.keras import WandbCallback
 
+from icenet2.data.dataset import IceNetDataSet, MergedIceNetDataSet
 import icenet2.model.losses as losses
 import icenet2.model.metrics as metrics
 from icenet2.model.utils import make_exp_decay_lr_schedule
-
-from icenet2.data.dataset import IceNetDataSet
 import icenet2.model.models as models
+from icenet2.utils import setup_logging
 
 
 def train_model(
         run_name: object,
-        dataset_config: object,
+        dataset: object,
         batch_size: int = 4,
         checkpoint_monitor: str = 'val_rmse',
         checkpoint_mode: str = 'min',
-        dataset_class: object = IceNetDataSet,
-        dataset_ratio: object = None,
+        dataset_ratio: float = 1.0,
         early_stopping_patience: int = 30,
         epochs: int = 2,
         filter_size: float = 3,
@@ -56,11 +58,10 @@ def train_model(
     """
 
     :param run_name:
-    :param dataset_config:
+    :param dataset:
     :param batch_size:
     :param checkpoint_monitor:
     :param checkpoint_mode:
-    :param dataset_class:
     :param dataset_ratio:
     :param early_stopping_patience:
     :param epochs:
@@ -86,11 +87,6 @@ def train_model(
     :param wandb_offline:
     :return:
     """
-    logging.info("Setting seed value {}".format(seed))
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    tf.random.set_seed(seed)
 
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     wandb.init(
@@ -124,10 +120,7 @@ def train_model(
 
     logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
 
-    ds = dataset_class(dataset_config, batch_size=batch_size)
-
-    input_shape = (*ds.shape, ds.num_channels)
-    train_ds, val_ds, test_ds = ds.get_split_datasets(ratio=dataset_ratio)
+    input_shape = (*dataset.shape, dataset.num_channels)
 
     if pre_load_network and not os.path.exists(pre_load_path):
         raise RuntimeError("{} is not available, so you cannot preload the "
@@ -140,24 +133,25 @@ def train_model(
         logging.info("Creating network folder: {}".format(network_folder))
         os.makedirs(network_folder, exist_ok=True)
 
-    network_path = os.path.join(network_folder,
+    weights_path = os.path.join(network_folder,
                                 "{}.network_{}.{}.h5".format(run_name,
-                                                             ds.identifier,
+                                                             dataset.identifier,
                                                              seed))
+    model_path = os.path.join(network_folder,
+                              "{}.model_{}.{}".format(run_name,
+                                                      dataset.identifier,
+                                                      seed))
 
-    ratio = dataset_ratio if dataset_ratio else 1.0
-    logging.info("# training samples: {}".format(ds.counts["train"] * ratio))
-    logging.info("# validation samples: {}".format(ds.counts["val"] * ratio))
-    logging.info("# input channels: {}".format(ds.num_channels))
+    history_path = os.path.join(network_folder,
+                                "{}_{}_history.json".format(run_name, seed))
 
     prev_best = None
-
     callbacks_list = list()
 
     # Checkpoint the model weights when a validation metric is improved
     callbacks_list.append(
         ModelCheckpoint(
-            filepath=network_path,
+            filepath=weights_path,
             monitor=checkpoint_monitor,
             verbose=1,
             mode=checkpoint_mode,
@@ -207,6 +201,7 @@ def train_model(
         loss = losses.WeightedMSE()
         metrics_list = [
             # metrics.weighted_MAE,
+            metrics.WeightedBinaryAccuracy(),
             metrics.WeightedMAE(),
             metrics.WeightedRMSE(),
             losses.WeightedMSE()
@@ -219,7 +214,7 @@ def train_model(
             learning_rate=learning_rate,
             filter_size=filter_size,
             n_filters_factor=n_filters_factor,
-            n_forecast_days=ds.n_forecast_days,
+            n_forecast_days=dataset.n_forecast_days,
         )
 
     if pre_load_network:
@@ -228,6 +223,12 @@ def train_model(
         network.load_weights(pre_load_path)
 
     network.summary()
+
+    ratio = dataset_ratio if dataset_ratio else 1.0
+    logging.info("# training samples: {}".format(dataset.counts["train"] * ratio))
+    logging.info("# validation samples: {}".format(dataset.counts["val"] * ratio))
+    logging.info("# input channels: {}".format(dataset.num_channels))
+    train_ds, val_ds, test_ds = dataset.get_split_datasets(ratio=dataset_ratio)
 
     model_history = network.fit(
         train_ds,
@@ -241,12 +242,83 @@ def train_model(
     )
 
     if network_save:
-        logging.info("Saving network to: {}".format(network_path))
-        network.save_weights(network_path)
+        logging.info("Saving network to: {}".format(weights_path))
+        network.save_weights(weights_path)
+        network.save_model(model_path)
 
-    return network_path, model_history
+        with open(history_path, 'w') as fh:
+            pd.DataFrame(model_history.history).to_json(fh)
+
+    return weights_path, model_path
 
 
+def evaluate_model(model_path: object,
+                   dataset: object,
+                   dataset_ratio: float = 1.0,
+                   max_queue_size: int = 3,
+                   workers: int = 5,
+                   use_multiprocessing: bool = True):
+    """
+
+    :param model_path:
+    :param dataset:
+    :param dataset_ratio:
+    :param max_queue_size:
+    :param workers:
+    :param use_multiprocessing:
+    """
+    logging.info("Running evaluation against test set")
+    network = load_model(model_path, compile=False)
+
+    _, val_ds, test_ds = dataset.get_split_datasets(ratio=dataset_ratio)
+    eval_data = val_ds
+
+    if dataset.counts["test"] > 0:
+        logging.warning("Using validation data source for evaluation, rather "
+                        "than test set")
+        eval_data = test_ds
+
+    lead_times = list(range(1, dataset.n_forecast_days))
+
+    metric_names = ['mae', 'rmse', 'binacc']
+    metrics_classes = [
+        metrics.WeightedBinaryAccuracy,
+        metrics.WeightedMAE,
+        metrics.WeightedRMSE,
+    ]
+    metrics_list = [cls(leadtime_idx=lt - 1)
+                    for lt in lead_times for cls in metrics_classes]
+
+    network.compile(weighted_metrics=metrics_list)
+
+    logging.info('Evaluating... ')
+    tic = time.time()
+    results = network.evaluate(
+        eval_data, return_dict=True, verbose=0,
+        max_queue_size=max_queue_size,
+        workers=workers,
+        use_multiprocessing=use_multiprocessing,
+    )
+
+    results_path = "{}.results.json".format(model_path)
+    with open(results_path, "w") as fh:
+        json.dump(results, fh)
+
+    logging.debug(results)
+    logging.info("Done in {:.1f}s".format(time.time() - tic))
+
+    metric_vals = [[results[f'{name}{lt}']
+                    for lt in lead_times] for name in metric_names]
+    table_data = list(zip(lead_times, *metric_vals))
+    table = wandb.Table(data=table_data, columns=['leadtime', *metric_names])
+
+    # Log each metric vs. leadtime as a plot to wandb
+    for name in metric_names:
+        wandb.log(
+            {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
+
+
+@setup_logging
 def get_args():
     """
 
@@ -257,20 +329,24 @@ def get_args():
     ap.add_argument("run_name", type=str)
     ap.add_argument("seed", type=int)
 
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
-
     ap.add_argument("-b", "--batch-size", type=int, default=4)
+    ap.add_argument("-ds", "--additional-dataset",
+                    dest="additional", nargs="*", default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
+    ap.add_argument("--early-stopping", type=int, default=50)
     ap.add_argument("-m", "--multiprocessing", action="store_true",
                     default=False)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
     ap.add_argument("-nw", "--no-wandb", default=False, action="store_true")
     ap.add_argument("-p", "--preload", type=str)
     ap.add_argument("-qs", "--max-queue-size", default=10, type=int)
-    ap.add_argument("-r", "--ratio", default=None, type=float)
+    ap.add_argument("-r", "--ratio", default=1.0, type=float)
     ap.add_argument("-s", "--strategy", default="default",
                     choices=("default", "mirrored", "central"))
+    ap.add_argument("--shuffle-train", default=False,
+                    action="store_true", help="Shuffle the training set")
     ap.add_argument("--gpus", default=None)
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-w", "--workers", type=int, default=4)
     ap.add_argument("-wo", "--wandb-offline", default=False, action="store_true")
 
@@ -288,12 +364,32 @@ def get_args():
 def main():
     args = get_args()
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.warning("Setting seed for best attempt at determinism, value {}".
+                    format(args.seed))
+    # determinism is not guaranteed across different versions of TensorFlow.
+    # determinism is not guaranteed across different hardware.
+    os.environ['PYTHONHASHSEED'] = str(args.seed)
+    # numpy.random.default_rng ignores this, WARNING!
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    tf.random.set_seed(args.seed)
+    tf.keras.utils.set_random_seed(args.seed)
+    # See #8: tf.config.experimental.enable_op_determinism()
 
-    dataset_config = \
-        os.path.join(".", "dataset_config.{}.json".format(args.dataset))
+    # TODO: this should come from a factory in the future - not the only place
+    #  that merged datasets are going to be available
+    if len(args.additional) == 0:
+        dataset = IceNetDataSet("dataset_config.{}.json".format(args.dataset),
+                                batch_size=args.batch_size,
+                                shuffling=args.shuffle_train)
+    else:
+        dataset = MergedIceNetDataSet([
+            "dataset_config.{}.json".format(el) for el in [
+                args.dataset, *args.additional
+            ]
+        ],
+            batch_size=args.batch_size,
+            shuffling=args.shuffle_train)
 
     strategy = tf.distribute.MirroredStrategy() \
         if args.strategy == "mirrored" \
@@ -301,11 +397,12 @@ def main():
         if args.strategy == "central" \
         else tf.distribute.get_strategy()
 
-    trained_path, history = \
+    weights_path, model_path = \
         train_model(args.run_name,
-                    dataset_config,
+                    dataset,
                     batch_size=args.batch_size,
                     dataset_ratio=args.ratio,
+                    early_stopping_patience=args.early_stopping,
                     epochs=args.epochs,
                     learning_rate=args.lr,
                     lr_10e_decay_fac=args.lr_10e_decay_fac,
@@ -321,13 +418,11 @@ def main():
                     use_multiprocessing=args.multiprocessing,
                     use_wandb=not args.no_wandb,
                     wandb_offline=args.wandb_offline,
-                    workers=args.workers, )
+                    workers=args.workers)
 
-    history_path = os.path.join(os.path.dirname(trained_path),
-                                "{}_{}_history.json".
-                                format(args.run_name, args.seed))
-    with open(history_path, 'w') as fh:
-        pd.DataFrame(history.history).to_json(fh)
-
-    # TODO: we don't run through the test dates...
-
+    evaluate_model(model_path,
+                   dataset,
+                   dataset_ratio=args.ratio,
+                   max_queue_size=args.max_queue_size,
+                   use_multiprocessing=args.multiprocessing,
+                   workers=args.workers)

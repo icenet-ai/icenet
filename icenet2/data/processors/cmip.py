@@ -46,54 +46,27 @@ def main():
         extra_args=[
             (["source"], dict(type=str)),
             (["member"], dict(type=str)),
-            (["-ss", "--skip-sic"], dict(default=False, action="store_true")),
-            (["-sv", "--skip-var"], dict(default=False, action="store_true")),
         ],
     )
     dates = process_date_args(args)
 
-    if not args.skip_var:
-        cmip = IceNetCMIPPreProcessor(
-            args.source,
-            args.member,
-            ["uas", "vas"],
-            ["tas", "ta500", "tos", "psl", "zg500", "zg250", "rsds", "rlds",
-             "hus1000"],
-            args.name,
-            dates["train"],
-            dates["val"],
-            dates["test"],
-            linear_trends=tuple(),
-            north=args.hemisphere == "north",
-            ref_procdir=args.ref,
-            south=args.hemisphere == "south",
-        )
-        cmip.init_source_data(
-            lag_days=args.lag,
-        )
-        cmip.process()
-
-    if not args.skip_sic:
-        logging.info("SIC PROCESSING")
-
-        cmip_sic = IceNetCMIPPreProcessor(
-            args.source,
-            args.member,
-            ["siconca"],
-            [],
-            args.name,
-            dates["train"],
-            dates["val"],
-            dates["test"],
-            linear_trends=["siconca"],
-            linear_trend_days=args.forecast_days,
-            north=args.hemisphere == "north",
-            ref_procdir=args.ref,
-            south=args.hemisphere == "south",
-            update_key="siconca.{}.{}".format(args.source, args.member),
-        )
-        cmip_sic.init_source_data(
-            lag_days=args.lag,
-            lead_days=args.forecast_days,
-        )
-        cmip_sic.process()
+    cmip = IceNetCMIPPreProcessor(
+        args.source,
+        args.member,
+        args.abs,
+        args.anom,
+        args.name,
+        dates["train"],
+        dates["val"],
+        dates["test"],
+        linear_trends=args.trends,
+        linear_trend_days=args.trend_lead,
+        north=args.hemisphere == "north",
+        ref_procdir=args.ref,
+        south=args.hemisphere == "south",
+        update_key=args.update_key,
+    )
+    cmip.init_source_data(
+        lag_days=args.lag,
+    )
+    cmip.process()

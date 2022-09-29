@@ -57,20 +57,19 @@ def main():
     dates = process_date_args(args)
 
     osi = IceNetOSIPreProcessor(
-        ["siconca"],
-        [],
+        args.abs,
+        args.anom,
         args.name,
         dates["train"],
         dates["val"],
         dates["test"],
-        linear_trends=["siconca"],
-        linear_trend_days=args.forecast_days,
+        linear_trends=args.trends,
+        linear_trend_steps=args.trend_lead,
         north=args.hemisphere == "north",
         ref_procdir=args.ref,
         south=args.hemisphere == "south"
     )
     osi.init_source_data(
         lag_days=args.lag,
-        lead_days=args.forecast_days,
     )
     osi.process()

@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import warnings
 
 import numpy as np
@@ -18,6 +17,8 @@ from icenet2.data.utils import esgf_search
 
 class CMIP6Downloader(ClimateDownloader):
     """Climate downloader to provide CMIP6 reanalysis data from ESGF APIs
+
+    Useful CMIP6 guidance: https://pcmdi.llnl.gov/CMIP6/Guide/dataUsers.html
 
     :param identifier: how to identify this dataset
     :param source: source ID in ESGF node
@@ -78,8 +79,7 @@ class CMIP6Downloader(ClimateDownloader):
     # Prioritise European first, US last, avoiding unnecessary queries
     # against nodes further afield (all traffic has a cost, and the coverage
     # of local nodes is more than enough)
-    ESGF_NODES = (# DAP server in CEDA has not worked yet, investigate
-                  #"esgf.ceda.ac.uk",
+    ESGF_NODES = ("esgf.ceda.ac.uk",
                   "esg1.umr-cnrm.fr",
                   "vesg.ipsl.upmc.fr",
                   "esgf3.dkrz.de",
@@ -117,23 +117,21 @@ class CMIP6Downloader(ClimateDownloader):
         self._grid_map = grid_map if grid_map else CMIP6Downloader.GRID_MAP
         self._grid_map_override = grid_override
 
-    def _get_dates_for_request(self) -> object:
-        """
-
-        :return:
-        """
-        return [None]
-
     def _single_download(self,
                          var_prefix: str,
-                         pressure: object,
-                         req_date: object):
-        """
+                         level: object,
+                         req_dates: object):
+        """Overridden CMIP implementation for downloading from DAP server
+
+        Due to the size of the CMIP set and the fact that we don't want to make
+        1850-2100 yearly requests for all downloads, we have a bespoke and
+        overridden download implementation for this.
 
         :param var_prefix:
-        :param pressure:
-        :param req_date:
+        :param level:
+        :param req_dates:
         """
+
         query = {
             'source_id': self._source,
             'member_id': self._member,
@@ -145,99 +143,56 @@ class CMIP6Downloader(ClimateDownloader):
             else self._grid_map[var_prefix],
         }
 
-        var_name = "{}{}".format(var_prefix, "" if not pressure else pressure)
+        var = var_prefix if not level else "{}{}".format(var_prefix, level)
 
-        # TODO: this might make sense, but is confusing usage wise. Come up with
-        #  a better option or clearer usage
-        # add_str = ".{}.{}".format(self.dates[0].strftime("%F"),
-        #                          self.dates[-1].strftime("%F")) \
-        #    if self.dates[0] is not None else ""
-        add_str = ""
-        download_name = "download.{}.{}{}.nc".format(
-            self._source, self._member, add_str)
-        download_path = os.path.join(self.get_data_var_folder(var_name),
-                                     download_name)
+        req_dates, merge_files = \
+            self.filter_dates_on_data(var_prefix, level, req_dates)
 
-        # Download the full source data for the experiment
-        if not os.path.exists(download_path):
-            logging.info("Querying ESGF")
-            results = []
-            for experiment_id in self._experiments:
-                query['experiment_id'] = experiment_id
+        logging.info("Querying ESGF")
+        results = []
 
-                for data_node in self._nodes:
-                    query['data_node'] = data_node
+        for experiment_id in self._experiments:
+            query['experiment_id'] = experiment_id
 
-                    # FIXME: inefficient, we can strip redundant results files
-                    #  based on WCRP data management standards for file naming,
-                    #  such as based on date. Refactor/rewrite this impl...
-                    node_results = esgf_search(**query)
+            for data_node in self._nodes:
+                query['data_node'] = data_node
 
-                    if len(node_results):
-                        logging.debug("Query: {}".format(query))
-                        logging.debug("Found {}: {}".format(experiment_id,
-                                                            node_results))
-                        results.extend(node_results)
-                        break
+                # FIXME: inefficient, we can strip redundant results files
+                #  based on WCRP data management standards for file naming,
+                #  such as based on date. Refactor/rewrite this impl...
+                node_results = esgf_search(**query)
 
-            logging.info("Found {} {} results from ESGF search".
-                         format(len(results), var_prefix))
+                if len(node_results):
+                    logging.debug("Query: {}".format(query))
+                    logging.debug("Found {}: {}".format(experiment_id,
+                                                        node_results))
+                    results.extend(node_results)
+                    break
 
-            try:
-                # http://xarray.pydata.org/en/stable/user-guide/io.html?highlight=opendap#opendap
-                # Avoid 500MB DAP request limit
-                cmip6_da = xr.open_mfdataset(results,
-                                             combine='by_coords',
-                                             chunks={'time': '499MB'}
-                                             )[var_prefix]
+        logging.info("Found {} {} results from ESGF search".
+                     format(len(results), var_prefix))
 
-                if self.dates[0] is not None:
-                    cmip6_da = cmip6_da.sel(time=slice(self.dates[0],
-                                                       self.dates[-1]))
+        try:
+            # http://xarray.pydata.org/en/stable/user-guide/io.html?highlight=opendap#opendap
+            # Avoid 500MB DAP request limit
+            cmip6_da = xr.open_mfdataset(results,
+                                         combine='by_coords',
+                                         chunks={'time': '499MB'}
+                                         )[var_prefix]
 
-                if pressure:
-                    cmip6_da = cmip6_da.sel(plev=int(pressure * 100))
+            cmip6_da = cmip6_da.sel(time=slice(req_dates[0],
+                                               req_dates[-1]))
 
-                cmip6_da = cmip6_da.sel(lat=slice(self.hemisphere_loc[2],
-                                                  self.hemisphere_loc[0]))
-                logging.info("Retrieving and saving {}:".format(download_path))
-                cmip6_da.compute()
-                cmip6_da.to_netcdf(download_path)
-            except OSError as e:
-                logging.exception("Error encountered: {}".format(e),
-                                  exc_info=False)
+            # TODO: possibly other attributes, especially with ocean vars
+            if level:
+                cmip6_da = cmip6_da.sel(plev=int(level) * 100)
 
-        # Open the download, reprocess out into individual files
-        # TODO: repeated code w.r.t OSISAF (& mars/era?)
-        da = xr.open_dataarray(download_path)
-        da_daily = da.resample(time='1D').reduce(np.mean)
-
-        for day in da_daily.time.values:
-            date_str = pd.to_datetime(day).strftime("%Y_%m_%d")
-            logging.debug("Processing var {} for {}".format(var_name, date_str))
-
-            daily_path, regridded_name = self.get_daily_filenames(
-                self.get_data_var_folder(
-                    var_name, append=[str(pd.to_datetime(day).year)]),
-                date_str)
-
-            if not os.path.exists(daily_path):
-                if len(da_daily.sel(time=slice(day, day)).time) == 0:
-                    raise RuntimeError("No information in da_daily: {}".format(
-                        da_daily
-                    ))
-
-                logging.debug(
-                    "Saving new daily file: {}".format(daily_path))
-                da_daily.sel(time=slice(day, day)).to_netcdf(daily_path)
-
-            if not os.path.exists(regridded_name):
-                self._files_downloaded.append(daily_path)
-
-        # Clean up
-        if self.delete:
-            logging.info("Deleting download: {}".format(download_path))
-            raise NotImplementedError("CMIP downloader doesn't delete yet")
+            cmip6_da = cmip6_da.sel(lat=slice(self.hemisphere_loc[2],
+                                              self.hemisphere_loc[0]))
+            self.save_temporal_files(var, cmip6_da)
+        except OSError as e:
+            logging.exception("Error encountered: {}".format(e),
+                              exc_info=False)
 
     def additional_regrid_processing(self,
                                      datafile: str,
@@ -286,53 +241,25 @@ class CMIP6Downloader(ClimateDownloader):
 def main():
     args = download_args(
         dates=True,
-        dates_optional=True,
         extra_args=[
             (["source"], dict(type=str)),
             (["member"], dict(type=str)),
             (("-xs", "--exclude-server"),
              dict(default=[], nargs="*")),
             (("-o", "--override"), dict(required=None, type=str)),
-            (("-l", "--limit-vars"), dict(default=[], nargs="*")),
-            (("-p", "--limit-pressures"), dict(default=[], nargs="*"))
         ],
         workers=True
     )
 
     logging.info("CMIP6 Data Downloading")
 
-    dates = [None]
-
-    if args.start_date or args.end_date:
-        # FIXME: This is very lazy and inefficient
-        dates = [pd.to_datetime(date).date() for date in
-                 pd.date_range(
-                    args.start_date if args.start_date else "1850-1-1",
-                    args.end_date if args.end_date else "2100-12-31",
-                    freq="D")]
-        logging.info("{} dates specified, downloading subset".
-                     format(len(dates)))
-
-    if len(args.limit_vars) > 0:
-        assert len(args.limit_pressures) == len(args.limit_vars), \
-            "Length of vars and pressures should be equal"
-
-        var_names = args.limit_vars
-        var_pressures = [None if e == "None" else [int(p)
-                                                   for p in e.split(",")]
-                         for e in args.limit_pressures]
-    else:
-        var_names = ["tas", "ta", "tos", "psl", "zg", "hus", "rlds",
-                     "rsds", "uas", "vas", "siconca"]
-        var_pressures = [None, [500], None, None, [250, 500], [1000],
-                         None, None, None, None, None]
-
     downloader = CMIP6Downloader(
         source=args.source,
         member=args.member,
-        var_names=var_names,
-        pressure_levels=var_pressures,
-        dates=dates,
+        var_names=args.vars,
+        pressure_levels=args.levels,
+        dates=[pd.to_datetime(date).date() for date in
+               pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         grid_override=args.override,
         north=args.hemisphere == "north",
@@ -347,6 +274,3 @@ def main():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         downloader.regrid()
-
-    # Issue#24: don't think there's a need to rotate wind data
-

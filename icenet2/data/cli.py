@@ -4,7 +4,11 @@ import datetime as dt
 import logging
 import re
 
+from pprint import pformat
+
 import pandas as pd
+
+from icenet2.utils import setup_logging
 
 """
 
@@ -38,10 +42,54 @@ def dates_arg(string: str) -> object:
     return [dt.date(*[int(s) for s in date_tuple]) for date_tuple in date_match]
 
 
+def csv_arg(string: str) -> list:
+    """
+
+    :param string:
+    :return:
+    """
+    csv_items = []
+    for el in string.split(","):
+        if len(el) == 0:
+            csv_items.append(None)
+        else:
+            csv_items.append(el)
+    return csv_items
+
+
+def csv_of_csv_arg(string: str) -> list:
+    """
+
+    :param string:
+    :return:
+    """
+    csv_items = []
+    for el in string.split(","):
+        if len(el) == 0:
+            csv_items.append(None)
+        else:
+            csv_items.append(el.split("|"))
+    return csv_items
+
+
+def int_or_list_arg(string: str) -> object:
+    """
+
+    :param string:
+    :return:
+    """
+    try:
+        val = int(string)
+    except ValueError:
+        val = string.split(",")
+    return val
+
+
+@setup_logging
 def download_args(choices: object = None,
                   dates: bool = True,
                   dates_optional: bool = False,
-                  skip_download: bool = False,
+                  var_specs: bool = True,
                   workers: bool = False,
                   extra_args: object = ()) -> object:
     """
@@ -49,11 +97,12 @@ def download_args(choices: object = None,
     :param choices:
     :param dates:
     :param dates_optional:
-    :param skip_download:
+    :param var_specs:
     :param workers:
     :param extra_args:
     :return:
     """
+
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
 
@@ -66,10 +115,6 @@ def download_args(choices: object = None,
         ap.add_argument(*pos_args[0], type=date_arg, default=None)
         ap.add_argument(*pos_args[1], type=date_arg, default=None)
 
-    if skip_download:
-        ap.add_argument("-s", "--skip-download", default=False,
-                        action="store_true")
-
     if workers:
         ap.add_argument("-w", "--workers", default=8, type=int)
 
@@ -77,30 +122,36 @@ def download_args(choices: object = None,
                     action="store_false", default=True)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
+    if var_specs:
+        ap.add_argument("--vars",
+                        help="Comma separated list of abs vars",
+                        type=csv_arg,
+                        default=[])
+        ap.add_argument("--levels",
+                        help="Comma separated list of pressures/depths as needed, "
+                             "use zero length string if None (e.g. ',,500,,,') and "
+                             "pipes for multiple per var (e.g. ',,250|500,,'",
+                        type=csv_of_csv_arg,
+                        default=[])
+
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
-
     args = ap.parse_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("cdsapi").setLevel(logging.WARNING)
     return args
 
 
+@setup_logging
 def process_args(dates: bool = True,
-                 lag_lead: bool = True,
                  ref_option: bool = True,
                  extra_args: object = ()) -> object:
     """
 
     :param dates:
-    :param lag_lead:
     :param ref_option:
     :param extra_args:
     :return:
     """
+
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
     ap.add_argument("hemisphere", choices=("north", "south"))
@@ -111,9 +162,25 @@ def process_args(dates: bool = True,
         # FIXME#11: not allowing this option currently
         # ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
 
-    if lag_lead:
-        ap.add_argument("-l", "--lag", type=int, default=2)
-        ap.add_argument("-f", "--forecast-days", type=int, default=93)
+    ap.add_argument("-l", "--lag", type=int, default=2)
+    ap.add_argument("-f", "--forecast", type=int, default=93)
+
+    ap.add_argument("--abs",
+                    help="Comma separated list of abs vars",
+                    type=csv_arg,
+                    default=[])
+    ap.add_argument("--anom",
+                    help="Comma separated list of abs vars",
+                    type=csv_arg,
+                    default=[])
+    ap.add_argument("--trends",
+                    help="Comma separated list of abs vars",
+                    type=csv_arg,
+                    default=[])
+    ap.add_argument("--trend-lead",
+                    help="Time steps in the future for linear trends",
+                    type=int_or_list_arg,
+                    default=93)
 
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
@@ -124,9 +191,13 @@ def process_args(dates: bool = True,
                         default=None, type=str)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
-    args = ap.parse_args()
+    ap.add_argument("-u", "--update-key",
+                    default=None,
+                    help="Add update key to processor to avoid overwriting default"
+                         "entries in the loader configuration",
+                    type=str)
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    args = ap.parse_args()
     return args
 
 

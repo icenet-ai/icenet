@@ -5,10 +5,11 @@ import shutil
 
 import xarray as xr
 
-
 from icenet2.process.utils import date_arg, destination_filename
+from icenet2.utils import setup_logging
 
 
+@setup_logging
 def upload_parse_args():
     """
 
@@ -30,8 +31,6 @@ def upload():
 
     """
     args = upload_parse_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.info("Local upload facility")
 
     if not os.path.isdir(args.destination):

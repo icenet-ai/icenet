@@ -45,6 +45,7 @@ setup(
 
             "icenet_data_cmip = icenet2.data.interfaces.esgf:main",
             "icenet_data_era5 = icenet2.data.interfaces.cds:main",
+            "icenet_data_oras5 = icenet2.data.interfaces.cmems:main",
             "icenet_data_hres = icenet2.data.interfaces.mars:main",
             "icenet_data_sic = icenet2.data.sic.osisaf:main",
 
@@ -55,20 +56,27 @@ setup(
 
             "icenet_process_cmip = icenet2.data.processors.cmip:main",
             "icenet_process_era5 = icenet2.data.processors.era5:main",
+            "icenet_process_oras5 = icenet2.data.processors.oras5:main",
             "icenet_process_hres = icenet2.data.processors.hres:main",
             "icenet_process_sic = icenet2.data.processors.osi:main",
 
             "icenet_process_metadata = icenet2.data.processors.meta:main",
 
+            "icenet_process_condense = "
+            "icenet2.data.processors.utils:condense_main",
+
             "icenet_dataset_check = icenet2.data.dataset:check_dataset",
-            "icenet_dataset_create = icenet2.data.loader:main",
+            "icenet_dataset_create = icenet2.data.loader:create",
+            "icenet_loader_sample = icenet2.data.loader:get_sample",
 
             "icenet_train = icenet2.model.train:main",
             "icenet_predict = icenet2.model.predict:main",
             "icenet_upload_azure = icenet2.process.azure:upload",
             "icenet_upload_local = icenet2.process.local:upload",
 
-            "icenet_plot_set = icenet2.plotting.data:plot_set",
+            "icenet_plot_sample = icenet2.plotting.data:plot_sample",
+            "icenet_plot_record = icenet2.plotting.data:plot_tfrecord",
+
             "icenet_plot_sic_error = icenet2.plotting.forecast:sic_error",
             "icenet_plot_bin_accuracy = "
             "icenet2.plotting.forecast:binary_accuracy",
