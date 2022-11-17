@@ -119,7 +119,11 @@ def condense_main():
 def condense_data(identifier: str,
                   hemisphere: str,
                   variable: str):
-    """
+    """Takes existing daily files and creates yearly files
+
+    Previous early versions of the pipeline were storing files day by day, which
+    is pretty wasteful. This allows us to create the yearly files and avoid
+    all that nasty re-downloading business
 
     :param identifier:
     :param hemisphere:

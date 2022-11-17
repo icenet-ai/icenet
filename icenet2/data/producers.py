@@ -56,7 +56,6 @@ class DataProducer(DataCollection):
     :param dry:
     :param overwrite:
     """
-    @abstractmethod
     def __init__(self, *args,
                  dry: bool = False,
                  overwrite: bool = False,
@@ -80,7 +79,8 @@ class DataProducer(DataCollection):
         # hemisphere per instance
         assert self._hemisphere != Hemisphere.BOTH, "Both hemispheres selected"
 
-    def get_data_var_folder(self, var: str,
+    def get_data_var_folder(self,
+                            var: str,
                             append: object = None,
                             hemisphere: object = None,
                             missing_error: bool = False) -> str:
