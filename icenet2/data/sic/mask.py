@@ -259,7 +259,7 @@ class Masks(Generator):
 
 
 def main():
-    args = download_args(dates=False)
+    args = download_args(dates=False, var_specs=False)
 
     north = args.hemisphere == "north"
     south = args.hemisphere == "south"
