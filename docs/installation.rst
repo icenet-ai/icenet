@@ -8,13 +8,13 @@ Installation
 Stable release
 --------------
 
-To install IceNet2, run this command in your terminal:
+To install IceNet, run this command in your terminal:
 
 .. code-block:: console
 
-    $ pip install icenet2
+    $ pip install icenet
 
-This is the preferred method to install IceNet2, as it will always install the most recent stable release.
+This is the preferred method to install IceNet, as it will always install the most recent stable release.
 
 If you don't have `pip`_ installed, this `Python installation guide`_ can guide
 you through the process.
@@ -26,19 +26,19 @@ you through the process.
 From sources
 ------------
 
-The sources for IceNet2 can be downloaded from the `Github repo`_.
+The sources for IceNet can be downloaded from the `Github repo`_.
 
 You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/jimcircadian/icenet2
+    $ git clone git://github.com/icenet-ai/icenet
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl -OJL https://github.com/jimcircadian/icenet2/tarball/master
+    $ curl -OJL https://github.com/icenet-ai/icenet/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -47,5 +47,5 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://github.com/jimcircadian/icenet2
-.. _tarball: https://github.com/jimcircadian/icenet2/tarball/master
+.. _Github repo: https://github.com/icenet-ai/icenet
+.. _tarball: https://github.com/icenet-ai/icenet/tarball/master

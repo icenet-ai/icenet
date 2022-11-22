@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-import icenet2
+import icenet
 
 """Setup module for icenet
 """
@@ -12,10 +12,10 @@ def get_content(filename):
 
 
 setup(
-    name=icenet2.__name__,
-    version=icenet2.__version__,
-    author=icenet2.__author__,
-    author_email=icenet2.__email__,
+    name=icenet.__name__,
+    version=icenet.__version__,
+    author=icenet.__author__,
+    author_email=icenet.__email__,
     description="Library for operational IceNet forecasting",
     long_description="""{}\n---\n""".
                      format(get_content("README.md"),
@@ -39,53 +39,53 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "icenet_data_masks = icenet2.data.sic.mask:main",
+            "icenet_data_masks = icenet.data.sic.mask:main",
 
-            "icenet_data_cmip = icenet2.data.interfaces.esgf:main",
-            "icenet_data_era5 = icenet2.data.interfaces.cds:main",
-            "icenet_data_oras5 = icenet2.data.interfaces.cmems:main",
-            "icenet_data_hres = icenet2.data.interfaces.mars:main",
-            "icenet_data_sic = icenet2.data.sic.osisaf:main",
+            "icenet_data_cmip = icenet.data.interfaces.esgf:main",
+            "icenet_data_era5 = icenet.data.interfaces.cds:main",
+            "icenet_data_oras5 = icenet.data.interfaces.cmems:main",
+            "icenet_data_hres = icenet.data.interfaces.mars:main",
+            "icenet_data_sic = icenet.data.sic.osisaf:main",
 
             "icenet_data_reproc_monthly = "
-            "icenet2.data.interfaces.utils:reprocess_main",
+            "icenet.data.interfaces.utils:reprocess_main",
             "icenet_data_add_time_dim = "
-            "icenet2.data.interfaces.utils:add_time_dim_main",
+            "icenet.data.interfaces.utils:add_time_dim_main",
 
-            "icenet_process_cmip = icenet2.data.processors.cmip:main",
-            "icenet_process_era5 = icenet2.data.processors.era5:main",
-            "icenet_process_oras5 = icenet2.data.processors.oras5:main",
-            "icenet_process_hres = icenet2.data.processors.hres:main",
-            "icenet_process_sic = icenet2.data.processors.osi:main",
+            "icenet_process_cmip = icenet.data.processors.cmip:main",
+            "icenet_process_era5 = icenet.data.processors.era5:main",
+            "icenet_process_oras5 = icenet.data.processors.oras5:main",
+            "icenet_process_hres = icenet.data.processors.hres:main",
+            "icenet_process_sic = icenet.data.processors.osi:main",
 
-            "icenet_process_metadata = icenet2.data.processors.meta:main",
+            "icenet_process_metadata = icenet.data.processors.meta:main",
 
             "icenet_process_condense = "
-            "icenet2.data.processors.utils:condense_main",
+            "icenet.data.processors.utils:condense_main",
 
-            "icenet_dataset_check = icenet2.data.dataset:check_dataset",
-            "icenet_dataset_create = icenet2.data.loader:create",
-            "icenet_loader_sample = icenet2.data.loader:get_sample",
+            "icenet_dataset_check = icenet.data.dataset:check_dataset",
+            "icenet_dataset_create = icenet.data.loader:create",
+            "icenet_loader_sample = icenet.data.loader:get_sample",
 
-            "icenet_train = icenet2.model.train:main",
-            "icenet_predict = icenet2.model.predict:main",
-            "icenet_upload_azure = icenet2.process.azure:upload",
-            "icenet_upload_local = icenet2.process.local:upload",
+            "icenet_train = icenet.model.train:main",
+            "icenet_predict = icenet.model.predict:main",
+            "icenet_upload_azure = icenet.process.azure:upload",
+            "icenet_upload_local = icenet.process.local:upload",
 
-            "icenet_plot_sample = icenet2.plotting.data:plot_sample",
-            "icenet_plot_record = icenet2.plotting.data:plot_tfrecord",
+            "icenet_plot_sample = icenet.plotting.data:plot_sample",
+            "icenet_plot_record = icenet.plotting.data:plot_tfrecord",
 
-            "icenet_plot_sic_error = icenet2.plotting.forecast:sic_error",
+            "icenet_plot_sic_error = icenet.plotting.forecast:sic_error",
             "icenet_plot_bin_accuracy = "
-            "icenet2.plotting.forecast:binary_accuracy",
+            "icenet.plotting.forecast:binary_accuracy",
 
-            "icenet_video_data = icenet2.plotting.video:data_cli",
+            "icenet_video_data = icenet.plotting.video:data_cli",
 
-            "icenet_output = icenet2.process.predict:create_cf_output",
+            "icenet_output = icenet.process.predict:create_cf_output",
             "icenet_output_broadcast = "
-            "icenet2.process.forecasts:broadcast_main",
+            "icenet.process.forecasts:broadcast_main",
             "icenet_output_reproject = "
-            "icenet2.process.forecasts:reproject_main",
+            "icenet.process.forecasts:reproject_main",
         ],
     },
     python_requires='>=3.7, <4',

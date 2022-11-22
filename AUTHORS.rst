@@ -2,10 +2,12 @@
 Credits
 =======
 
-Development Lead
-----------------
+Development Leads
+-----------------
 
 * James Byrne <jambyr@bas.ac.uk>
+* Tom Andersson <tomand@bas.ac.uk>
+* Scott Hosking <jask@bas.ac.uk>
 
 Contributors
 ------------

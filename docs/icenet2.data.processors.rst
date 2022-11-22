@@ -1,53 +1,53 @@
-icenet2.data.processors package
-===============================
+icenet.data.processors package
+==============================
 
 Submodules
 ----------
 
-icenet2.data.processors.cmip module
------------------------------------
-
-.. automodule:: icenet2.data.processors.cmip
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.processors.era5 module
------------------------------------
-
-.. automodule:: icenet2.data.processors.era5
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.processors.hres module
------------------------------------
-
-.. automodule:: icenet2.data.processors.hres
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.processors.meta module
------------------------------------
-
-.. automodule:: icenet2.data.processors.meta
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.processors.osi module
+icenet.data.processors.cmip module
 ----------------------------------
 
-.. automodule:: icenet2.data.processors.osi
+.. automodule:: icenet.data.processors.cmip
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.data.processors.utils module
-------------------------------------
+icenet.data.processors.era5 module
+----------------------------------
 
-.. automodule:: icenet2.data.processors.utils
+.. automodule:: icenet.data.processors.era5
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.processors.hres module
+----------------------------------
+
+.. automodule:: icenet.data.processors.hres
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.processors.meta module
+----------------------------------
+
+.. automodule:: icenet.data.processors.meta
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.processors.osi module
+---------------------------------
+
+.. automodule:: icenet.data.processors.osi
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.processors.utils module
+-----------------------------------
+
+.. automodule:: icenet.data.processors.utils
     :members:
     :undoc-members:
     :show-inheritance:
@@ -56,7 +56,7 @@ icenet2.data.processors.utils module
 Module contents
 ---------------
 
-.. automodule:: icenet2.data.processors
+.. automodule:: icenet.data.processors
     :members:
     :undoc-members:
     :show-inheritance:

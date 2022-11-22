@@ -1,10 +1,10 @@
-icenet2.results package
-=======================
+icenet.results package
+======================
 
 Module contents
 ---------------
 
-.. automodule:: icenet2.results
+.. automodule:: icenet.results
     :members:
     :undoc-members:
     :show-inheritance:

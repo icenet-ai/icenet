@@ -1,61 +1,61 @@
-icenet2.model package
-=====================
+icenet.model package
+====================
 
 Submodules
 ----------
 
-icenet2.model.callbacks module
-------------------------------
+icenet.model.callbacks module
+-----------------------------
 
-.. automodule:: icenet2.model.callbacks
+.. automodule:: icenet.model.callbacks
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.model.losses module
----------------------------
-
-.. automodule:: icenet2.model.losses
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.model.metrics module
-----------------------------
-
-.. automodule:: icenet2.model.metrics
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.model.models module
----------------------------
-
-.. automodule:: icenet2.model.models
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.model.predict module
-----------------------------
-
-.. automodule:: icenet2.model.predict
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.model.train module
+icenet.model.losses module
 --------------------------
 
-.. automodule:: icenet2.model.train
+.. automodule:: icenet.model.losses
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.model.utils module
+icenet.model.metrics module
+---------------------------
+
+.. automodule:: icenet.model.metrics
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.model.models module
 --------------------------
 
-.. automodule:: icenet2.model.utils
+.. automodule:: icenet.model.models
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.model.predict module
+---------------------------
+
+.. automodule:: icenet.model.predict
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.model.train module
+-------------------------
+
+.. automodule:: icenet.model.train
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.model.utils module
+-------------------------
+
+.. automodule:: icenet.model.utils
     :members:
     :undoc-members:
     :show-inheritance:
@@ -64,7 +64,7 @@ icenet2.model.utils module
 Module contents
 ---------------
 
-.. automodule:: icenet2.model
+.. automodule:: icenet.model
     :members:
     :undoc-members:
     :show-inheritance:

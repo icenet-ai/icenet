@@ -1,4 +1,4 @@
-* IceNet2 version:
+* IceNet version:
 * Python version:
 * Operating System:
 

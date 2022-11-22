@@ -1,29 +1,29 @@
-icenet2.plotting package
-========================
+icenet.plotting package
+=======================
 
 Submodules
 ----------
 
-icenet2.plotting.plot\_set module
----------------------------------
+icenet.plotting.plot\_set module
+--------------------------------
 
-.. automodule:: icenet2.plotting.plot_set
+.. automodule:: icenet.plotting.plot_set
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.plotting.utils module
------------------------------
+icenet.plotting.utils module
+----------------------------
 
-.. automodule:: icenet2.plotting.utils
+.. automodule:: icenet.plotting.utils
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.plotting.video module
------------------------------
+icenet.plotting.video module
+----------------------------
 
-.. automodule:: icenet2.plotting.video
+.. automodule:: icenet.plotting.video
     :members:
     :undoc-members:
     :show-inheritance:
@@ -32,7 +32,7 @@ icenet2.plotting.video module
 Module contents
 ---------------
 
-.. automodule:: icenet2.plotting
+.. automodule:: icenet.plotting
     :members:
     :undoc-members:
     :show-inheritance:

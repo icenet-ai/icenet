@@ -1,45 +1,45 @@
-icenet2.data.interfaces package
-===============================
+icenet.data.interfaces package
+==============================
 
 Submodules
 ----------
 
-icenet2.data.interfaces.cds module
+icenet.data.interfaces.cds module
+---------------------------------
+
+.. automodule:: icenet.data.interfaces.cds
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.interfaces.downloader module
+----------------------------------------
+
+.. automodule:: icenet.data.interfaces.downloader
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.interfaces.esgf module
 ----------------------------------
 
-.. automodule:: icenet2.data.interfaces.cds
+.. automodule:: icenet.data.interfaces.esgf
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.data.interfaces.downloader module
------------------------------------------
+icenet.data.interfaces.mars module
+----------------------------------
 
-.. automodule:: icenet2.data.interfaces.downloader
+.. automodule:: icenet.data.interfaces.mars
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.data.interfaces.esgf module
+icenet.data.interfaces.utils module
 -----------------------------------
 
-.. automodule:: icenet2.data.interfaces.esgf
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.interfaces.mars module
------------------------------------
-
-.. automodule:: icenet2.data.interfaces.mars
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.interfaces.utils module
-------------------------------------
-
-.. automodule:: icenet2.data.interfaces.utils
+.. automodule:: icenet.data.interfaces.utils
     :members:
     :undoc-members:
     :show-inheritance:
@@ -48,7 +48,7 @@ icenet2.data.interfaces.utils module
 Module contents
 ---------------
 
-.. automodule:: icenet2.data.interfaces
+.. automodule:: icenet.data.interfaces
     :members:
     :undoc-members:
     :show-inheritance:

@@ -1,21 +1,21 @@
-icenet2.data.sic package
-========================
+icenet.data.sic package
+=======================
 
 Submodules
 ----------
 
-icenet2.data.sic.mask module
-----------------------------
+icenet.data.sic.mask module
+---------------------------
 
-.. automodule:: icenet2.data.sic.mask
+.. automodule:: icenet.data.sic.mask
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.data.sic.osisaf module
-------------------------------
+icenet.data.sic.osisaf module
+-----------------------------
 
-.. automodule:: icenet2.data.sic.osisaf
+.. automodule:: icenet.data.sic.osisaf
     :members:
     :undoc-members:
     :show-inheritance:
@@ -24,7 +24,7 @@ icenet2.data.sic.osisaf module
 Module contents
 ---------------
 
-.. automodule:: icenet2.data.sic
+.. automodule:: icenet.data.sic
     :members:
     :undoc-members:
     :show-inheritance:

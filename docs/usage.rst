@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use IceNet2 in a project::
+To use IceNet in a project::
 
-    import icenet2
+    import icenet

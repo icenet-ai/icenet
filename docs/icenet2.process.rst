@@ -1,53 +1,53 @@
-icenet2.process package
-=======================
+icenet.process package
+======================
 
 Submodules
 ----------
 
-icenet2.process.azure module
-----------------------------
+icenet.process.azure module
+---------------------------
 
-.. automodule:: icenet2.process.azure
+.. automodule:: icenet.process.azure
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.process.forecasts module
---------------------------------
+icenet.process.forecasts module
+-------------------------------
 
-.. automodule:: icenet2.process.forecasts
+.. automodule:: icenet.process.forecasts
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.process.local module
-----------------------------
+icenet.process.local module
+---------------------------
 
-.. automodule:: icenet2.process.local
+.. automodule:: icenet.process.local
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.process.predict module
-------------------------------
+icenet.process.predict module
+-----------------------------
 
-.. automodule:: icenet2.process.predict
+.. automodule:: icenet.process.predict
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.process.train module
-----------------------------
+icenet.process.train module
+---------------------------
 
-.. automodule:: icenet2.process.train
+.. automodule:: icenet.process.train
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.process.utils module
-----------------------------
+icenet.process.utils module
+---------------------------
 
-.. automodule:: icenet2.process.utils
+.. automodule:: icenet.process.utils
     :members:
     :undoc-members:
     :show-inheritance:
@@ -56,7 +56,7 @@ icenet2.process.utils module
 Module contents
 ---------------
 
-.. automodule:: icenet2.process
+.. automodule:: icenet.process
     :members:
     :undoc-members:
     :show-inheritance:

@@ -1,4 +1,4 @@
-icenet2 package
+icenet package
 ===============
 
 Subpackages
@@ -6,27 +6,19 @@ Subpackages
 
 .. toctree::
 
-    icenet2.data
-    icenet2.model
-    icenet2.plotting
-    icenet2.process
-    icenet2.results
+    icenet.data
+    icenet.model
+    icenet.plotting
+    icenet.process
+    icenet.results
 
 Submodules
 ----------
 
-icenet2.constants module
-------------------------
+icenet.utils module
+-------------------
 
-.. automodule:: icenet2.constants
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.utils module
---------------------
-
-.. automodule:: icenet2.utils
+.. automodule:: icenet.utils
     :members:
     :undoc-members:
     :show-inheritance:
@@ -35,7 +27,7 @@ icenet2.utils module
 Module contents
 ---------------
 
-.. automodule:: icenet2
+.. automodule:: icenet
     :members:
     :undoc-members:
     :show-inheritance:

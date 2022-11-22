@@ -1,4 +1,4 @@
-Welcome to IceNet2's documentation!
+Welcome to IceNet's documentation!
 ======================================
 
 .. toctree::

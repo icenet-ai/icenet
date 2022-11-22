@@ -1,62 +1,62 @@
-icenet2.data package
-====================
+icenet.data package
+===================
 
 Subpackages
 -----------
 
 .. toctree::
 
-    icenet2.data.interfaces
-    icenet2.data.processors
-    icenet2.data.sic
+    icenet.data.interfaces
+    icenet.data.processors
+    icenet.data.sic
 
 Submodules
 ----------
 
-icenet2.data.cli module
------------------------
+icenet.data.cli module
+----------------------
 
-.. automodule:: icenet2.data.cli
+.. automodule:: icenet.data.cli
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.data.dataset module
----------------------------
-
-.. automodule:: icenet2.data.dataset
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.loader module
+icenet.data.dataset module
 --------------------------
 
-.. automodule:: icenet2.data.loader
+.. automodule:: icenet.data.dataset
     :members:
     :undoc-members:
     :show-inheritance:
 
-icenet2.data.process module
----------------------------
-
-.. automodule:: icenet2.data.process
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.producers module
------------------------------
-
-.. automodule:: icenet2.data.producers
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-icenet2.data.utils module
+icenet.data.loader module
 -------------------------
 
-.. automodule:: icenet2.data.utils
+.. automodule:: icenet.data.loader
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.process module
+--------------------------
+
+.. automodule:: icenet.data.process
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.producers module
+----------------------------
+
+.. automodule:: icenet.data.producers
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+icenet.data.utils module
+------------------------
+
+.. automodule:: icenet.data.utils
     :members:
     :undoc-members:
     :show-inheritance:
@@ -65,7 +65,7 @@ icenet2.data.utils module
 Module contents
 ---------------
 
-.. automodule:: icenet2.data
+.. automodule:: icenet.data
     :members:
     :undoc-members:
     :show-inheritance:
