@@ -1,5 +1,5 @@
 icenet package
-===============
+==============
 
 Subpackages
 -----------
@@ -11,6 +11,7 @@ Subpackages
     icenet.plotting
     icenet.process
     icenet.results
+    icenet.tests
 
 Submodules
 ----------
