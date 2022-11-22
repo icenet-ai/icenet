@@ -379,7 +379,7 @@ class ClimateDownloader(Downloader):
                 [self._var_name_idx] == var],
                 key=lambda x: dt.date(*[int(el) for el in
                                         re.search(
-                                            r'^(?:\w+_)?(\d+)_(\d+)_(\d+).nc',
+                                            r'^(?:\w+_)?(\d+).nc',
                                       os.path.basename(x)).groups()])
             )
             logging.info("{} files for {}".format(len(wind_files[var]), var))
