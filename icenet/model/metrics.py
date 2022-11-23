@@ -96,7 +96,7 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
             name += str(leadtime_idx+1)
-        self.leadtime_idx = leadtime_idx
+        self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
 
@@ -116,17 +116,19 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
         y_true = y_true > 0.15
         y_pred = y_pred > 0.15
 
-        if self.leadtime_idx is not None:
-            y_true = y_true[..., self.leadtime_idx]
-            y_pred = y_pred[..., self.leadtime_idx]
+        if self._leadtime_idx is not None:
+            y_true = y_true[..., self._leadtime_idx, 0]
+            y_pred = y_pred[..., self._leadtime_idx]
             if sample_weight is not None:
-                sample_weight = sample_weight[..., self.leadtime_idx]
+                sample_weight = sample_weight[..., self._leadtime_idx, 0]
 
         # TF automatically reduces along final dimension - include dummy axis
-        y_true = tf.expand_dims(y_true, axis=-1)
-        y_pred = tf.expand_dims(y_pred, axis=-1)
+        if y_true.shape[-1] != 1:
+            y_true = tf.expand_dims(y_true, axis=-1)
+        if y_pred.shape[-1] != 1:
+            y_pred = tf.expand_dims(y_pred, axis=-1)
 
-        if sample_weight is not None:
+        if sample_weight is not None and sample_weight.shape[-1] != 1:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
         return super().update_state(y_true, y_pred, sample_weight=sample_weight)
@@ -144,7 +146,7 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
         :return:
         """
         return {
-            'leadtime_idx': self.leadtime_idx,
+            'leadtime_idx': self._leadtime_idx,
         }
 
 
@@ -157,11 +159,12 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
 
     def __init__(self,
                  name: str = 'mae',
-                 leadtime_idx: object = None, **kwargs):
+                 leadtime_idx: object = None,
+                 **kwargs):
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
             name += str(leadtime_idx+1)
-        self.leadtime_idx = leadtime_idx
+        self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
     
@@ -176,19 +179,22 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
         :param sample_weight:
         :return:
         """
-        if self.leadtime_idx is not None:
-            y_true = y_true[..., self.leadtime_idx]
-            y_pred = y_pred[..., self.leadtime_idx]
+
+        if self._leadtime_idx is not None:
+            y_true = y_true[..., self._leadtime_idx, 0]
+            y_pred = y_pred[..., self._leadtime_idx]
             if sample_weight is not None:
-                sample_weight = sample_weight[..., self.leadtime_idx]
+                sample_weight = sample_weight[..., self._leadtime_idx, 0]
 
         # TF automatically reduces along final dimension - include dummy axis
-        y_true = tf.expand_dims(y_true, axis=-1)
-        y_pred = tf.expand_dims(y_pred, axis=-1)
+        if y_true.shape[-1] != 1:
+            y_true = tf.expand_dims(y_true, axis=-1)
+        if y_pred.shape[-1] != 1:
+            y_pred = tf.expand_dims(y_pred, axis=-1)
 
-        if sample_weight is not None:
-            pass
-            #sample_weight = tf.expand_dims(sample_weight, axis=-1)
+        if sample_weight is not None and sample_weight.shape[-1] != 1:
+            sample_weight = tf.expand_dims(sample_weight, axis=-1)
+
         return super().update_state(y_true, y_pred, sample_weight=sample_weight)
 
     def result(self):
@@ -213,7 +219,7 @@ class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
             name += str(leadtime_idx+1)
-        self.leadtime_idx = leadtime_idx
+        self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
 
@@ -228,17 +234,19 @@ class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
         :param sample_weight:
         :return:
         """
-        if self.leadtime_idx is not None:
-            y_true = y_true[..., self.leadtime_idx]
-            y_pred = y_pred[..., self.leadtime_idx]
+        if self._leadtime_idx is not None:
+            y_true = y_true[..., self._leadtime_idx, 0]
+            y_pred = y_pred[..., self._leadtime_idx]
             if sample_weight is not None:
-                sample_weight = sample_weight[..., self.leadtime_idx]
+                sample_weight = sample_weight[..., self._leadtime_idx, 0]
 
         # TF automatically reduces along final dimension - include dummy axis
-        y_true = tf.expand_dims(y_true, axis=-1)
-        y_pred = tf.expand_dims(y_pred, axis=-1)
+        if y_true.shape[-1] != 1:
+            y_true = tf.expand_dims(y_true, axis=-1)
+        if y_pred.shape[-1] != 1:
+            y_pred = tf.expand_dims(y_pred, axis=-1)
 
-        if sample_weight is not None:
+        if sample_weight is not None and sample_weight.shape[-1] != 1:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
         return super().update_state(y_true, y_pred, sample_weight=sample_weight)
@@ -265,7 +273,7 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
             name += str(leadtime_idx+1)
-        self.leadtime_idx = leadtime_idx
+        self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
 
@@ -281,17 +289,19 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
         :return:
         """
 
-        if self.leadtime_idx is not None:
-            y_true = y_true[..., self.leadtime_idx]
-            y_pred = y_pred[..., self.leadtime_idx]
+        if self._leadtime_idx is not None:
+            y_true = y_true[..., self._leadtime_idx, 0]
+            y_pred = y_pred[..., self._leadtime_idx]
             if sample_weight is not None:
-                sample_weight = sample_weight[..., self.leadtime_idx]
+                sample_weight = sample_weight[..., self._leadtime_idx, 0]
 
         # TF automatically reduces along final dimension - include dummy axis
-        y_true = tf.expand_dims(y_true, axis=-1)
-        y_pred = tf.expand_dims(y_pred, axis=-1)
+        if y_true.shape[-1] != 1:
+            y_true = tf.expand_dims(y_true, axis=-1)
+        if y_pred.shape[-1] != 1:
+            y_pred = tf.expand_dims(y_pred, axis=-1)
 
-        if sample_weight is not None:
+        if sample_weight is not None and sample_weight.shape[-1] != 1:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
         return super().update_state(y_true, y_pred, sample_weight=sample_weight)

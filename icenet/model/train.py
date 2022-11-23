@@ -275,23 +275,27 @@ def evaluate_model(model_path: object,
                         "than test set")
         eval_data = test_ds
 
-    lead_times = list(range(1, dataset.n_forecast_days))
-
-    metric_names = ['mae', 'rmse', 'binacc']
+    lead_times = list(range(1, dataset.n_forecast_days + 1))
+    logging.info("Metric creation for lead time of {} days".
+                 format(len(lead_times)))
+    metric_names = ["binacc", "mae", "rmse"]
     metrics_classes = [
         metrics.WeightedBinaryAccuracy,
         metrics.WeightedMAE,
         metrics.WeightedRMSE,
     ]
     metrics_list = [cls(leadtime_idx=lt - 1)
-                    for lt in lead_times for cls in metrics_classes]
+                    for lt in lead_times
+                    for cls in metrics_classes]
 
     network.compile(weighted_metrics=metrics_list)
 
     logging.info('Evaluating... ')
     tic = time.time()
     results = network.evaluate(
-        eval_data, return_dict=True, verbose=0,
+        eval_data,
+        return_dict=True,
+        verbose=0,
         max_queue_size=max_queue_size,
         workers=workers,
         use_multiprocessing=use_multiprocessing,
