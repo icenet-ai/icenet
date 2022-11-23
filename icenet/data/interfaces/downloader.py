@@ -377,10 +377,8 @@ class ClimateDownloader(Downloader):
                 for df in latlon_files
                 if os.path.dirname(df).split(os.sep)
                 [self._var_name_idx] == var],
-                key=lambda x: dt.date(*[int(el) for el in
-                                        re.search(
-                                            r'^(?:\w+_)?(\d+).nc',
-                                      os.path.basename(x)).groups()])
+                key=lambda x: int(re.search(r'^(?:\w+_)?(\d+).nc',
+                                  os.path.basename(x)).group(1))
             )
             logging.info("{} files for {}".format(len(wind_files[var]), var))
 
