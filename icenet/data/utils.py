@@ -46,11 +46,9 @@ def rotate_grid_vectors(u_cube: object,
     v_r_all = iris.cube.CubeList()
 
     # get the X and Y dimension coordinates for each source cube
-    u_xy_coords = [u_cube.coord(axis='T', dim_coords=True),
-                   u_cube.coord(axis='x', dim_coords=True),
+    u_xy_coords = [u_cube.coord(axis='x', dim_coords=True),
                    u_cube.coord(axis='y', dim_coords=True)]
-    v_xy_coords = [v_cube.coord(axis='T', dim_coords=True),
-                   v_cube.coord(axis='x', dim_coords=True),
+    v_xy_coords = [v_cube.coord(axis='x', dim_coords=True),
                    v_cube.coord(axis='y', dim_coords=True)]
 
     # iterate over X, Y slices of the source cubes, rotating each in turn

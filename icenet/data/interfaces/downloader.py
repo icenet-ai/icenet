@@ -1,5 +1,4 @@
 import concurrent
-import datetime as dt
 import logging
 import os
 import re
@@ -413,7 +412,9 @@ class ClimateDownloader(Downloader):
             try:
                 wind_cubes_r[apply_to[0]], wind_cubes_r[apply_to[1]] = \
                     rotate_grid_vectors(
-                        wind_cubes[apply_to[0]], wind_cubes[apply_to[1]], angles,
+                        wind_cubes[apply_to[0]],
+                        wind_cubes[apply_to[1]],
+                        angles,
                     )
             except iris.exceptions.CoordinateNotFoundError:
                 logging.exception("Failure to rotate due to coordinate issues. "
