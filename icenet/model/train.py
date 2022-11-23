@@ -15,7 +15,7 @@ import wandb
 
 from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model, save_model
 from wandb.keras import WandbCallback
 
 from icenet.data.dataset import IceNetDataSet, MergedIceNetDataSet
@@ -241,7 +241,7 @@ def train_model(
     if network_save:
         logging.info("Saving network to: {}".format(weights_path))
         network.save_weights(weights_path)
-        # network.save_model(model_path)
+        save_model(model_path)
 
         with open(history_path, 'w') as fh:
             pd.DataFrame(model_history.history).to_json(fh)
