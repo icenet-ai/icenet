@@ -241,7 +241,7 @@ def train_model(
     if network_save:
         logging.info("Saving network to: {}".format(weights_path))
         network.save_weights(weights_path)
-        network.save_model(model_path)
+        # network.save_model(model_path)
 
         with open(history_path, 'w') as fh:
             pd.DataFrame(model_history.history).to_json(fh)
