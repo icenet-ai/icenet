@@ -213,7 +213,8 @@ def recurse_data_folders(base_path: object,
             [os.path.join(base_path, f) for f in os.listdir(base_path)
              if os.path.splitext(f)[1] == ".{}".format(filetype)
              and (re.match(r'^\d{4}\.nc$', f)
-                  or re.match(r'(abs|anom|linear_trend)\.nc$', f))])
+                  or
+                  re.search(r'(abs|anom|linear_trend)\.nc$', f))])
         
         if not len(files):
             return None
@@ -311,7 +312,6 @@ def data_cli():
                                          path_children,
                                          filetype="nc"
                                          if not args.numpy else "npy")
-
     video_batches = [
         v_el for h_list in video_batches
         for v_list in h_list
