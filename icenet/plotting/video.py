@@ -208,11 +208,12 @@ def recurse_data_folders(base_path: object,
 
     if children is None and lookups is None:
         # TODO: should ideally use scandir for performance
-        # TODO: naive lexicographical sorting
+        # TODO: naive hardcoded filtering of files
         files = sorted(
             [os.path.join(base_path, f) for f in os.listdir(base_path)
              if os.path.splitext(f)[1] == ".{}".format(filetype)
-             and re.match(r'^\d{4}\.nc$', f)])
+             and (re.match(r'^\d{4}\.nc$', f)
+                  or re.match(r'(abs|anom|linear_trend)\.nc$', f))])
         
         if not len(files):
             return None
