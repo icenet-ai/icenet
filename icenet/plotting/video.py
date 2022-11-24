@@ -211,7 +211,8 @@ def recurse_data_folders(base_path: object,
         # TODO: naive lexicographical sorting
         files = sorted(
             [os.path.join(base_path, f) for f in os.listdir(base_path)
-             if os.path.splitext(f)[1] == ".{}".format(filetype)])
+             if os.path.splitext(f)[1] == ".{}".format(filetype)
+             and re.match(r'^\d{4}\.nc$', f)])
         
         if not len(files):
             return None
@@ -280,9 +281,6 @@ def cli_args():
     args.add_argument("-o", "--output-dir", dest="output_dir", type=str,
                       default="plot")
     args.add_argument("-p", "--path", default="data", type=str)
-    args.add_argument("-sy", "--skip-years",
-                      help="Don't include years in paths",
-                      default=False, action="store_true")
     args.add_argument("-w", "--workers", default=8, type=int)
 
     args.add_argument("-v", "--verbose", action="store_true", default=False)
@@ -290,10 +288,9 @@ def cli_args():
     args.add_argument("datasets", type=lambda s: s.split(","))
     args.add_argument("hemisphere", default=[],
                       choices=["north", "south"], nargs="?")
-    args.add_argument("vars", default=[],
-                      nargs="?", type=lambda s: s.split(","))
-    args.add_argument("years", default=[],
-                      nargs="?", type=lambda s: s.split(","))
+
+    args.add_argument("--vars", default=[], type=lambda s: s.split(","))
+    args.add_argument("--years", default=[], type=lambda s: s.split(","))
 
     return args.parse_args()
 
@@ -304,35 +301,33 @@ def data_cli():
     """
     args = cli_args()
 
-    hemis = [args.hemisphere] if len(args.hemisphere) else ["nh", "sh"]
-    years = [int(year) for year in args.years] if args.years else args.years
-
+    hemis = [args.hemisphere] if len(args.hemisphere) else ["north", "south"]
     logging.info("Looking into {}".format(args.path))
 
     path_children = [hemis, args.vars]
-    if not args.skip_years:
-        # TODO: GH#3
-        path_children += [years]
-
-    logging.debug("Path children: {}".format(path_children))
     video_batches = recurse_data_folders(args.path,
                                          args.datasets,
                                          path_children,
                                          filetype="nc"
                                          if not args.numpy else "npy")
 
-    if args.skip_years:
-        video_batches = np.array([
-            v_el for h_list in video_batches
-                for v_list in h_list
-                for v_el in v_list], dtype=object)
-    else:
-        video_batches = np.array([
-            y_el for h_list in video_batches
-                for v_list in h_list
-                for y_list in v_list
-                for y_el in y_list], dtype=object)
-        
+    video_batches = [
+        v_el for h_list in video_batches
+        for v_list in h_list
+        for v_el in v_list
+    ]
+
+    if len(args.years) > 0:
+        new_batches = []
+        for batch in video_batches:
+            batch = [el for el in batch
+                     if os.path.basename(el)[0:4] in args.years]
+            if len(batch):
+                new_batches.append(batch)
+            video_batches = new_batches
+
+    logging.debug("Batches {}".format(video_batches))
+
     with ProcessPoolExecutor(
             max_workers=min(len(video_batches), args.workers)) as executor:
         futures = []
