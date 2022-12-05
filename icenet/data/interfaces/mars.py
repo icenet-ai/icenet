@@ -124,8 +124,10 @@ retrieve,
                                 "removing {}".format(req_batch[-1]))
                 req_batch = req_batch[:-1]
 
-            request_target = "{}.{}.{}.nc".format(
-                self.hemisphere_str[0], levtype, request_month)
+            request_target = os.path.join(
+                self.base_path,
+                self.hemisphere_str[0],
+                "{}.{}.nc".format(levtype, request_month))
 
             request = HRESDownloader.MARS_TEMPLATE.format(
                 area="/".join([str(s) for s in self.hemisphere_loc]),
