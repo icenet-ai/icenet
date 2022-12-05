@@ -54,7 +54,9 @@ def train_model(
         use_multiprocessing: bool = True,
         use_tensorboard: bool = True,
         use_wandb: bool = True,
-        wandb_offline: bool = False) -> object:
+        wandb_offline: bool = False,
+        wandb_project: str = os.environ.get("ICENET_ENVIRONMENT"),
+        wandb_user: str = os.environ.get("USER")) -> object:
     """
 
     :param run_name:
@@ -85,19 +87,21 @@ def train_model(
     :param use_tensorboard:
     :param use_wandb:
     :param wandb_offline:
+    :param wandb_project:
+    :param wandb_user:
     :return:
     """
 
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     wandb.init(
-        project="icenet",
+        project=wandb_project,
         name="{}.{}".format(run_name, seed),
         notes="{}: run at {}{}".format(run_name,
                                        dt.datetime.now().strftime("%D %T"),
                                        "" if
                                        not pre_load_network else
                                        " preload {}".format(pre_load_path)),
-        entity="jambyr",
+        entity=wandb_user,
         config=dict(
             seed=seed,
             learning_rate=learning_rate,
@@ -350,6 +354,10 @@ def get_args():
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-w", "--workers", type=int, default=4)
     ap.add_argument("-wo", "--wandb-offline", default=False, action="store_true")
+    ap.add_argument("-wp", "--wandb-project",
+                    default=os.environ.get("ICENET_ENVIRONMENT"), type=str)
+    ap.add_argument("-wu", "--wandb-user",
+                    default=os.environ.get("USER"), type=str)
 
     ap.add_argument("--lr", default=1e-4, type=float)
     ap.add_argument("--lr_10e_decay_fac", default=1.0, type=float,
@@ -419,6 +427,8 @@ def main():
                     use_multiprocessing=args.multiprocessing,
                     use_wandb=not args.no_wandb,
                     wandb_offline=args.wandb_offline,
+                    wandb_project=args.wandb_project,
+                    wandb_user=args.wandb_user,
                     workers=args.workers)
 
     evaluate_model(model_path,
