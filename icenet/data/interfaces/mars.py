@@ -129,6 +129,8 @@ retrieve,
                 self.hemisphere_str[0],
                 "{}.{}.nc".format(levtype, request_month))
 
+            os.makedirs(os.path.dirname(request_target), exist_ok=True)
+
             request = self.mars_template.format(
                 area="/".join([str(s) for s in self.hemisphere_loc]),
                 date="/".join([el.strftime("%Y%m%d") for el in req_batch]),
@@ -266,6 +268,8 @@ retrieve,
 
 class SEASDownloader(HRESDownloader):
     # TODO: step should be configurable for this downloader
+    # TODO: unsure why, but multiple dates break the download with
+    #  ERROR 89 (MARS_EXPECTED_FIELDS): Expected 4700, got 2350
     MARS_TEMPLATE = """
 retrieve,
     class=od,
@@ -286,22 +290,106 @@ retrieve,
     grid=0.25/0.25,
     area={area}"""
 
-    def additional_regrid_processing(self,
-                                     datafile: str,
-                                     cube_ease: object):
+    def _single_download(self,
+                         var_names: object,
+                         pressures: object,
+                         req_dates: object):
         """
 
-        :param datafile:
-        :param cube_ease:
+        :param var_names:
+        :param pressures:
+        :param req_dates:
+        :return:
         """
-        cube_ease.collapsed('ensemble_member', iris.analysis.MEAN)
+
+        for dt in req_dates:
+            assert dt.year == req_dates[0].year
+
+        downloads = []
+        levtype = "plev" if pressures else "sfc"
+
+        for req_date in req_dates:
+            request_day = req_date.strftime("%Y%m%d")
+
+            logging.info("Downloading daily file {}".format(request_day))
+
+            request_target = os.path.join(
+                self.base_path,
+                self.hemisphere_str[0],
+                "{}.{}.nc".format(levtype, request_day))
+
+            request = self.mars_template.format(
+                area="/".join([str(s) for s in self.hemisphere_loc]),
+                date=req_date.strftime("%Y-%m-%d"),
+                levtype=levtype,
+                levlist="levelist={},\n  ".format(pressures) if pressures else "",
+                params="/".join(
+                    ["{}.{}".format(
+                        self.params[v][0],
+                        self.param_table)
+                     for v in var_names]),
+                target=request_target,
+            )
+
+            if not os.path.exists(request_target):
+                logging.debug("MARS REQUEST: \n{}\n".format(request))
+
+                try:
+                    self._server.execute(request, request_target)
+                except ecmwfapi.api.APIException:
+                    logging.exception("Could not complete ECMWF request: {}")
+                else:
+                    downloads.append(request_target)
+            else:
+                logging.debug("Already have {}".format(request_target))
+                downloads.append(request_target)
+
+        logging.debug("Files downloaded: {}".format(downloads))
+
+        ds = xr.open_mfdataset(downloads)
+        ds = ds.mean("number")
+
+        for var_name, pressure in product(var_names, pressures.split('/')
+                                          if pressures else [None]):
+            var = var_name if not pressure else \
+                "{}{}".format(var_name, pressure)
+
+            da = getattr(ds,
+                         self.params[var_name][1])
+
+            if pressure:
+                da = da.sel(level=int(pressure))
+
+            self.save_temporal_files(var, da)
+
+        ds.close()
+
+        if self.delete:
+            for downloaded_file in downloads:
+                if os.path.exists(downloaded_file):
+                    logging.info("Removing {}".format(downloaded_file))
+                    os.unlink(downloaded_file)
+
+#    def additional_regrid_processing(self,
+#                                     datafile: str,
+#                                     cube_ease: object):
+#        """
+#
+#        :param datafile:
+#        :param cube_ease:
+#        """
+#        cube_ease.collapsed('ensemble_member', iris.analysis.MEAN)
 
 
-def main(identifier):
+def main(identifier, extra_kwargs=None):
     args = download_args()
 
     logging.info("ECMWF {} Data Downloading".format(identifier))
     cls = getattr(sys.modules[__name__], "{}Downloader".format(identifier))
+
+    if extra_kwargs is None:
+        extra_kwargs = dict()
+
     instance = cls(
         identifier="mars.{}".format(identifier.lower()),
         var_names=args.vars,
@@ -310,7 +398,8 @@ def main(identifier):
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
-        south=args.hemisphere == "south"
+        south=args.hemisphere == "south",
+        **extra_kwargs
     )
     instance.download()
     instance.regrid()
@@ -322,4 +411,6 @@ def seas_main():
 
 
 def hres_main():
-    main("HRES")
+    main("HRES", dict(
+        group_dates_by="day",
+    ))
