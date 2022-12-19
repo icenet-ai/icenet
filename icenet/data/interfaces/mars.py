@@ -265,25 +265,26 @@ retrieve,
 
 
 class SEASDownloader(HRESDownloader):
+    # TODO: step should be configurable for this downloader
     MARS_TEMPLATE = """
-    retrieve,
-      class=od,
-      date={date},
-      expver=1,
-      levtype={levtype},
-      method=1,
-      number=0/1/2/3/4/5/6/7/8/9/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24,
-      origin=ecmf,
-      {levlist}param={params},
-      step=0/to/2232/by/24,
-      stream=mmsf,
-      time=00:00:00,
-      type=fc,
-      area={area},
-      grid=0.25/0.25,
-      target="{target}",
-      format=netcdf
-        """
+retrieve,
+    class=od,
+    date={date},
+    expver=1,
+    levtype={levtype},
+    method=1,
+    number=0/1/2/3/4/5/6/7/8/9/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24,
+    origin=ecmf,
+    {levlist}param={params},
+    step=0/to/2232/by/24,
+    stream=mmsf,
+    system=5,
+    time=00:00:00,
+    type=fc,
+    target="{target}",
+    format=netcdf,
+    grid=0.25/0.25,
+    area={area}"""
 
     def additional_regrid_processing(self,
                                      datafile: str,
@@ -299,7 +300,7 @@ class SEASDownloader(HRESDownloader):
 def main(identifier):
     args = download_args()
 
-    logging.info("ERA5 {} Data Downloading".format(identifier))
+    logging.info("ECMWF {} Data Downloading".format(identifier))
     cls = getattr(sys.modules[__name__], "{}Downloader".format(identifier))
     instance = cls(
         identifier="mars.{}".format(identifier.lower()),
