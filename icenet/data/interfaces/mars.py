@@ -6,7 +6,7 @@ import sys
 from itertools import product
 
 import ecmwfapi
-import numpy as np
+import iris.analysis
 import pandas as pd
 import xarray as xr
 
@@ -32,7 +32,7 @@ class HRESDownloader(ClimateDownloader):
     # https://confluence.ecmwf.int/pages/viewpage.action?pageId=85402030
     # https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation#ERA5:datadocumentation-Dateandtimespecification
     HRES_PARAMS = {
-        "siconca":      (31, "siconc"),     # sea_ice_area_fraction (SEAS5)
+        "siconca":      (31, "siconc"), # sea_ice_area_fraction
         "tos":          (34, "sst"),    # sea surface temperature (actually
                                         # sst?)
         "zg":           (129, "z"),     # geopotential
@@ -129,15 +129,15 @@ retrieve,
                 self.hemisphere_str[0],
                 "{}.{}.nc".format(levtype, request_month))
 
-            request = HRESDownloader.MARS_TEMPLATE.format(
+            request = self.mars_template.format(
                 area="/".join([str(s) for s in self.hemisphere_loc]),
                 date="/".join([el.strftime("%Y%m%d") for el in req_batch]),
                 levtype=levtype,
                 levlist="levelist={},\n  ".format(pressures) if pressures else "",
                 params="/".join(
                     ["{}.{}".format(
-                        HRESDownloader.HRES_PARAMS[v][0],
-                        HRESDownloader.PARAM_TABLE)
+                        self.params[v][0],
+                        self.param_table)
                      for v in var_names]),
                 target=request_target,
                 # We are only allowed date prior to -24 hours ago, dynamically
@@ -170,7 +170,7 @@ retrieve,
                 "{}{}".format(var_name, pressure)
 
             da = getattr(ds,
-                         HRESDownloader.HRES_PARAMS[var_name][1])
+                         self.params[var_name][1])
 
             if pressure:
                 da = da.sel(level=int(pressure))
@@ -251,12 +251,58 @@ retrieve,
             # We want the geopotential height as per ERA5
             cube_ease /= 9.80665
 
+    @property
+    def mars_template(self):
+        return getattr(self, "MARS_TEMPLATE")
 
-def main():
+    @property
+    def params(self):
+        return getattr(self, "HRES_PARAMS")
+
+    @property
+    def param_table(self):
+        return getattr(self, "PARAM_TABLE")
+
+
+class SEASDownloader(HRESDownloader):
+    MARS_TEMPLATE = """
+    retrieve,
+      class=od,
+      date={date},
+      expver=1,
+      levtype={levtype},
+      method=1,
+      number=0/1/2/3/4/5/6/7/8/9/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24,
+      origin=ecmf,
+      {levlist}param={params},
+      step=0/to/2232/by/24,
+      stream=mmsf,
+      time=00:00:00,
+      type=fc,
+      area={area},
+      grid=0.25/0.25,
+      target="{target}",
+      format=netcdf
+        """
+
+    def additional_regrid_processing(self,
+                                     datafile: str,
+                                     cube_ease: object):
+        """
+
+        :param datafile:
+        :param cube_ease:
+        """
+        cube_ease.collapsed('ensemble_member', iris.analysis.MEAN)
+
+
+def main(identifier):
     args = download_args()
 
-    logging.info("ERA5 HRES Data Downloading")
-    hres = HRESDownloader(
+    logging.info("ERA5 {} Data Downloading".format(identifier))
+    cls = getattr(sys.modules[__name__], "{}Downloader".format(identifier))
+    instance = cls(
+        identifier="mars.{}".format(identifier.lower()),
         var_names=args.vars,
         pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
@@ -265,7 +311,14 @@ def main():
         north=args.hemisphere == "north",
         south=args.hemisphere == "south"
     )
-    hres.download()
-    hres.regrid()
-    hres.rotate_wind_data()
+    instance.download()
+    instance.regrid()
+    instance.rotate_wind_data()
 
+
+def seas_main():
+    main("SEAS")
+
+
+def hres_main():
+    main("HRES")

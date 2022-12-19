@@ -223,7 +223,7 @@ class ClimateDownloader(Downloader):
             sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'. \
                 format(SIC_HEMI_STR[self.hemisphere_str[0]])
             sic_day_path = os.path.join(self.get_data_var_folder("siconca"),
-                                 sic_day_fname)
+                                        sic_day_fname)
             if not os.path.exists(sic_day_path):
                 logging.info("Downloading single daily SIC netCDF file for "
                              "regridding ERA5 data to EASE grid...")
