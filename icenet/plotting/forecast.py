@@ -161,7 +161,7 @@ def sic_error_video(fc_da: object,
     return animation
 
 
-def forecast_plot_args() -> object:
+def forecast_plot_args(ecmwf: bool = True) -> object:
     """
 
     :return:
@@ -174,7 +174,9 @@ def forecast_plot_args() -> object:
 
     ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
-    ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
+
+    if ecmwf:
+        ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
 
     args = ap.parse_args()
 
@@ -185,6 +187,9 @@ def forecast_plot_args() -> object:
 
 
 def binary_accuracy():
+    """
+
+    """
     args = forecast_plot_args()
 
     masks = Masks(north=args.hemisphere == "north",
@@ -215,7 +220,7 @@ def sic_error():
     """
 
     """
-    args = forecast_plot_args()
+    args = forecast_plot_args(ecmwf=False)
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
