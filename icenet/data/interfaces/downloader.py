@@ -451,9 +451,12 @@ class ClimateDownloader(Downloader):
 
         latlon_path = os.path.join(
             var_folder, "{}{}.nc".format(self.pregrid_prefix, filename_date))
-
         regridded_name = os.path.join(
             var_folder, "{}.nc".format(filename_date))
+
+        logging.debug("Got {} filenames: {} and {}".format(
+            self._group_dates_by, latlon_path, regridded_name
+        ))
 
         return latlon_path, regridded_name
 
@@ -475,6 +478,10 @@ class ClimateDownloader(Downloader):
     @download_method.setter
     def download_method(self, method: callable):
         self._download_method = method
+
+    @property
+    def group_dates_by(self):
+        return self._group_dates_by
 
     @property
     def pregrid_prefix(self):

@@ -6,7 +6,6 @@ import sys
 from itertools import product
 
 import ecmwfapi
-import iris.analysis
 import pandas as pd
 import xarray as xr
 
@@ -205,7 +204,7 @@ retrieve,
 
         dates_per_request = \
             batch_requested_dates(self._dates,
-                                  attribute=self._group_dates_by)
+                                  attribute=self.group_dates_by)
 
         for req_batch in dates_per_request:
             if len(sfc_vars) > 0:
@@ -317,6 +316,7 @@ retrieve,
                 self.base_path,
                 self.hemisphere_str[0],
                 "{}.{}.nc".format(levtype, request_day))
+            os.makedirs(os.path.dirname(request_target), exist_ok=True)
 
             request = self.mars_template.format(
                 area="/".join([str(s) for s in self.hemisphere_loc]),
@@ -346,39 +346,30 @@ retrieve,
 
         logging.debug("Files downloaded: {}".format(downloads))
 
-        ds = xr.open_mfdataset(downloads)
-        ds = ds.mean("number")
+        for download_filename in downloads:
+            logging.info("Processing {}".format(download_filename))
+            ds = xr.open_dataset(download_filename)
+            ds = ds.mean("number")
 
-        for var_name, pressure in product(var_names, pressures.split('/')
-                                          if pressures else [None]):
-            var = var_name if not pressure else \
-                "{}{}".format(var_name, pressure)
+            for var_name, pressure in product(var_names, pressures.split('/')
+                                              if pressures else [None]):
+                var = var_name if not pressure else \
+                    "{}{}".format(var_name, pressure)
 
-            da = getattr(ds,
-                         self.params[var_name][1])
+                da = getattr(ds, self.params[var_name][1])
 
-            if pressure:
-                da = da.sel(level=int(pressure))
+                if pressure:
+                    da = da.sel(level=int(pressure))
 
-            self.save_temporal_files(var, da)
+                self.save_temporal_files(var, da)
 
-        ds.close()
+            ds.close()
 
         if self.delete:
             for downloaded_file in downloads:
                 if os.path.exists(downloaded_file):
                     logging.info("Removing {}".format(downloaded_file))
                     os.unlink(downloaded_file)
-
-#    def additional_regrid_processing(self,
-#                                     datafile: str,
-#                                     cube_ease: object):
-#        """
-#
-#        :param datafile:
-#        :param cube_ease:
-#        """
-#        cube_ease.collapsed('ensemble_member', iris.analysis.MEAN)
 
 
 def main(identifier, extra_kwargs=None):
