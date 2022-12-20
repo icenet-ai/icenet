@@ -2,18 +2,22 @@ import argparse
 import logging
 import os
 
+from datetime import timedelta
+
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
+matplotlib.use('Agg')
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
 from icenet.plotting.utils import \
-    get_forecast_obs_da, get_forecast_hres_obs_da
+    filter_ds_by_obs, get_forecast_ds, get_obs_da, get_seas_forecast_da
 
 matplotlib.rcParams.update({
     'figure.facecolor': 'w',
@@ -53,7 +57,7 @@ def plot_binary_accuracy(masks: object,
         binary_cmp_da = (binary_cmp_da == binary_obs_da).\
             astype(np.float16).weighted(agcm)
         binacc_cmp = (binary_cmp_da.mean(dim=['yc', 'xc']) * 100)
-        ax.plot(binacc_cmp.time, binacc_cmp.values, label="HRES")
+        ax.plot(binacc_cmp.time, binacc_cmp.values, label="SEAS")
     else:
         binacc_cmp = None
 
@@ -62,6 +66,7 @@ def plot_binary_accuracy(masks: object,
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_minor_locator(mdates.DayLocator())
     ax.legend(loc='lower right')
+
     plt.savefig(output_path)
 
     return binacc_fc, binacc_cmp
@@ -182,30 +187,29 @@ def forecast_plot_args() -> object:
 
 def binary_accuracy():
     args = forecast_plot_args()
-    kwargs = {}
 
-    if args.output_path:
-        kwargs["output_path"] = args.output_path
-
-    fc, obs, _ = get_forecast_obs_da(args.hemisphere,
-                                     args.forecast_file,
-                                     args.forecast_date)
-
-    hres = None
-
-    if args.ecmwf:
-        hres, _, _ = get_forecast_hres_obs_da(args.hemisphere,
-                                              obs.time.values[0],
-                                              obs.time.values[-1])
-
-    # TODO: split down the get_*_da methods
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
+
+    fc = get_forecast_ds(args.forecast_file,
+                         args.forecast_date)
+    obs = get_obs_da(args.hemisphere,
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=1),
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=int(fc.leadtime.max())))
+    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+
+    seas = get_seas_forecast_da(args.hemisphere, args.forecast_date) \
+        if args.ecmwf else None
+
+    seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
+
     plot_binary_accuracy(masks,
                          fc,
-                         hres,
+                         seas.isel(time=slice(1, None)),
                          obs,
-                         **kwargs)
+                         args.output_path)
 
 
 def sic_error():
@@ -213,12 +217,20 @@ def sic_error():
     TODO: Allow single frame rendering
     """
     args = forecast_plot_args()
-    kwargs = {}
 
-    if args.output_path:
-        kwargs["output_path"] = args.output_path
+    masks = Masks(north=args.hemisphere == "north",
+                  south=args.hemisphere == "south")
 
-    sic_error_video(*get_forecast_obs_da(args.hemisphere,
-                                         args.forecast_file,
-                                         args.forecast_date),
-                    **kwargs)
+    fc = get_forecast_ds(args.forecast_file,
+                         args.forecast_date)
+    obs = get_obs_da(args.hemisphere,
+                     pd.to_datetime(args.forecast_date),
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=
+                               fc.sel(time=args.forecast_date).leadtime.max()))
+    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+
+    sic_error_video(fc,
+                    obs,
+                    masks.get_land_mask(),
+                    args.output_path)

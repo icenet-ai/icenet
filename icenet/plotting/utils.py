@@ -10,78 +10,73 @@ from icenet.process.forecasts import broadcast_forecast
 from icenet.data.sic.mask import Masks
 
 
-def get_forecast_hres_obs_da(hemisphere: str,
-                             start_date: str,
-                             end_date: str,
-                             bias_correct: bool = True,
-                             obs_source: object =
-                             os.path.join(".", "data", "osisaf"),
-                             source_path: object =
-                             os.path.join(".", "data", "mars.hres"),
-                             ) -> tuple:
+def get_seas_forecast_da(hemisphere: str,
+                         date: str,
+                         bias_correct: bool = True,
+                         source_path: object = os.path.join(".", "data", "mars.seas"),
+                         ) -> tuple:
     """
+    Atmospheric model Ensemble 15-day forecast (Set III - ENS)
 
     :param hemisphere:
-    :param start_date:
-    :param end_date:
+    :param date:
     :param bias_correct:
-    :param obs_source:
     :param source_path:
     """
-    masks = Masks(
-        north=hemisphere == "north",
-        south=hemisphere == "south")
-    land_mask = masks.get_land_mask()
 
-    start_date, end_date = pd.to_datetime(start_date), pd.to_datetime(end_date)
-    hres_years = list(set([start_date.year, end_date.year]))
-    hres_files = [os.path.join(source_path, hemisphere, "siconca", "{}.nc".format(yr))
-                  for yr in hres_years]
-    hres_ds = xr.open_mfdataset(hres_files)
+    # TODO: why aren't we using SEASDownloader?
+    # TODO: we could download here potentially
 
-    hres_ds = hres_ds.assign_coords(
-        dict(xc=hres_ds.xc / 1e3, yc=hres_ds.yc / 1e3))
+    seas_file = os.path.join(
+        source_path,
+        hemisphere,
+        "siconca",
+        "{}.nc".format(date.strftime("%Y%m%d")))
+    seas_ds = xr.open_dataset(seas_file)
 
-    obs_da = get_obs_da(hemisphere, start_date, end_date, obs_source)
-
-    return hres_ds.siconc, obs_da, land_mask
+    return seas_ds.siconc
 
 
-def get_forecast_obs_da(hemisphere: str,
-                        forecast_file: object,
-                        forecast_date: str,
-                        obs_source: object =
-                        os.path.join(".", "data", "osisaf"),
-                        stddev: bool = False
-                        ) -> tuple:
+def get_forecast_ds(forecast_file: object,
+                    forecast_date: str,
+                    stddev: bool = False
+                    ) -> tuple:
     """
 
-    :param hemisphere:
     :param forecast_file:
     :param forecast_date:
-    :param obs_source:
     :param stddev:
     :returns tuple(fc_ds, obs_ds, land_mask):
     """
-    land_mask = Masks(
-        north=hemisphere == "north",
-        south=hemisphere == "south").get_land_mask()
     forecast_date = pd.to_datetime(forecast_date)
 
     forecast_ds = xr.open_dataset(forecast_file)
-    forecast_ds = forecast_ds.sel(time=slice(forecast_date, forecast_date))
+    get_key = "sic_mean" if not stddev else "sic_stddev"
 
-    if len(forecast_ds.time) != 1:
-        raise ValueError("Dataset does not contain {}: \n{}".format(forecast_date, forecast_ds))
+    forecast_ds = getattr(
+        forecast_ds.sel(time=slice(forecast_date, forecast_date)),
+        get_key)
 
+    return forecast_ds
+
+
+def filter_ds_by_obs(ds: object,
+                     obs_da: object,
+                     forecast_date: str) -> object:
+    """
+
+    :param ds:
+    :param obs_da:
+    :param forecast_date:
+    :return:
+    """
+    forecast_date = pd.to_datetime(forecast_date)
     (start_date, end_date) = (
-            forecast_date + dt.timedelta(days=int(forecast_ds.leadtime.min())),
-            forecast_date + dt.timedelta(days=int(forecast_ds.leadtime.max()))
+            forecast_date + dt.timedelta(days=int(ds.leadtime.min())),
+            forecast_date + dt.timedelta(days=int(ds.leadtime.max()))
     )
 
-    obs_da = get_obs_da(hemisphere, start_date, end_date, obs_source)
-
-    if len(obs_da.time) < len(forecast_ds.leadtime):
+    if len(obs_da.time) < len(ds.leadtime):
         logging.warning("Observational data not available for full range of "
                         "forecast leadtimes: {}-{} vs {}-{}".format(
                          obs_da.time.to_series()[0].strftime("%D"),
@@ -94,11 +89,9 @@ def get_forecast_obs_da(hemisphere: str,
         )
 
     # We broadcast to get a nicely compatible dataset for plotting
-    forecast_ds = broadcast_forecast(
-        start_date, end_date, dataset=forecast_ds)
-
-    get_key = "sic_mean" if not stddev else "sic_stddev"
-    return getattr(forecast_ds, get_key), obs_da, land_mask
+    return broadcast_forecast(start_date=start_date,
+                              end_date=end_date,
+                              dataset=ds)
 
 
 def get_obs_da(hemisphere: str,

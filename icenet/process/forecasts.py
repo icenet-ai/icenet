@@ -27,8 +27,8 @@ def broadcast_forecast(start_date: object,
     :return:
     """
 
-    assert (not datafiles) ^ (not dataset), "Only one of datafiles and " \
-                                            "dataset can be set"
+    assert (datafiles is None) ^ (dataset is None), \
+        "Only one of datafiles and dataset can be set"
 
     if datafiles:
         logging.info("Using {} to generate forecast through {} to {}".
@@ -52,7 +52,7 @@ def broadcast_forecast(start_date: object,
         logging.debug("Looking for date {}".format(d))
         arr = None
 
-        while not arr:
+        while arr is None:
             if d >= dataset.time.values[i]:
                 d_lead = (d - dataset.time.values[i]).days
 
