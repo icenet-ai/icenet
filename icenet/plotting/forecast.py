@@ -12,7 +12,6 @@ matplotlib.use('Agg')
 
 import numpy as np
 import pandas as pd
-import xarray as xr
 
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
@@ -214,7 +213,7 @@ def binary_accuracy():
 
 def sic_error():
     """
-    TODO: Allow single frame rendering
+
     """
     args = forecast_plot_args()
 
@@ -224,10 +223,10 @@ def sic_error():
     fc = get_forecast_ds(args.forecast_file,
                          args.forecast_date)
     obs = get_obs_da(args.hemisphere,
-                     pd.to_datetime(args.forecast_date),
                      pd.to_datetime(args.forecast_date) +
-                     timedelta(days=
-                               fc.sel(time=args.forecast_date).leadtime.max()))
+                     timedelta(days=1),
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
     sic_error_video(fc,
