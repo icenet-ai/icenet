@@ -361,7 +361,7 @@ retrieve,
                 if pressure:
                     da = da.sel(level=int(pressure))
 
-                self.save_temporal_files(var, da)
+                self.save_temporal_files(var, da, date_format="%Y%m%d")
 
             ds.close()
 
@@ -370,6 +370,31 @@ retrieve,
                 if os.path.exists(downloaded_file):
                     logging.info("Removing {}".format(downloaded_file))
                     os.unlink(downloaded_file)
+
+    def save_temporal_files(self, var, da,
+                            date_format=None,
+                            freq=None):
+        """
+
+        :param var:
+        :param da:
+        :param date_format:
+        :param freq:
+        """
+        var_folder = self.get_data_var_folder(var)
+
+        req_date = pd.to_datetime(da.time.values[0])
+        latlon_path, regridded_name = \
+            self.get_req_filenames(var_folder,
+                                   req_date,
+                                   date_format=date_format)
+
+        logging.info("Retrieving and saving {}".format(latlon_path))
+        da.compute()
+        da.to_netcdf(latlon_path)
+
+        if not os.path.exists(regridded_name):
+            self._files_downloaded.append(latlon_path)
 
 
 def main(identifier, extra_kwargs=None):

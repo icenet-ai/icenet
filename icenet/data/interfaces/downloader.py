@@ -191,24 +191,29 @@ class ClimateDownloader(Downloader):
         logging.debug("No postprocessing in place for {}: {}".
                       format(var, download_path))
 
-    def save_temporal_files(self, var, da, freq=None):
+    def save_temporal_files(self, var, da,
+                            date_format=None,
+                            freq=None):
         """
 
         :param var:
         :param da:
+        :param date_format:
         :param freq:
         """
         var_folder = self.get_data_var_folder(var)
         group_by = "time.{}".format(self._group_dates_by) if not freq else freq
 
-        for year, year_da in da.groupby(group_by):
-            req_date = pd.to_datetime(year_da.time.values[0])
+        for dt, dt_da in da.groupby(group_by):
+            req_date = pd.to_datetime(dt_da.time.values[0])
             latlon_path, regridded_name = \
-                self.get_req_filenames(var_folder, req_date)
+                self.get_req_filenames(var_folder,
+                                       req_date,
+                                       date_format=date_format)
 
             logging.info("Retrieving and saving {}".format(latlon_path))
-            year_da.compute()
-            year_da.to_netcdf(latlon_path)
+            dt_da.compute()
+            dt_da.to_netcdf(latlon_path)
 
             if not os.path.exists(regridded_name):
                 self._files_downloaded.append(latlon_path)
