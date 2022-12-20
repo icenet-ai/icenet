@@ -398,10 +398,10 @@ def main(identifier, extra_kwargs=None):
 
 
 def seas_main():
-    main("SEAS")
+    main("SEAS", dict(
+        group_dates_by="day",
+    ))
 
 
 def hres_main():
-    main("HRES", dict(
-        group_dates_by="day",
-    ))
+    main("HRES")
