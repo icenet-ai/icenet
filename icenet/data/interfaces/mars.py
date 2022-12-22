@@ -6,7 +6,6 @@ import sys
 from itertools import product
 
 import ecmwfapi
-import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -32,7 +31,7 @@ class HRESDownloader(ClimateDownloader):
     # https://confluence.ecmwf.int/pages/viewpage.action?pageId=85402030
     # https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation#ERA5:datadocumentation-Dateandtimespecification
     HRES_PARAMS = {
-        "siconca":      (31, "siconc"),     # sea_ice_area_fraction (SEAS5)
+        "siconca":      (31, "siconc"), # sea_ice_area_fraction
         "tos":          (34, "sst"),    # sea surface temperature (actually
                                         # sst?)
         "zg":           (129, "z"),     # geopotential
@@ -124,18 +123,22 @@ retrieve,
                                 "removing {}".format(req_batch[-1]))
                 req_batch = req_batch[:-1]
 
-            request_target = "{}.{}.{}.nc".format(
-                self.hemisphere_str[0], levtype, request_month)
+            request_target = os.path.join(
+                self.base_path,
+                self.hemisphere_str[0],
+                "{}.{}.nc".format(levtype, request_month))
 
-            request = HRESDownloader.MARS_TEMPLATE.format(
+            os.makedirs(os.path.dirname(request_target), exist_ok=True)
+
+            request = self.mars_template.format(
                 area="/".join([str(s) for s in self.hemisphere_loc]),
                 date="/".join([el.strftime("%Y%m%d") for el in req_batch]),
                 levtype=levtype,
                 levlist="levelist={},\n  ".format(pressures) if pressures else "",
                 params="/".join(
                     ["{}.{}".format(
-                        HRESDownloader.HRES_PARAMS[v][0],
-                        HRESDownloader.PARAM_TABLE)
+                        self.params[v][0],
+                        self.param_table)
                      for v in var_names]),
                 target=request_target,
                 # We are only allowed date prior to -24 hours ago, dynamically
@@ -168,7 +171,7 @@ retrieve,
                 "{}{}".format(var_name, pressure)
 
             da = getattr(ds,
-                         HRESDownloader.HRES_PARAMS[var_name][1])
+                         self.params[var_name][1])
 
             if pressure:
                 da = da.sel(level=int(pressure))
@@ -201,7 +204,7 @@ retrieve,
 
         dates_per_request = \
             batch_requested_dates(self._dates,
-                                  attribute=self._group_dates_by)
+                                  attribute=self.group_dates_by)
 
         for req_batch in dates_per_request:
             if len(sfc_vars) > 0:
@@ -249,21 +252,181 @@ retrieve,
             # We want the geopotential height as per ERA5
             cube_ease /= 9.80665
 
+    @property
+    def mars_template(self):
+        return getattr(self, "MARS_TEMPLATE")
 
-def main():
+    @property
+    def params(self):
+        return getattr(self, "HRES_PARAMS")
+
+    @property
+    def param_table(self):
+        return getattr(self, "PARAM_TABLE")
+
+
+class SEASDownloader(HRESDownloader):
+    # TODO: step should be configurable for this downloader
+    # TODO: unsure why, but multiple dates break the download with
+    #  ERROR 89 (MARS_EXPECTED_FIELDS): Expected 4700, got 2350
+    MARS_TEMPLATE = """
+retrieve,
+    class=od,
+    date={date},
+    expver=1,
+    levtype={levtype},
+    method=1,
+    number=0/1/2/3/4/5/6/7/8/9/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24,
+    origin=ecmf,
+    {levlist}param={params},
+    step=0/to/2232/by/24,
+    stream=mmsf,
+    system=5,
+    time=00:00:00,
+    type=fc,
+    target="{target}",
+    format=netcdf,
+    grid=0.25/0.25,
+    area={area}"""
+
+    def _single_download(self,
+                         var_names: object,
+                         pressures: object,
+                         req_dates: object):
+        """
+
+        :param var_names:
+        :param pressures:
+        :param req_dates:
+        :return:
+        """
+
+        for dt in req_dates:
+            assert dt.year == req_dates[0].year
+
+        downloads = []
+        levtype = "plev" if pressures else "sfc"
+
+        for req_date in req_dates:
+            request_day = req_date.strftime("%Y%m%d")
+
+            logging.info("Downloading daily file {}".format(request_day))
+
+            request_target = os.path.join(
+                self.base_path,
+                self.hemisphere_str[0],
+                "{}.{}.nc".format(levtype, request_day))
+            os.makedirs(os.path.dirname(request_target), exist_ok=True)
+
+            request = self.mars_template.format(
+                area="/".join([str(s) for s in self.hemisphere_loc]),
+                date=req_date.strftime("%Y-%m-%d"),
+                levtype=levtype,
+                levlist="levelist={},\n  ".format(pressures) if pressures else "",
+                params="/".join(
+                    ["{}.{}".format(
+                        self.params[v][0],
+                        self.param_table)
+                     for v in var_names]),
+                target=request_target,
+            )
+
+            if not os.path.exists(request_target):
+                logging.debug("MARS REQUEST: \n{}\n".format(request))
+
+                try:
+                    self._server.execute(request, request_target)
+                except ecmwfapi.api.APIException:
+                    logging.exception("Could not complete ECMWF request: {}")
+                else:
+                    downloads.append(request_target)
+            else:
+                logging.debug("Already have {}".format(request_target))
+                downloads.append(request_target)
+
+        logging.debug("Files downloaded: {}".format(downloads))
+
+        for download_filename in downloads:
+            logging.info("Processing {}".format(download_filename))
+            ds = xr.open_dataset(download_filename)
+            ds = ds.mean("number")
+
+            for var_name, pressure in product(var_names, pressures.split('/')
+                                              if pressures else [None]):
+                var = var_name if not pressure else \
+                    "{}{}".format(var_name, pressure)
+
+                da = getattr(ds, self.params[var_name][1])
+
+                if pressure:
+                    da = da.sel(level=int(pressure))
+
+                self.save_temporal_files(var, da, date_format="%Y%m%d")
+
+            ds.close()
+
+        if self.delete:
+            for downloaded_file in downloads:
+                if os.path.exists(downloaded_file):
+                    logging.info("Removing {}".format(downloaded_file))
+                    os.unlink(downloaded_file)
+
+    def save_temporal_files(self, var, da,
+                            date_format=None,
+                            freq=None):
+        """
+
+        :param var:
+        :param da:
+        :param date_format:
+        :param freq:
+        """
+        var_folder = self.get_data_var_folder(var)
+
+        req_date = pd.to_datetime(da.time.values[0])
+        latlon_path, regridded_name = \
+            self.get_req_filenames(var_folder,
+                                   req_date,
+                                   date_format=date_format)
+
+        logging.info("Retrieving and saving {}".format(latlon_path))
+        da.compute()
+        da.to_netcdf(latlon_path)
+
+        if not os.path.exists(regridded_name):
+            self._files_downloaded.append(latlon_path)
+
+
+def main(identifier, extra_kwargs=None):
     args = download_args()
 
-    logging.info("ERA5 HRES Data Downloading")
-    hres = HRESDownloader(
+    logging.info("ECMWF {} Data Downloading".format(identifier))
+    cls = getattr(sys.modules[__name__], "{}Downloader".format(identifier))
+
+    if extra_kwargs is None:
+        extra_kwargs = dict()
+
+    instance = cls(
+        identifier="mars.{}".format(identifier.lower()),
         var_names=args.vars,
         pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
-        south=args.hemisphere == "south"
+        south=args.hemisphere == "south",
+        **extra_kwargs
     )
-    hres.download()
-    hres.regrid()
-    hres.rotate_wind_data()
+    instance.download()
+    instance.regrid()
+    instance.rotate_wind_data()
 
+
+def seas_main():
+    main("SEAS", dict(
+        group_dates_by="day",
+    ))
+
+
+def hres_main():
+    main("HRES")

@@ -191,24 +191,29 @@ class ClimateDownloader(Downloader):
         logging.debug("No postprocessing in place for {}: {}".
                       format(var, download_path))
 
-    def save_temporal_files(self, var, da, freq=None):
+    def save_temporal_files(self, var, da,
+                            date_format=None,
+                            freq=None):
         """
 
         :param var:
         :param da:
+        :param date_format:
         :param freq:
         """
         var_folder = self.get_data_var_folder(var)
         group_by = "time.{}".format(self._group_dates_by) if not freq else freq
 
-        for year, year_da in da.groupby(group_by):
-            req_date = pd.to_datetime(year_da.time.values[0])
+        for dt, dt_da in da.groupby(group_by):
+            req_date = pd.to_datetime(dt_da.time.values[0])
             latlon_path, regridded_name = \
-                self.get_req_filenames(var_folder, req_date)
+                self.get_req_filenames(var_folder,
+                                       req_date,
+                                       date_format=date_format)
 
             logging.info("Retrieving and saving {}".format(latlon_path))
-            year_da.compute()
-            year_da.to_netcdf(latlon_path)
+            dt_da.compute()
+            dt_da.to_netcdf(latlon_path)
 
             if not os.path.exists(regridded_name):
                 self._files_downloaded.append(latlon_path)
@@ -223,7 +228,7 @@ class ClimateDownloader(Downloader):
             sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'. \
                 format(SIC_HEMI_STR[self.hemisphere_str[0]])
             sic_day_path = os.path.join(self.get_data_var_folder("siconca"),
-                                 sic_day_fname)
+                                        sic_day_fname)
             if not os.path.exists(sic_day_path):
                 logging.info("Downloading single daily SIC netCDF file for "
                              "regridding ERA5 data to EASE grid...")
@@ -451,9 +456,12 @@ class ClimateDownloader(Downloader):
 
         latlon_path = os.path.join(
             var_folder, "{}{}.nc".format(self.pregrid_prefix, filename_date))
-
         regridded_name = os.path.join(
             var_folder, "{}.nc".format(filename_date))
+
+        logging.debug("Got {} filenames: {} and {}".format(
+            self._group_dates_by, latlon_path, regridded_name
+        ))
 
         return latlon_path, regridded_name
 
@@ -475,6 +483,10 @@ class ClimateDownloader(Downloader):
     @download_method.setter
     def download_method(self, method: callable):
         self._download_method = method
+
+    @property
+    def group_dates_by(self):
+        return self._group_dates_by
 
     @property
     def pregrid_prefix(self):

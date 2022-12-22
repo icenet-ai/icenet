@@ -45,6 +45,7 @@ def train_model(
         n_filters_factor: float = 2,
         network_folder: object = None,
         network_save: bool = True,
+        pickup_weights: bool = False,
         pre_load_network: bool = False,
         pre_load_path: object = None,
         seed: int = 42,
@@ -54,7 +55,9 @@ def train_model(
         use_multiprocessing: bool = True,
         use_tensorboard: bool = True,
         use_wandb: bool = True,
-        wandb_offline: bool = False) -> object:
+        wandb_offline: bool = False,
+        wandb_project: str = os.environ.get("ICENET_ENVIRONMENT"),
+        wandb_user: str = os.environ.get("USER")) -> object:
     """
 
     :param run_name:
@@ -75,6 +78,7 @@ def train_model(
     :param n_filters_factor:
     :param network_folder:
     :param network_save:
+    :param pickup_weights:
     :param pre_load_network:
     :param pre_load_path:
     :param seed:
@@ -85,19 +89,21 @@ def train_model(
     :param use_tensorboard:
     :param use_wandb:
     :param wandb_offline:
+    :param wandb_project:
+    :param wandb_user:
     :return:
     """
 
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
     wandb.init(
-        project="icenet",
+        project=wandb_project,
         name="{}.{}".format(run_name, seed),
         notes="{}: run at {}{}".format(run_name,
                                        dt.datetime.now().strftime("%D %T"),
                                        "" if
                                        not pre_load_network else
                                        " preload {}".format(pre_load_path)),
-        entity="jambyr",
+        entity=wandb_user,
         config=dict(
             seed=seed,
             learning_rate=learning_rate,
@@ -218,9 +224,12 @@ def train_model(
         )
 
     if pre_load_network:
-        logging.info("Loading network weights from {}".
-                     format(pre_load_path))
+        logging.info("Loading network weights from {}".format(pre_load_path))
         network.load_weights(pre_load_path)
+    elif pickup_weights and os.path.exists(weights_path):
+        logging.warning("Automagically loading network weights from {}".
+                        format(weights_path))
+        network.load_weights(weights_path)
 
     network.summary()
 
@@ -234,6 +243,7 @@ def train_model(
         callbacks=callbacks_list,
         validation_data=val_ds,
         max_queue_size=max_queue_size,
+        # TODO: not useful for tf.data usage according to docs
         workers=workers,
         use_multiprocessing=use_multiprocessing
     )
@@ -335,11 +345,13 @@ def get_args():
                     dest="additional", nargs="*", default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
     ap.add_argument("--early-stopping", type=int, default=50)
-    ap.add_argument("-m", "--multiprocessing", action="store_true",
-                    default=False)
+    ap.add_argument("-m", "--multiprocessing",
+                    action="store_true", default=False)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
     ap.add_argument("-nw", "--no-wandb", default=False, action="store_true")
     ap.add_argument("-p", "--preload", type=str)
+    ap.add_argument("-pw", "--pickup-weights",
+                    action="store_true", default=False)
     ap.add_argument("-qs", "--max-queue-size", default=10, type=int)
     ap.add_argument("-r", "--ratio", default=1.0, type=float)
     ap.add_argument("-s", "--strategy", default="default",
@@ -350,6 +362,10 @@ def get_args():
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-w", "--workers", type=int, default=4)
     ap.add_argument("-wo", "--wandb-offline", default=False, action="store_true")
+    ap.add_argument("-wp", "--wandb-project",
+                    default=os.environ.get("ICENET_ENVIRONMENT"), type=str)
+    ap.add_argument("-wu", "--wandb-user",
+                    default=os.environ.get("USER"), type=str)
 
     ap.add_argument("--lr", default=1e-4, type=float)
     ap.add_argument("--lr_10e_decay_fac", default=1.0, type=float,
@@ -409,6 +425,7 @@ def main():
                     lr_10e_decay_fac=args.lr_10e_decay_fac,
                     lr_decay_start=args.lr_decay_start,
                     lr_decay_end=args.lr_decay_end,
+                    pickup_weights=args.pickup_weights,
                     pre_load_network=args.preload is not None,
                     pre_load_path=args.preload,
                     max_queue_size=args.max_queue_size,
@@ -419,6 +436,8 @@ def main():
                     use_multiprocessing=args.multiprocessing,
                     use_wandb=not args.no_wandb,
                     wandb_offline=args.wandb_offline,
+                    wandb_project=args.wandb_project,
+                    wandb_user=args.wandb_user,
                     workers=args.workers)
 
     evaluate_model(model_path,

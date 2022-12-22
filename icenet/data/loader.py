@@ -11,6 +11,8 @@ from icenet.utils import setup_logging
 
 @setup_logging
 def create_get_args():
+    implementations = list(IceNetDataLoaderFactory().loader_map)
+
     ap = argparse.ArgumentParser()
     ap.add_argument("name", type=str)
     ap.add_argument("hemisphere", choices=("north", "south"))
@@ -30,6 +32,9 @@ def create_get_args():
     ap.add_argument("-fd", "--forecast-days", dest="forecast_days",
                     default=93, type=int)
 
+    ap.add_argument("-i", "--implementation", type=str,
+                    choices=implementations,
+                    default=implementations[0])
     ap.add_argument("-l", "--lag", type=int, default=2)
 
     ap.add_argument("-ob", "--output-batch-size", dest="batch_size", type=int,
@@ -51,13 +56,11 @@ def create_get_args():
 
 
 def create():
-    # TODO dev #56: collect arguments from staticmethod on implementations
     args = create_get_args()
     dates = process_date_args(args)
 
-    # TODO dev #56: specify implementation from CLI args
     dl = IceNetDataLoaderFactory().create_data_loader(
-        "dask",
+        args.implementation,
         "loader.{}.json".format(args.name),
         args.forecast_name if args.forecast_name else args.name,
         args.lag,

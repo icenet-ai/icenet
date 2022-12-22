@@ -260,13 +260,19 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
              if k not in self._meta_channels
              and not k.endswith("linear_trend")],
             **ds_kwargs)
-        trend_ds = xr.open_mfdataset(
-            [v for k, v in var_files.items()
-             if k.endswith("linear_trend")],
-            **ds_kwargs)
-
         var_ds = var_ds.transpose("yc", "xc", "time")
-        trend_ds = trend_ds.transpose("yc", "xc", "time")
+
+        trend_files = \
+            [v for k, v in var_files.items()
+             if k.endswith("linear_trend")]
+        trend_ds = None
+        
+        if len(trend_files) > 0:
+            trend_ds = xr.open_mfdataset(
+                trend_files,
+                **ds_kwargs)
+
+            trend_ds = trend_ds.transpose("yc", "xc", "time")
 
         args = [
             self._channels,

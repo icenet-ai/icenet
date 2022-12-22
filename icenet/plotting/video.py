@@ -209,6 +209,7 @@ def recurse_data_folders(base_path: object,
     if children is None and lookups is None:
         # TODO: should ideally use scandir for performance
         # TODO: naive hardcoded filtering of files
+        logging.debug("CHILDREN: {} or LOOKUPS: {}".format(children, lookups))
         files = sorted(
             [os.path.join(base_path, f) for f in os.listdir(base_path)
              if os.path.splitext(f)[1] == ".{}".format(filetype)
@@ -220,6 +221,7 @@ def recurse_data_folders(base_path: object,
             return None
     else:
         for subdir in os.listdir(base_path):
+            logging.debug("SUBDIR: {}".format(subdir))
             new_path = os.path.join(base_path, subdir)
 
             if not os.path.isdir(new_path):
@@ -287,7 +289,7 @@ def cli_args():
 
     args.add_argument("-v", "--verbose", action="store_true", default=False)
 
-    args.add_argument("datasets", type=lambda s: s.split(","))
+    args.add_argument("data", type=lambda s: s.split(","))
     args.add_argument("hemisphere", default=[],
                       choices=["north", "south"], nargs="?")
 
@@ -308,7 +310,7 @@ def data_cli():
 
     path_children = [hemis, args.vars]
     video_batches = recurse_data_folders(args.path,
-                                         args.datasets,
+                                         args.data,
                                          path_children,
                                          filetype="nc"
                                          if not args.numpy else "npy")

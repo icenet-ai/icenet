@@ -149,15 +149,15 @@ class SplittingMixin:
             test_ds.prefetch(tf.data.AUTOTUNE)
 
     def check_dataset(self,
-                      dataset: str = "train"):
-        logging.debug("Checking dataset {}".format(dataset))
+                      split: str = "train"):
+        logging.debug("Checking dataset {}".format(split))
 
         decoder = get_decoder(self.shape,
                               self.num_channels,
                               self.n_forecast_days,
                               dtype=self.dtype.__name__)
 
-        for df in getattr(self, "{}_fns".format(dataset)):
+        for df in getattr(self, "{}_fns".format(split)):
             logging.debug("Getting records from {}".format(df))
             try:
                 raw_dataset = tf.data.TFRecordDataset([df])
