@@ -13,8 +13,8 @@ class IceNetDataLoaderFactory:
     def __init__(self):
         self._loader_map = dict(
             dask=icenet.data.loaders.dask.DaskMultiWorkerLoader,
-            # dask_shared=icenet.data.loaders.dask.DaskMultiSharingWorkerLoader,
-            # standard=icenet.data.loaders.stdlib.IceNetDataLoader,
+            dask_shared=icenet.data.loaders.dask.DaskMultiSharingWorkerLoader,
+            standard=icenet.data.loaders.stdlib.IceNetDataLoader,
         )
 
     def add_data_loader(self, loader_name: str, loader_impl: object):
@@ -43,3 +43,7 @@ class IceNetDataLoaderFactory:
         :return:
         """
         return self._loader_map[loader_name](*args, **kwargs)
+
+    @property
+    def loader_map(self):
+        return self._loader_map

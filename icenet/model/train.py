@@ -238,6 +238,7 @@ def train_model(
         callbacks=callbacks_list,
         validation_data=val_ds,
         max_queue_size=max_queue_size,
+        # TODO: not useful for tf.data usage according to docs
         workers=workers,
         use_multiprocessing=use_multiprocessing
     )
