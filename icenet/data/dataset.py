@@ -239,7 +239,11 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         return self._config["loader"][0]
 
     def check_dataset(self,
-                      dataset: str = "train"):
+                      split: str = "train"):
+        """
+
+        :param split:
+        """
         raise NotImplementedError("Checking not implemented for merged sets, "
                                   "consider doing them individually")
 
@@ -256,6 +260,8 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 def get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset")
+    ap.add_argument("-s", "--split",
+                    choices=["train", "val", "test"], default="train")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     args = ap.parse_args()
     return args
@@ -264,4 +270,4 @@ def get_args():
 def check_dataset():
     args = get_args()
     ds = IceNetDataSet(args.dataset)
-    ds.check_dataset()
+    ds.check_dataset(args.split)

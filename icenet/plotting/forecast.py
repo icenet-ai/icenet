@@ -31,7 +31,7 @@ def plot_binary_accuracy(masks: object,
                          output_path: object =
                          os.path.join("plot", "binacc.png")) -> object:
     """
-    TODO: Split out getting and plotting binary accuracy
+
     :param masks:
     :param fc_da:
     :param cmp_da:
