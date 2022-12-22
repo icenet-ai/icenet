@@ -45,6 +45,7 @@ def train_model(
         n_filters_factor: float = 2,
         network_folder: object = None,
         network_save: bool = True,
+        pickup_weights: bool = False,
         pre_load_network: bool = False,
         pre_load_path: object = None,
         seed: int = 42,
@@ -77,6 +78,7 @@ def train_model(
     :param n_filters_factor:
     :param network_folder:
     :param network_save:
+    :param pickup_weights:
     :param pre_load_network:
     :param pre_load_path:
     :param seed:
@@ -222,9 +224,12 @@ def train_model(
         )
 
     if pre_load_network:
-        logging.info("Loading network weights from {}".
-                     format(pre_load_path))
+        logging.info("Loading network weights from {}".format(pre_load_path))
         network.load_weights(pre_load_path)
+    elif pickup_weights and os.path.exists(weights_path):
+        logging.warning("Automagically loading network weights from {}".
+                        format(weights_path))
+        network.load_weights(weights_path)
 
     network.summary()
 
@@ -340,11 +345,13 @@ def get_args():
                     dest="additional", nargs="*", default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
     ap.add_argument("--early-stopping", type=int, default=50)
-    ap.add_argument("-m", "--multiprocessing", action="store_true",
-                    default=False)
+    ap.add_argument("-m", "--multiprocessing",
+                    action="store_true", default=False)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
     ap.add_argument("-nw", "--no-wandb", default=False, action="store_true")
     ap.add_argument("-p", "--preload", type=str)
+    ap.add_argument("-pw", "--pickup-weights",
+                    action="store_true", default=False)
     ap.add_argument("-qs", "--max-queue-size", default=10, type=int)
     ap.add_argument("-r", "--ratio", default=1.0, type=float)
     ap.add_argument("-s", "--strategy", default="default",
@@ -418,6 +425,7 @@ def main():
                     lr_10e_decay_fac=args.lr_10e_decay_fac,
                     lr_decay_start=args.lr_decay_start,
                     lr_decay_end=args.lr_decay_end,
+                    pickup_weights=args.pickup_weights,
                     pre_load_network=args.preload is not None,
                     pre_load_path=args.preload,
                     max_queue_size=args.max_queue_size,
