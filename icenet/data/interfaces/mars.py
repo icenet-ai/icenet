@@ -163,7 +163,7 @@ retrieve,
         logging.debug("Files downloaded: {}".format(downloads))
 
         ds = xr.open_mfdataset(downloads)
-        ds = ds.resample(time='1D').mean()
+        ds = ds.resample(time='1D', keep_attrs=True).mean(keep_attrs=True)
 
         for var_name, pressure in product(var_names, pressures.split('/')
                                           if pressures else [None]):
