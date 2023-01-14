@@ -87,6 +87,9 @@ setup(
             "icenet.process.forecasts:broadcast_main",
             "icenet_output_reproject = "
             "icenet.process.forecasts:reproject_main",
+
+            "icenet_result_threshold = "
+            "icenet.results.threshold:threshold_main"
         ],
     },
     python_requires='>=3.7, <4',
