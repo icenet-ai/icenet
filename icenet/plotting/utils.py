@@ -2,12 +2,14 @@ import datetime as dt
 import glob
 import logging
 import os
+import re
 
 import pandas as pd
 import xarray as xr
 
+from ibicus.debias import LinearScaling
+
 from icenet.process.forecasts import broadcast_forecast
-from icenet.data.sic.mask import Masks
 
 
 def get_seas_forecast_da(hemisphere: str,
@@ -18,23 +20,73 @@ def get_seas_forecast_da(hemisphere: str,
     """
     Atmospheric model Ensemble 15-day forecast (Set III - ENS)
 
+Coordinates:
+  * time                          (time) datetime64[ns] 2022-04-01 ... 2022-0...
+  * yc                            (yc) float64 5.388e+06 ... -5.388e+06
+  * xc                            (xc) float64 -5.388e+06 ... 5.388e+06
+
     :param hemisphere:
     :param date:
     :param bias_correct:
     :param source_path:
     """
 
-    # TODO: why aren't we using SEASDownloader?
-    # TODO: we could download here potentially
-
     seas_file = os.path.join(
         source_path,
         hemisphere,
         "siconca",
         "{}.nc".format(date.strftime("%Y%m%d")))
-    seas_ds = xr.open_dataset(seas_file)
+    seas_da = xr.open_dataset(seas_file).siconc
 
-    return seas_ds.siconc
+    if bias_correct:
+        (start_date, end_date) = (
+            date - dt.timedelta(days=3650),
+            date - dt.timedelta(days=1)
+        )
+        obs_da = get_obs_da(hemisphere, start_date, end_date)
+        seas_hist_files = dict(sorted({el: dt.datetime.strptime(
+                                       os.path.basename(el)[0:8], "%Y%m%d")
+                                      for el in
+                                      glob.glob(os.path.join(source_path,
+                                                             hemisphere,
+                                                             "siconca",
+                                                             "*.nc"))
+                                      if re.search(r'^\d{8}\.nc$',
+                                                   os.path.basename(el))
+                                      and el != seas_file}.items()))
+
+        def strip_overlapping_time(ds):
+            data_file = ds.encoding["source"]
+            idx = list(seas_hist_files.keys()).index(data_file)
+            if idx < len(seas_hist_files) - 1:
+                max_date = seas_hist_files[
+                               list(seas_hist_files.keys())[idx + 1]] \
+                           - dt.timedelta(days=1)
+                logging.debug("Stripping {} to {}".format(data_file, max_date))
+                return ds.sel(time=slice(None, max_date))
+            else:
+                logging.debug("Not stripping {}".format(data_file))
+                return ds
+
+        hist_da = xr.open_mfdataset(seas_hist_files,
+                                    preprocess=strip_overlapping_time).siconc
+        debiaser = LinearScaling(delta_type="additive",
+                                 variable="siconc",
+                                 reasonable_physical_range=[0., 1.])
+
+        logging.info("Debiaser input ranges: obs {:.2f} - {:.2f}, "
+                     "hist {:.2f} - {:.2f}, fut {:.2f} - {:.2f}".
+                     format(obs_da.min(), obs_da.max(),
+                            hist_da.min(), hist_da.max(),
+                            seas_da.min(), seas_da.max()))
+
+        res = debiaser.apply(obs_da.values,
+                             hist_da.values,
+                             seas_da.values)
+
+        logging.info("Debiaser output range: {} - {}".
+                     format(res.min(), res.max()))
+    return seas_da
 
 
 def get_forecast_ds(forecast_file: object,

@@ -172,6 +172,9 @@ def forecast_plot_args(ecmwf: bool = True) -> object:
     ap.add_argument("forecast_file", type=str)
     ap.add_argument("forecast_date", type=date_arg)
 
+    ap.add_argument("-b", "--bias-correct",
+                    help="Bias correct SEAS forecast array",
+                    action="store_true", default=False)
     ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
@@ -204,7 +207,10 @@ def binary_accuracy():
                      timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
-    seas = get_seas_forecast_da(args.hemisphere, args.forecast_date) \
+    seas = get_seas_forecast_da(
+        args.hemisphere,
+        args.forecast_date,
+        bias_correct=args.bias_correct) \
         if args.ecmwf else None
 
     seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
