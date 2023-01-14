@@ -230,15 +230,6 @@ class ERA5Downloader(ClimateDownloader):
         """
         (datafile_path, datafile_name) = os.path.split(datafile)
         var_name = datafile_path.split(os.sep)[self._var_name_idx]
-
-        # FIXME: are these here or preproc?
-        # if var_name == 'zg500' or var_name == 'zg250':
-        #   da_daily = da_daily / 9.80665
-
-        # if var_name == 'tos':
-        #     # Replace every value outside of SST < 1000 with
-        #    zeros (the ERA5 masked values)
-        #     da_daily = da_daily.where(da_daily < 1000., 0)
         
         if var_name == 'tos':
             # Overwrite maksed values with zeros
