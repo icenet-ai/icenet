@@ -9,6 +9,7 @@ dm-tree
 eccodes
 ecmwf-api-client
 h5py==2.10.0
+ibicus
 imageio
 imageio-ffmpeg
 model-ensembler
