@@ -39,9 +39,10 @@ Coordinates:
     seas_da = xr.open_dataset(seas_file).siconc
 
     if bias_correct:
+        # Let's have some maximum, though it's quite high
         (start_date, end_date) = (
-            date - dt.timedelta(days=3 * 365),
-            date + dt.timedelta(days=3 * 365)
+            date - dt.timedelta(days=10 * 365),
+            date + dt.timedelta(days=10 * 365)
         )
         obs_da = get_obs_da(hemisphere, start_date, end_date)
         seas_hist_files = dict(sorted({os.path.abspath(el):
@@ -84,16 +85,16 @@ Coordinates:
 
         logging.info("Debiaser input ranges: obs {:.2f} - {:.2f}, "
                      "hist {:.2f} - {:.2f}, fut {:.2f} - {:.2f}".
-                     format(obs_da.min(), obs_da.max(),
-                            hist_da.min(), hist_da.max(),
-                            seas_da.min(), seas_da.max()))
+                     format(float(obs_da.min()), float(obs_da.max()),
+                            float(hist_da.min()), float(hist_da.max()),
+                            float(seas_da.min()), float(seas_da.max())))
 
-        res = debiaser.apply(obs_da.values,
-                             hist_da.values,
-                             seas_da.values)
-
-        logging.info("Debiaser output range: {} - {}".
-                     format(res.min(), res.max()))
+        seas_array = debiaser.apply(obs_da.values,
+                                    hist_da.values,
+                                    seas_da.values)
+        seas_da.values = seas_array
+        logging.info("Debiaser output range: {:.2f} - {:.2f}".
+                     format(float(seas_da.min()), float(seas_da.max())))
     return seas_da
 
 
