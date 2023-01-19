@@ -57,7 +57,13 @@ Coordinates:
 
         def strip_overlapping_time(ds):
             data_file = ds.encoding["source"]
-            idx = list(seas_hist_files.keys()).index(data_file)
+
+            try:
+                idx = list(seas_hist_files.keys()).index(data_file)
+            except ValueError:
+                logging.exception("\n{} not in \n\n{}".format(data_file,
+                                                              seas_hist_files))
+
             if idx < len(seas_hist_files) - 1:
                 max_date = seas_hist_files[
                                list(seas_hist_files.keys())[idx + 1]] \
