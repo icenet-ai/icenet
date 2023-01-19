@@ -49,6 +49,8 @@ def csv_arg(string: str) -> list:
     :return:
     """
     csv_items = []
+    string = re.sub(r'^\'(.*)\'$', r'\1', string)
+    
     for el in string.split(","):
         if len(el) == 0:
             csv_items.append(None)
@@ -64,6 +66,8 @@ def csv_of_csv_arg(string: str) -> list:
     :return:
     """
     csv_items = []
+    string = re.sub(r'^\'(.*)\'$', r'\1', string)
+
     for el in string.split(","):
         if len(el) == 0:
             csv_items.append(None)
