@@ -176,9 +176,10 @@ def get_obs_da(hemisphere: str,
                                       "siconca", "{}.nc".format(yr)))]
 
     if len(obs_dfs) < len(obs_years):
-        logging.warning("Cannot find necessary obs source files for {} in {}".
-                        format(obs_years, obs_source))
+        logging.warning("Cannot find all obs source files for {} - {} in {}".
+                        format(start_date, end_date, obs_source))
 
+    logging.info("Got files: {}".format(obs_dfs))
     obs_ds = xr.open_mfdataset(obs_dfs)
     obs_ds = obs_ds.sel(time=slice(start_date, end_date))
 
