@@ -40,8 +40,8 @@ Coordinates:
 
     if bias_correct:
         (start_date, end_date) = (
-            date - dt.timedelta(days=3650),
-            date - dt.timedelta(days=1)
+            date - dt.timedelta(days=3 * 365),
+            date + dt.timedelta(days=3 * 365)
         )
         obs_da = get_obs_da(hemisphere, start_date, end_date)
         seas_hist_files = dict(sorted({el: dt.datetime.strptime(
