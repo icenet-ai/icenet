@@ -44,7 +44,8 @@ Coordinates:
             date + dt.timedelta(days=3 * 365)
         )
         obs_da = get_obs_da(hemisphere, start_date, end_date)
-        seas_hist_files = dict(sorted({el: dt.datetime.strptime(
+        seas_hist_files = dict(sorted({os.path.abspath(el):
+                                       dt.datetime.strptime(
                                        os.path.basename(el)[0:8], "%Y%m%d")
                                       for el in
                                       glob.glob(os.path.join(source_path,
@@ -56,13 +57,14 @@ Coordinates:
                                       and el != seas_file}.items()))
 
         def strip_overlapping_time(ds):
-            data_file = ds.encoding["source"]
+            data_file = os.path.abspath(ds.encoding["source"])
 
             try:
                 idx = list(seas_hist_files.keys()).index(data_file)
             except ValueError:
                 logging.exception("\n{} not in \n\n{}".format(data_file,
                                                               seas_hist_files))
+                return None
 
             if idx < len(seas_hist_files) - 1:
                 max_date = seas_hist_files[
