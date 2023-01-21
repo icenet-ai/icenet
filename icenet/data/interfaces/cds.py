@@ -243,6 +243,41 @@ class ERA5Downloader(ClimateDownloader):
             logging.debug("ERA5 additional regrid: {}".format(var_name))
             cube_ease /= 9.80665
 
+    def filter_expver_data(self, da):
+        """Fix issue with expver non-validated data
+
+        ERA5 data within several months of the present date is considered as a
+        separate system, ERA5T. Downloads that contain both ERA5 and ERA5T data
+        produce datasets with a length-2 'expver' dimension along axis 1, taking a value
+        of 1 for ERA5 and a value of 5 for ERA5. This results in all-NaN values
+        along latitude & longitude outside of the valid expver time span. This function
+        finds the ERA5 and ERA5T time indexes and removes the expver dimension
+        by concatenating the sub-arrays where the data is not NaN.
+
+        Reference: https://confluence.ecmwf.int/pages/viewpage.action?pageId=173385064
+
+        :param da:
+        :return:
+        """
+
+        if 'expver' in da.coords:
+            # Find invalid time indexes in expver == 1 (ERA5) dataset
+            arr = da.sel(expver=1).data
+            arr = arr.reshape(arr.shape[0], -1)
+            arr = np.sort(arr, axis=1)
+            era5t_time_idxs = (arr[:, 1:] != arr[:, :-1]).sum(axis=1)+1 == 1
+            era5t_time_idxs = (era5t_time_idxs) | (np.isnan(arr[:, 0]))
+
+            era5_time_idxs = ~era5t_time_idxs
+
+            da = xr.concat((da[era5_time_idxs, 0, :], da[era5t_time_idxs, 1, :]), dim='time')
+
+            da = da.reset_coords('expver', drop=True)
+
+        raise RuntimeError("Please do not use this method without addressing "
+                           "state recording against data date requests #")
+        #return da
+
 
 def main():
     args = download_args(choices=["cdsapi", "toolbox"],
