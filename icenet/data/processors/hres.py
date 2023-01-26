@@ -49,7 +49,7 @@ def main():
         dates["val"],
         dates["test"],
         linear_trends=["siconca"],
-        linear_trend_days=args.forecast_days,
+        linear_trend_days=args.trend_lead,
         north=args.hemisphere == "north",
         ref_procdir=args.ref,
         south=args.hemisphere == "south",
@@ -59,6 +59,5 @@ def main():
     )
     hres_osi.init_source_data(
         lag_days=args.lag,
-        lead_days=args.forecast_days,
     )
     hres_osi.process()
