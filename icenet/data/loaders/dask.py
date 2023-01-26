@@ -250,7 +250,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
 
         ds_kwargs = dict(
             chunks=dict(time=1, yc=self._shape[0], xc=self._shape[1]),
-            drop_variables=["month", "plev", "realization"],
+            drop_variables=["month", "plev", "level", "realization"],
             parallel=True,
         )
         var_files = self.get_sample_files()

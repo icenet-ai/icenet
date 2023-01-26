@@ -30,7 +30,7 @@ def main():
         dates["val"],
         dates["test"],
         linear_trends=args.trends,
-        linear_trend_days=args.trend_lead,
+        linear_trend_steps=args.trend_lead,
         north=args.hemisphere == "north",
         ref_procdir=args.ref,
         south=args.hemisphere == "south",
