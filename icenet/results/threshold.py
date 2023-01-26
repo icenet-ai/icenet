@@ -1,19 +1,14 @@
 import argparse
 import logging
-import os
-import sys
-
-import datetime as dt
 
 import numpy as np
-import pandas as pd
 import xarray as xr
 
 from icenet.data.cli import date_arg
 from icenet.utils import setup_logging
 
 
-def threshold_exceeds(da, sic_thresh, window_length=1):
+def threshold_exceeds(da: object, sic_thresh: float, window_length: int = 1):
     """
 
     :param da:

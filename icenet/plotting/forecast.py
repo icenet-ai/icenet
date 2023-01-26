@@ -82,6 +82,7 @@ def sic_error_video(fc_da: object,
     :param obs_da:
     :param land_mask:
     :param output_path:
+    :returns: matplotlib animation
     """
 
     diff = fc_da - obs_da
@@ -164,6 +165,7 @@ def sic_error_video(fc_da: object,
 def forecast_plot_args(ecmwf: bool = True) -> object:
     """
 
+    :param ecmwf:
     :return:
     """
 
@@ -172,13 +174,13 @@ def forecast_plot_args(ecmwf: bool = True) -> object:
     ap.add_argument("forecast_file", type=str)
     ap.add_argument("forecast_date", type=date_arg)
 
-    ap.add_argument("-b", "--bias-correct",
-                    help="Bias correct SEAS forecast array",
-                    action="store_true", default=False)
     ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     if ecmwf:
+        ap.add_argument("-b", "--bias-correct",
+                        help="Bias correct SEAS forecast array",
+                        action="store_true", default=False)
         ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
 
     args = ap.parse_args()
