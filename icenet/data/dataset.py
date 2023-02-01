@@ -54,8 +54,15 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         self._shape = tuple(self._config["shape"])
         self._shuffling = shuffling
 
-        if self._config["loader_path"] and \
-                os.path.exists(self._config["loader_path"]):
+        if "loader_path" in self._config:
+            logging.warning("Configuration uses old \"loader_path\" attribute, "
+                            "this should change to \"dataset_path\"")
+            path_attr = "loader_path"
+        else:
+            path_attr = "dataset_path"
+
+        if self._config[path_attr] and \
+                os.path.exists(self._config[path_attr]):
             hemi = self.hemisphere_str[0]
             self.add_records(self.base_path, hemi)
         else:
@@ -204,7 +211,13 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             var_lag_override=other["var_lag_override"])
 
         self._config["loaders"].append(loader)
-        self._config["loader_paths"].append(other["loader_path"])
+
+        if "loader_path" in other:
+            logging.warning("Configuration uses old \"loader_path\" attribute, "
+                            "this should change to \"dataset_path\"")
+            self._config["loader_paths"].append(other["loader_path"])
+        else:
+            self._config["loader_paths"].append(other["dataset_path"])
 
         if "counts" not in self._config:
             self._config["counts"] = other["counts"].copy()
