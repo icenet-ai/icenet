@@ -36,7 +36,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
-    ],
+        ],
     entry_points={
         "console_scripts": [
             "icenet_data_masks = icenet.data.sic.mask:main",
@@ -91,14 +91,14 @@ setup(
             "icenet_result_threshold = "
             "icenet.results.threshold:threshold_main"
         ],
-    },
+        },
     python_requires='>=3.7, <4',
     install_requires=get_content("requirements.txt"),
     include_package_data=True,
     extras_require={
         "dev": get_content("requirements_dev.txt"),
         "docs": get_content("docs/requirements.txt"),
-    },
+        },
     test_suite='tests',
     tests_require=['pytest>=3'],
     zip_safe=False,

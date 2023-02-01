@@ -12,7 +12,6 @@ h5py==2.10.0
 ibicus
 imageio
 imageio-ffmpeg
-model-ensembler
 motuclient
 netcdf4
 plotly
