@@ -288,7 +288,7 @@ class IceNetBaseDataLoader(Generator):
                 for i in range(1, s + 1)],
             "counts":           counts,
             "dtype":            self._dtype.__name__,
-            "loader_config":    self._configuration_path,
+            "loader_config":    os.path.abspath(self._configuration_path),
             "missing_dates":    [date.strftime(
                 IceNetPreProcessor.DATE_FORMAT) for date in
                 self._missing_dates],
