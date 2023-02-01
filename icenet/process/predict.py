@@ -182,6 +182,11 @@ def create_cf_output():
         coords=dict(
             time=[pd.Timestamp(d) for d in dates],
             leadtime=np.arange(1, arr.shape[3] + 1, 1),
+            forecast_date=(("time", "leadtime"), [
+                [pd.Timestamp(date + dt.timedelta(days=int(lead_idx)))
+                 for lead_idx in np.arange(1, arr.shape[3] + 1, 1)]
+                for date in dates
+            ]),
             xc=ref_cube.coord("projection_x_coordinate").points,
             yc=ref_cube.coord("projection_y_coordinate").points,
             lat=(("yc", "xc"), ref_cube.coord("latitude").points),
