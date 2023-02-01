@@ -163,9 +163,6 @@ def process_args(dates: bool = True,
     if dates:
         add_date_args(ap)
 
-        # FIXME#11: not allowing this option currently
-        # ap.add_argument("-d", "--date-ratio", type=float, default=1.0)
-
     ap.add_argument("-l", "--lag", type=int, default=2)
     ap.add_argument("-f", "--forecast", type=int, default=93)
 
