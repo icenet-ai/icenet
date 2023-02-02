@@ -63,8 +63,7 @@ def plot_binary_accuracy(masks: object,
                          fc_da: object,
                          cmp_da: object,
                          obs_da: object,
-                         output_path: object =
-                         os.path.join("plot", "binacc.png")) -> object:
+                         output_path: object) -> object:
     """
 
     :param masks:
@@ -101,6 +100,9 @@ def plot_binary_accuracy(masks: object,
     ax.xaxis.set_minor_locator(mdates.DayLocator())
     ax.legend(loc='lower right')
 
+    output_path = os.path.join("plot", "binacc.png") \
+        if not output_path else output_path
+    logging.info("Saving to {}".format(output_path))
     plt.savefig(output_path)
 
     return binacc_fc, binacc_cmp
@@ -109,8 +111,7 @@ def plot_binary_accuracy(masks: object,
 def sic_error_video(fc_da: object,
                     obs_da: object,
                     land_mask: object,
-                    output_path: object =
-                    os.path.join("plot", "sic_error.mp4")) -> object:
+                    output_path: object) -> object:
     """
 
     :param fc_da:
@@ -190,6 +191,8 @@ def sic_error_video(fc_da: object,
 
     plt.close()
 
+    output_path  = os.path.join("plot", "sic_error.mp4") \
+        if not output_path else output_path
     logging.info("Saving plot to {}".format(output_path))
     animation.save(output_path,
                    fps=10,
