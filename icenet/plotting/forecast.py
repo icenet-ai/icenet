@@ -24,6 +24,40 @@ matplotlib.rcParams.update({
 })
 
 
+def region_arg(argument: str):
+    """
+
+    :param argument:
+    :returns:
+    """
+    try:
+        x1, y1, x2, y2 = tuple([int(s) for s in argument.split(",")])
+
+        assert x2 > x1 and y2 > y1, "Region is not valid"
+        return x1, y1, x2, y2
+    except TypeError:
+        raise argparse.ArgumentTypeError(
+            "Region argument must be list of four integers")
+
+
+def process_regions(region: tuple,
+                    data: tuple) -> tuple:
+    """
+
+    :param region:
+    :param data:
+    :return:
+    """
+
+    assert len(region) == 4, "Region needs to be a list of four integers"
+    x1, y1, x2, y2 = region
+    assert x2 > x1 and y2 > y1, "Region is not valid"
+
+    for idx, arr in enumerate(data):
+        data[idx] = arr[..., y1:y2, x1:x2]
+    return data
+
+
 def plot_binary_accuracy(masks: object,
                          fc_da: object,
                          cmp_da: object,
@@ -174,6 +208,8 @@ def forecast_plot_args(ecmwf: bool = True) -> object:
     ap.add_argument("forecast_file", type=str)
     ap.add_argument("forecast_date", type=date_arg)
 
+    ap.add_argument("-r", "--region", default=None, type=region_arg)
+
     ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
@@ -216,10 +252,15 @@ def binary_accuracy():
         if args.ecmwf else None
 
     seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
+    seas = seas.isel(time=slice(1, None))
+
+    if args.region:
+        seas, fc, obs, masks = process_regions(args.region,
+                                               [seas, fc, obs, masks])
 
     plot_binary_accuracy(masks,
                          fc,
-                         seas.isel(time=slice(1, None)),
+                         seas,
                          obs,
                          args.output_path)
 
@@ -241,6 +282,9 @@ def sic_error():
                      pd.to_datetime(args.forecast_date) +
                      timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+
+    if args.region:
+        fc, obs, masks = process_regions(args.region, [fc, obs, masks])
 
     sic_error_video(fc,
                     obs,

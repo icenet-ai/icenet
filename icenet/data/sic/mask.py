@@ -47,6 +47,7 @@ class Masks(Generator):
         self._polarhole_radii = polarhole_radii
         self._dtype = dtype
         self._shape = data_shape
+        self._region = (slice(None, None), slice(None, None))
 
         self.init_params()
 
@@ -193,7 +194,7 @@ class Masks(Generator):
                                "want to address this!")
 
         # logging.debug("Loading active cell mask {}".format(mask_path))
-        return np.load(mask_path)
+        return np.load(mask_path)[self._region]
 
     def get_active_cell_da(self,
                            src_da: object) -> object:
@@ -211,7 +212,7 @@ class Masks(Generator):
                 'yc': src_da.yc.values,
                 'xc': src_da.xc.values,
             }
-        )
+        )[self._region]
 
     def get_land_mask(self,
                       land_mask_filename: str = LAND_MASK_FILENAME) -> object:
@@ -229,7 +230,7 @@ class Masks(Generator):
                                "address this!")
 
         # logging.debug("Loading land mask {}".format(mask_path))
-        return np.load(mask_path)
+        return np.load(mask_path)[self._region]
 
     def get_polarhole_mask(self,
                            date: object) -> object:
@@ -247,7 +248,7 @@ class Masks(Generator):
                                               "polarhole{}_mask.npy".
                                               format(i + 1))
                 # logging.debug("Loading polarhole {}".format(polarhole_path))
-                return np.load(polarhole_path)
+                return np.load(polarhole_path)[self._region]
         return None
 
     def get_blank_mask(self) -> object:
@@ -255,7 +256,25 @@ class Masks(Generator):
 
         :return:
         """
-        return np.full(self._shape, False)
+        return np.full(self._shape, False)[self._region]
+
+    def __getitem__(self, item):
+        """
+
+        This might be a semantically dodgy thing to do, but it works for the mo
+
+        :param item:
+        """
+        logging.info("Mask region set to: {}".format(item))
+        self._region = item
+        return self
+
+    def reset_region(self):
+        """
+
+        """
+        logging.info("Mask region reset, whole mask will be returned")
+        self._region = (slice(None, None), slice(None, None))
 
 
 def main():
