@@ -212,7 +212,7 @@ class Masks(Generator):
                 'yc': src_da.yc.values,
                 'xc': src_da.xc.values,
             }
-        )[self._region]
+        )
 
     def get_land_mask(self,
                       land_mask_filename: str = LAND_MASK_FILENAME) -> object:

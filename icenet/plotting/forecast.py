@@ -54,7 +54,8 @@ def process_regions(region: tuple,
     assert x2 > x1 and y2 > y1, "Region is not valid"
 
     for idx, arr in enumerate(data):
-        data[idx] = arr[..., y1:y2, x1:x2]
+        if arr is not None:
+            data[idx] = arr[..., y1:y2, x1:x2]
     return data
 
 
@@ -245,14 +246,17 @@ def binary_accuracy():
                      timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
-    seas = get_seas_forecast_da(
-        args.hemisphere,
-        args.forecast_date,
-        bias_correct=args.bias_correct) \
-        if args.ecmwf else None
+    if args.ecmwf:
+        seas = get_seas_forecast_da(
+            args.hemisphere,
+            args.forecast_date,
+            bias_correct=args.bias_correct) \
+            if args.ecmwf else None
 
-    seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
-    seas = seas.isel(time=slice(1, None))
+        seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
+        seas = seas.isel(time=slice(1, None))
+    else:
+        seas = None
 
     if args.region:
         seas, fc, obs, masks = process_regions(args.region,
