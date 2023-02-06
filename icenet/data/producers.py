@@ -122,7 +122,7 @@ class Downloader(DataProducer):
 
     @abstractmethod
     def download(self):
-        """
+        """Abstract download method for this downloader
 
         """
         raise NotImplementedError("{}.download is abstract".

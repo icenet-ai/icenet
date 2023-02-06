@@ -88,8 +88,13 @@ class ClimateDownloader(Downloader):
                                "base path".format(self.hemisphere_str))
 
     def download(self):
-        """
+        """Handles concurrent (threaded) downloading for variables
 
+        This takes dates, variables and levels as configured, batches them into
+        requests and submits those via a ThreadPoolExecutor for concurrent
+        downloading. Returns nothing, relies on _single_download to implement
+        appropriate updates to this object to record state changes arising from
+        downloading.
         """
 
         logging.info("Building request(s), downloading and daily averaging "
