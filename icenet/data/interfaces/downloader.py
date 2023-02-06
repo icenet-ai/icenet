@@ -38,7 +38,7 @@ class ClimateDownloader(Downloader):
     :param max_threads:
     :param postprocess:
     :param pregrid_prefix:
-    :param pressure_levels:
+    :param levels:
     :param var_name_idx:
     :param var_names:
     """
@@ -48,10 +48,10 @@ class ClimateDownloader(Downloader):
                  delete_tempfiles: bool = True,
                  download: bool = True,
                  group_dates_by: str = "year",
+                 levels: object = (),
                  max_threads: int = 1,
                  postprocess: bool = True,
                  pregrid_prefix: str = "latlon_",
-                 pressure_levels: object = (),
                  var_name_idx: int = -1,
                  var_names: object = (),
                  **kwargs):
@@ -62,18 +62,18 @@ class ClimateDownloader(Downloader):
         self._download = download
         self._files_downloaded = []
         self._group_dates_by = group_dates_by
+        self._levels = list(levels)
         self._masks = Masks(north=self.north, south=self.south)
         self._max_threads = max_threads
         self._postprocess = postprocess
         self._pregrid_prefix = pregrid_prefix
-        self._pressure_levels = list(pressure_levels)
         self._sic_ease_cubes = dict()
         self._var_name_idx = var_name_idx
         self._var_names = list(var_names)
 
         assert len(self._var_names), "No variables requested"
-        assert len(self._pressure_levels) == len(self._var_names), \
-            "# of pressures must match # vars"
+        assert len(self._levels) == len(self._var_names), \
+            "# of levels must match # vars"
 
         self._download_method = None
 
@@ -103,26 +103,25 @@ class ClimateDownloader(Downloader):
         requests = list()
 
         for idx, var_name in enumerate(self.var_names):
-            pressures = [None] if not self.pressure_levels[idx] else \
-                self._pressure_levels[idx]
+            levels = [None] if not self.levels[idx] else self.levels[idx]
 
             dates_per_request = \
                 batch_requested_dates(self._dates,
                                       attribute=self._group_dates_by)
 
-            for var_prefix, pressure, req_date in \
-                    product([var_name], pressures, dates_per_request):
-                requests.append((var_prefix, pressure, req_date))
+            for var_prefix, level, req_date in \
+                    product([var_name], levels, dates_per_request):
+                requests.append((var_prefix, level, req_date))
 
         with ThreadPoolExecutor(max_workers=
                                 min(len(requests), self._max_threads)) \
                 as executor:
             futures = []
 
-            for var_prefix, pressure, req_date in requests:
+            for var_prefix, level, req_date in requests:
                 future = executor.submit(self._single_download,
                                          var_prefix,
-                                         pressure,
+                                         level,
                                          req_date)
                 futures.append(future)
 
@@ -157,7 +156,7 @@ class ClimateDownloader(Downloader):
                          var_prefix: str,
                          level: object,
                          req_dates: object):
-        """Implements a single download from CMEMS
+        """Implements a single download
 
         :param var_prefix: the icenet variable name
         :param level: the height to download
@@ -494,12 +493,12 @@ class ClimateDownloader(Downloader):
         return self._group_dates_by
 
     @property
-    def pregrid_prefix(self):
-        return self._pregrid_prefix
+    def levels(self):
+        return self._levels
 
     @property
-    def pressure_levels(self):
-        return self._pressure_levels
+    def pregrid_prefix(self):
+        return self._pregrid_prefix
 
     @property
     def var_names(self):

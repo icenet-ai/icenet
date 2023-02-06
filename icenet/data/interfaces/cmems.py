@@ -178,11 +178,11 @@ def main():
     oras5 = ORAS5Downloader(
         var_names=args.vars,
         # TODO: currently hardcoded
-        pressure_levels=[None for _ in args.vars],
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         download=args.delete,
+        levels=[None for _ in args.vars],
         max_threads=args.workers,
         postprocess=args.postprocess,
         north=args.hemisphere == "north",

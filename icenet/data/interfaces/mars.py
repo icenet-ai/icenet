@@ -194,11 +194,11 @@ retrieve,
                      "from {} API".format(self.identifier.upper()))
 
         sfc_vars = [var for idx, var in enumerate(self.var_names)
-                    if not self.pressure_levels[idx]]
-        plev_vars = [var for idx, var in enumerate(self.var_names)
-                     if self.pressure_levels[idx]]
-        pressures = "/".join([str(s) for s in sorted(set(
-            [p for ps in self.pressure_levels if ps for p in ps]))])
+                    if not self.levels[idx]]
+        level_vars = [var for idx, var in enumerate(self.var_names)
+                      if self.levels[idx]]
+        levels = "/".join([str(s) for s in sorted(set(
+            [p for ps in self.levels if ps for p in ps]))])
 
         # req_dates = self.filter_dates_on_data()
 
@@ -210,8 +210,8 @@ retrieve,
             if len(sfc_vars) > 0:
                 self._single_download(sfc_vars, None, req_batch)
 
-            if len(plev_vars) > 0:
-                self._single_download(plev_vars, pressures, req_batch)
+            if len(level_vars) > 0:
+                self._single_download(level_vars, levels, req_batch)
 
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
@@ -409,10 +409,10 @@ def main(identifier, extra_kwargs=None):
     instance = cls(
         identifier="mars.{}".format(identifier.lower()),
         var_names=args.vars,
-        pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
+        levels=args.levels,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
         **extra_kwargs

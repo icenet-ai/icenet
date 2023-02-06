@@ -290,11 +290,11 @@ def main():
     logging.info("ERA5 Data Downloading")
     era5 = ERA5Downloader(
         var_names=args.vars,
-        pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         download=args.download,
+        levels=args.levels,
         max_threads=args.workers,
         postprocess=args.postprocess,
         north=args.hemisphere == "north",
