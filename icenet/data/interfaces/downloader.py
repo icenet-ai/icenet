@@ -2,12 +2,11 @@ import concurrent
 import logging
 import os
 import re
+import tempfile
 
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from itertools import product
-
-import numpy as np
 
 from icenet.data.sic.mask import Masks
 from icenet.data.sic.utils import SIC_HEMI_STR
@@ -21,7 +20,9 @@ from icenet.utils import run_command
 
 import iris
 import iris.exceptions
+import numpy as np
 import pandas as pd
+import xarray as xr
 
 """
 
@@ -135,28 +136,68 @@ class ClimateDownloader(Downloader):
                      format(len(self._files_downloaded)))
 
     def filter_dates_on_data(self,
-                             var_prefix: str,
-                             level: object,
-                             req_dates: object):
-        """
+                             latlon_path: str,
+                             regridded_name: str,
+                             req_dates: object,
+                             check_latlon: bool = True,
+                             check_regridded: bool = True):
+        """Reduces request dates and target files based on existing data
 
-        :param var_prefix:
-        :param level:
+        To avoid what is potentially significant resource expense downloading
+        extant data, downloaders should call this method to reduce the request
+        dates only to that data not already present. This is a fairly naive
+        implementation, in that if the data is present in either the latlon
+        intermediate file OR the target regridded file, we'll not bother
+        downloading again. This can be overridden via the method arguments.
+
+        :param latlon_path:
+        :param regridded_name:
         :param req_dates:
-        :return: req_dates(list), merge_files(list)
+        :return: req_dates(list)
         """
-        logging.warning("NOT IMPLEMENTED YET, WE'LL JUST DOWNLOAD ANYWAY")
-        # TODO: check existing yearly file for req_dates if already in place
-        return req_dates, []
 
-    # FIXME: this can be migrated for Dev#45 and we register in the subclass
-    #  the potential implementations (e.g. CDS has toolbox and API, CMEMS has
-    #  up to four implementations)
+        latlon_dates = list()
+        regridded_dates = list()
+
+        # Latlon files should in theory be aggregated and singular arrays
+        # meaning we can naively open and interrogate the dates
+        if check_latlon and os.path.exists(latlon_path):
+            try:
+                latlon_dates = pd.to_datetime(
+                    xr.open_dataarray(latlon_path).time.values)
+                logging.debug("{} latlon dates already available in {}".format(
+                    len(latlon_dates), latlon_path
+                ))
+            except ValueError:
+                logging.warning("Latlon {} dates not readable, ignoring file")
+        else:
+            check_latlon = False
+
+        if check_regridded and os.path.exists(regridded_name):
+            regridded_dates = pd.to_datetime(
+                xr.open_dataarray(regridded_name).time.values)
+            logging.debug("{} regridded dates already available in {}".format(
+                len(regridded_dates), regridded_name
+            ))
+        else:
+            check_regridded = False
+
+        exclude_dates = set.union(latlon_dates if check_latlon else [] +
+                                  regridded_dates if check_regridded else [])
+        logging.debug("Excluding {} dates already existing from {} dates "
+                      "requested.".format(len(exclude_dates), len(req_dates)))
+
+        return sorted(list(set(req_dates).difference(exclude_dates)))
+
     def _single_download(self,
                          var_prefix: str,
                          level: object,
                          req_dates: object):
-        """Implements a single download
+        """Implements a single download based on configured download_method
+
+        This allows delegation of downloading logic in a consistent manner to
+        the configured download_method, ensuring a guarantee of adherence to
+        naming and processing flow within ClimateDownloader implementations.
 
         :param var_prefix: the icenet variable name
         :param level: the height to download
@@ -172,18 +213,38 @@ class ClimateDownloader(Downloader):
         latlon_path, regridded_name = \
             self.get_req_filenames(var_folder, req_dates[0])
 
-        req_dates, merge_files = \
-            self.filter_dates_on_data(var_prefix, level, req_dates)
+        req_dates = self.filter_dates_on_data(
+            latlon_path, regridded_name, req_dates)
 
-        if self.download and not os.path.exists(latlon_path):
-            self.download_method(var,
-                                 level,
-                                 req_dates,
-                                 latlon_path)
+        if len(req_dates):
+            if self.download: # and not os.path.exists(latlon_path):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    tmp_latlon_path = os.path.join(tmpdir, os.path.basename("{}.download".format(latlon_path)))
 
-            logging.info("Downloaded to {}".format(latlon_path))
-        else:
-            logging.info("Skipping actual download")
+                    self.download_method(var,
+                                         level,
+                                         req_dates,
+                                         tmp_latlon_path)
+
+                    if os.path.exists(latlon_path):
+                        (ll_path, ll_file) = os.path.split(latlon_path)
+                        rename_latlon_path = os.path.join(
+                            ll_path, "{}_old{}".format(
+                                os.path.splitext(ll_file)))
+                        old_da = xr.open_dataarray(rename_latlon_path)
+                        tmp_da = xr.open_dataarray(tmp_latlon_path)
+                        da = xr.concat([old_da, tmp_da], dim="time")
+                        da.to_netcdf(latlon_path)
+                        old_da.close()
+                        tmp_da.close()
+                        os.unlink(rename_latlon_path)
+                    else:
+                        os.rename(tmp_latlon_path, latlon_path)
+
+                logging.info("Downloaded to {}".format(latlon_path))
+            else:
+                logging.info("Skipping actual download to {}".
+                             format(latlon_path))
 
         if self._postprocess:
             self.postprocess(var, latlon_path)
