@@ -52,6 +52,7 @@ class ORAS5Downloader(ClimateDownloader):
                  var_map: object = None,
                  **kwargs):
         super().__init__(*args,
+                         drop_vars=["lambert_azimuthal_equal_area"],
                          identifier=identifier,
                          **kwargs)
 

@@ -2,6 +2,7 @@ import concurrent
 import logging
 import os
 import re
+import shutil
 import tempfile
 
 from abc import abstractmethod
@@ -19,6 +20,8 @@ from icenet.data.interfaces.utils import batch_requested_dates
 from icenet.utils import run_command
 
 import iris
+import iris.analysis
+import iris.cube
 import iris.exceptions
 import numpy as np
 import pandas as pd
@@ -48,6 +51,7 @@ class ClimateDownloader(Downloader):
                  dates: object = (),
                  delete_tempfiles: bool = True,
                  download: bool = True,
+                 drop_vars: list = None,
                  group_dates_by: str = "year",
                  levels: object = (),
                  max_threads: int = 1,
@@ -61,6 +65,7 @@ class ClimateDownloader(Downloader):
         self._dates = list(dates)
         self._delete = delete_tempfiles
         self._download = download
+        self._drop_vars = list() if drop_vars is None else drop_vars
         self._files_downloaded = []
         self._group_dates_by = group_dates_by
         self._levels = list(levels)
@@ -153,6 +158,8 @@ class ClimateDownloader(Downloader):
         :param latlon_path:
         :param regridded_name:
         :param req_dates:
+        :param check_latlon:
+        :param check_regridded:
         :return: req_dates(list)
         """
 
@@ -163,31 +170,29 @@ class ClimateDownloader(Downloader):
         # meaning we can naively open and interrogate the dates
         if check_latlon and os.path.exists(latlon_path):
             try:
-                latlon_dates = pd.to_datetime(
-                    xr.open_dataarray(latlon_path).time.values)
+                latlon_dates = xr.open_dataarray(
+                    latlon_path,
+                    drop_variables=self._drop_vars).time.values
                 logging.debug("{} latlon dates already available in {}".format(
                     len(latlon_dates), latlon_path
                 ))
             except ValueError:
                 logging.warning("Latlon {} dates not readable, ignoring file")
-        else:
-            check_latlon = False
 
         if check_regridded and os.path.exists(regridded_name):
-            regridded_dates = pd.to_datetime(
-                xr.open_dataarray(regridded_name).time.values)
+            regridded_dates = xr.open_dataarray(
+                regridded_name,
+                drop_variables=self._drop_vars).time.values
             logging.debug("{} regridded dates already available in {}".format(
                 len(regridded_dates), regridded_name
             ))
-        else:
-            check_regridded = False
 
-        exclude_dates = set.union(latlon_dates if check_latlon else [] +
-                                  regridded_dates if check_regridded else [])
+        exclude_dates = list(set(latlon_dates).union(set(regridded_dates)))
         logging.debug("Excluding {} dates already existing from {} dates "
                       "requested.".format(len(exclude_dates), len(req_dates)))
 
-        return sorted(list(set(req_dates).difference(exclude_dates)))
+        return sorted(list(pd.to_datetime(req_dates).
+                           difference(pd.to_datetime(exclude_dates))))
 
     def _single_download(self,
                          var_prefix: str,
@@ -217,7 +222,7 @@ class ClimateDownloader(Downloader):
             latlon_path, regridded_name, req_dates)
 
         if len(req_dates):
-            if self.download: # and not os.path.exists(latlon_path):
+            if self._download:
                 with tempfile.TemporaryDirectory() as tmpdir:
                     tmp_latlon_path = os.path.join(tmpdir, os.path.basename("{}.download".format(latlon_path)))
 
@@ -239,18 +244,20 @@ class ClimateDownloader(Downloader):
                         tmp_da.close()
                         os.unlink(rename_latlon_path)
                     else:
-                        os.rename(tmp_latlon_path, latlon_path)
+                        shutil.move(tmp_latlon_path, latlon_path)
 
                 logging.info("Downloaded to {}".format(latlon_path))
             else:
                 logging.info("Skipping actual download to {}".
                              format(latlon_path))
 
-        if self._postprocess:
-            self.postprocess(var, latlon_path)
+            if self._postprocess and os.path.exists(latlon_path):
+                self.postprocess(var, latlon_path)
 
-        if not os.path.exists(regridded_name):
-            self._files_downloaded.append(latlon_path)
+            if len(req_dates) and os.path.exists(latlon_path):
+                self._files_downloaded.append(latlon_path)
+        else:
+            logging.info("No requested dates remain, likely already present")
 
     def postprocess(self, var, download_path):
         logging.debug("No postprocessing in place for {}: {}".
@@ -353,16 +360,20 @@ class ClimateDownloader(Downloader):
         """
         for datafile in files:
             (datafile_path, datafile_name) = os.path.split(datafile)
-            # TODO: mmmm, need to keep consistent with get_daily_filenames
-            new_datafile = os.path.join(datafile_path,
-                                        re.sub(
-                                            r'^{}'.format(self.pregrid_prefix),
-                                            '', datafile_name))
+
+            new_filename = re.sub(r'^{}'.format(
+                self.pregrid_prefix), '', datafile_name)
+            new_datafile = os.path.join(datafile_path, new_filename)
+
+            moved_datafile = None
 
             if os.path.exists(new_datafile):
-                logging.debug("Skipping {} as {} already exists".
-                    format(datafile, os.path.basename(new_datafile)))
-                continue
+                moved_filename = "moved.{}".format(new_filename)
+                moved_datafile = os.path.join(datafile_path, moved_filename)
+                os.rename(new_datafile, moved_datafile)
+
+                logging.info("{} already existed, moved to {}".
+                             format(new_filename, moved_filename))
 
             logging.debug("Regridding {}".format(datafile))
 
@@ -384,10 +395,28 @@ class ClimateDownloader(Downloader):
 
             self.additional_regrid_processing(datafile, cube_ease)
 
-            # TODO: filename chain can be handled better for sharing between
-            #  methods
             logging.info("Saving regridded data to {}... ".format(new_datafile))
             iris.save(cube_ease, new_datafile, fill_value=np.nan)
+
+            # We don't use iris for this, because it's a pain in the bum with
+            # metadata, so it's easier to roll back to using xarray!
+            if moved_datafile is not None:
+                moved_new_datafile = \
+                    os.path.join(datafile_path, "new.{}".format(new_filename))
+                os.rename(new_datafile, moved_new_datafile)
+                d1 = xr.open_dataset(moved_new_datafile)
+
+                logging.info("Concatenating with previous data {}".format(
+                    moved_datafile
+                ))
+                d2 = xr.open_dataset(moved_datafile)
+                new_da = xr.concat([d1, d2], dim="time").sortby("time")
+
+                logging.info("Saving merged data to {}... ".
+                             format(new_datafile))
+                new_da.to_netcdf(new_datafile)
+                os.unlink(moved_datafile)
+                os.unlink(moved_new_datafile)
 
             if self.delete:
                 logging.info("Removing {}".format(datafile))

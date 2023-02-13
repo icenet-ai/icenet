@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 import os
 import requests
@@ -51,6 +52,7 @@ class ERA5Downloader(ClimateDownloader):
                  show_progress: bool = False,
                  **kwargs):
         super().__init__(*args,
+                         drop_vars=["lambert_azimuthal_equal_area"],
                          identifier=identifier,
                          **kwargs)
         self.client = cds.Client(progress=show_progress)
@@ -209,16 +211,19 @@ class ERA5Downloader(ClimateDownloader):
                                "exists in the codebase for expver "
                                "in coordinates")
 
-        da = da.resample(time='1D').mean().compute()
+        doy_counts = da.time.groupby("time.dayofyear").count()
+
+        # There are situations where the API will spit out unordered and
+        # partial data, so we ensure here means come from full days and don't
+        # leave gaps
+        strip_dates_before = min([
+            dt.datetime.strptime("{}-{}".format(
+                d, pd.to_datetime(da.time.values[0]).year), "%j-%Y")
+            for d in doy_counts[doy_counts < 24].dayofyear.values])
+        da = da.where(da.time < pd.Timestamp(strip_dates_before), drop=True)
+
+        da = da.sortby("time").resample(time='1D').mean().compute()
         da.to_netcdf(download_path)
-
-    def _get_dates_for_request(self) -> object:
-        """Appropriate monthly batching of dates for CDS requests
-
-        :return:
-
-        """
-        return batch_requested_dates(self._dates, attribute="month")
 
     def additional_regrid_processing(self,
                                      datafile: str,
@@ -271,7 +276,6 @@ class ERA5Downloader(ClimateDownloader):
             era5_time_idxs = ~era5t_time_idxs
 
             da = xr.concat((da[era5_time_idxs, 0, :], da[era5t_time_idxs, 1, :]), dim='time')
-
             da = da.reset_coords('expver', drop=True)
 
         raise RuntimeError("Please do not use this method without addressing "
