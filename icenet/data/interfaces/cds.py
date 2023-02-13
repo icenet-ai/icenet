@@ -13,7 +13,6 @@ import xarray as xr
 
 from icenet.data.cli import download_args
 from icenet.data.interfaces.downloader import ClimateDownloader
-from icenet.data.interfaces.utils import batch_requested_dates
 
 """
 Module to download hourly ERA5 reanalysis latitude-longitude maps,
@@ -206,22 +205,24 @@ class ERA5Downloader(ClimateDownloader):
         logging.info("Postprocessing CDS API data at {}".format(download_path))
         da = xr.open_dataarray(download_path)
 
-        if 'expver' in da.coords:
-            raise RuntimeError("fix_near_real_time_era5_coords no longer "
-                               "exists in the codebase for expver "
-                               "in coordinates")
-
         doy_counts = da.time.groupby("time.dayofyear").count()
 
         # There are situations where the API will spit out unordered and
         # partial data, so we ensure here means come from full days and don't
-        # leave gaps
+        # leave gaps. If we can avoid expver with this, might as well, so
+        # that's second
         if len(doy_counts[doy_counts < 24]) > 0:
             strip_dates_before = min([
                 dt.datetime.strptime("{}-{}".format(
                     d, pd.to_datetime(da.time.values[0]).year), "%j-%Y")
                 for d in doy_counts[doy_counts < 24].dayofyear.values])
             da = da.where(da.time < pd.Timestamp(strip_dates_before), drop=True)
+
+        if 'expver' in da.coords:
+            logging.warning("expvers {} in coordinates, will process out but "
+                            "this needs further work: expver needs storing for "
+                            "later overwriting".format(da.expver))
+            da = self.filter_expver_data(da)
 
         da = da.sortby("time").resample(time='1D').mean().compute()
         da.to_netcdf(download_path)
@@ -276,7 +277,9 @@ class ERA5Downloader(ClimateDownloader):
 
             era5_time_idxs = ~era5t_time_idxs
 
-            da = xr.concat((da[era5_time_idxs, 0, :], da[era5t_time_idxs, 1, :]), dim='time')
+            da = xr.concat((da[era5_time_idxs, 0, :],
+                            da[era5t_time_idxs, 1, :]),
+                           dim='time')
             da = da.reset_coords('expver', drop=True)
 
         raise RuntimeError("Please do not use this method without addressing "
