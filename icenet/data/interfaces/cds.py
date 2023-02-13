@@ -216,11 +216,12 @@ class ERA5Downloader(ClimateDownloader):
         # There are situations where the API will spit out unordered and
         # partial data, so we ensure here means come from full days and don't
         # leave gaps
-        strip_dates_before = min([
-            dt.datetime.strptime("{}-{}".format(
-                d, pd.to_datetime(da.time.values[0]).year), "%j-%Y")
-            for d in doy_counts[doy_counts < 24].dayofyear.values])
-        da = da.where(da.time < pd.Timestamp(strip_dates_before), drop=True)
+        if len(doy_counts[doy_counts < 24]) > 0:
+            strip_dates_before = min([
+                dt.datetime.strptime("{}-{}".format(
+                    d, pd.to_datetime(da.time.values[0]).year), "%j-%Y")
+                for d in doy_counts[doy_counts < 24].dayofyear.values])
+            da = da.where(da.time < pd.Timestamp(strip_dates_before), drop=True)
 
         da = da.sortby("time").resample(time='1D').mean().compute()
         da.to_netcdf(download_path)
