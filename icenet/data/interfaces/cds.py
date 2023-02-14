@@ -281,10 +281,7 @@ class ERA5Downloader(ClimateDownloader):
                             da[era5t_time_idxs, 1, :]),
                            dim='time')
             da = da.reset_coords('expver', drop=True)
-
-        raise RuntimeError("Please do not use this method without addressing "
-                           "state recording against data date requests in #81")
-        #return da
+        return da
 
 
 def main():
