@@ -236,6 +236,7 @@ class ClimateDownloader(Downloader):
                         rename_latlon_path = os.path.join(
                             ll_path, "{}_old{}".format(
                                 *os.path.splitext(ll_file)))
+                        os.rename(latlon_path, rename_latlon_path)
                         old_da = xr.open_dataarray(rename_latlon_path)
                         tmp_da = xr.open_dataarray(tmp_latlon_path)
                         da = xr.concat([old_da, tmp_da], dim="time")
