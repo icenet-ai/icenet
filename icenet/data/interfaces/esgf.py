@@ -145,9 +145,6 @@ class CMIP6Downloader(ClimateDownloader):
 
         var = var_prefix if not level else "{}{}".format(var_prefix, level)
 
-        req_dates, merge_files = \
-            self.filter_dates_on_data(var_prefix, level, req_dates)
-
         logging.info("Querying ESGF")
         results = []
 
