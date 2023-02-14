@@ -239,7 +239,13 @@ class ClimateDownloader(Downloader):
                         os.rename(latlon_path, rename_latlon_path)
                         old_da = xr.open_dataarray(rename_latlon_path)
                         tmp_da = xr.open_dataarray(tmp_latlon_path)
+
+                        logging.debug("Input (old): \n{}".format(old_da))
+                        logging.debug("Input (dl): \n{}".format(tmp_da))
+
                         da = xr.concat([old_da, tmp_da], dim="time")
+                        logging.debug("Output: \n{}".format(da))
+
                         da.to_netcdf(latlon_path)
                         old_da.close()
                         tmp_da.close()
