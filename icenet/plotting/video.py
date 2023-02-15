@@ -80,7 +80,9 @@ def xarray_to_video(da: object,
                     video_dates: object = None,
                     cmap: object = 'viridis',
                     figsize: int = 12,
-                    dpi: int = 150) -> object:
+                    dpi: int = 150,
+                    imshow_kwargs: dict = None,
+                    ) -> object:
 
     """
     Generate video of an xarray.DataArray. Optionally input a list of
@@ -104,6 +106,7 @@ def xarray_to_video(da: object,
     :param cmap: Matplotlib colormap.
     :param figsize: Figure size in inches.
     :param dpi: Figure DPI.
+    :param imshow_kwargs: Figure DPI.
 
     """
 
@@ -164,7 +167,8 @@ def xarray_to_video(da: object,
                       cmap=cmap,
                       clim=(n_min, n_max),
                       animated=True,
-                      zorder=1)
+                      zorder=1,
+                      **imshow_kwargs if imshow_kwargs is not None else {})
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".
                                format(date.year, date.month, date.day),
@@ -173,7 +177,8 @@ def xarray_to_video(da: object,
     plt.colorbar(image, cax)
 
     logging.info("Animating")
-    # TODO: Investigate blit, but it causes a few problems with masks/titles.
+
+    # Investigated blitting, but it causes a few problems with masks/titles.
     animation = FuncAnimation(fig,
                               update,
                               video_dates,
