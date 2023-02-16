@@ -266,6 +266,9 @@ class ClimateDownloader(Downloader):
         else:
             logging.info("No requested dates remain, likely already present")
 
+            if os.path.exists(latlon_path):
+                self._files_downloaded.append(latlon_path)
+
     def postprocess(self, var, download_path):
         logging.debug("No postprocessing in place for {}: {}".
                       format(var, download_path))
