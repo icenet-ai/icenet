@@ -204,14 +204,15 @@ class ERA5Downloader(ClimateDownloader):
         # if not self._use_toolbox:
         logging.info("Postprocessing CDS API data at {}".format(download_path))
         da = xr.open_dataarray(download_path)
-
         doy_counts = da.time.groupby("time.dayofyear").count()
 
         # There are situations where the API will spit out unordered and
         # partial data, so we ensure here means come from full days and don't
         # leave gaps. If we can avoid expver with this, might as well, so
         # that's second
+        # FIXME: This will cause issues for already processed latlon data
         if len(doy_counts[doy_counts < 24]) > 0:
+            logging.debug("doy_counts: {}".format(doy_counts))
             strip_dates_before = min([
                 dt.datetime.strptime("{}-{}".format(
                     d, pd.to_datetime(da.time.values[0]).year), "%j-%Y")
@@ -226,6 +227,7 @@ class ERA5Downloader(ClimateDownloader):
             da = da.sel(expver=1).combine_first(da.sel(expver=5))
 
         da = da.sortby("time").resample(time='1D').mean().compute()
+        # We're rewriting over the top fo the open file, mmmmm
         da.to_netcdf(download_path)
 
     def additional_regrid_processing(self,

@@ -212,7 +212,8 @@ def forecast_plot_args(ecmwf: bool = True) -> object:
     ap.add_argument("forecast_file", type=str)
     ap.add_argument("forecast_date", type=date_arg)
 
-    ap.add_argument("-r", "--region", default=None, type=region_arg)
+    ap.add_argument("-r", "--region", default=None, type=region_arg,
+                    help="Region specified x1, y1, x2, y2")
 
     ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
