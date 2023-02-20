@@ -73,7 +73,6 @@ setup(
             "icenet_upload_azure = icenet.process.azure:upload",
             "icenet_upload_local = icenet.process.local:upload",
 
-            "icenet_plot_sample = icenet.plotting.data:plot_sample",
             "icenet_plot_record = icenet.plotting.data:plot_tfrecord",
 
             "icenet_plot_sic_error = icenet.plotting.forecast:sic_error",
