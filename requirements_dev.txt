@@ -6,3 +6,4 @@ twine
 pytest
 black
 build
+importlib_metadata
