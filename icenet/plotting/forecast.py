@@ -2,6 +2,7 @@ import argparse
 import datetime as dt
 import logging
 import os
+import re
 
 from datetime import timedelta
 
@@ -15,6 +16,7 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 import pandas as pd
 import dask.array as da
+import xarray as xr
 
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
@@ -24,6 +26,22 @@ from icenet.plotting.utils import \
 from icenet.plotting.video import xarray_to_video
 
 
+def parse_location_or_region(argument: str):
+    separator = ','
+    # Allow ValueError to propagate if not given sequence of integers
+    return tuple(int(s) for s in argument.split(separator))
+
+
+def location_arg(argument: str):
+    try:
+        x, y = parse_location_or_region(argument)
+        return (x, y)
+    except ValueError:
+        argparse.ArgumentTypeError(
+            "Expected a location (pair of integers separated by a comma)"
+        )
+
+
 def region_arg(argument: str):
     """type handler for region arguments with argparse
 
@@ -31,7 +49,7 @@ def region_arg(argument: str):
     :return:
     """
     try:
-        x1, y1, x2, y2 = tuple([int(s) for s in argument.split(",")])
+        x1, y1, x2, y2 = parse_location_or_region(argument)
 
         assert x2 > x1 and y2 > y1, "Region is not valid"
         return x1, y1, x2, y2
@@ -56,6 +74,25 @@ def process_regions(region: tuple,
     for idx, arr in enumerate(data):
         if arr is not None:
             data[idx] = arr[..., y1:y2, x1:x2]
+    return data
+
+
+def process_probes(probes, data) -> tuple:
+    """
+    :param probes: A sequence of locations (pairs)
+    :param data: A sequence of xr.DataArray
+    """
+
+    # index into each element of data with a xr.DataArray, for pointwise
+    # selection.  Construct the indexing DataArray as follows:
+
+    probes_da = xr.DataArray(probes, dims=('probe', 'coord'))
+    xcs, ycs = probes_da.sel(coord=0), probes_da.sel(coord=1)
+    
+    for idx, arr in enumerate(data):
+        if arr is not None:
+            data[idx] = arr.isel(xc=xcs, yc=ycs)
+
     return data
 
 
@@ -455,11 +492,45 @@ def sic_error_video(fc_da: object,
     return animation
 
 
+def sic_error_local_plots(fc_da: object,
+                          obs_da: object,
+                          output_path: object):
+
+    """
+    :param fc_da: a DataArray with dims ('time', 'probe')
+    :param obs_da: a DataArray with dims ('time', 'probe')
+    """
+
+    error_da = fc_da - obs_da
+    
+    # write csv file
+    combined_da = xr.concat([fc_da, obs_da, error_da], dim="obs_kind")
+
+    # convert to a dataframe for writing
+    df = (
+        combined_da
+        .to_dataframe(name="SIC")
+        # drop unneeded coords (lat, lon, xc, yc)
+        .loc[:, "SIC"]
+        # Convert mult-indices
+        .unstack(2).unstack(0)
+    )
+
+    if output_path is None:
+        output_path = "sic_error_local.csv"
+
+    df.to_csv(output_path)
+    
+    # (later) write figure
+
+
 def forecast_plot_args(ecmwf: bool = True,
                        threshold: bool = False,
                        sie: bool = False,
                        metrics: bool = False,
-                       extra_args: object = None) -> object:
+                       allow_probes: bool = False,
+                       extra_args: object = None,
+                       ) -> object:
     """
     Process command line arguments.
     
@@ -467,8 +538,9 @@ def forecast_plot_args(ecmwf: bool = True,
     :param threshold:
     :param metrics:
     :param sie:
+    :param allow_probes:
+
     :param extra_args:
-    :return:
     """
 
     ap = argparse.ArgumentParser()
@@ -478,7 +550,6 @@ def forecast_plot_args(ecmwf: bool = True,
 
     ap.add_argument("-r", "--region", default=None, type=region_arg,
                     help="Region specified x1, y1, x2, y2")
-
     ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
@@ -515,6 +586,13 @@ def forecast_plot_args(ecmwf: bool = True,
                         action="store_true",
                         default=False)
 
+    if allow_probes:
+        ap.add_argument(
+            "-p", "--probe", action="append", dest="probes",
+            type=location_arg, metavar="LOCATION",
+            help="Sample at LOCATION",
+        )
+
     if type(extra_args) == list:
         for arg in extra_args:
             ap.add_argument(*arg[0], **arg[1])
@@ -525,7 +603,7 @@ def forecast_plot_args(ecmwf: bool = True,
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
-
+    
     return args
 
 ##
@@ -839,3 +917,30 @@ def sic_error():
                     obs_da=obs,
                     land_mask=masks.get_land_mask(),
                     output_path=args.output_path)
+
+
+def sic_error_local():
+    """
+    Entry point for the icenet_plot_sic_error_local command
+    """
+
+    # NB obtaining args, fc, obs is identical to sic_error
+    
+    args = forecast_plot_args(allow_probes=True)
+    
+    fc = get_forecast_ds(args.forecast_file,
+                         args.forecast_date)
+    obs = get_obs_da(args.hemisphere,
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=1),
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=int(fc.leadtime.max())))
+    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+
+    
+    fc, obs = process_probes(args.probes, [fc, obs])
+
+    sic_error_local_plots(fc,
+                          obs,
+                          args.output_path)
+
