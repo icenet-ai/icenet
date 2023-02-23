@@ -422,7 +422,8 @@ class SICDownloader(Downloader):
                                  format(year_path, old_year_path))
                     os.rename(year_path, old_year_path)
                     old_da = xr.open_dataarray(old_year_path)
-                    year_da = year_da.drop_sel(time=old_da.time)
+                    year_da = year_da.drop_sel(time=old_da.time,
+                                               errors="ignore")
                     year_da = xr.concat([old_da, year_da],
                                         dim="time").sortby("time")
                     old_da.close()
