@@ -79,6 +79,7 @@ setup(
             "icenet_plot_sic_error = icenet.plotting.forecast:sic_error",
             "icenet_plot_bin_accuracy = "
             "icenet.plotting.forecast:binary_accuracy",
+            "icenet_plot_metrics = icenet.plotting.forecast:metric_plots",
 
             "icenet_video_data = icenet.plotting.video:data_cli",
 

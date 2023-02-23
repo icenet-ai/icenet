@@ -12,6 +12,7 @@ matplotlib.use('Agg')
 
 import numpy as np
 import pandas as pd
+import dask.array as da
 
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
@@ -108,6 +109,108 @@ def plot_binary_accuracy(masks: object,
     return binacc_fc, binacc_cmp
 
 
+def compute_metrics(metrics: object,
+                    masks: object,
+                    fc_da: object,
+                    obs_da: object) -> object:
+    """
+    Computes metrics which are passed in as a list of strings.
+    Returns a dictionary where the keys are the metrics,
+    and the values are the computed metrics.
+
+    :param metrics: a list of strings
+    :param masks: an icenet Masks object
+    :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
+    :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
+    
+    :return: dictionary with keys as metric names and values as 
+             xarray.DataArray's storing the computed metrics for each forecast
+    """
+    # check requested metrics have been implemented
+    implemented_metrics = ['MAE', 'MSE', 'RMSE']
+    for metric in metrics:
+        if metric not in implemented_metrics:
+            raise NotImplementedError(f"{metric} has not been implemented. "
+                                      f"Please only choose out of {implemented_metrics}.")
+    
+    # obtain mask
+    mask_da = masks.get_active_cell_da(obs_da)
+    
+    metric_dict = {}
+    # compute raw error
+    err_da = (fc_da-obs_da)*100
+    if "MAE" in metrics:
+        # compute absolute SIC errors
+        abs_err_da = da.fabs(err_da)
+        abs_weighted_da = abs_err_da.weighted(mask_da)
+    if "MSE" in metrics or "RMSE" in metrics:
+        # compute squared SIC errors
+        square_err_da = err_da**2
+        square_weighted_da = square_err_da.weighted(mask_da)
+        
+    for metric in metrics:
+        if metric == "MAE":
+            metric_dict[metric] = abs_weighted_da.mean(dim=['yc', 'xc'])
+        elif metric == "MSE":
+            if "MSE" not in metric_dict.keys():
+                # might've already been computed if RMSE came first
+                metric_dict["MSE"] = square_weighted_da.mean(dim=['yc', 'xc'])
+        elif metric == "RMSE":
+            if "MSE" not in metric_dict.keys():
+                # check if MSE already been computed
+                metric_dict["MSE"] = square_weighted_da.mean(dim=['yc', 'xc'])
+            metric_dict[metric] = da.sqrt(metric_dict["MSE"])
+
+    # only return metrics requested (might've computed MSE when computing RMSE)
+    return {k: metric_dict[k] for k in metrics}
+    
+    
+def plot_metrics(metrics: object,
+                 masks: object,
+                 fc_da: object,
+                 obs_da: object,
+                 output_path: str) -> object:
+    """
+    Computes metrics which are passed in as a list of strings,
+    and plots them for each forecast.
+    Returns a dictionary where the keys are the metrics,
+    and the values are the computed metrics.
+
+    :param metrics: a list of strings
+    :param masks: an icenet Masks object
+    :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
+    :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
+    :param output_path: string specifying the path to store the plot
+    
+    :return: dictionary with keys as metric names and values as 
+             xarray.DataArray's storing the computed metrics for each forecast
+    """
+    metric_dict = compute_metrics(metrics=metrics,
+                                  masks=masks,
+                                  fc_da=fc_da,
+                                  obs_da=obs_da)
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.set_title("Metric comparison")
+    for metric in metrics:
+        ax.plot(metric_dict[metric].time,
+                metric_dict[metric].values,
+                label=f"{metric}")
+    
+    ax.xaxis.set_major_formatter(
+        mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    ax.xaxis.set_major_locator(mdates.MonthLocator())
+    ax.xaxis.set_minor_locator(mdates.DayLocator())
+    ax.legend(loc='lower right')
+    
+    output_path = os.path.join("plot", "metrics.png") \
+        if not output_path else output_path
+    logging.info("Saving to {}".format(output_path))
+    plt.savefig(output_path)
+    
+    return metric_dict
+
+
 def sic_error_video(fc_da: object,
                     obs_da: object,
                     land_mask: object,
@@ -200,7 +303,8 @@ def sic_error_video(fc_da: object,
     return animation
 
 
-def forecast_plot_args(ecmwf: bool = True) -> object:
+def forecast_plot_args(ecmwf: bool = True,
+                       metrics: bool = False) -> object:
     """
 
     :param ecmwf:
@@ -223,6 +327,12 @@ def forecast_plot_args(ecmwf: bool = True) -> object:
                         action="store_true", default=False)
         ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
 
+    if metrics:
+        ap.add_argument("-m", 
+                        "--metrics",
+                        help="Which metrics to compute and plot",
+                        type=str,
+                        default="MAE,MSE,RMSE")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -270,6 +380,49 @@ def binary_accuracy():
                          seas,
                          obs,
                          args.output_path)
+
+
+def parse_metrics_arg(argument: str) -> object:
+    """
+    Splits a string into a list by separating on commas.
+    Will remove any whitespace and removes duplicates.
+    Used to parsing metrics argument in metric_plots.
+    
+    :param argument: string
+    :return: list of metrics to compute
+    """
+    return list(set([s.replace(" ", "") for s in argument.split(",")]))
+
+
+def metric_plots():
+    """
+    Produces plots of requested metrics for each forecast.
+    """
+    args = forecast_plot_args(ecmwf=False, metrics=True)
+
+    masks = Masks(north=args.hemisphere == "north",
+                  south=args.hemisphere == "south")
+
+    fc = get_forecast_ds(args.forecast_file,
+                         args.forecast_date)
+    obs = get_obs_da(args.hemisphere,
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=1),
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=int(fc.leadtime.max())))
+    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+
+    metrics = parse_metrics_arg(args.metrics)
+
+    if args.region:
+        fc, obs, masks = process_regions(args.region, [fc, obs, masks])
+
+    plot_metrics(metrics=metrics,
+                 masks=masks,
+                 fc_da=fc,
+                 obs_da=obs,
+                 output_path=args.output_path)
+    
 
 
 def sic_error():
