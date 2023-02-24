@@ -75,8 +75,9 @@ def plot_binary_accuracy(masks: object,
     :param masks: an icenet Masks object
     :param fc_da: the forecasts given as an xarray.DataArray object 
                   with time, xc, yc coordinates
-    :param cmp_da: (optional) a comparison forecast / sea ice data given as an 
-                   xarray.DataArray object with time, xc, yc coordinates
+    :param cmp_da: a comparison forecast / sea ice data given as an 
+                   xarray.DataArray object with time, xc, yc coordinates.
+                   If None, will ignore plotting a comparison forecast
     :param obs_da: the "ground truth" given as an xarray.DataArray object
                    with time, xc, yc coordinates
     :param output_path: string specifying the path to store the plot
@@ -138,8 +139,9 @@ def plot_sea_ice_extent_error(masks: object,
     :param masks: an icenet Masks object
     :param fc_da: the forecasts given as an xarray.DataArray object 
                   with time, xc, yc coordinates
-    :param cmp_da: (optional) a comparison forecast / sea ice data given as an 
-                   xarray.DataArray object with time, xc, yc coordinates
+    :param cmp_da: a comparison forecast / sea ice data given as an 
+                   xarray.DataArray object with time, xc, yc coordinates.
+                   If None, will ignore plotting a comparison forecast
     :param obs_da: the "ground truth" given as an xarray.DataArray object
                    with time, xc, yc coordinates
     :param output_path: string specifying the path to store the plot
@@ -259,6 +261,7 @@ def compute_metrics(metrics: object,
 def plot_metrics(metrics: object,
                  masks: object,
                  fc_da: object,
+                 cmp_da: object,
                  obs_da: object,
                  output_path: str) -> object:
     """
@@ -270,23 +273,36 @@ def plot_metrics(metrics: object,
     :param metrics: a list of strings
     :param masks: an icenet Masks object
     :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
+    :param cmp_da: a comparison forecast / sea ice data given as an 
+                   xarray.DataArray object with time, xc, yc coordinates.
+                   If None, will ignore plotting a comparison forecast
     :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
     :param output_path: string specifying the path to store the plot
     
     :return: dictionary with keys as metric names and values as 
              xarray.DataArray's storing the computed metrics for each forecast
     """
-    metric_dict = compute_metrics(metrics=metrics,
-                                  masks=masks,
-                                  fc_da=fc_da,
-                                  obs_da=obs_da)
+    fc_metric_dict = compute_metrics(metrics=metrics,
+                                     masks=masks,
+                                     fc_da=fc_da,
+                                     obs_da=obs_da)
     
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.set_title("Metric comparison")
     for metric in metrics:
-        ax.plot(metric_dict[metric].time,
-                metric_dict[metric].values,
-                label=f"{metric}")
+        ax.plot(fc_metric_dict[metric].time,
+                fc_metric_dict[metric].values,
+                label=f"IceNet {metric}")
+
+    if cmp_da is not None:
+        cmp_metric_dict = compute_metrics(metrics=metrics,
+                                          masks=masks,
+                                          fc_da=cmp_da,
+                                          obs_da=obs_da)
+        for metric in metrics:
+            ax.plot(cmp_metric_dict[metric].time,
+                    cmp_metric_dict[metric].values,
+                    label=f"SEAS {metric}")
     
     ax.xaxis.set_major_formatter(
         mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
@@ -299,7 +315,7 @@ def plot_metrics(metrics: object,
     logging.info("Saving to {}".format(output_path))
     plt.savefig(output_path)
     
-    return metric_dict
+    return fc_metric_dict, cmp_metric_dict
 
 
 def sic_error_video(fc_da: object,
@@ -557,7 +573,7 @@ def metric_plots():
     """
     Produces plot of requested metrics for forecasts.
     """
-    args = forecast_plot_args(ecmwf=False, metrics=True)
+    args = forecast_plot_args(ecmwf=True, metrics=True)
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -573,12 +589,26 @@ def metric_plots():
 
     metrics = parse_metrics_arg(args.metrics)
 
+    if args.ecmwf:
+        seas = get_seas_forecast_da(
+            args.hemisphere,
+            args.forecast_date,
+            bias_correct=args.bias_correct) \
+            if args.ecmwf else None
+
+        seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
+        seas = seas.isel(time=slice(1, None))
+    else:
+        seas = None
+
     if args.region:
-        fc, obs, masks = process_regions(args.region, [fc, obs, masks])
+        seas, fc, obs, masks = process_regions(args.region,
+                                               [seas, fc, obs, masks])
 
     plot_metrics(metrics=metrics,
                  masks=masks,
                  fc_da=fc,
+                 cmp_da=seas,
                  obs_da=obs,
                  output_path=args.output_path)
     
