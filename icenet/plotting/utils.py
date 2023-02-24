@@ -138,6 +138,10 @@ def filter_ds_by_obs(ds: object,
     )
 
     if len(obs_da.time) < len(ds.leadtime):
+        if len(obs_da.time) < 1:
+            raise RuntimeError("No observational data available between {} "
+                               "and {}".format(start_date, end_date))
+
         logging.warning("Observational data not available for full range of "
                         "forecast leadtimes: {}-{} vs {}-{}".format(
                          obs_da.time.to_series()[0].strftime("%D"),
