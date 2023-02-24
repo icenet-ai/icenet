@@ -64,7 +64,8 @@ def plot_binary_accuracy(masks: object,
                          fc_da: object,
                          cmp_da: object,
                          obs_da: object,
-                         output_path: object) -> object:
+                         output_path: object,
+                         threshold: float = 0.15) -> object:
     """
     Compute and plot the binary class accuracy of a forecast,
     where we consider a binary class prediction of ice with SIC > 15%.
@@ -79,24 +80,29 @@ def plot_binary_accuracy(masks: object,
     :param obs_da: the "ground truth" given as an xarray.DataArray object
                    with time, xc, yc coordinates
     :param output_path: string specifying the path to store the plot
+    :param threshold: the SIC threshold of interest (in percentage as a fraction),
+                      i.e. threshold is between 0 and 1
     
     :return: tuple of (binary accuracy for forecast (fc_da), 
                        binary accuracy for comparison (cmp_da))
     """
+    if (threshold < 0) or (threshold > 1):
+        raise ValueError("threshold must be a float between 0 and 1")
+    
     agcm = masks.get_active_cell_da(obs_da)
-    binary_obs_da = obs_da > 0.15
+    binary_obs_da = obs_da > threshold
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    ax.set_title("Binary accuracy comparison")
+    ax.set_title(f"Binary accuracy comparison (threshold SIC = {threshold*100}%)")
 
-    binary_fc_da = fc_da > 0.15
+    binary_fc_da = fc_da > threshold
     binary_fc_da = (binary_fc_da == binary_obs_da).\
         astype(np.float16).weighted(agcm)
     binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
     ax.plot(binacc_fc.time, binacc_fc.values, label="IceNet")
 
     if cmp_da is not None:
-        binary_cmp_da = cmp_da > 0.15
+        binary_cmp_da = cmp_da > threshold
         binary_cmp_da = (binary_cmp_da == binary_obs_da).\
             astype(np.float16).weighted(agcm)
         binacc_cmp = (binary_cmp_da.mean(dim=['yc', 'xc']) * 100)
@@ -123,10 +129,11 @@ def plot_sea_ice_extent_error(masks: object,
                               cmp_da: object,
                               obs_da: object,
                               output_path: object,
-                              grid_area_size: int = 25) -> object:
+                              grid_area_size: int = 25,
+                              threshold: float = 0.15) -> object:
     """
     Compute sea ice extent (SIE) error of a forecast, where SIE is
-    defined as the total area covered by grid cells with SIC > 15%.
+    defined as the total area covered by grid cells with SIC > (threshold*100)%.
     
     :param masks: an icenet Masks object
     :param fc_da: the forecasts given as an xarray.DataArray object 
@@ -138,18 +145,23 @@ def plot_sea_ice_extent_error(masks: object,
     :param output_path: string specifying the path to store the plot
     :param grid_area_size: the length of the sides of the grid (in km),
                            by default set to 25 (so area of grid is 25*25)
+    :param threshold: the SIC threshold of interest (in percentage as a fraction),
+                      i.e. threshold is between 0 and 1
     
     :return: tuple of (SIE for forecast (fc_da), SIE for comparison (cmp_da))
     """
+    if (threshold < 0) or (threshold > 1):
+        raise ValueError("threshold must be a float between 0 and 1")
+    
     # obtain mask
     agcm = masks.get_active_cell_da(obs_da)
     
     # binary for observed (i.e. truth)
-    binary_obs_da = obs_da > 0.15
+    binary_obs_da = obs_da > threshold
     binary_obs_weighted_da = binary_obs_da.astype(int).weighted(agcm)
 
     # binary for forecast
-    binary_fc_da = fc_da > 0.15
+    binary_fc_da = fc_da > threshold
     binary_fc_weighted_da = binary_fc_da.astype(int).weighted(agcm)
     
     # sie error
@@ -159,11 +171,12 @@ def plot_sea_ice_extent_error(masks: object,
     ) * (grid_area_size**2)
     
     fig, ax = plt.subplots(figsize=(12, 6))
-    ax.set_title(f"SIE comparison ({grid_area_size} km^2 grid area size)")
+    ax.set_title(f"SIE comparison ({grid_area_size} km grid resolution) "
+                 f"(threshold SIC = {threshold*100}%)")
     ax.plot(forecast_sie_error.time, forecast_sie_error.values, label="IceNet")
 
     if cmp_da is not None:
-        binary_cmp_da = cmp_da > 0.15
+        binary_cmp_da = cmp_da > threshold
         binary_cmp_weighted_da = binary_cmp_da.astype(int).weighted(agcm)
         cmp_sie_error = (
             binary_cmp_weighted_da.sum(['xc', 'yc']) -
@@ -299,6 +312,7 @@ def sic_error_video(fc_da: object,
     :param obs_da:
     :param land_mask:
     :param output_path:
+    
     :returns: matplotlib animation
     """
 
@@ -382,14 +396,17 @@ def sic_error_video(fc_da: object,
 
 
 def forecast_plot_args(ecmwf: bool = True,
-                       metrics: bool = False,
-                       sie: bool = False) -> object:
+                       threshold: bool = False,
+                       sie: bool = False,
+                       metrics: bool = False) -> object:
     """
     Process command line arguments.
     
     :param ecmwf:
+    :param threshold:
     :param metrics:
     :param sie:
+    
     :return:
     """
 
@@ -409,20 +426,27 @@ def forecast_plot_args(ecmwf: bool = True,
                         action="store_true", default=False)
         ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
 
-    if metrics:
-        ap.add_argument("-m", 
-                        "--metrics",
-                        help="Which metrics to compute and plot",
-                        type=str,
-                        default="MAE,MSE,RMSE")
-    
+    if threshold:
+        ap.add_argument("-t",
+                        "--threshold",
+                        help="determines the SIC threshold of interest",
+                        type=float,
+                        default=0.15)
+
     if sie:
         ap.add_argument("-ga",
                         "--grid-area",
                         help="the length of the sides of the grid used (in km)",
                         type=int,
                         default=25)
-        
+
+    if metrics:
+        ap.add_argument("-m", 
+                        "--metrics",
+                        help="Which metrics to compute and plot",
+                        type=str,
+                        default="MAE,MSE,RMSE")
+
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -435,7 +459,7 @@ def binary_accuracy():
     """
     Produces plot of the binary classification accuracy of forecasts.
     """
-    args = forecast_plot_args()
+    args = forecast_plot_args(ecmwf=True, threshold=True)
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -469,14 +493,15 @@ def binary_accuracy():
                          fc_da=fc,
                          cmp_da=seas,
                          obs_da=obs,
-                         output_path=args.output_path,)
+                         output_path=args.output_path,
+                         threshold=args.threshold)
 
 
 def sie_error():
     """
     Produces plot of the sea-ice extent (SIE) error of forecasts.
     """
-    args = forecast_plot_args(sie=True)
+    args = forecast_plot_args(ecmwf=True, threshold=True, sie=True)
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -511,7 +536,8 @@ def sie_error():
                               cmp_da=seas,
                               obs_da=obs,
                               output_path=args.output_path,
-                              grid_area_size=args.grid_area)
+                              grid_area_size=args.grid_area,
+                              threshold=args.threshold)
 
 
 def parse_metrics_arg(argument: str) -> object:
@@ -521,6 +547,7 @@ def parse_metrics_arg(argument: str) -> object:
     Used to parsing metrics argument in metric_plots.
     
     :param argument: string
+    
     :return: list of metrics to compute
     """
     return list(set([s.replace(" ", "") for s in argument.split(",")]))
