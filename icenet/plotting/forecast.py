@@ -66,13 +66,22 @@ def plot_binary_accuracy(masks: object,
                          obs_da: object,
                          output_path: object) -> object:
     """
-
-    :param masks:
-    :param fc_da:
-    :param cmp_da:
-    :param obs_da:
-    :param output_path:
-    :return:
+    Compute and plot the binary class accuracy of a forecast,
+    where we consider a binary class prediction of ice with SIC > 15%.
+    In particular, we compute the mean percentage of correct
+    classifications over the active grid cell area.
+    
+    :param masks: an icenet Masks object
+    :param fc_da: the forecasts given as an xarray.DataArray object 
+                  with time, xc, yc coordinates
+    :param cmp_da: (optional) a comparison forecast / sea ice data given as an 
+                   xarray.DataArray object with time, xc, yc coordinates
+    :param obs_da: the "ground truth" given as an xarray.DataArray object
+                   with time, xc, yc coordinates
+    :param output_path: string specifying the path to store the plot
+    
+    :return: tuple of (binary accuracy for forecast (fc_da), 
+                       binary accuracy for comparison (cmp_da))
     """
     agcm = masks.get_active_cell_da(obs_da)
     binary_obs_da = obs_da > 0.15
@@ -109,6 +118,75 @@ def plot_binary_accuracy(masks: object,
     return binacc_fc, binacc_cmp
 
 
+def plot_sea_ice_extent_error(masks: object,
+                              fc_da: object,
+                              cmp_da: object,
+                              obs_da: object,
+                              output_path: object,
+                              grid_area_size: int = 25) -> object:
+    """
+    Compute sea ice extent (SIE) error of a forecast, where SIE is
+    defined as the total area covered by grid cells with SIC > 15%.
+    
+    :param masks: an icenet Masks object
+    :param fc_da: the forecasts given as an xarray.DataArray object 
+                  with time, xc, yc coordinates
+    :param cmp_da: (optional) a comparison forecast / sea ice data given as an 
+                   xarray.DataArray object with time, xc, yc coordinates
+    :param obs_da: the "ground truth" given as an xarray.DataArray object
+                   with time, xc, yc coordinates
+    :param output_path: string specifying the path to store the plot
+    :param grid_area_size: the length of the sides of the grid (in km),
+                           by default set to 25 (so area of grid is 25*25)
+    
+    :return: tuple of (SIE for forecast (fc_da), SIE for comparison (cmp_da))
+    """
+    # obtain mask
+    agcm = masks.get_active_cell_da(obs_da)
+    
+    # binary for observed (i.e. truth)
+    binary_obs_da = obs_da > 0.15
+    binary_obs_weighted_da = binary_obs_da.astype(int).weighted(agcm)
+
+    # binary for forecast
+    binary_fc_da = fc_da > 0.15
+    binary_fc_weighted_da = binary_fc_da.astype(int).weighted(agcm)
+    
+    # sie error
+    forecast_sie_error = (
+        binary_fc_weighted_da.sum(['xc', 'yc']) -
+        binary_obs_weighted_da.sum(['xc', 'yc'])
+    ) * (grid_area_size**2)
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.set_title(f"SIE comparison ({grid_area_size} km^2 grid area size)")
+    ax.plot(forecast_sie_error.time, forecast_sie_error.values, label="IceNet")
+
+    if cmp_da is not None:
+        binary_cmp_da = cmp_da > 0.15
+        binary_cmp_weighted_da = binary_cmp_da.astype(int).weighted(agcm)
+        cmp_sie_error = (
+            binary_cmp_weighted_da.sum(['xc', 'yc']) -
+            binary_obs_weighted_da.sum(['xc', 'yc'])
+        ) * (grid_area_size**2)
+        ax.plot(cmp_sie_error.time, cmp_sie_error.values, label="SEAS")
+    else:
+        cmp_sie_error = None
+
+    ax.xaxis.set_major_formatter(
+        mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    ax.xaxis.set_major_locator(mdates.MonthLocator())
+    ax.xaxis.set_minor_locator(mdates.DayLocator())
+    ax.legend(loc='lower right')
+
+    output_path = os.path.join("plot", "sie_error.png") \
+        if not output_path else output_path
+    logging.info("Saving to {}".format(output_path))
+    plt.savefig(output_path)
+
+    return forecast_sie_error, cmp_sie_error
+
+
 def compute_metrics(metrics: object,
                     masks: object,
                     fc_da: object,
@@ -130,7 +208,7 @@ def compute_metrics(metrics: object,
     implemented_metrics = ['MAE', 'MSE', 'RMSE']
     for metric in metrics:
         if metric not in implemented_metrics:
-            raise NotImplementedError(f"{metric} has not been implemented. "
+            raise NotImplementedError(f"{metric} metric has not been implemented. "
                                       f"Please only choose out of {implemented_metrics}.")
     
     # obtain mask
@@ -304,10 +382,14 @@ def sic_error_video(fc_da: object,
 
 
 def forecast_plot_args(ecmwf: bool = True,
-                       metrics: bool = False) -> object:
+                       metrics: bool = False,
+                       sie: bool = False) -> object:
     """
-
+    Process command line arguments.
+    
     :param ecmwf:
+    :param metrics:
+    :param sie:
     :return:
     """
 
@@ -333,6 +415,14 @@ def forecast_plot_args(ecmwf: bool = True,
                         help="Which metrics to compute and plot",
                         type=str,
                         default="MAE,MSE,RMSE")
+    
+    if sie:
+        ap.add_argument("-ga",
+                        "--grid-area",
+                        help="the length of the sides of the grid used (in km)",
+                        type=int,
+                        default=25)
+        
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -343,7 +433,7 @@ def forecast_plot_args(ecmwf: bool = True,
 
 def binary_accuracy():
     """
-
+    Produces plot of the binary classification accuracy of forecasts.
     """
     args = forecast_plot_args()
 
@@ -375,11 +465,53 @@ def binary_accuracy():
         seas, fc, obs, masks = process_regions(args.region,
                                                [seas, fc, obs, masks])
 
-    plot_binary_accuracy(masks,
-                         fc,
-                         seas,
-                         obs,
-                         args.output_path)
+    plot_binary_accuracy(masks=masks,
+                         fc_da=fc,
+                         cmp_da=seas,
+                         obs_da=obs,
+                         output_path=args.output_path,)
+
+
+def sie_error():
+    """
+    Produces plot of the sea-ice extent (SIE) error of forecasts.
+    """
+    args = forecast_plot_args(sie=True)
+
+    masks = Masks(north=args.hemisphere == "north",
+                  south=args.hemisphere == "south")
+
+    fc = get_forecast_ds(args.forecast_file,
+                         args.forecast_date)
+    obs = get_obs_da(args.hemisphere,
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=1),
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=int(fc.leadtime.max())))
+    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+
+    if args.ecmwf:
+        seas = get_seas_forecast_da(
+            args.hemisphere,
+            args.forecast_date,
+            bias_correct=args.bias_correct) \
+            if args.ecmwf else None
+
+        seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
+        seas = seas.isel(time=slice(1, None))
+    else:
+        seas = None
+
+    if args.region:
+        seas, fc, obs, masks = process_regions(args.region,
+                                               [seas, fc, obs, masks])
+
+    plot_sea_ice_extent_error(masks=masks,
+                              fc_da=fc,
+                              cmp_da=seas,
+                              obs_da=obs,
+                              output_path=args.output_path,
+                              grid_area_size=args.grid_area)
 
 
 def parse_metrics_arg(argument: str) -> object:
@@ -396,7 +528,7 @@ def parse_metrics_arg(argument: str) -> object:
 
 def metric_plots():
     """
-    Produces plots of requested metrics for each forecast.
+    Produces plot of requested metrics for forecasts.
     """
     args = forecast_plot_args(ecmwf=False, metrics=True)
 
@@ -427,7 +559,7 @@ def metric_plots():
 
 def sic_error():
     """
-
+    Produces video visualisation of SIC of forecast and ground truth.
     """
     args = forecast_plot_args(ecmwf=False)
 
@@ -446,7 +578,7 @@ def sic_error():
     if args.region:
         fc, obs, masks = process_regions(args.region, [fc, obs, masks])
 
-    sic_error_video(fc,
-                    obs,
-                    masks.get_land_mask(),
-                    args.output_path)
+    sic_error_video(fc_da=fc,
+                    obs_da=obs,
+                    land_mask=masks.get_land_mask(),
+                    output_path=args.output_path)
