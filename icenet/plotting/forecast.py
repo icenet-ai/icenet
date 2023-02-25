@@ -1,10 +1,12 @@
 import argparse
+import datetime as dt
 import logging
 import os
 
 from datetime import timedelta
 
 import matplotlib
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
@@ -16,7 +18,8 @@ import pandas as pd
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
 from icenet.plotting.utils import \
-    filter_ds_by_obs, get_forecast_ds, get_obs_da, get_seas_forecast_da
+    filter_ds_by_obs, get_forecast_ds, get_obs_da, get_seas_forecast_da, \
+    show_img, get_plot_axes
 
 matplotlib.rcParams.update({
     'figure.facecolor': 'w',
@@ -25,10 +28,10 @@ matplotlib.rcParams.update({
 
 
 def region_arg(argument: str):
-    """
+    """type handler for region arguments with argparse
 
     :param argument:
-    :returns:
+    :return:
     """
     try:
         x1, y1, x2, y2 = tuple([int(s) for s in argument.split(",")])
@@ -200,10 +203,12 @@ def sic_error_video(fc_da: object,
     return animation
 
 
-def forecast_plot_args(ecmwf: bool = True) -> object:
+def forecast_plot_args(ecmwf: bool = True,
+                       extra_args: object = None) -> object:
     """
 
     :param ecmwf:
+    :param extra_args:
     :return:
     """
 
@@ -224,12 +229,22 @@ def forecast_plot_args(ecmwf: bool = True) -> object:
                         action="store_true", default=False)
         ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
 
+    if type(extra_args) == list:
+        for arg in extra_args:
+            ap.add_argument(*arg[0], **arg[1])
+    elif extra_args is not None:
+        logging.warning("Implementation error: extra_args is invalid")
+
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
     return args
+
+##
+# CLI endpoints
+#
 
 
 def binary_accuracy():
@@ -271,6 +286,89 @@ def binary_accuracy():
                          seas,
                          obs,
                          args.output_path)
+
+
+def plot_forecast():
+    """CLI entry point for icenet_plot_forecast
+
+    :return:
+    """
+    args = forecast_plot_args(ecmwf=False,
+                              extra_args=[
+                                  (("-l", "--leadtimes"), dict(
+                                      help="Leadtimes to output, multiple as CSV, range as n..n",
+                                      type=lambda s: [int(i) for i in
+                                                      list(s.split(",") if "," in s else
+                                                           range(int(s.split("..")[0]),
+                                                                 int(s.split("..")[1])) if ".." in s else
+                                                           [s])])),
+                                  (("-c", "--no-coastlines"), dict(
+                                      help="Turn off cartopy integration",
+                                      action="store_false", default=True,
+                                  )),
+                                  (("-f", "--format"), dict(
+                                      help="Format to output in",
+                                      choices=("png", "svg", "tiff"),
+                                      default="png"
+                                  ))
+                              ])
+    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+
+    if not os.path.isdir(args.output_path):
+        logging.warning("No directory at: {}".format(args.output_path))
+        os.makedirs(args.output_dir)
+    elif os.path.isfile(args.output_path):
+        raise RuntimeError("{} should be a directory and not existent...".
+                           format(args.output_path))
+
+    forecast_name = "{}.{}".format(
+        os.path.splitext(os.path.basename(args.forecast_file))[0],
+        args.forecast_date)
+
+    for leadtime in args.leadtimes:
+        pred_da = fc.sel(leadtime=leadtime).isel(time=0)    #.sic_mean. \
+                  # .where(~lm)
+
+        if args.region:
+            pred_da = process_regions(args.region, [pred_da])[0]
+
+        if args.format == "geotiff":
+            raise RuntimeError("GeoTIFF will be supported in a future commit")
+        else:
+            if args.region is None:
+                bound_args = dict()
+            else:
+                cmap = cm.get_cmap("tab20")
+                cmap.set_bad("dimgrey")
+                bound_args = dict(x1=args.region[0],
+                                  x2=args.region[2],
+                                  y1=args.region[1],
+                                  y2=args.region[3])
+
+            ax = get_plot_axes(**bound_args,
+                               do_coastlines=args.no_coastlines)
+
+            if cmap is not None:
+                bound_args.update(cmap=cmap)
+
+            im = show_img(ax, pred_da, **bound_args,
+                          do_coastlines=args.no_coastlines)
+
+            plt.colorbar(im, ax=ax)
+            plot_date = args.forecast_date + dt.timedelta(leadtime)
+            ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
+                                                       plot_date.month,
+                                                       plot_date.day))
+            output_filename = os.path.join(args.output_path, "{}.{}.{}".format(
+                forecast_name,
+                (args.forecast_date + dt.timedelta(
+                    days=leadtime)).strftime("%Y%m%d"),
+                args.format
+            ))
+
+            logging.info("Saving to {}".format(output_filename))
+            plt.savefig(output_filename)
+            plt.clf()
 
 
 def sic_error():

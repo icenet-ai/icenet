@@ -75,6 +75,7 @@ setup(
 
             "icenet_plot_record = icenet.plotting.data:plot_tfrecord",
 
+            "icenet_plot_forecast = icenet.plotting.forecast:plot_forecast",
             "icenet_plot_sic_error = icenet.plotting.forecast:sic_error",
             "icenet_plot_bin_accuracy = "
             "icenet.plotting.forecast:binary_accuracy",
