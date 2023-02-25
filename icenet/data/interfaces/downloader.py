@@ -237,8 +237,10 @@ class ClimateDownloader(Downloader):
                             ll_path, "{}_old{}".format(
                                 *os.path.splitext(ll_file)))
                         os.rename(latlon_path, rename_latlon_path)
-                        old_da = xr.open_dataarray(rename_latlon_path)
-                        tmp_da = xr.open_dataarray(tmp_latlon_path)
+                        old_da = xr.open_dataarray(rename_latlon_path,
+                                                   drop_variables=self._drop_vars)
+                        tmp_da = xr.open_dataarray(tmp_latlon_path,
+                                                   drop_variables=self._drop_vars)
 
                         logging.debug("Input (old): \n{}".format(old_da))
                         logging.debug("Input (dl): \n{}".format(tmp_da))
