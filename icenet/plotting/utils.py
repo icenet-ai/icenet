@@ -249,7 +249,7 @@ def get_plot_axes(x1: int = 0,
     :param do_coastlines:
     :return:
     """
-    fig = plt.figure(figsize=(12, 8), dpi=150, tight_layout=True)
+    fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
 
     if do_coastlines:
         proj = ccrs.LambertAzimuthalEqualArea(-90, 90)

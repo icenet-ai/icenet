@@ -335,12 +335,13 @@ def plot_forecast():
         if args.format == "geotiff":
             raise RuntimeError("GeoTIFF will be supported in a future commit")
         else:
-            if args.region is None:
-                bound_args = dict()
-            else:
+            cmap = None
+            bound_args = dict()
+
+            if args.region is not None:
                 cmap = cm.get_cmap("tab20")
                 cmap.set_bad("dimgrey")
-                bound_args = dict(x1=args.region[0],
+                bound_args.update(x1=args.region[0],
                                   x2=args.region[2],
                                   y1=args.region[1],
                                   y2=args.region[3])
@@ -348,7 +349,7 @@ def plot_forecast():
             ax = get_plot_axes(**bound_args,
                                do_coastlines=args.no_coastlines)
 
-            if cmap is not None:
+            if cmap:
                 bound_args.update(cmap=cmap)
 
             im = show_img(ax, pred_da, **bound_args,
