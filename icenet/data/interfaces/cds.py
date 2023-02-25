@@ -204,11 +204,14 @@ class ERA5Downloader(ClimateDownloader):
         # if not self._use_toolbox:
         logging.info("Postprocessing CDS API data at {}".format(download_path))
 
-        temp_path = "{}.bak.{}".format(*os.path.splitext(download_path))
+        temp_path = "{}.bak{}".format(*os.path.splitext(download_path))
         logging.debug("Moving to {}".format(temp_path))
         os.rename(download_path, temp_path)
 
-        da = xr.open_dataarray(temp_path)
+        ds = xr.open_dataset(temp_path)
+        nom = list(ds.data_vars)[0]
+        da = getattr(ds.rename({nom: var}), var)
+
         doy_counts = da.time.groupby("time.dayofyear").count()
 
         # There are situations where the API will spit out unordered and
