@@ -226,9 +226,10 @@ class ERA5Downloader(ClimateDownloader):
             # Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=173385064
             da = da.sel(expver=1).combine_first(da.sel(expver=5))
 
-        da = da.sortby("time").resample(time='1D').mean().compute()
-        # We're rewriting over the top fo the open file, mmmmm
-        da.to_netcdf(download_path)
+        da_proc = da.sortby("time").resample(time='1D').mean().compute()
+        da.close()
+
+        da_proc.to_netcdf(download_path)
 
     def additional_regrid_processing(self,
                                      datafile: str,
