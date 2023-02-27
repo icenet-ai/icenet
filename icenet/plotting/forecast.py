@@ -119,7 +119,7 @@ def plot_binary_accuracy(masks: object,
 
     output_path = os.path.join("plot", "binacc.png") \
         if not output_path else output_path
-    logging.info("Saving to {}".format(output_path))
+    logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
 
     return binacc_fc, binacc_cmp
@@ -196,7 +196,7 @@ def plot_sea_ice_extent_error(masks: object,
 
     output_path = os.path.join("plot", "sie_error.png") \
         if not output_path else output_path
-    logging.info("Saving to {}".format(output_path))
+    logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
 
     return forecast_sie_error, cmp_sie_error
@@ -263,7 +263,8 @@ def plot_metrics(metrics: object,
                  fc_da: object,
                  cmp_da: object,
                  obs_da: object,
-                 output_path: str) -> object:
+                 output_path: object,
+                 separate: bool = False) -> object:
     """
     Computes metrics which are passed in as a list of strings,
     and plots them for each forecast.
@@ -277,43 +278,74 @@ def plot_metrics(metrics: object,
                    xarray.DataArray object with time, xc, yc coordinates.
                    If None, will ignore plotting a comparison forecast
     :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
-    :param output_path: string specifying the path to store the plot
+    :param output_path: string specifying the path to store the plot(s).
+                        If separate=True, this should be a directory
+    :param separate: logical value specifying whether there is a plot created for
+                     each metric (True) or not (False), default is False
     
     :return: dictionary with keys as metric names and values as 
              xarray.DataArray's storing the computed metrics for each forecast
     """
+    # compute metrics
     fc_metric_dict = compute_metrics(metrics=metrics,
                                      masks=masks,
                                      fc_da=fc_da,
                                      obs_da=obs_da)
-    
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.set_title("Metric comparison")
-    for metric in metrics:
-        ax.plot(fc_metric_dict[metric].time,
-                fc_metric_dict[metric].values,
-                label=f"IceNet {metric}")
-
     if cmp_da is not None:
         cmp_metric_dict = compute_metrics(metrics=metrics,
                                           masks=masks,
                                           fc_da=cmp_da,
                                           obs_da=obs_da)
+    else:
+        cmp_metric_dict = None
+    
+    if separate:
+        # produce separate plots for each metric
         for metric in metrics:
-            ax.plot(cmp_metric_dict[metric].time,
-                    cmp_metric_dict[metric].values,
-                    label=f"SEAS {metric}")
-    
-    ax.xaxis.set_major_formatter(
-        mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
-    ax.xaxis.set_major_locator(mdates.MonthLocator())
-    ax.xaxis.set_minor_locator(mdates.DayLocator())
-    ax.legend(loc='lower right')
-    
-    output_path = os.path.join("plot", "metrics.png") \
-        if not output_path else output_path
-    logging.info("Saving to {}".format(output_path))
-    plt.savefig(output_path)
+            fig, ax = plt.subplots(figsize=(12, 6))
+            ax.set_title(f"{metric} comparison")
+            ax.plot(fc_metric_dict[metric].time,
+                    fc_metric_dict[metric].values,
+                    label="IceNet")
+            if cmp_metric_dict is not None:
+                ax.plot(cmp_metric_dict[metric].time,
+                        cmp_metric_dict[metric].values,
+                        label=f"SEAS")
+                
+            ax.xaxis.set_major_formatter(
+                mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+            ax.xaxis.set_major_locator(mdates.MonthLocator())
+            ax.xaxis.set_minor_locator(mdates.DayLocator())
+            ax.legend(loc='lower right')
+            
+            outpath = os.path.join("plot", f"{metric}.png") \
+                if not output_path else os.path.join(output_path, f"{metric}.png")
+            logging.info(f"Saving to {outpath}")
+            plt.savefig(outpath)
+    else:
+        # produce one plot for all metrics
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.set_title("Metric comparison")
+        for metric in metrics:
+            ax.plot(fc_metric_dict[metric].time,
+                    fc_metric_dict[metric].values,
+                    label=f"IceNet {metric}")
+            if cmp_metric_dict is not None:
+                ax.plot(cmp_metric_dict[metric].time,
+                        cmp_metric_dict[metric].values,
+                        label=f"SEAS {metric}",
+                        linestyle="dotted")
+        
+        ax.xaxis.set_major_formatter(
+            mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+        ax.xaxis.set_major_locator(mdates.MonthLocator())
+        ax.xaxis.set_minor_locator(mdates.DayLocator())
+        ax.legend(loc='lower right')
+        
+        output_path = os.path.join("plot", "metrics.png") \
+            if not output_path else output_path
+        logging.info(f"Saving to {output_path}")
+        plt.savefig(output_path)
     
     return fc_metric_dict, cmp_metric_dict
 
@@ -404,7 +436,7 @@ def sic_error_video(fc_da: object,
 
     output_path  = os.path.join("plot", "sic_error.mp4") \
         if not output_path else output_path
-    logging.info("Saving plot to {}".format(output_path))
+    logging.info(f"Saving to {output_path}")
     animation.save(output_path,
                    fps=10,
                    extra_args=['-vcodec', 'libx264'])
@@ -439,20 +471,21 @@ def forecast_plot_args(ecmwf: bool = True,
     if ecmwf:
         ap.add_argument("-b", "--bias-correct",
                         help="Bias correct SEAS forecast array",
-                        action="store_true", default=False)
+                        action="store_true",
+                        default=False)
         ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
 
     if threshold:
         ap.add_argument("-t",
                         "--threshold",
-                        help="determines the SIC threshold of interest",
+                        help="The SIC threshold of interest",
                         type=float,
                         default=0.15)
 
     if sie:
         ap.add_argument("-ga",
                         "--grid-area",
-                        help="the length of the sides of the grid used (in km)",
+                        help="The length of the sides of the grid used (in km)",
                         type=int,
                         default=25)
 
@@ -462,6 +495,11 @@ def forecast_plot_args(ecmwf: bool = True,
                         help="Which metrics to compute and plot",
                         type=str,
                         default="MAE,MSE,RMSE")
+        ap.add_argument("-s",
+                        "--separate",
+                        help="Whether or not to produce separate plots for each metric",
+                        action="store_true",
+                        default=False)
 
     args = ap.parse_args()
 
@@ -610,7 +648,8 @@ def metric_plots():
                  fc_da=fc,
                  cmp_da=seas,
                  obs_da=obs,
-                 output_path=args.output_path)
+                 output_path=args.output_path,
+                 separate=args.separate)
     
 
 
