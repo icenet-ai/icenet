@@ -385,10 +385,10 @@ def sic_error_video(fc_da: object,
     im3 = maps[2].imshow(diff_plot, 
                          vmin=-1, vmax=1, cmap="RdBu_r")
 
-    tic = maps[0].set_title("IceNet {}".format(
-        pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
-    tio = maps[1].set_title("OSISAF Obs {}".format(
-        pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime("%d/%m/%Y")))
+    tic = maps[0].set_title("IceNet "
+                            f"{pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}")
+    tio = maps[1].set_title("OSISAF Obs "
+                            f"{pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}")
     maps[2].set_title("Diff")
 
     p0 = maps[0].get_position().get_points().flatten()
@@ -410,16 +410,16 @@ def sic_error_video(fc_da: object,
     fig.subplots_adjust(hspace=0.2, wspace=0.2)
 
     def update(date):
-        logging.debug("Plotting {}".format(date))
+        logging.debug(f"Plotting {date}")
 
         fc_plot = fc_da.isel(time=date).to_numpy()
         obs_plot = obs_da.isel(time=date).to_numpy()
         diff_plot = diff.isel(time=date).to_numpy()
         
-        tic.set_text("IceNet {}".format(
-            pd.to_datetime(fc_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
-        tio.set_text("OSISAF Obs {}".format(
-            pd.to_datetime(obs_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
+        tic.set_text("IceNet "
+                     f"{pd.to_datetime(fc_da.isel(time=date).time.values).strftime('%d/%m/%Y')}")
+        tio.set_text("OSISAF Obs "
+                     f"{pd.to_datetime(obs_da.isel(time=date).time.values).strftime('%d/%m/%Y')}")
 
         im1.set_data(fc_plot)
         im2.set_data(obs_plot)
