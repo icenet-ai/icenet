@@ -335,10 +335,9 @@ def plot_forecast():
 
         fc = process_regions(args.region, [fc])[0]
 
-    # FIXME!
     leadtimes = args.leadtimes \
         if args.leadtimes is not None \
-        else list(range(int(max(fc.leadtime.values))))
+        else list(range(1, int(max(fc.leadtime.values)) + 1))
 
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
