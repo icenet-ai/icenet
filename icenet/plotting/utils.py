@@ -105,7 +105,7 @@ Coordinates:
 def get_forecast_ds(forecast_file: object,
                     forecast_date: str,
                     stddev: bool = False
-                    ) -> tuple:
+                    ) -> object:
     """
 
     :param forecast_file:

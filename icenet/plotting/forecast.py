@@ -20,7 +20,9 @@ from icenet.data.sic.mask import Masks
 from icenet.plotting.utils import \
     filter_ds_by_obs, get_forecast_ds, get_obs_da, get_seas_forecast_da, \
     show_img, get_plot_axes
+from icenet.plotting.video import xarray_to_video
 
+# FIXME: This shouldn't be here, 300 dpi is print quality (not always required)
 matplotlib.rcParams.update({
     'figure.facecolor': 'w',
     'figure.dpi': 300
@@ -304,15 +306,16 @@ def plot_forecast():
                                                            [s])])),
                                   (("-c", "--no-coastlines"), dict(
                                       help="Turn off cartopy integration",
-                                      action="store_false", default=True,
+                                      action="store_true", default=False,
                                   )),
                                   (("-f", "--format"), dict(
                                       help="Format to output in",
-                                      choices=("png", "svg", "tiff"),
+                                      choices=("mp4", "png", "svg", "tiff"),
                                       default="png"
                                   ))
                               ])
     fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+    fc = fc.transpose(..., "yc", "xc")
 
     if not os.path.isdir(args.output_path):
         logging.warning("No directory at: {}".format(args.output_path))
@@ -325,35 +328,68 @@ def plot_forecast():
         os.path.splitext(os.path.basename(args.forecast_file))[0],
         args.forecast_date)
 
-    for leadtime in args.leadtimes:
-        pred_da = fc.sel(leadtime=leadtime).isel(time=0)    #.sic_mean. \
-                  # .where(~lm)
+    cmap = None
+    if args.region is not None:
+        cmap = cm.get_cmap("tab20")
+        cmap.set_bad("dimgrey")
 
-        if args.region:
-            pred_da = process_regions(args.region, [pred_da])[0]
+        fc = process_regions(args.region, [fc])[0]
 
-        if args.format == "geotiff":
-            raise RuntimeError("GeoTIFF will be supported in a future commit")
-        else:
-            cmap = None
+    # FIXME!
+    leadtimes = args.leadtimes \
+        if args.leadtimes is not None \
+        else list(range(int(max(fc.leadtime.values))))
+
+    if args.format == "mp4":
+        pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
+
+        if "forecast_date" not in pred_da:
+            forecast_dates = [
+                pd.Timestamp(args.forecast_date) + dt.timedelta(lt)
+                for lt in args.leadtimes]
+            pred_da = pred_da.assign_coords(
+                forecast_date=("leadtime", forecast_dates))
+
+        pred_da = pred_da.drop("time").drop("leadtime").\
+            rename(leadtime="time", forecast_date="time").set_index(time="time")
+
+        anim_args = dict(
+            figsize=5
+        )
+        if not args.no_coastlines:
+            logging.warning("Coastlines will not work with the current "
+                            "implementation of xarray_to_video")
+
+        output_filename = os.path.join(args.output_path, "{}.{}.{}".format(
+            forecast_name,
+            args.forecast_date.strftime("%Y%m%d"),
+            args.format
+        ))
+        xarray_to_video(pred_da, fps=1, cmap=cmap,
+                        imshow_kwargs=dict(vmin=0., vmax=1.),
+                        video_path=output_filename,
+                        **anim_args)
+    else:
+        for leadtime in leadtimes:
+            pred_da = fc.sel(leadtime=leadtime).isel(time=0)    #.sic_mean. \
+                      # .where(~lm)
+
             bound_args = dict()
 
             if args.region is not None:
-                cmap = cm.get_cmap("tab20")
-                cmap.set_bad("dimgrey")
                 bound_args.update(x1=args.region[0],
                                   x2=args.region[2],
                                   y1=args.region[1],
                                   y2=args.region[3])
 
             ax = get_plot_axes(**bound_args,
-                               do_coastlines=args.no_coastlines)
+                               do_coastlines=not args.no_coastlines)
 
             if cmap:
                 bound_args.update(cmap=cmap)
 
             im = show_img(ax, pred_da, **bound_args,
-                          do_coastlines=args.no_coastlines)
+                          do_coastlines=not args.no_coastlines)
 
             plt.colorbar(im, ax=ax)
             plot_date = args.forecast_date + dt.timedelta(leadtime)
