@@ -12,6 +12,17 @@ from ibicus.debias import LinearScaling
 from icenet.process.forecasts import broadcast_forecast
 
 
+def get_seas_forecast_init_dates(hemisphere,
+                                 source_path: object = os.path.join(".", "data", "mars.seas")):
+    filenames = os.listdir(os.path.join(source_path, 
+                                        hemisphere,
+                                        "siconca"))
+    available_dates = pd.to_datetime([x.split('.')[0]
+                       for x in filenames
+                       if re.search(r'^\d{8}\.nc$', x)])
+    return available_dates
+
+
 def get_seas_forecast_da(hemisphere: str,
                          date: str,
                          bias_correct: bool = True,

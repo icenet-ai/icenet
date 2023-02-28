@@ -12,12 +12,13 @@ matplotlib.use('Agg')
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 import dask.array as da
 
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
 from icenet.plotting.utils import \
-    filter_ds_by_obs, get_forecast_ds, get_obs_da, get_seas_forecast_da
+    filter_ds_by_obs, get_forecast_ds, get_obs_da, get_seas_forecast_da, get_seas_forecast_init_dates
 
 matplotlib.rcParams.update({
     'figure.facecolor': 'w',
@@ -29,7 +30,8 @@ def region_arg(argument: str):
     """
 
     :param argument:
-    :returns:
+    
+    :return:
     """
     try:
         x1, y1, x2, y2 = tuple([int(s) for s in argument.split(",")])
@@ -47,6 +49,7 @@ def process_regions(region: tuple,
 
     :param region:
     :param data:
+    
     :return:
     """
 
@@ -58,6 +61,47 @@ def process_regions(region: tuple,
         if arr is not None:
             data[idx] = arr[..., y1:y2, x1:x2]
     return data
+
+
+def compute_binary_accuracy(masks: object,
+                            fc_da: object,
+                            obs_da: object,
+                            threshold: float) -> object:
+    """
+    Compute the binary class accuracy of a forecast,
+    where we consider a binary class prediction of ice with SIC > 15%.
+    In particular, we compute the mean percentage of correct
+    classifications over the active grid cell area.
+    
+    :param masks: an icenet Masks object
+    :param fc_da: the forecasts given as an xarray.DataArray object 
+                  with time, xc, yc coordinates
+    :param obs_da: the "ground truth" given as an xarray.DataArray object
+                   with time, xc, yc coordinates
+    :param threshold: the SIC threshold of interest (in percentage as a fraction),
+                      i.e. threshold is between 0 and 1
+    
+    :return: binary accuracy for forecast as xarray.DataArray object 
+    """
+    threshold = 0.15 if threshold is None else threshold
+    if (threshold < 0) or (threshold > 1):
+        raise ValueError("threshold must be a float between 0 and 1")
+    
+     # obtain mask
+    agcm = masks.get_active_cell_da(obs_da)
+    
+    # binary for observed (i.e. truth)
+    binary_obs_da = obs_da > threshold
+    
+    # binary for forecast
+    binary_fc_da = fc_da > threshold
+    
+    # compute binary accuracy metric
+    binary_fc_da = (binary_fc_da == binary_obs_da).\
+        astype(np.float16).weighted(agcm)
+    binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
+    
+    return binacc_fc
 
 
 def plot_binary_accuracy(masks: object,
@@ -87,26 +131,19 @@ def plot_binary_accuracy(masks: object,
     :return: tuple of (binary accuracy for forecast (fc_da), 
                        binary accuracy for comparison (cmp_da))
     """
-    if (threshold < 0) or (threshold > 1):
-        raise ValueError("threshold must be a float between 0 and 1")
-    
-    agcm = masks.get_active_cell_da(obs_da)
-    binary_obs_da = obs_da > threshold
-
+    binacc_fc = compute_binary_accuracy(masks=masks,
+                                        fc_da=fc_da,
+                                        obs_da=obs_da,
+                                        threshold=threshold)
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.set_title(f"Binary accuracy comparison (threshold SIC = {threshold*100}%)")
-
-    binary_fc_da = fc_da > threshold
-    binary_fc_da = (binary_fc_da == binary_obs_da).\
-        astype(np.float16).weighted(agcm)
-    binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
     ax.plot(binacc_fc.time, binacc_fc.values, label="IceNet")
 
     if cmp_da is not None:
-        binary_cmp_da = cmp_da > threshold
-        binary_cmp_da = (binary_cmp_da == binary_obs_da).\
-            astype(np.float16).weighted(agcm)
-        binacc_cmp = (binary_cmp_da.mean(dim=['yc', 'xc']) * 100)
+        binacc_cmp = compute_binary_accuracy(masks=masks,
+                                             fc_da=cmp_da,
+                                             obs_da=obs_da,
+                                             threshold=threshold)
         ax.plot(binacc_cmp.time, binacc_cmp.values, label="SEAS")
     else:
         binacc_cmp = None
@@ -125,33 +162,29 @@ def plot_binary_accuracy(masks: object,
     return binacc_fc, binacc_cmp
 
 
-def plot_sea_ice_extent_error(masks: object,
-                              fc_da: object,
-                              cmp_da: object,
-                              obs_da: object,
-                              output_path: object,
-                              grid_area_size: int = 25,
-                              threshold: float = 0.15) -> object:
+def compute_sea_ice_extent_error(masks: object,
+                                 fc_da: object,
+                                 obs_da: object,
+                                 grid_area_size: int,
+                                 threshold: float) -> object:
     """
-    Compute sea ice extent (SIE) error of a forecast, where SIE is
+    Compute and sea ice extent (SIE) error of a forecast, where SIE is
     defined as the total area covered by grid cells with SIC > (threshold*100)%.
-    
+
     :param masks: an icenet Masks object
     :param fc_da: the forecasts given as an xarray.DataArray object 
                   with time, xc, yc coordinates
-    :param cmp_da: a comparison forecast / sea ice data given as an 
-                   xarray.DataArray object with time, xc, yc coordinates.
-                   If None, will ignore plotting a comparison forecast
     :param obs_da: the "ground truth" given as an xarray.DataArray object
                    with time, xc, yc coordinates
-    :param output_path: string specifying the path to store the plot
     :param grid_area_size: the length of the sides of the grid (in km),
                            by default set to 25 (so area of grid is 25*25)
     :param threshold: the SIC threshold of interest (in percentage as a fraction),
                       i.e. threshold is between 0 and 1
-    
-    :return: tuple of (SIE for forecast (fc_da), SIE for comparison (cmp_da))
+
+    :return: SIE for forecast as xarray.DataArray object
     """
+    grid_area_size = 25 if grid_area_size is None else grid_area_size
+    threshold = 0.15 if threshold is None else threshold
     if (threshold < 0) or (threshold > 1):
         raise ValueError("threshold must be a float between 0 and 1")
     
@@ -172,18 +205,51 @@ def plot_sea_ice_extent_error(masks: object,
         binary_obs_weighted_da.sum(['xc', 'yc'])
     ) * (grid_area_size**2)
     
+    return forecast_sie_error
+
+
+def plot_sea_ice_extent_error(masks: object,
+                              fc_da: object,
+                              cmp_da: object,
+                              obs_da: object,
+                              output_path: object,
+                              grid_area_size: int = 25,
+                              threshold: float = 0.15) -> object:
+    """
+    Compute and plot sea ice extent (SIE) error of a forecast, where SIE is
+    defined as the total area covered by grid cells with SIC > (threshold*100)%.
+    
+    :param masks: an icenet Masks object
+    :param fc_da: the forecasts given as an xarray.DataArray object 
+                  with time, xc, yc coordinates
+    :param cmp_da: a comparison forecast / sea ice data given as an 
+                   xarray.DataArray object with time, xc, yc coordinates.
+                   If None, will ignore plotting a comparison forecast
+    :param obs_da: the "ground truth" given as an xarray.DataArray object
+                   with time, xc, yc coordinates
+    :param output_path: string specifying the path to store the plot
+    :param grid_area_size: the length of the sides of the grid (in km),
+                           by default set to 25 (so area of grid is 25*25)
+    :param threshold: the SIC threshold of interest (in percentage as a fraction),
+                      i.e. threshold is between 0 and 1
+    
+    :return: tuple of (SIE for forecast (fc_da), SIE for comparison (cmp_da))
+    """
+    forecast_sie_error = compute_sea_ice_extent_error(masks=masks,
+                                                      fc_da=fc_da,
+                                                      obs_da=obs_da,
+                                                      grid_area_size=grid_area_size)
+    
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.set_title(f"SIE comparison ({grid_area_size} km grid resolution) "
                  f"(threshold SIC = {threshold*100}%)")
     ax.plot(forecast_sie_error.time, forecast_sie_error.values, label="IceNet")
 
     if cmp_da is not None:
-        binary_cmp_da = cmp_da > threshold
-        binary_cmp_weighted_da = binary_cmp_da.astype(int).weighted(agcm)
-        cmp_sie_error = (
-            binary_cmp_weighted_da.sum(['xc', 'yc']) -
-            binary_obs_weighted_da.sum(['xc', 'yc'])
-        ) * (grid_area_size**2)
+        cmp_sie_error = compute_sea_ice_extent_error(masks=masks,
+                                                      fc_da=cmp_da,
+                                                      obs_da=obs_da,
+                                                      grid_area_size=grid_area_size)
         ax.plot(cmp_sie_error.time, cmp_sie_error.values, label="SEAS")
     else:
         cmp_sie_error = None
@@ -207,7 +273,7 @@ def compute_metrics(metrics: object,
                     fc_da: object,
                     obs_da: object) -> object:
     """
-    Computes metrics which are passed in as a list of strings.
+    Computes metrics based on SIC error which are passed in as a list of strings.
     Returns a dictionary where the keys are the metrics,
     and the values are the computed metrics.
 
@@ -310,7 +376,7 @@ def plot_metrics(metrics: object,
             if cmp_metric_dict is not None:
                 ax.plot(cmp_metric_dict[metric].time,
                         cmp_metric_dict[metric].values,
-                        label=f"SEAS")
+                        label="SEAS")
                 
             ax.xaxis.set_major_formatter(
                 mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
@@ -350,6 +416,206 @@ def plot_metrics(metrics: object,
     return fc_metric_dict, cmp_metric_dict
 
 
+def compute_metric_as_dataframe(metric: str,
+                                masks: object,
+                                init_date: object,
+                                fc_da: object,
+                                obs_da: object,
+                                **kwargs) -> pd.DataFrame:
+    """
+    
+    :param metric:
+    :param masks: an icenet Masks object
+    :init_date: 
+    :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
+    :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
+    :param kwargs:
+    
+    :return:
+    """
+    if metric in ["MAE", "MSE", "RMSE"]:
+        met = compute_metrics(metrics=[metric],
+                              masks=masks,
+                              fc_da=fc_da,
+                              obs_da=obs_da)[metric]
+    elif metric == "binacc":
+        if "threshold" not in kwargs.keys():
+            raise KeyError("if metric = 'binacc', must pass in argument for threshold")
+        met = compute_binary_accuracy(masks=masks,
+                                      fc_da=fc_da,
+                                      obs_da=obs_da,
+                                      threshold=kwargs["threshold"])
+    elif metric == "SIE":
+        if "grid_area_size" not in kwargs.keys():
+            raise KeyError("if metric = 'SIE', must pass in argument for grid_area_size")
+        if "threshold" not in kwargs.keys():
+            raise KeyError("if metric = 'SIE', must pass in argument for threshold")
+        met = compute_sea_ice_extent_error(masks=masks,
+                                           fc_da=fc_da,
+                                           obs_da=obs_da,
+                                           grid_area_size=kwargs["grid_area_size"],
+                                           threshold=kwargs["threshold"])
+    else:
+        raise NotImplementedError(f"{metric} is not implemented")
+        
+    return pd.DataFrame({"date": init_date,
+                         "leadtime": list(range(1, len(met.values)+1)),
+                         f"{metric}": met.values})
+
+
+def compute_metrics_leadtime_avg(metric: str,
+                                 masks: object,
+                                 hemisphere: str,
+                                 forecast_file: str,
+                                 emcwf: bool,
+                                 bias_correct: bool = False,
+                                 **kwargs) -> object:
+    """
+    
+    :param metric:
+    :param hemisphere:
+    :param forecast_file:
+    :param emcwf:
+    :param masks:
+    :param bias_correct:
+    :param kwargs:
+    
+    :return:
+    """
+    # open forecast file
+    fc_ds = xr.open_dataset(forecast_file)
+    
+    if emcwf:
+        # find out what dates cross over with the SEAS5 predictions
+        (fc_start_date, fc_end_date) = (fc_ds.time.values.min(), fc_ds.time.values.max())
+        dates = get_seas_forecast_init_dates(hemisphere)
+        dates = dates[(dates > fc_start_date) & (dates <= fc_end_date)]
+        times = [x for x in fc_ds.time.values if x in dates]
+        fc_ds = fc_ds.sel(time=times)
+    
+    logging.info(f"Computing {metric} for {len(fc_ds.time.values)} forecasts")
+    # obtain metric for each leadtime at each initialised date in the forecast file
+    
+    fc_metrics_list = []
+    if emcwf:
+        seas_metrics_list = []
+    for time in fc_ds.time.values:
+        # compute metrics for forecast
+        fc = fc_ds.sel(time=slice(time,time))["sic_mean"]
+        obs = get_obs_da(hemisphere=hemisphere,
+                         start_date=pd.to_datetime(time) + timedelta(days=1),
+                         end_date=pd.to_datetime(time) + timedelta(days=int(fc.leadtime.max())))
+        fc = filter_ds_by_obs(fc, obs, time)
+        fc_metrics_list.append(compute_metric_as_dataframe(metric=metric,
+                                                           masks=masks,
+                                                           init_date=time,
+                                                           fc_da=fc,
+                                                           obs_da=obs,
+                                                           **kwargs))
+        
+        if emcwf:
+            seas = get_seas_forecast_da(hemisphere=hemisphere,
+                                        date=pd.to_datetime(time),
+                                        bias_correct=bias_correct)
+            seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
+            seas = seas.isel(time=slice(1, None))
+            seas_metrics_list.append(compute_metric_as_dataframe(metric=metric,
+                                                                 masks=masks,
+                                                                 init_date=time,
+                                                                 fc_da=seas,
+                                                                 obs_da=obs,
+                                                                 **kwargs))
+    
+    # groupby the leadtime and compute the mean average of the metric
+    fc_metric_df = pd.concat(fc_metrics_list)
+    if emcwf:
+        seas_metric_df = pd.concat(seas_metrics_list)
+    else:
+        seas_metric_df = None
+        
+    return fc_metric_df, seas_metric_df
+
+
+def plot_metrics_leadtime_avg(metric: str,
+                              masks: object,
+                              hemisphere: str,
+                              forecast_file: str,
+                              emcwf: bool,
+                              output_path: str,
+                              bias_correct: bool = False,
+                              **kwargs) -> object:
+    """
+    
+    :param metric:
+    :param masks:
+    :param hemisphere:
+    :param forecast_file:
+    :param emcwf:
+    :param output_path:
+    :param bias_correct:
+    :param kwargs:
+    
+    :return:
+    """
+    implemented_metrics = ["binacc", "SIE", "MAE", "MSE", "RMSE"]
+    if metric not in implemented_metrics:
+        raise NotImplementedError(f"{metric} metric has not been implemented. "
+                                  f"Please only choose out of {implemented_metrics}.")
+    if metric == "binacc":
+        if "threshold" not in kwargs.keys():
+            kwargs["threshold"] = 0.15
+    elif metric == "SIE":
+        if "grid_area_size" not in kwargs.keys():
+            kwargs["grid_area_size"] = 25
+        if "threshold" not in kwargs.keys():
+            kwargs["threshold"] = 0.15
+    
+    # computing the dataframes for the metrics
+    fc_metric_df, seas_metric_df = compute_metrics_leadtime_avg(metric=metric,
+                                                                hemisphere=hemisphere,
+                                                                forecast_file=forecast_file,
+                                                                emcwf=emcwf,
+                                                                masks=masks,
+                                                                bias_correct=bias_correct,
+                                                                **kwargs)
+    
+    logging.info(f"Creating leadtime averaged plot for {metric} metric")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # averaging metric over leadtime
+    fc_avg_metric = fc_metric_df.groupby("leadtime")[metric].mean()
+    
+    # creating plot title
+    (start_date, end_date) = (fc_metric_df["date"].min().strftime('%d/%m/%Y'),
+                              fc_metric_df["date"].max().strftime('%d/%m/%Y'))
+    time_coverage = f"\n Averaged over {len(fc_metric_df['date'].unique())} forecasts between {start_date} - {end_date}"
+    if metric in ["MAE", "MSE", "RMSE"]:
+        ax.set_title(f"{metric} comparison" + time_coverage)
+    elif metric == "binacc":
+        ax.set_title(f"Binary accuracy comparison (threshold SIC = {kwargs['threshold']*100}%)" + time_coverage)
+    elif metric == "SIE":
+        ax.set_title(f"SIE comparison ({kwargs['grid_area_size']} km grid resolution, "
+                     f"threshold SIC = {kwargs['threshold']*100}%)" + time_coverage)
+
+    # plot leadtime averaged metrics
+    ax.plot(fc_avg_metric.index, fc_avg_metric, label="IceNet")
+    if seas_metric_df is not None:
+        seas_avg_metric = seas_metric_df.groupby("leadtime")[metric].mean()
+        ax.plot(seas_avg_metric.index, seas_avg_metric, label="SEAS")
+    
+    n_forecast_days = fc_avg_metric.index.max()
+    ax.set_xticks(np.arange(30, n_forecast_days, 30))
+    ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
+    ax.legend(loc='lower right')
+    
+    output_path = os.path.join("plot", f"leadtime_averaged_{metric}.png") \
+        if not output_path else output_path
+    logging.info(f"Saving to {output_path}")
+    plt.savefig(output_path)
+    
+    return fc_metric_df, seas_metric_df
+
+
 def sic_error_video(fc_da: object,
                     obs_da: object,
                     land_mask: object,
@@ -361,7 +627,7 @@ def sic_error_video(fc_da: object,
     :param land_mask:
     :param output_path:
     
-    :returns: matplotlib animation
+    :return: matplotlib animation
     """
 
     diff = fc_da - obs_da
@@ -452,8 +718,8 @@ def forecast_plot_args(ecmwf: bool = True,
     
     :param ecmwf:
     :param threshold:
-    :param metrics:
     :param sie:
+    :param metrics:
     
     :return:
     """
