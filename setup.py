@@ -85,6 +85,8 @@ setup(
             "icenet_video_data = icenet.plotting.video:data_cli",
 
             "icenet_output = icenet.process.predict:create_cf_output",
+            "icenet_output_geotiff = "
+            "icenet.process.forecasts:create_geotiff_output",
             "icenet_output_broadcast = "
             "icenet.process.forecasts:broadcast_main",
             "icenet_output_reproject = "

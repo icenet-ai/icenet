@@ -5,7 +5,6 @@ import os
 import re
 
 import cartopy.crs as ccrs
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
@@ -13,7 +12,81 @@ import xarray as xr
 
 from ibicus.debias import LinearScaling
 
-from icenet.process.forecasts import broadcast_forecast
+
+def broadcast_forecast(start_date: object,
+                       end_date: object,
+                       datafiles: object = None,
+                       dataset: object = None,
+                       target: object = None) -> object:
+    """
+
+    :param start_date:
+    :param end_date:
+    :param datafiles:
+    :param dataset:
+    :param target:
+    :return:
+    """
+
+    assert (datafiles is None) ^ (dataset is None), \
+        "Only one of datafiles and dataset can be set"
+
+    if datafiles:
+        logging.info("Using {} to generate forecast through {} to {}".
+                     format(", ".join(datafiles), start_date, end_date))
+        dataset = xr.open_mfdataset(datafiles, engine="netcdf4")
+
+    dates = pd.date_range(start_date, end_date)
+    i = 0
+
+    logging.debug("Dataset summary: \n{}".format(dataset))
+
+    if len(dataset.time.values) > 1:
+        while dataset.time.values[i + 1] < dates[0]:
+            i += 1
+
+    logging.info("Starting index will be {} for {} - {}".
+                 format(i, dates[0], dates[-1]))
+    dt_arr = []
+
+    for d in dates:
+        logging.debug("Looking for date {}".format(d))
+        arr = None
+
+        while arr is None:
+            if d >= dataset.time.values[i]:
+                d_lead = (d - dataset.time.values[i]).days
+
+                if i + 1 < len(dataset.time.values):
+                    if pd.to_datetime(dataset.time.values[i]) + \
+                            dt.timedelta(days=d_lead) >= \
+                            pd.to_datetime(dataset.time.values[i + 1]) + \
+                            dt.timedelta(days=1):
+                        i += 1
+                        continue
+
+                logging.debug("Selecting date {} and lead {}".
+                              format(pd.to_datetime(
+                                     dataset.time.values[i]).strftime("%D"),
+                                     d_lead))
+
+                arr = dataset.sel(time=dataset.time.values[i],
+                                  leadtime=d_lead).\
+                    copy().\
+                    drop("time").\
+                    assign_coords(dict(time=d)).\
+                    drop("leadtime")
+            else:
+                i += 1
+
+        dt_arr.append(arr)
+
+    target_ds = xr.concat(dt_arr, dim="time")
+
+    if target:
+        logging.info("Saving dataset to {}".format(target))
+        target_ds.to_netcdf(target)
+    return target_ds
 
 
 def get_seas_forecast_da(hemisphere: str,
@@ -115,7 +188,7 @@ def get_forecast_ds(forecast_file: object,
     """
     forecast_date = pd.to_datetime(forecast_date)
 
-    forecast_ds = xr.open_dataset(forecast_file)
+    forecast_ds = xr.open_dataset(forecast_file, decode_coords="all")
     get_key = "sic_mean" if not stddev else "sic_stddev"
 
     forecast_ds = getattr(
