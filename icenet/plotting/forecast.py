@@ -640,7 +640,7 @@ def plot_forecast():
 
     if not os.path.isdir(args.output_path):
         logging.warning("No directory at: {}".format(args.output_path))
-        os.makedirs(args.output_dir)
+        os.makedirs(args.output_path)
     elif os.path.isfile(args.output_path):
         raise RuntimeError("{} should be a directory and not existent...".
                            format(args.output_path))
@@ -727,6 +727,7 @@ def plot_forecast():
             plt.savefig(output_filename)
             plt.clf()
 
+
 def parse_metrics_arg(argument: str) -> object:
     """
     Splits a string into a list by separating on commas.
@@ -783,7 +784,8 @@ def metric_plots():
                  obs_da=obs,
                  output_path=args.output_path,
                  separate=args.separate)
-    
+
+
 def sic_error():
     """
     Produces video visualisation of SIC of forecast and ground truth.
