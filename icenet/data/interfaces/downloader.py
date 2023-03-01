@@ -81,6 +81,10 @@ class ClimateDownloader(Downloader):
         assert len(self._levels) == len(self._var_names), \
             "# of levels must match # vars"
 
+        if not self._delete:
+            logging.warning("!!! Deletions of temp files are switched off: be "
+                            "careful with this, you need to manage your "
+                            "files manually")
         self._download_method = None
 
         self._validate_config()
@@ -237,8 +241,10 @@ class ClimateDownloader(Downloader):
                             ll_path, "{}_old{}".format(
                                 *os.path.splitext(ll_file)))
                         os.rename(latlon_path, rename_latlon_path)
-                        old_da = xr.open_dataarray(rename_latlon_path)
-                        tmp_da = xr.open_dataarray(tmp_latlon_path)
+                        old_da = xr.open_dataarray(rename_latlon_path,
+                                                   drop_variables=self._drop_vars)
+                        tmp_da = xr.open_dataarray(tmp_latlon_path,
+                                                   drop_variables=self._drop_vars)
 
                         logging.debug("Input (old): \n{}".format(old_da))
                         logging.debug("Input (dl): \n{}".format(tmp_da))
@@ -261,12 +267,11 @@ class ClimateDownloader(Downloader):
             if self._postprocess and os.path.exists(latlon_path):
                 self.postprocess(var, latlon_path)
 
-            if len(req_dates) and os.path.exists(latlon_path):
-                self._files_downloaded.append(latlon_path)
         else:
             logging.info("No requested dates remain, likely already present")
-            if os.path.exists(latlon_path):
-                self._files_downloaded.append(latlon_path)
+
+        if os.path.exists(latlon_path):
+            self._files_downloaded.append(latlon_path)
 
     def postprocess(self, var, download_path):
         logging.debug("No postprocessing in place for {}: {}".

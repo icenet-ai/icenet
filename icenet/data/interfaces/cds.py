@@ -203,7 +203,15 @@ class ERA5Downloader(ClimateDownloader):
         """
         # if not self._use_toolbox:
         logging.info("Postprocessing CDS API data at {}".format(download_path))
-        da = xr.open_dataarray(download_path)
+
+        temp_path = "{}.bak{}".format(*os.path.splitext(download_path))
+        logging.debug("Moving to {}".format(temp_path))
+        os.rename(download_path, temp_path)
+
+        ds = xr.open_dataset(temp_path)
+        nom = list(ds.data_vars)[0]
+        da = getattr(ds.rename({nom: var}), var)
+
         doy_counts = da.time.groupby("time.dayofyear").count()
 
         # There are situations where the API will spit out unordered and
@@ -212,7 +220,6 @@ class ERA5Downloader(ClimateDownloader):
         # that's second
         # FIXME: This will cause issues for already processed latlon data
         if len(doy_counts[doy_counts < 24]) > 0:
-            logging.debug("doy_counts: {}".format(doy_counts))
             strip_dates_before = min([
                 dt.datetime.strptime("{}-{}".format(
                     d, pd.to_datetime(da.time.values[0]).year), "%j-%Y")
@@ -226,8 +233,7 @@ class ERA5Downloader(ClimateDownloader):
             # Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=173385064
             da = da.sel(expver=1).combine_first(da.sel(expver=5))
 
-        da = da.sortby("time").resample(time='1D').mean().compute()
-        # We're rewriting over the top fo the open file, mmmmm
+        da = da.sortby("time").resample(time='1D').mean()
         da.to_netcdf(download_path)
 
     def additional_regrid_processing(self,
