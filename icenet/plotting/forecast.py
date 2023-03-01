@@ -685,8 +685,7 @@ def plot_metrics_leadtime_avg(metric: str,
         ax.yaxis.set_major_formatter(matplotlib.dates.DateFormatter('%m'))
         ax.yaxis.set_major_locator(matplotlib.dates.DayLocator(bymonthday=15))
         ax.yaxis.set_minor_locator(matplotlib.dates.DayLocator(bymonthday=1))
-        ax.tick_params(axis='y', which='major',length=0)
-        ax.set_yticklabels(month_names)
+        ax.set_yticklabels(month_names[(fc_metric_df["month"].min()-1):])
         ax.set_ylabel('Initialisation date of forecast')
     else:
         raise NotImplementedError(f"averaging over {average_over} not a valid option.")
