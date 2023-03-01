@@ -17,6 +17,7 @@ netcdf4
 plotly
 pip
 pydap
+rioxarray
 scitools-iris
 setuptools
 tensorboard

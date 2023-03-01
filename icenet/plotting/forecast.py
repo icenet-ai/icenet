@@ -1,10 +1,12 @@
 import argparse
+import datetime as dt
 import logging
 import os
 
 from datetime import timedelta
 
 import matplotlib
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
@@ -24,9 +26,13 @@ from icenet.plotting.utils import (
     get_forecast_ds,
     get_obs_da,
     get_seas_forecast_da,
-    get_seas_forecast_init_dates
+    get_seas_forecast_init_dates,
+    show_img,
+    get_plot_axes
 )
+from icenet.plotting.video import xarray_to_video
 
+# FIXME: This shouldn't be here, 300 dpi is print quality (not always required)
 matplotlib.rcParams.update({
     'figure.facecolor': 'w',
     'figure.dpi': 300
@@ -34,10 +40,10 @@ matplotlib.rcParams.update({
 
 
 def region_arg(argument: str):
-    """
+    """type handler for region arguments with argparse
 
     :param argument:
-    
+
     :return:
     """
     try:
@@ -812,7 +818,8 @@ def sic_error_video(fc_da: object,
 def forecast_plot_args(ecmwf: bool = True,
                        threshold: bool = False,
                        sie: bool = False,
-                       metrics: bool = False) -> object:
+                       metrics: bool = False,
+                       extra_args: object = None) -> object:
     """
     Process command line arguments.
     
@@ -820,7 +827,8 @@ def forecast_plot_args(ecmwf: bool = True,
     :param threshold:
     :param sie:
     :param metrics:
-    
+    :param extra_args:
+
     :return:
     """
 
@@ -829,7 +837,8 @@ def forecast_plot_args(ecmwf: bool = True,
     ap.add_argument("forecast_file", type=str)
     ap.add_argument("forecast_date", type=date_arg)
 
-    ap.add_argument("-r", "--region", default=None, type=region_arg)
+    ap.add_argument("-r", "--region", default=None, type=region_arg,
+                    help="Region specified x1, y1, x2, y2")
 
     ap.add_argument("-o", "--output-path", type=str, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
@@ -867,12 +876,22 @@ def forecast_plot_args(ecmwf: bool = True,
                         action="store_true",
                         default=False)
 
+    if type(extra_args) == list:
+        for arg in extra_args:
+            ap.add_argument(*arg[0], **arg[1])
+    elif extra_args is not None:
+        logging.warning("Implementation error: extra_args is invalid")
+
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
     return args
+
+##
+# CLI endpoints
+#
 
 
 def binary_accuracy():
@@ -960,6 +979,123 @@ def sie_error():
                               threshold=args.threshold)
 
 
+def plot_forecast():
+    """CLI entry point for icenet_plot_forecast
+
+    :return:
+    """
+    args = forecast_plot_args(ecmwf=False,
+                              extra_args=[
+                                  (("-l", "--leadtimes"), dict(
+                                      help="Leadtimes to output, multiple as CSV, range as n..n",
+                                      type=lambda s: [int(i) for i in
+                                                      list(s.split(",") if "," in s else
+                                                           range(int(s.split("..")[0]),
+                                                                 int(s.split("..")[1])) if ".." in s else
+                                                           [s])])),
+                                  (("-c", "--no-coastlines"), dict(
+                                      help="Turn off cartopy integration",
+                                      action="store_true", default=False,
+                                  )),
+                                  (("-f", "--format"), dict(
+                                      help="Format to output in",
+                                      choices=("mp4", "png", "svg", "tiff"),
+                                      default="png"
+                                  ))
+                              ])
+    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+    fc = fc.transpose(..., "yc", "xc")
+
+    if not os.path.isdir(args.output_path):
+        logging.warning("No directory at: {}".format(args.output_path))
+        os.makedirs(args.output_path)
+    elif os.path.isfile(args.output_path):
+        raise RuntimeError("{} should be a directory and not existent...".
+                           format(args.output_path))
+
+    forecast_name = "{}.{}".format(
+        os.path.splitext(os.path.basename(args.forecast_file))[0],
+        args.forecast_date)
+
+    cmap = None
+    if args.region is not None:
+        cmap = cm.get_cmap("tab20")
+        cmap.set_bad("dimgrey")
+
+        fc = process_regions(args.region, [fc])[0]
+
+    leadtimes = args.leadtimes \
+        if args.leadtimes is not None \
+        else list(range(1, int(max(fc.leadtime.values)) + 1))
+
+    if args.format == "mp4":
+        pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
+
+        if "forecast_date" not in pred_da:
+            forecast_dates = [
+                pd.Timestamp(args.forecast_date) + dt.timedelta(lt)
+                for lt in args.leadtimes]
+            pred_da = pred_da.assign_coords(
+                forecast_date=("leadtime", forecast_dates))
+
+        pred_da = pred_da.drop("time").drop("leadtime").\
+            rename(leadtime="time", forecast_date="time").set_index(time="time")
+
+        anim_args = dict(
+            figsize=5
+        )
+        if not args.no_coastlines:
+            logging.warning("Coastlines will not work with the current "
+                            "implementation of xarray_to_video")
+
+        output_filename = os.path.join(args.output_path, "{}.{}.{}".format(
+            forecast_name,
+            args.forecast_date.strftime("%Y%m%d"),
+            args.format
+        ))
+        xarray_to_video(pred_da, fps=1, cmap=cmap,
+                        imshow_kwargs=dict(vmin=0., vmax=1.),
+                        video_path=output_filename,
+                        **anim_args)
+    else:
+        for leadtime in leadtimes:
+            pred_da = fc.sel(leadtime=leadtime).isel(time=0)    #.sic_mean. \
+                      # .where(~lm)
+
+            bound_args = dict()
+
+            if args.region is not None:
+                bound_args.update(x1=args.region[0],
+                                  x2=args.region[2],
+                                  y1=args.region[1],
+                                  y2=args.region[3])
+
+            ax = get_plot_axes(**bound_args,
+                               do_coastlines=not args.no_coastlines)
+
+            if cmap:
+                bound_args.update(cmap=cmap)
+
+            im = show_img(ax, pred_da, **bound_args,
+                          do_coastlines=not args.no_coastlines)
+
+            plt.colorbar(im, ax=ax)
+            plot_date = args.forecast_date + dt.timedelta(leadtime)
+            ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
+                                                       plot_date.month,
+                                                       plot_date.day))
+            output_filename = os.path.join(args.output_path, "{}.{}.{}".format(
+                forecast_name,
+                (args.forecast_date + dt.timedelta(
+                    days=leadtime)).strftime("%Y%m%d"),
+                args.format
+            ))
+
+            logging.info("Saving to {}".format(output_filename))
+            plt.savefig(output_filename)
+            plt.clf()
+
+
 def parse_metrics_arg(argument: str) -> object:
     """
     Splits a string into a list by separating on commas.
@@ -1016,7 +1152,6 @@ def metric_plots():
                  obs_da=obs,
                  output_path=args.output_path,
                  separate=args.separate)
-    
 
 
 def sic_error():

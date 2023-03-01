@@ -78,9 +78,13 @@ def xarray_to_video(da: object,
                     crop: object = None,
                     data_type: str = 'abs',
                     video_dates: object = None,
-                    cmap: object = 'viridis',
+                    cmap: object = "viridis",
                     figsize: int = 12,
-                    dpi: int = 150) -> object:
+                    dpi: int = 150,
+                    imshow_kwargs: dict = None,
+                    ax_init: object = None,
+                    ax_extra: callable = None,
+                    ) -> object:
 
     """
     Generate video of an xarray.DataArray. Optionally input a list of
@@ -101,10 +105,12 @@ def xarray_to_video(da: object,
     :param crop: [(a, b), (c, d)] to crop the video from a:b and c:d
     :param clim: Colormap limits. Default is None, in which case the min and
     max values of the array are used.
-    :param cmap: Matplotlib colormap.
+    :param cmap: Matplotlib colormap object.
     :param figsize: Figure size in inches.
     :param dpi: Figure DPI.
-
+    :param imshow_kwargs: Extra arguments for displaying array
+    :param ax_init: pre-initialised axes object for display
+    :param ax_extra: Extra method called with axes for additional plotting
     """
 
     def update(date):
@@ -146,8 +152,12 @@ def xarray_to_video(da: object,
 
     logging.info("Initialising plot")
 
-    fig, ax = plt.subplots(figsize=(figsize, figsize))
-    fig.set_dpi(dpi)
+    if ax_init is None:
+        fig, ax = plt.subplots(figsize=(figsize, figsize))
+        fig.set_dpi(dpi)
+    else:
+        ax = ax_init
+        fig = ax.get_figure()
 
     if mask is not None:
         if mask_type == 'contour':
@@ -158,22 +168,31 @@ def xarray_to_video(da: object,
     ax.axes.xaxis.set_visible(False)
     ax.axes.yaxis.set_visible(False)
 
-    divider = make_axes_locatable(ax)
+    if ax_extra is not None:
+        ax_extra(ax)
+
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
     image = ax.imshow(da.sel(time=date),
                       cmap=cmap,
                       clim=(n_min, n_max),
                       animated=True,
-                      zorder=1)
+                      zorder=1,
+                      **imshow_kwargs if imshow_kwargs is not None else {})
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".
                                format(date.year, date.month, date.day),
                                fontsize="medium", zorder=2)
-    cax = divider.append_axes('right', size='5%', pad=0.05, zorder=2)
-    plt.colorbar(image, cax)
+
+    try:
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes('right', size='5%', pad=0.05, zorder=2)
+        plt.colorbar(image, cax)
+    except KeyError as ex:
+        logging.warning("Could not configure locatable colorbar: {}".format(ex))
 
     logging.info("Animating")
-    # TODO: Investigate blit, but it causes a few problems with masks/titles.
+
+    # Investigated blitting, but it causes a few problems with masks/titles.
     animation = FuncAnimation(fig,
                               update,
                               video_dates,
