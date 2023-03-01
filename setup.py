@@ -81,6 +81,7 @@ setup(
             "icenet.plotting.forecast:binary_accuracy",
             "icenet_plot_sie_error = icenet.plotting.forecast:sie_error",
             "icenet_plot_metrics = icenet.plotting.forecast:metric_plots",
+            "icenet_plot_leadtime_avg = icenet.plotting.forecast:leadtime_avg_plots",
 
             "icenet_video_data = icenet.plotting.video:data_cli",
 

@@ -490,7 +490,9 @@ def compute_metrics_leadtime_avg(metric: str,
                                  hemisphere: str,
                                  forecast_file: str,
                                  emcwf: bool,
+                                 data_path: str,
                                  bias_correct: bool = False,
+                                 region: tuple = None,
                                  **kwargs) -> object:
     """
     Given forecast file, for each initialisation date in the xarrray.DataArray
@@ -507,9 +509,12 @@ def compute_metrics_leadtime_avg(metric: str,
                   with EMCWF SEAS forecast. If True, will only average
                   over forecasts where the initialisation dates between IceNet
                   and SEAS are the same
+    :param data_path: string specifying where to save the metrics dataframe.
+                      If None, dataframe is not saved
     :param bias_correct: logical value to indicate whether or not to
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if emcwf=False
+    :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE and binary accuracy
                    metrics, or 'grid_area_size' for SIE metric
@@ -534,27 +539,36 @@ def compute_metrics_leadtime_avg(metric: str,
     if emcwf:
         seas_metrics_list = []
     for time in fc_ds.time.values:
-        # compute metrics for forecast
+        # obtain forecast
         fc = fc_ds.sel(time=slice(time,time))["sic_mean"]
         obs = get_obs_da(hemisphere=hemisphere,
                          start_date=pd.to_datetime(time) + timedelta(days=1),
                          end_date=pd.to_datetime(time) + timedelta(days=int(fc.leadtime.max())))
         fc = filter_ds_by_obs(fc, obs, time)
-        fc_metrics_list.append(compute_metric_as_dataframe(metric=metric,
-                                                           masks=masks,
-                                                           init_date=time,
-                                                           fc_da=fc,
-                                                           obs_da=obs,
-                                                           **kwargs))
         
         if emcwf:
-            # obtain SEAS forecast file and compute metric for forecast
+            # obtain SEAS forecast
             seas = get_seas_forecast_da(hemisphere=hemisphere,
                                         date=pd.to_datetime(time),
                                         bias_correct=bias_correct)
             # remove the initialisation date from dataarray
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
             seas = seas.isel(time=slice(1, None))
+        else:
+            seas = None
+        
+        if region is not None:
+            seas, fc, obs, masks = process_regions(region,
+                                                   [seas, fc, obs, masks])
+        
+        # compute metrics
+        fc_metrics_list.append(compute_metric_as_dataframe(metric=metric,
+                                                           masks=masks,
+                                                           init_date=time,
+                                                           fc_da=fc,
+                                                           obs_da=obs,
+                                                           **kwargs))
+        if seas is not None:
             seas_metrics_list.append(compute_metric_as_dataframe(metric=metric,
                                                                  masks=masks,
                                                                  init_date=time,
@@ -564,12 +578,21 @@ def compute_metrics_leadtime_avg(metric: str,
     
     # groupby the leadtime and compute the mean average of the metric
     fc_metric_df = pd.concat(fc_metrics_list)
+    fc_metric_df["forecast_name"] = "IceNet"
     if emcwf:
         seas_metric_df = pd.concat(seas_metrics_list)
-    else:
-        seas_metric_df = None
+        seas_metric_df["forecast_name"] = "SEAS"
+        fc_metric_df = pd.concat([fc_metric_df, seas_metric_df])
+    
+    if data_path is not None:
+        logging.info(f"Saving the metric dataframe in {data_path}")
+        try:
+            fc_metric_df.to_csv(data_path)
+        except:
+            # don't break if not successful, still return dataframe
+            logging.info(f"Save not successful! Make sure the data_path directory exists")
         
-    return fc_metric_df, seas_metric_df
+    return fc_metric_df.reset_index(drop=True)
 
 
 def plot_metrics_leadtime_avg(metric: str,
@@ -579,9 +602,13 @@ def plot_metrics_leadtime_avg(metric: str,
                               emcwf: bool,
                               output_path: str,
                               average_over: str,
+                              data_path: str = None,
                               bias_correct: bool = False,
+                              region: tuple = None,
                               **kwargs) -> object:
     """
+    Plots leadtime averaged metrics either using all the forecasts
+    in the forecast file, or averaging them over by month or day.
     
     :param metric: string specifying which metric to compute
     :param masks: an icenet Masks object
@@ -598,9 +625,14 @@ def plot_metrics_leadtime_avg(metric: str,
                          If average_over="month" or "day", averages
                          over the month or day respectively and produces
                          heat map plot.
+    :param data_path: string specifying a CSV file where metrics dataframe
+                      could be loaded from. If loading in the dataframe is 
+                      not possible, it will compute the metrics dataframe
+                      and try to save the dataframe
     :param bias_correct: logical value to indicate whether or not to
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if emcwf=False
+    :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE and binary accuracy
                    metrics, or 'grid_area_size' for SIE metric
@@ -620,15 +652,35 @@ def plot_metrics_leadtime_avg(metric: str,
         if "threshold" not in kwargs.keys():
             kwargs["threshold"] = 0.15
     
-    # computing the dataframes for the metrics
-    fc_metric_df, seas_metric_df = compute_metrics_leadtime_avg(metric=metric,
-                                                                hemisphere=hemisphere,
-                                                                forecast_file=forecast_file,
-                                                                emcwf=emcwf,
-                                                                masks=masks,
-                                                                bias_correct=bias_correct,
-                                                                **kwargs)
-    
+    compute_metrics = True
+    if data_path is not None:
+        # loading in precomputed dataframes for the metrics
+        logging.info(f"Attempting to read in metrics dataframe from {data_path}")
+        try:
+            metric_df = pd.read_csv(data_path)
+            metric_df["date"] = pd.to_datetime(metric_df["date"])
+            compute_metrics = False
+        except:
+            logging.info(f"Couldn't load in dataframe from {data_path}, "
+                         f"will compute metric dataframe and try save to {data_path}")
+
+    if compute_metrics:
+        # computing the dataframes for the metrics
+        # will save dataframe in data_path if data_path is not None
+        metric_df = compute_metrics_leadtime_avg(metric=metric,
+                                                 hemisphere=hemisphere,
+                                                 forecast_file=forecast_file,
+                                                 emcwf=emcwf,
+                                                 masks=masks,
+                                                 data_path=data_path,
+                                                 bias_correct=bias_correct,
+                                                 region=region,
+                                                 **kwargs)
+
+    fc_metric_df = metric_df[metric_df["forecast_name"]=="IceNet"]
+    seas_metric_df = metric_df[metric_df["forecast_name"]=="SEAS"]
+    seas_metric_df = seas_metric_df if len(seas_metric_df)!=0 else None
+
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
     (start_date, end_date) = (fc_metric_df["date"].min().strftime('%d/%m/%Y'),
@@ -821,6 +873,7 @@ def forecast_plot_args(ecmwf: bool = True,
                        threshold: bool = False,
                        sie: bool = False,
                        metrics: bool = False,
+                       leadtime: bool = False,
                        extra_args: object = None) -> object:
     """
     Process command line arguments.
@@ -837,8 +890,25 @@ def forecast_plot_args(ecmwf: bool = True,
     ap = argparse.ArgumentParser()
     ap.add_argument("hemisphere", choices=("north", "south"))
     ap.add_argument("forecast_file", type=str)
-    ap.add_argument("forecast_date", type=date_arg)
 
+    if leadtime:
+        ap.add_argument("-m",
+                        "--metric",
+                        help="Which metric to compute and plot",
+                        type=str)
+        ap.add_argument("-dp",
+                        "--data_path",
+                        help="Where to find (or store) metrics dataframe",
+                        type=str,
+                        default=None)
+        ap.add_argument("-ao",
+                        "--average_over",
+                        help="how to average the forecast metrics",
+                        type=str,
+                        choices=["all", "month", "day"])
+    else:
+        ap.add_argument("forecast_date", type=date_arg)
+        
     ap.add_argument("-r", "--region", default=None, type=region_arg,
                     help="Region specified x1, y1, x2, y2")
 
@@ -1154,6 +1224,26 @@ def metric_plots():
                  obs_da=obs,
                  output_path=args.output_path,
                  separate=args.separate)
+
+
+def leadtime_avg_plots():
+    """
+    Produces plot of leadtime averaged metrics for forecasts.
+    """
+    args = forecast_plot_args(ecmwf=True, leadtime=True)
+    masks = Masks(north=args.hemisphere == "north",
+                  south=args.hemisphere == "south")
+    
+    plot_metrics_leadtime_avg(metric=args.metric,
+                              masks=masks,
+                              hemisphere=args.hemisphere,
+                              forecast_file=args.forecast_file,
+                              emcwf=args.ecmwf,
+                              output_path=args.output_path,
+                              average_over=args.average_over,
+                              data_path=args.data_path,
+                              bias_correct=args.bias_correct,
+                              region=args.region)
 
 
 def sic_error():
