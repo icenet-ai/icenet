@@ -179,12 +179,24 @@ Coordinates:
                      format(float(seas_da.min()), float(seas_da.max())))
 
     logging.info("Returning SEAS data from {} from {}".format(seas_file, date))
+
+    # This isn't great looking, but we know we're not dealing with huge
+    # indexes in here
+    date_location = list(seas_da.time.values).index(pd.Timestamp(date))
+    if date_location > 0:
+        logging.warning("SEAS forecast started {} day before the requested "
+                        "date {}, make sure you account for this!".
+                        format(date_location, date))
+
     seas_da = seas_da.sel(time=slice(date, None))
     logging.debug("SEAS data range: {} - {}, {} dates".format(
         pd.to_datetime(min(seas_da.time.values)).strftime("%Y-%m-%d"),
         pd.to_datetime(max(seas_da.time.values)).strftime("%Y-%m-%d"),
         len(seas_da.time)
     ))
+
+    import sys
+    sys.exit(0)
 
     return seas_da
 
