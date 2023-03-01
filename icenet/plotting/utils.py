@@ -4,12 +4,89 @@ import logging
 import os
 import re
 
+import cartopy.crs as ccrs
+import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
+
 from ibicus.debias import LinearScaling
 
-from icenet.process.forecasts import broadcast_forecast
+
+def broadcast_forecast(start_date: object,
+                       end_date: object,
+                       datafiles: object = None,
+                       dataset: object = None,
+                       target: object = None) -> object:
+    """
+
+    :param start_date:
+    :param end_date:
+    :param datafiles:
+    :param dataset:
+    :param target:
+    :return:
+    """
+
+    assert (datafiles is None) ^ (dataset is None), \
+        "Only one of datafiles and dataset can be set"
+
+    if datafiles:
+        logging.info("Using {} to generate forecast through {} to {}".
+                     format(", ".join(datafiles), start_date, end_date))
+        dataset = xr.open_mfdataset(datafiles, engine="netcdf4")
+
+    dates = pd.date_range(start_date, end_date)
+    i = 0
+
+    logging.debug("Dataset summary: \n{}".format(dataset))
+
+    if len(dataset.time.values) > 1:
+        while dataset.time.values[i + 1] < dates[0]:
+            i += 1
+
+    logging.info("Starting index will be {} for {} - {}".
+                 format(i, dates[0], dates[-1]))
+    dt_arr = []
+
+    for d in dates:
+        logging.debug("Looking for date {}".format(d))
+        arr = None
+
+        while arr is None:
+            if d >= dataset.time.values[i]:
+                d_lead = (d - dataset.time.values[i]).days
+
+                if i + 1 < len(dataset.time.values):
+                    if pd.to_datetime(dataset.time.values[i]) + \
+                            dt.timedelta(days=d_lead) >= \
+                            pd.to_datetime(dataset.time.values[i + 1]) + \
+                            dt.timedelta(days=1):
+                        i += 1
+                        continue
+
+                logging.debug("Selecting date {} and lead {}".
+                              format(pd.to_datetime(
+                                     dataset.time.values[i]).strftime("%D"),
+                                     d_lead))
+
+                arr = dataset.sel(time=dataset.time.values[i],
+                                  leadtime=d_lead).\
+                    copy().\
+                    drop("time").\
+                    assign_coords(dict(time=d)).\
+                    drop("leadtime")
+            else:
+                i += 1
+
+        dt_arr.append(arr)
+
+    target_ds = xr.concat(dt_arr, dim="time")
+
+    if target:
+        logging.info("Saving dataset to {}".format(target))
+        target_ds.to_netcdf(target)
+    return target_ds
 
 
 def get_seas_forecast_init_dates(hemisphere: str,
@@ -121,7 +198,7 @@ Coordinates:
 def get_forecast_ds(forecast_file: object,
                     forecast_date: str,
                     stddev: bool = False
-                    ) -> tuple:
+                    ) -> object:
     """
 
     :param forecast_file: a path to a .nc file
@@ -131,7 +208,7 @@ def get_forecast_ds(forecast_file: object,
     """
     forecast_date = pd.to_datetime(forecast_date)
 
-    forecast_ds = xr.open_dataset(forecast_file)
+    forecast_ds = xr.open_dataset(forecast_file, decode_coords="all")
     get_key = "sic_mean" if not stddev else "sic_stddev"
 
     forecast_ds = getattr(
@@ -158,8 +235,13 @@ def filter_ds_by_obs(ds: object,
     )
 
     if len(obs_da.time) < len(ds.leadtime):
+        if len(obs_da.time) < 1:
+            raise RuntimeError("No observational data available between {} "
+                               "and {}".format(start_date.strftime("%D"),
+                                               end_date.strftime("%D")))
+
         logging.warning("Observational data not available for full range of "
-                        "forecast leadtimes: {}-{} vs {}-{}".format(
+                        "forecast lead times: {}-{} vs {}-{}".format(
                          obs_da.time.to_series()[0].strftime("%D"),
                          obs_da.time.to_series()[-1].strftime("%D"),
                          start_date.strftime("%D"),
@@ -204,3 +286,111 @@ def get_obs_da(hemisphere: str,
     obs_ds = obs_ds.sel(time=slice(start_date, end_date))
 
     return obs_ds.ice_conc
+
+
+def calculate_data_extents(x1: int,
+                           x2: int,
+                           y1: int,
+                           y2: int):
+    """
+
+    :param x1:
+    :param x2:
+    :param y1:
+    :param y2:
+    :return:
+    """
+    data_extent_estimate = 5400000.0    # 216 * 25000
+
+    return [-(data_extent_estimate) + (x1 * 25000),
+            data_extent_estimate - ((432 - x2) * 25000),
+            -(data_extent_estimate) + ((432 - y2) * 25000),
+            data_extent_estimate - (y1 * 25000)]
+
+
+def calculate_proj_extents(x1: int,
+                           x2: int,
+                           y1: int,
+                           y2: int):
+    """
+
+    :param x1:
+    :param x2:
+    :param y1:
+    :param y2:
+    :return:
+    """
+    data_extent_estimate = 5400000.0    # 216 * 25000
+
+    return [-(data_extent_estimate) + (y1 * 25000),
+            data_extent_estimate - ((432 - y2) * 25000),
+            -(data_extent_estimate) + (x1 * 25000),
+            data_extent_estimate - ((432 - x2) * 25000)]
+
+
+def get_plot_axes(x1: int = 0,
+                  x2: int = 432,
+                  y1: int = 0,
+                  y2: int = 432,
+                  do_coastlines: bool = True):
+    """
+
+    :param x1:
+    :param x2:
+    :param y1:
+    :param y2:
+    :param do_coastlines:
+    :return:
+    """
+    fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
+
+    if do_coastlines:
+        proj = ccrs.LambertAzimuthalEqualArea(-90, 90)
+        ax = fig.add_subplot(1, 1, 1, projection=proj)
+        bounds = calculate_proj_extents(x1, x2, y1, y2)
+        ax.set_extent(bounds, crs=proj)
+    else:
+        ax = fig.add_subplot(1, 1, 1)
+
+    return ax
+
+
+def show_img(ax,
+             arr,
+             x1: int = 0,
+             x2: int = 432,
+             y1: int = 0,
+             y2: int = 432,
+             cmap: object = None,
+             do_coastlines: bool = True):
+    """
+
+    :param ax:
+    :param arr:
+    :param x1:
+    :param x2:
+    :param y1:
+    :param y2:
+    :param cmap:
+    :param do_coastlines:
+    :return:
+    """
+
+    if do_coastlines:
+        data_globe = ccrs.Globe(datum="WGS84",
+                                inverse_flattening=298.257223563,
+                                semimajor_axis=6378137.0)
+        data_crs = ccrs.LambertAzimuthalEqualArea(0, 90, globe=data_globe)
+
+        im = ax.imshow(arr,
+                       vmin=0.,
+                       vmax=1.,
+                       cmap=cmap,
+                       transform=data_crs,
+                       extent=calculate_data_extents(x1, x2, y1, y2))
+        ax.coastlines()
+    else:
+        im = ax.imshow(arr, cmap=cmap, vmin=0., vmax=1.)
+
+    return im
+

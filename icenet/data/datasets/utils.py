@@ -83,7 +83,10 @@ class SplittingMixin:
         :return:
         """
         if not (len(self.train_fns) + len(self.val_fns) + len(self.test_fns)):
-            raise RuntimeError("No files have been found, abandoning...")
+            raise RuntimeError("No files have been found, abandoning. This is "
+                               "likely because you're trying to use a config "
+                               "only mode dataset in a situation that demands "
+                               "tfrecords to be generated (like training...)")
 
         logging.info("Datasets: {} train, {} val and {} test filenames".format(
             len(self.train_fns), len(self.val_fns), len(self.test_fns)))

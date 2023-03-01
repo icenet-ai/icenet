@@ -73,9 +73,9 @@ setup(
             "icenet_upload_azure = icenet.process.azure:upload",
             "icenet_upload_local = icenet.process.local:upload",
 
-            "icenet_plot_sample = icenet.plotting.data:plot_sample",
             "icenet_plot_record = icenet.plotting.data:plot_tfrecord",
 
+            "icenet_plot_forecast = icenet.plotting.forecast:plot_forecast",
             "icenet_plot_sic_error = icenet.plotting.forecast:sic_error",
             "icenet_plot_bin_accuracy = "
             "icenet.plotting.forecast:binary_accuracy",
@@ -85,6 +85,8 @@ setup(
             "icenet_video_data = icenet.plotting.video:data_cli",
 
             "icenet_output = icenet.process.predict:create_cf_output",
+            "icenet_output_geotiff = "
+            "icenet.process.forecasts:create_geotiff_output",
             "icenet_output_broadcast = "
             "icenet.process.forecasts:broadcast_main",
             "icenet_output_reproject = "

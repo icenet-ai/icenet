@@ -2,6 +2,7 @@ import logging
 import requests
 
 import cartopy.crs as ccrs
+import cf_units
 import iris
 import numpy as np
 
@@ -19,7 +20,9 @@ def assign_lat_lon_coord_system(cube: object):
     # NOTE: CMIP6 original assignment, but cs in this case is bring assigned to
     # a module call that doesn't exist, let alone contain this member
     # cs = grid_cube.coord_system().ellipsoid
-    # for coord in ['longitude', 'latitude']:
+    for coord in ['longitude', 'latitude']:
+        if cube.coord(coord).units != cf_units.Unit("degrees"):
+            cube.coord(coord).units = cf_units.Unit("degrees")
     #     cmip6_cube.coord(coord).coord_system = cs
 
     return cube
