@@ -10,6 +10,8 @@ import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
 matplotlib.use('Agg')
 
+import seaborn as sns
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -17,8 +19,13 @@ import dask.array as da
 
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
-from icenet.plotting.utils import \
-    filter_ds_by_obs, get_forecast_ds, get_obs_da, get_seas_forecast_da, get_seas_forecast_init_dates
+from icenet.plotting.utils import (
+    filter_ds_by_obs,
+    get_forecast_ds,
+    get_obs_da,
+    get_seas_forecast_da,
+    get_seas_forecast_init_dates
+)
 
 matplotlib.rcParams.update({
     'figure.facecolor': 'w',
@@ -423,15 +430,22 @@ def compute_metric_as_dataframe(metric: str,
                                 obs_da: object,
                                 **kwargs) -> pd.DataFrame:
     """
+    Computes a metric for each leadtime in a forecast and stores the
+    results in a pandas dataframe with columns 'date' (which is the
+    initialisation date passed in), 'leadtime' and the metric name.
     
-    :param metric:
+    :param metric: string specifying which metric to compute
     :param masks: an icenet Masks object
-    :init_date: 
+    :param init_date: forecast initialisation date which gets
+                      added to pandas dataframe (as string, or datetime object)
     :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
     :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
-    :param kwargs:
+    :param kwargs: any keyword arguments that are required for the computation
+                   of the metric, e.g. 'threshold' for SIE and binary accuracy
+                   metrics, or 'grid_area_size' for SIE metric
     
-    :return:
+    :return: computed metric in a pandas dataframe with columns 'date',
+             'leadtime' and 'metric'
     """
     if metric in ["MAE", "MSE", "RMSE"]:
         met = compute_metrics(metrics=[metric],
@@ -458,7 +472,9 @@ def compute_metric_as_dataframe(metric: str,
     else:
         raise NotImplementedError(f"{metric} is not implemented")
         
-    return pd.DataFrame({"date": init_date,
+    return pd.DataFrame({"date": pd.to_datetime(init_date),
+                         "dayofyear": pd.to_datetime(init_date).dayofyear,
+                         "month": pd.to_datetime(init_date).month,
                          "leadtime": list(range(1, len(met.values)+1)),
                          f"{metric}": met.values})
 
@@ -471,16 +487,28 @@ def compute_metrics_leadtime_avg(metric: str,
                                  bias_correct: bool = False,
                                  **kwargs) -> object:
     """
+    Given forecast file, for each initialisation date in the xarrray.DataArray
+    we compute the metric for each leadtime and store the results
+    in a pandas dataframe with columns 'date' (specifying the initialisation date),
+    'leadtime' and the metric name. This pandas dataframe can then be used
+    to average over leadtime to obtain leadtime averaged metrics.
     
-    :param metric:
-    :param hemisphere:
-    :param forecast_file:
-    :param emcwf:
-    :param masks:
-    :param bias_correct:
-    :param kwargs:
+    :param metric: string specifying which metric to compute
+    :param masks: an icenet Masks object
+    :param hemisphere: string, typically either 'north' or 'south'
+    :param forecast_file: string specifying a path to a .nc file
+    :param emcwf: logical value to indicate whether or not to compare
+                  with EMCWF SEAS forecast. If True, will only average
+                  over forecasts where the initialisation dates between IceNet
+                  and SEAS are the same
+    :param bias_correct: logical value to indicate whether or not to
+                         perform a bias correction on SEAS forecast,
+                         by default False. Ignored if emcwf=False
+    :param kwargs: any keyword arguments that are required for the computation
+                   of the metric, e.g. 'threshold' for SIE and binary accuracy
+                   metrics, or 'grid_area_size' for SIE metric
     
-    :return:
+    :return: pandas dataframe with columns 'date', 'leadtime' and the metric name.
     """
     # open forecast file
     fc_ds = xr.open_dataset(forecast_file)
@@ -542,20 +570,34 @@ def plot_metrics_leadtime_avg(metric: str,
                               forecast_file: str,
                               emcwf: bool,
                               output_path: str,
+                              average_over: str,
                               bias_correct: bool = False,
                               **kwargs) -> object:
     """
     
-    :param metric:
-    :param masks:
-    :param hemisphere:
-    :param forecast_file:
-    :param emcwf:
-    :param output_path:
-    :param bias_correct:
-    :param kwargs:
+    :param metric: string specifying which metric to compute
+    :param masks: an icenet Masks object
+    :param hemisphere: string, typically either 'north' or 'south'
+    :param forecast_file: a path to a .nc file
+    :param emcwf: logical value to indicate whether or not to compare
+                  with EMCWF SEAS forecast. If True, will only average
+                  over forecasts where the initialisation dates between IceNet
+                  and SEAS are the same
+    :param output_path: string specifying the path to store the plot
+    :param average_over: string to specify how to average the metrics.
+                         If average_over="all", averages over all possible
+                         forecasts and produces line plot.
+                         If average_over="month" or "day", averages
+                         over the month or day respectively and produces
+                         heat map plot.
+    :param bias_correct: logical value to indicate whether or not to
+                         perform a bias correction on SEAS forecast,
+                         by default False. Ignored if emcwf=False
+    :param kwargs: any keyword arguments that are required for the computation
+                   of the metric, e.g. 'threshold' for SIE and binary accuracy
+                   metrics, or 'grid_area_size' for SIE metric
     
-    :return:
+    :return: pandas dataframe with columns 'date', 'leadtime' and the metric name.
     """
     implemented_metrics = ["binacc", "SIE", "MAE", "MSE", "RMSE"]
     if metric not in implemented_metrics:
@@ -581,38 +623,96 @@ def plot_metrics_leadtime_avg(metric: str,
     
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
-    
-    # averaging metric over leadtime
-    fc_avg_metric = fc_metric_df.groupby("leadtime")[metric].mean()
-    
-    # creating plot title
     (start_date, end_date) = (fc_metric_df["date"].min().strftime('%d/%m/%Y'),
                               fc_metric_df["date"].max().strftime('%d/%m/%Y'))
-    time_coverage = f"\n Averaged over {len(fc_metric_df['date'].unique())} forecasts between {start_date} - {end_date}"
+    
+    if average_over == "all":
+        # averaging metric over leadtime for all forecasts
+        fc_avg_metric = fc_metric_df.groupby("leadtime")[metric].mean()
+        n_forecast_days = fc_avg_metric.index.max()
+        
+        # plot leadtime averaged metrics
+        ax.plot(fc_avg_metric.index, fc_avg_metric, label="IceNet")
+        if seas_metric_df is not None:
+            seas_avg_metric = seas_metric_df.groupby("leadtime")[metric].mean()
+            ax.plot(seas_avg_metric.index, seas_avg_metric, label="SEAS")
+
+        # string to add in plot title
+        time_coverage = f"\n Averaged over {len(fc_metric_df['date'].unique())} " + \
+            f"forecasts between {start_date} - {end_date}"
+        
+        ax.set_ylabel(metric)
+    elif average_over in ["day", "month"]:
+        if average_over == "day":
+            groupby_col = "dayofyear"
+        else:
+            groupby_col = "month"
+            
+        # compute metric by first grouping the dataframe by groupby_col and leadtime
+        fc_avg_metric = fc_metric_df.groupby([groupby_col, "leadtime"]).mean(metric).\
+            reset_index().pivot(index=groupby_col, columns="leadtime", values=metric)
+        n_forecast_days = fc_avg_metric.shape[1]
+        
+        if seas_metric_df is not None:
+            # compute the difference in leadtime average to SEAS forecast
+            seas_avg_metric = seas_metric_df.groupby([groupby_col, "leadtime"]).mean(metric).\
+                reset_index().pivot(index=groupby_col, columns="leadtime", values=metric)
+            heatmap_df_diff = fc_avg_metric - seas_avg_metric
+            max = np.nanmax(np.abs(heatmap_df_diff.values))
+            
+            # plot heatmap of the difference between IceNet and SEAS
+            sns.heatmap(data=heatmap_df_diff, 
+                        ax=ax,
+                        vmax=max,
+                        vmin=-max,
+                        cmap='seismic_r',
+                        cbar_kws=dict(label=f"{metric} difference"))
+        else:
+            # plot heatmap of the leadtime averaged metric when grouped by groupby_col
+            sns.heatmap(data=fc_avg_metric, 
+                        ax=ax,
+                        cmap='inferno_r',
+                        cbar_kws=dict(label=metric))
+
+        # string to add in plot title
+        time_coverage = "\n Averaged over a minimum of " + \
+            f"{(fc_metric_df[groupby_col].value_counts()/n_forecast_days).min()} " + \
+            f"forecasts between {start_date} - {end_date}"
+
+        # y-axis
+        month_names = np.array(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
+        ax.yaxis.set_major_formatter(matplotlib.dates.DateFormatter('%m'))
+        ax.yaxis.set_major_locator(matplotlib.dates.DayLocator(bymonthday=15))
+        ax.yaxis.set_minor_locator(matplotlib.dates.DayLocator(bymonthday=1))
+        ax.tick_params(axis='y', which='major',length=0)
+        ax.set_yticklabels(month_names)
+        ax.set_ylabel('Initialisation date of forecast')
+    else:
+        raise NotImplementedError(f"averaging over {average_over} not a valid option.")
+    
+    # add plot title
     if metric in ["MAE", "MSE", "RMSE"]:
         ax.set_title(f"{metric} comparison" + time_coverage)
     elif metric == "binacc":
-        ax.set_title(f"Binary accuracy comparison (threshold SIC = {kwargs['threshold']*100}%)" + time_coverage)
+        ax.set_title("Binary accuracy comparison (threshold SIC = "
+                        f"{kwargs['threshold']*100}%)" + time_coverage)
     elif metric == "SIE":
         ax.set_title(f"SIE comparison ({kwargs['grid_area_size']} km grid resolution, "
-                     f"threshold SIC = {kwargs['threshold']*100}%)" + time_coverage)
-
-    # plot leadtime averaged metrics
-    ax.plot(fc_avg_metric.index, fc_avg_metric, label="IceNet")
-    if seas_metric_df is not None:
-        seas_avg_metric = seas_metric_df.groupby("leadtime")[metric].mean()
-        ax.plot(seas_avg_metric.index, seas_avg_metric, label="SEAS")
-    
-    n_forecast_days = fc_avg_metric.index.max()
+                    f"threshold SIC = {kwargs['threshold']*100}%)" + time_coverage)
+            
+    # x-axis
     ax.set_xticks(np.arange(30, n_forecast_days, 30))
     ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
-    ax.legend(loc='lower right')
+    plt.xticks(rotation=0)
+    ax.set_xlabel('Lead time (days)')
     
-    output_path = os.path.join("plot", f"leadtime_averaged_{metric}.png") \
-        if not output_path else output_path
+    # save plot
+    output_path = os.path.join("plot", f"leadtime_averaged_{average_over}_{metric}.png") \
+        if not output_path else output_path    
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
-    
+        
     return fc_metric_df, seas_metric_df
 
 

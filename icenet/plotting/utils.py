@@ -12,15 +12,24 @@ from ibicus.debias import LinearScaling
 from icenet.process.forecasts import broadcast_forecast
 
 
-def get_seas_forecast_init_dates(hemisphere,
-                                 source_path: object = os.path.join(".", "data", "mars.seas")):
+def get_seas_forecast_init_dates(hemisphere: str,
+                                 source_path: object = os.path.join(".", "data", "mars.seas")) -> object:
+    """
+    Obtains list of dates for which we have SEAS forecasts we have.
+
+    :param hemisphere: string, typically either 'north' or 'south'
+    :param source_path: path where north and south SEAS forecasts are stored
+    
+    :return: list of dates
+    """
+    # list the files in the path where SEAS forecasts are stored
     filenames = os.listdir(os.path.join(source_path, 
                                         hemisphere,
                                         "siconca"))
-    available_dates = pd.to_datetime([x.split('.')[0]
-                       for x in filenames
-                       if re.search(r'^\d{8}\.nc$', x)])
-    return available_dates
+    # obtain the dates from files with YYYYMMDD.nc format
+    return pd.to_datetime([x.split('.')[0]
+                           for x in filenames
+                           if re.search(r'^\d{8}\.nc$', x)])
 
 
 def get_seas_forecast_da(hemisphere: str,
@@ -36,7 +45,7 @@ Coordinates:
   * yc                            (yc) float64 5.388e+06 ... -5.388e+06
   * xc                            (xc) float64 -5.388e+06 ... 5.388e+06
 
-    :param hemisphere:
+    :param hemisphere: string, typically either 'north' or 'south'
     :param date:
     :param bias_correct:
     :param source_path:
@@ -115,8 +124,8 @@ def get_forecast_ds(forecast_file: object,
                     ) -> tuple:
     """
 
-    :param forecast_file:
-    :param forecast_date:
+    :param forecast_file: a path to a .nc file
+    :param forecast_date: initialisation date of the forecast
     :param stddev:
     :returns tuple(fc_ds, obs_ds, land_mask):
     """
@@ -139,7 +148,7 @@ def filter_ds_by_obs(ds: object,
 
     :param ds:
     :param obs_da:
-    :param forecast_date:
+    :param forecast_date: initialisation date of the forecast
     :return:
     """
     forecast_date = pd.to_datetime(forecast_date)
@@ -174,7 +183,7 @@ def get_obs_da(hemisphere: str,
                ) -> object:
     """
 
-    :param hemisphere:
+    :param hemisphere: string, typically either 'north' or 'south'
     :param start_date:
     :param end_date:
     :param obs_source:
