@@ -112,8 +112,13 @@ Coordinates:
         source_path,
         hemisphere,
         "siconca",
-        "{}.nc".format(date.strftime("%Y%m%d")))
-    seas_da = xr.open_dataset(seas_file).siconc
+        "{}.nc".format(date.replace(day=1).strftime("%Y%m%d")))
+
+    if os.path.exists(seas_file):
+        seas_da = xr.open_dataset(seas_file).siconc
+    else:
+        logging.warning("No SEAS data available at {}".format(seas_file))
+        return None
 
     if bias_correct:
         # Let's have some maximum, though it's quite high
@@ -172,6 +177,15 @@ Coordinates:
         seas_da.values = seas_array
         logging.info("Debiaser output range: {:.2f} - {:.2f}".
                      format(float(seas_da.min()), float(seas_da.max())))
+
+    logging.info("Returning SEAS data from {} from {}".format(seas_file, date))
+    seas_da = seas_da.sel(time=slice(date, None))
+    logging.debug("SEAS data range: {} - {}, {} dates".format(
+        pd.to_datetime(min(seas_da.time.values)).strftime("%Y-%m-%d"),
+        pd.to_datetime(max(seas_da.time.values)).strftime("%Y-%m-%d"),
+        len(seas_da.time)
+    ))
+
     return seas_da
 
 
