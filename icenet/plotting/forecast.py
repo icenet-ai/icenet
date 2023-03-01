@@ -548,9 +548,11 @@ def compute_metrics_leadtime_avg(metric: str,
                                                            **kwargs))
         
         if emcwf:
+            # obtain SEAS forecast file and compute metric for forecast
             seas = get_seas_forecast_da(hemisphere=hemisphere,
                                         date=pd.to_datetime(time),
                                         bias_correct=bias_correct)
+            # remove the initialisation date from dataarray
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
             seas = seas.isel(time=slice(1, None))
             seas_metrics_list.append(compute_metric_as_dataframe(metric=metric,
@@ -648,6 +650,7 @@ def plot_metrics_leadtime_avg(metric: str,
             f"forecasts between {start_date} - {end_date}"
         
         ax.set_ylabel(metric)
+        ax.legend(loc='lower right')
     elif average_over in ["day", "month"]:
         if average_over == "day":
             groupby_col = "dayofyear"
@@ -672,7 +675,7 @@ def plot_metrics_leadtime_avg(metric: str,
                         vmax=max,
                         vmin=-max,
                         cmap='seismic_r',
-                        cbar_kws=dict(label=f"{metric} difference"))
+                        cbar_kws=dict(label=f"{metric} difference between IceNet and SEAS"))
         else:
             # plot heatmap of the leadtime averaged metric when grouped by groupby_col
             sns.heatmap(data=fc_avg_metric, 
@@ -689,7 +692,7 @@ def plot_metrics_leadtime_avg(metric: str,
         month_names = np.array(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                                 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
         ax.yaxis.set_major_formatter(matplotlib.dates.DateFormatter('%m'))
-        ax.yaxis.set_major_locator(matplotlib.dates.DayLocator(bymonthday=15))
+        ax.yaxis.set_major_locator(matplotlib.dates.DayLocator(bymonthday=1))
         ax.yaxis.set_minor_locator(matplotlib.dates.DayLocator(bymonthday=1))
         ax.set_yticklabels(month_names[(fc_metric_df["month"].min()-1):])
         ax.set_ylabel('Initialisation date of forecast')
