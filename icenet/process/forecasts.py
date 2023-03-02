@@ -105,7 +105,7 @@ def geotiff_args() -> argparse.Namespace:
                     type=lambda s: [int(i) for i in
                         list(s.split(",") if "," in s else
                              range(int(s.split("..")[0]),
-                                   int(s.split("..")[1])) if ".." in s else
+                                   int(s.split("..")[1]) + 1) if ".." in s else
                              [s])])
 
     args = ap.parse_args()

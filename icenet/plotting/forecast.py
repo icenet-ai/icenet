@@ -623,7 +623,7 @@ def plot_forecast():
                                       type=lambda s: [int(i) for i in
                                                       list(s.split(",") if "," in s else
                                                            range(int(s.split("..")[0]),
-                                                                 int(s.split("..")[1])) if ".." in s else
+                                                                 int(s.split("..")[1]) + 1) if ".." in s else
                                                            [s])])),
                                   (("-c", "--no-coastlines"), dict(
                                       help="Turn off cartopy integration",
@@ -656,12 +656,21 @@ def plot_forecast():
         os.path.splitext(os.path.basename(args.forecast_file))[0],
         args.forecast_date)
 
-    cmap = None
+    cmap = cm.get_cmap("BuPu_r")
+    cmap.set_bad("dimgrey")
+
     if args.region is not None:
-        cmap = cm.get_cmap("tab20")
-        cmap.set_bad("dimgrey")
+        if not args.stddev:
+            cmap = cm.get_cmap("tab20")
+            cmap.set_bad("dimgrey")
 
         fc = process_regions(args.region, [fc])[0]
+
+    vmax = 1.
+
+    if args.stddev:
+        vmax = float(fc.max())
+        logging.info("Calculated vmax to be: {}".format(vmax))
 
     leadtimes = args.leadtimes \
         if args.leadtimes is not None \
@@ -694,7 +703,8 @@ def plot_forecast():
             args.format
         ))
         xarray_to_video(pred_da, fps=1, cmap=cmap,
-                        imshow_kwargs=dict(vmin=0., vmax=1.),
+                        imshow_kwargs=dict(vmin=0., vmax=vmax)
+                        if not args.stddev else None,
                         video_path=output_filename,
                         **anim_args)
     else:
@@ -713,10 +723,9 @@ def plot_forecast():
             ax = get_plot_axes(**bound_args,
                                do_coastlines=not args.no_coastlines)
 
-            if cmap:
-                bound_args.update(cmap=cmap)
+            bound_args.update(cmap=cmap)
 
-            im = show_img(ax, pred_da, **bound_args,
+            im = show_img(ax, pred_da, **bound_args, vmax=vmax,
                           do_coastlines=not args.no_coastlines)
 
             plt.colorbar(im, ax=ax)

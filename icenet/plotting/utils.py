@@ -368,7 +368,9 @@ def show_img(ax,
              y1: int = 0,
              y2: int = 432,
              cmap: object = None,
-             do_coastlines: bool = True):
+             do_coastlines: bool = True,
+             vmin = 0.,
+             vmax = 1.):
     """
 
     :param ax:
@@ -379,6 +381,8 @@ def show_img(ax,
     :param y2:
     :param cmap:
     :param do_coastlines:
+    :param vmin:
+    :param vmax:
     :return:
     """
 
@@ -389,14 +393,14 @@ def show_img(ax,
         data_crs = ccrs.LambertAzimuthalEqualArea(0, 90, globe=data_globe)
 
         im = ax.imshow(arr,
-                       vmin=0.,
-                       vmax=1.,
+                       vmin=vmin,
+                       vmax=vmax,
                        cmap=cmap,
                        transform=data_crs,
                        extent=calculate_data_extents(x1, x2, y1, y2))
         ax.coastlines()
     else:
-        im = ax.imshow(arr, cmap=cmap, vmin=0., vmax=1.)
+        im = ax.imshow(arr, cmap=cmap, vmin=vmin, vmax=vmax)
 
     return im
 
