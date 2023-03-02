@@ -93,6 +93,10 @@ def geotiff_args() -> argparse.Namespace:
     """
     ap = argparse.ArgumentParser()
     ap.add_argument("-o", "--output-path", default=".")
+    ap.add_argument("-s", "--stddev",
+                    help="Plot the standard deviation from the ensemble",
+                    action="store_true",
+                    default=False)
     ap.add_argument("-v", "--verbose", default=False, action="store_true")
     ap.add_argument("forecast_file")
     ap.add_argument("forecast_date")
@@ -122,7 +126,9 @@ def create_geotiff_output():
         raise RuntimeError("{} should be a directory and not existent...".
                            format(args.output_path))
 
-    ds = get_forecast_ds(args.forecast_file, args.forecast_date)
+    ds = get_forecast_ds(args.forecast_file,
+                         args.forecast_date,
+                         stddev=args.stddev)
     ds = ds.isel(time=0).transpose(..., "yc", "xc")
 
     # The projection information set when we create NetCDF output compliant
@@ -158,10 +164,11 @@ def create_geotiff_output():
     for leadtime in leadtimes:
         pred_da = ds.sel(leadtime=leadtime)
 
-        output_filename = os.path.join(args.output_path, "{}.{}.tiff".format(
+        output_filename = os.path.join(args.output_path, "{}.{}.{}tiff".format(
             forecast_name,
             (pd.to_datetime(args.forecast_date) + dt.timedelta(
-                days=leadtime)).strftime("%Y-%m-%d")
+                days=leadtime)).strftime("%Y-%m-%d"),
+            "" if not args.stddev else "stddev."
         ))
 
         logging.debug("Outputting leadtime {} to {}".

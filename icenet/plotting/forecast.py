@@ -439,7 +439,7 @@ def sic_error_video(fc_da: object,
 
     plt.close()
 
-    output_path  = os.path.join("plot", "sic_error.mp4") \
+    output_path = os.path.join("plot", "sic_error.mp4") \
         if not output_path else output_path
     logging.info(f"Saving to {output_path}")
     animation.save(output_path,
@@ -633,9 +633,16 @@ def plot_forecast():
                                       help="Format to output in",
                                       choices=("mp4", "png", "svg", "tiff"),
                                       default="png"
+                                  )),
+                                  (("-s", "--stddev"), dict(
+                                      help="Plot the standard deviation from the ensemble",
+                                      action="store_true",
+                                      default=False
                                   ))
                               ])
-    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+    fc = get_forecast_ds(args.forecast_file,
+                         args.forecast_date,
+                         stddev=args.stddev)
     fc = fc.transpose(..., "yc", "xc")
 
     if not os.path.isdir(args.output_path):
@@ -680,9 +687,10 @@ def plot_forecast():
             logging.warning("Coastlines will not work with the current "
                             "implementation of xarray_to_video")
 
-        output_filename = os.path.join(args.output_path, "{}.{}.{}".format(
+        output_filename = os.path.join(args.output_path, "{}.{}.{}{}".format(
             forecast_name,
             args.forecast_date.strftime("%Y%m%d"),
+            "" if not args.stddev else "stddev.",
             args.format
         ))
         xarray_to_video(pred_da, fps=1, cmap=cmap,
@@ -716,10 +724,11 @@ def plot_forecast():
             ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
                                                        plot_date.month,
                                                        plot_date.day))
-            output_filename = os.path.join(args.output_path, "{}.{}.{}".format(
+            output_filename = os.path.join(args.output_path, "{}.{}.{}{}".format(
                 forecast_name,
                 (args.forecast_date + dt.timedelta(
                     days=leadtime)).strftime("%Y%m%d"),
+                "" if not args.stddev else "stddev.",
                 args.format
             ))
 
