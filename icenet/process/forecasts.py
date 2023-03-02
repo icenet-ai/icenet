@@ -3,6 +3,7 @@ import datetime as dt
 import logging
 import os
 
+import cf_units
 import iris
 import pandas as pd
 import rasterio
@@ -123,6 +124,21 @@ def create_geotiff_output():
 
     ds = get_forecast_ds(args.forecast_file, args.forecast_date)
     ds = ds.isel(time=0).transpose(..., "yc", "xc")
+
+    # The projection information set when we create NetCDF output compliant
+    # with CF standards still has units as meters, but the attributes on the
+    # variables is 1000 meters. It's easier to reset this for the GeoTIFF output
+    # else you'll get scale errors that are a pain to fix in downstream
+    x_meters = ds.xc * 1000
+    y_meters = ds.yc * 1000
+    x_attrs = ds.xc.attrs
+    y_attrs = ds.yc.attrs
+
+    ds = ds.assign_coords(xc=x_meters, yc=y_meters)
+    ds['xc'].attrs = x_attrs
+    ds['yc'].attrs = y_attrs
+    ds['xc'].attrs['units'] = cf_units.Unit('meters')
+    ds['yc'].attrs['units'] = cf_units.Unit('meters')
 
     if type(ds.rio.crs) != rasterio.crs.CRS:
         raise RuntimeError("Did not extract CRS via the coordinates, ds.rio.crs"
