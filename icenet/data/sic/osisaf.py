@@ -97,7 +97,8 @@ invalid_sic_days = {
         dt.date(1987, 4, 14),
         dt.date(1987, 4, 16),
         dt.date(1987, 4, 4),
-        dt.date(1990, 1, 26)
+        dt.date(1990, 1, 26),
+        dt.date(2022, 11, 9),
     ],
     Hemisphere.SOUTH: [
         dt.date(1979, 2, 5),
@@ -190,7 +191,8 @@ invalid_sic_days = {
         *pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 1)),
         dt.date(1990, 8, 14),
         dt.date(1990, 8, 15),
-        dt.date(1990, 8, 24)
+        dt.date(1990, 8, 24),
+        dt.date(2022, 11, 9),
     ]
 }
 
@@ -497,7 +499,6 @@ class SICDownloader(Downloader):
                       format(len(missing_dates)))
 
         for date in missing_dates:
-            # TODO: test, but overcomes issue with reprocessing
             if pd.Timestamp(date) not in da.time.values:
                 logging.info("Interpolating {}".format(date))
                 da = xr.concat([da,
