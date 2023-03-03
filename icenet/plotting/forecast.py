@@ -5,8 +5,9 @@ import os
 
 from datetime import timedelta
 
-import matplotlib
+import matplotlib as mpl
 import matplotlib.cm as cm
+import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
@@ -363,8 +364,10 @@ def sic_error_video(fc_da: object,
     """
 
     diff = fc_da - obs_da
-
-    fig, maps = plt.subplots(nrows=1, ncols=3, figsize=(18, 5))
+    fig, maps = plt.subplots(nrows=1,
+                             ncols=3,
+                             figsize=(16, 6),
+                             layout="tight")
     fig.set_dpi(150)
 
     leadtime = 0
@@ -372,16 +375,25 @@ def sic_error_video(fc_da: object,
     obs_plot = obs_da.isel(time=leadtime).to_numpy()
     diff_plot = diff.isel(time=leadtime).to_numpy()
 
+    upper_bound = np.max([np.abs(np.min(diff_plot)), np.abs(np.max(diff_plot))])
+    diff_vmin = -upper_bound
+    diff_vmax = upper_bound
+    logging.debug("Bounds of differences: {} - {}".format(diff_vmin, diff_vmax))
+
+    sic_cmap = mpl.cm.get_cmap("Blues_r", 20)
     contour_kwargs = dict(
         vmin=0,
         vmax=1,
-        cmap='YlOrRd'
+        cmap=sic_cmap
     )
 
+    diff_cmap = mpl.cm.get_cmap("RdBu_r", 20)
     im1 = maps[0].imshow(fc_plot, **contour_kwargs)
     im2 = maps[1].imshow(obs_plot, **contour_kwargs)
-    im3 = maps[2].imshow(diff_plot, 
-                         vmin=-1, vmax=1, cmap="RdBu_r")
+    im3 = maps[2].imshow(diff_plot,
+                         vmin=diff_vmin,
+                         vmax=diff_vmax,
+                         cmap=diff_cmap)
 
     tic = maps[0].set_title("IceNet "
                             f"{pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}")
@@ -393,19 +405,21 @@ def sic_error_video(fc_da: object,
     p1 = maps[1].get_position().get_points().flatten()
     p2 = maps[2].get_position().get_points().flatten()
 
-    ax_cbar = fig.add_axes([p0[0], 0, p1[2]-p0[0], 0.05])
-    plt.colorbar(im1, cax=ax_cbar, orientation='horizontal')
+    ax_cbar = fig.add_axes([p0[0]-0.05, 0.04, p1[2]-p0[0], 0.02])
+    plt.colorbar(im1, orientation='horizontal', cax=ax_cbar)
 
-    ax_cbar1 = fig.add_axes([p2[0], 0, p2[2]-p2[0], 0.05])
-    plt.colorbar(im3, cax=ax_cbar1, orientation='horizontal')
+    ax_cbar1 = fig.add_axes([p2[0]+0.05, 0.04, p2[2]-p2[0], 0.02])
+    plt.colorbar(im3, orientation='horizontal', cax=ax_cbar1)
 
     for m_ax in maps[0:3]:
+        m_ax.tick_params(
+            labelbottom=False,
+            labelleft=False,
+        )
         m_ax.contourf(land_mask,
                       levels=[.5, 1],
-                      colors=[matplotlib.cm.gray(180)],
+                      colors=[mpl.cm.gray(180)],
                       zorder=3)
-
-    fig.subplots_adjust(hspace=0.2, wspace=0.2)
 
     def update(date):
         logging.debug(f"Plotting {date}")
