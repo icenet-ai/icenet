@@ -32,16 +32,72 @@ import xarray as xr
 """
 
 
-def _merge_files(new_datafile: str,
-                 moved_datafile: str):
+def filter_dates_on_data(latlon_path: str,
+                         regridded_name: str,
+                         req_dates: object,
+                         check_latlon: bool = True,
+                         check_regridded: bool = True,
+                         drop_vars: list = None):
+    """Reduces request dates and target files based on existing data
+
+    To avoid what is potentially significant resource expense downloading
+    extant data, downloaders should call this method to reduce the request
+    dates only to that data not already present. This is a fairly naive
+    implementation, in that if the data is present in either the latlon
+    intermediate file OR the target regridded file, we'll not bother
+    downloading again. This can be overridden via the method arguments.
+
+    :param latlon_path:
+    :param regridded_name:
+    :param req_dates:
+    :param check_latlon:
+    :param check_regridded:
+    :param drop_vars:
+    :return: req_dates(list)
+    """
+
+    latlon_dates = list()
+    regridded_dates = list()
+    drop_vars = list() if drop_vars is None else drop_vars
+
+    # Latlon files should in theory be aggregated and singular arrays
+    # meaning we can naively open and interrogate the dates
+    if check_latlon and os.path.exists(latlon_path):
+        try:
+            latlon_dates = xr.open_dataarray(
+                latlon_path,
+                drop_variables=drop_vars).time.values
+            logging.debug("{} latlon dates already available in {}".format(
+                len(latlon_dates), latlon_path
+            ))
+        except ValueError:
+            logging.warning("Latlon {} dates not readable, ignoring file")
+
+    if check_regridded and os.path.exists(regridded_name):
+        regridded_dates = xr.open_dataarray(
+            regridded_name,
+            drop_variables=drop_vars).time.values
+        logging.debug("{} regridded dates already available in {}".format(
+            len(regridded_dates), regridded_name
+        ))
+
+    exclude_dates = list(set(latlon_dates).union(set(regridded_dates)))
+    logging.debug("Excluding {} dates already existing from {} dates "
+                  "requested.".format(len(exclude_dates), len(req_dates)))
+
+    return sorted(list(pd.to_datetime(req_dates).
+                       difference(pd.to_datetime(exclude_dates))))
+
+
+def merge_files(new_datafile: str,
+                other_datafile: str):
     """
 
     :param new_datafile:
-    :param moved_datafile:
+    :param other_datafile:
     """
-    # We don't use iris for this, because it's a pain in the bum with
-    # metadata, so it's easier to roll back to using xarray!
-    if moved_datafile is not None:
+
+    if other_datafile is not None:
         (datafile_path, new_filename) = os.path.split(new_datafile)
         moved_new_datafile = \
             os.path.join(datafile_path, "new.{}".format(new_filename))
@@ -49,15 +105,15 @@ def _merge_files(new_datafile: str,
         d1 = xr.open_dataset(moved_new_datafile)
 
         logging.info("Concatenating with previous data {}".format(
-            moved_datafile
+            other_datafile
         ))
-        d2 = xr.open_dataset(moved_datafile)
-        new_da = xr.concat([d1, d2], dim="time").sortby("time")
+        d2 = xr.open_dataset(other_datafile)
+        new_ds = xr.concat([d1, d2], dim="time").sortby("time")
 
         logging.info("Saving merged data to {}... ".
                      format(new_datafile))
-        new_da.to_netcdf(new_datafile)
-        os.unlink(moved_datafile)
+        new_ds.to_netcdf(new_datafile)
+        os.unlink(other_datafile)
         os.unlink(moved_new_datafile)
 
 
@@ -174,60 +230,6 @@ class ClimateDownloader(Downloader):
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
 
-    def filter_dates_on_data(self,
-                             latlon_path: str,
-                             regridded_name: str,
-                             req_dates: object,
-                             check_latlon: bool = True,
-                             check_regridded: bool = True):
-        """Reduces request dates and target files based on existing data
-
-        To avoid what is potentially significant resource expense downloading
-        extant data, downloaders should call this method to reduce the request
-        dates only to that data not already present. This is a fairly naive
-        implementation, in that if the data is present in either the latlon
-        intermediate file OR the target regridded file, we'll not bother
-        downloading again. This can be overridden via the method arguments.
-
-        :param latlon_path:
-        :param regridded_name:
-        :param req_dates:
-        :param check_latlon:
-        :param check_regridded:
-        :return: req_dates(list)
-        """
-
-        latlon_dates = list()
-        regridded_dates = list()
-
-        # Latlon files should in theory be aggregated and singular arrays
-        # meaning we can naively open and interrogate the dates
-        if check_latlon and os.path.exists(latlon_path):
-            try:
-                latlon_dates = xr.open_dataarray(
-                    latlon_path,
-                    drop_variables=self._drop_vars).time.values
-                logging.debug("{} latlon dates already available in {}".format(
-                    len(latlon_dates), latlon_path
-                ))
-            except ValueError:
-                logging.warning("Latlon {} dates not readable, ignoring file")
-
-        if check_regridded and os.path.exists(regridded_name):
-            regridded_dates = xr.open_dataarray(
-                regridded_name,
-                drop_variables=self._drop_vars).time.values
-            logging.debug("{} regridded dates already available in {}".format(
-                len(regridded_dates), regridded_name
-            ))
-
-        exclude_dates = list(set(latlon_dates).union(set(regridded_dates)))
-        logging.debug("Excluding {} dates already existing from {} dates "
-                      "requested.".format(len(exclude_dates), len(req_dates)))
-
-        return sorted(list(pd.to_datetime(req_dates).
-                           difference(pd.to_datetime(exclude_dates))))
-
     def _single_download(self,
                          var_prefix: str,
                          level: object,
@@ -252,8 +254,7 @@ class ClimateDownloader(Downloader):
         latlon_path, regridded_name = \
             self.get_req_filenames(var_folder, req_dates[0])
 
-        req_dates = self.filter_dates_on_data(
-            latlon_path, regridded_name, req_dates)
+        req_dates = filter_dates_on_data(latlon_path, regridded_name, req_dates)
 
         if len(req_dates):
             if self._download:
@@ -407,7 +408,7 @@ class ClimateDownloader(Downloader):
             self.rotate_wind_data()
 
         for new_datafile, moved_datafile in regrid_results:
-            _merge_files(new_datafile, moved_datafile)
+            merge_files(new_datafile, moved_datafile)
 
     def _batch_regrid(self,
                       files: object):

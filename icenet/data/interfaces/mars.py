@@ -10,7 +10,8 @@ import pandas as pd
 import xarray as xr
 
 from icenet.data.cli import download_args
-from icenet.data.interfaces.downloader import ClimateDownloader
+from icenet.data.interfaces.downloader \
+    import ClimateDownloader, filter_dates_on_data, merge_files
 from icenet.data.interfaces.utils import batch_requested_dates
 
 """
