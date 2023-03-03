@@ -32,6 +32,35 @@ import xarray as xr
 """
 
 
+def _merge_files(new_datafile: str,
+                 moved_datafile: str):
+    """
+
+    :param new_datafile:
+    :param moved_datafile:
+    """
+    # We don't use iris for this, because it's a pain in the bum with
+    # metadata, so it's easier to roll back to using xarray!
+    if moved_datafile is not None:
+        (datafile_path, new_filename) = os.path.split(new_datafile)
+        moved_new_datafile = \
+            os.path.join(datafile_path, "new.{}".format(new_filename))
+        os.rename(new_datafile, moved_new_datafile)
+        d1 = xr.open_dataset(moved_new_datafile)
+
+        logging.info("Concatenating with previous data {}".format(
+            moved_datafile
+        ))
+        d2 = xr.open_dataset(moved_datafile)
+        new_da = xr.concat([d1, d2], dim="time").sortby("time")
+
+        logging.info("Saving merged data to {}... ".
+                     format(new_datafile))
+        new_da.to_netcdf(new_datafile)
+        os.unlink(moved_datafile)
+        os.unlink(moved_new_datafile)
+
+
 class ClimateDownloader(Downloader):
     """Climate downloader base class
 
@@ -73,6 +102,7 @@ class ClimateDownloader(Downloader):
         self._max_threads = max_threads
         self._postprocess = postprocess
         self._pregrid_prefix = pregrid_prefix
+        self._rotatable_files = []
         self._sic_ease_cubes = dict()
         self._var_name_idx = var_name_idx
         self._var_names = list(var_names)
@@ -263,12 +293,11 @@ class ClimateDownloader(Downloader):
             else:
                 logging.info("Skipping actual download to {}".
                              format(latlon_path))
-
-            if self._postprocess and os.path.exists(latlon_path):
-                self.postprocess(var, latlon_path)
-
         else:
             logging.info("No requested dates remain, likely already present")
+
+        if self._postprocess and os.path.exists(latlon_path):
+            self.postprocess(var, latlon_path)
 
         if os.path.exists(latlon_path):
             self._files_downloaded.append(latlon_path)
@@ -339,7 +368,8 @@ class ClimateDownloader(Downloader):
         return self._sic_ease_cubes[self._hemisphere]
 
     def regrid(self,
-               files: object = None):
+               files: object = None,
+               rotate_wind: bool = True):
         """
 
         :param files:
@@ -348,6 +378,7 @@ class ClimateDownloader(Downloader):
         batches = [filelist[b:b + 1000] for b in range(0, len(filelist), 1000)]
 
         max_workers = min(len(batches), self._max_threads)
+        regrid_results = list()
 
         if max_workers > 0:
             with ThreadPoolExecutor(max_workers=max_workers) \
@@ -360,11 +391,23 @@ class ClimateDownloader(Downloader):
 
                 for future in concurrent.futures.as_completed(futures):
                     try:
-                        future.result()
+                        fut_results = future.result()
+
+                        for res in fut_results:
+                            logging.debug("Future result -> regrid_results: {}".
+                                          format(res))
+                            regrid_results.append(res)
                     except Exception as e:
                         logging.exception("Thread failure: {}".format(e))
         else:
             logging.info("No regrid batches to processing, moving on...")
+
+        if rotate_wind:
+            logging.info("Rotating wind data prior to merging")
+            self.rotate_wind_data()
+
+        for new_datafile, moved_datafile in regrid_results:
+            _merge_files(new_datafile, moved_datafile)
 
     def _batch_regrid(self,
                       files: object):
@@ -372,6 +415,8 @@ class ClimateDownloader(Downloader):
 
         :param files:
         """
+        results = list()
+
         for datafile in files:
             (datafile_path, datafile_name) = os.path.split(datafile)
 
@@ -411,30 +456,13 @@ class ClimateDownloader(Downloader):
 
             logging.info("Saving regridded data to {}... ".format(new_datafile))
             iris.save(cube_ease, new_datafile, fill_value=np.nan)
-
-            # We don't use iris for this, because it's a pain in the bum with
-            # metadata, so it's easier to roll back to using xarray!
-            if moved_datafile is not None:
-                moved_new_datafile = \
-                    os.path.join(datafile_path, "new.{}".format(new_filename))
-                os.rename(new_datafile, moved_new_datafile)
-                d1 = xr.open_dataset(moved_new_datafile)
-
-                logging.info("Concatenating with previous data {}".format(
-                    moved_datafile
-                ))
-                d2 = xr.open_dataset(moved_datafile)
-                new_da = xr.concat([d1, d2], dim="time").sortby("time")
-
-                logging.info("Saving merged data to {}... ".
-                             format(new_datafile))
-                new_da.to_netcdf(new_datafile)
-                os.unlink(moved_datafile)
-                os.unlink(moved_new_datafile)
+            results.append((new_datafile, moved_datafile))
 
             if self.delete:
                 logging.info("Removing {}".format(datafile))
                 os.remove(datafile)
+
+        return results
 
     def convert_cube(self, cube: object):
         """Converts Iris cube to be fit for regrid
@@ -546,6 +574,7 @@ class ClimateDownloader(Downloader):
 
                 iris.save(wind_cubes_r[apply_to[i]], temp_name)
                 os.replace(temp_name, name)
+                logging.debug("Overwritten {}".format(name))
 
     def get_req_filenames(self,
                           var_folder: str,

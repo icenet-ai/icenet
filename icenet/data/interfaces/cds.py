@@ -284,4 +284,4 @@ def main():
     )
     era5.download()
     era5.regrid()
-    era5.rotate_wind_data()
+

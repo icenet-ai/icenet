@@ -419,7 +419,6 @@ def main(identifier, extra_kwargs=None):
     )
     instance.download()
     instance.regrid()
-    instance.rotate_wind_data()
 
 
 def seas_main():
