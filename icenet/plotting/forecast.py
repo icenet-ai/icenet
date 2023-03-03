@@ -551,7 +551,7 @@ def binary_accuracy():
             bias_correct=args.bias_correct) \
             if args.ecmwf else None
 
-        if seas:
+        if seas is not None:
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
             seas = seas.isel(time=slice(1, None))
     else:
@@ -594,7 +594,7 @@ def sie_error():
             bias_correct=args.bias_correct) \
             if args.ecmwf else None
 
-        if seas:
+        if seas is not None:
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
             seas = seas.isel(time=slice(1, None))
     else:
@@ -788,7 +788,7 @@ def metric_plots():
             bias_correct=args.bias_correct) \
             if args.ecmwf else None
 
-        if seas:
+        if seas is not None:
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
             seas = seas.isel(time=slice(1, None))
     else:
