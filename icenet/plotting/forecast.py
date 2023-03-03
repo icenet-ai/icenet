@@ -488,10 +488,18 @@ def compute_metric_as_dataframe(metric: str,
     else:
         dayofyear = init_date.replace(year=2001).dayofyear
     month = init_date.month
+    # get target dates
+    leadtime = list(range(1, len(met.values)+1, 1))
+    target_date = pd.Series([init_date + timedelta(days=d) for d in leadtime])
+    target_dayofyear = target_date.dt.dayofyear
+    target_month = target_date.dt.month
     return pd.DataFrame({"date": init_date,
                          "dayofyear": dayofyear,
                          "month": month,
-                         "leadtime": list(range(1, len(met.values)+1)),
+                         "target_date": target_date,
+                         "target_dayofyear": target_dayofyear,
+                         "target_month": target_month,
+                         "leadtime": leadtime,
                          f"{metric}": met.values})
 
 
@@ -619,6 +627,7 @@ def plot_metrics_leadtime_avg(metric: str,
                               output_path: str,
                               average_over: str,
                               data_path: str = None,
+                              target_date_avg: bool = True,
                               bias_correct: bool = False,
                               region: tuple = None,
                               **kwargs) -> object:
@@ -724,7 +733,9 @@ def plot_metrics_leadtime_avg(metric: str,
             groupby_col = "dayofyear"
         else:
             groupby_col = "month"
-            
+        if target_date_avg:
+            groupby_col = "target_" + groupby_col
+        
         # compute metric by first grouping the dataframe by groupby_col and leadtime
         fc_avg_metric = fc_metric_df.groupby([groupby_col, "leadtime"]).mean(metric).\
             reset_index().pivot(index=groupby_col, columns="leadtime", values=metric)
@@ -753,11 +764,12 @@ def plot_metrics_leadtime_avg(metric: str,
 
         # string to add in plot title
         time_coverage = "\n Averaged over a minimum of " + \
-            f"{(fc_metric_df[groupby_col].value_counts()/n_forecast_days).min()} " + \
+            f"{round((fc_metric_df[groupby_col].value_counts()/n_forecast_days).min())} " + \
             f"forecasts between {start_date} - {end_date}"
 
         # y-axis
-        if groupby_col == "dayofyear":
+        ax.set_yticks(np.arange(1, len(fc_metric_df[groupby_col].unique())+1, 1))
+        if average_over == "day":
             # only add labels to the start, end dates
             # and any days that represent the start of months
             days_of_interest = np.array([fc_metric_df[groupby_col].min(),
@@ -775,7 +787,10 @@ def plot_metrics_leadtime_avg(metric: str,
                       for month in fc_metric_df[groupby_col].unique()]
         ax.set_yticklabels(labels)
         plt.yticks(rotation=0)
-        ax.set_ylabel('Initialisation date of forecast')
+        if target_date_avg:
+            ax.set_ylabel("Target date of forecast")
+        else:
+            ax.set_ylabel("Initialisation date of forecast")
     else:
         raise NotImplementedError(f"averaging over {average_over} not a valid option.")
     
@@ -796,7 +811,9 @@ def plot_metrics_leadtime_avg(metric: str,
     ax.set_xlabel('Lead time (days)')
     
     # save plot
-    output_path = os.path.join("plot", f"leadtime_averaged_{average_over}_{metric}.png") \
+    targ = "target" if target_date_avg else "init"
+    output_path = os.path.join("plot",
+                               f"leadtime_averaged_{targ}_{average_over}_{metric}.png") \
         if not output_path else output_path    
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
@@ -931,9 +948,14 @@ def forecast_plot_args(ecmwf: bool = True,
                         default=None)
         ap.add_argument("-ao",
                         "--average_over",
-                        help="how to average the forecast metrics",
+                        help="How to average the forecast metrics",
                         type=str,
                         choices=["all", "month", "day"])
+        ap.add_argument("-td",
+                        "--target_date_average",
+                        help="Averages metric over target date instead of init date",
+                        action="store_true",
+                        default=False)
     else:
         ap.add_argument("forecast_date", type=date_arg)
         
@@ -1270,6 +1292,7 @@ def leadtime_avg_plots():
                               output_path=args.output_path,
                               average_over=args.average_over,
                               data_path=args.data_path,
+                              target_date_avg=args.target_date_average,
                               bias_correct=args.bias_correct,
                               region=args.region)
 
