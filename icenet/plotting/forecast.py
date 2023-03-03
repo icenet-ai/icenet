@@ -181,7 +181,7 @@ def compute_sea_ice_extent_error(masks: object,
                                  grid_area_size: int,
                                  threshold: float) -> object:
     """
-    Compute and sea ice extent (SIE) error of a forecast, where SIE is
+    Compute sea ice extent (SIE) error of a forecast, where SIE is
     defined as the total area covered by grid cells with SIC > (threshold*100)%.
 
     :param masks: an icenet Masks object
@@ -605,7 +605,7 @@ def compute_metrics_leadtime_avg(metric: str,
     return fc_metric_df.reset_index(drop=True)
 
 
-def parse_day_of_year(dayofyear, leapyear=False):
+def _parse_day_of_year(dayofyear, leapyear=False):
     if leapyear:
         return (pd.Timestamp("2000-01-01") + timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
     else:
@@ -764,7 +764,7 @@ def plot_metrics_leadtime_avg(metric: str,
                                          1, 32, 60, 91, 121, 152,
                                          182, 213, 244, 274, 305, 335,
                                          fc_metric_df[groupby_col].max()])
-            labels = [parse_day_of_year(day)
+            labels = [_parse_day_of_year(day)
                       if day in days_of_interest else ""
                       for day in fc_metric_df[groupby_col].unique()]
         else:
@@ -773,8 +773,8 @@ def plot_metrics_leadtime_avg(metric: str,
                                     'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
             labels = [month_names[month-1]
                       for month in fc_metric_df[groupby_col].unique()]
-        # ax.set_yticks(tick_locations)
         ax.set_yticklabels(labels)
+        plt.yticks(rotation=0)
         ax.set_ylabel('Initialisation date of forecast')
     else:
         raise NotImplementedError(f"averaging over {average_over} not a valid option.")
@@ -788,7 +788,7 @@ def plot_metrics_leadtime_avg(metric: str,
     elif metric == "SIE":
         ax.set_title(f"SIE comparison ({kwargs['grid_area_size']} km grid resolution, "
                     f"threshold SIC = {kwargs['threshold']*100}%)" + time_coverage)
-            
+        
     # x-axis
     ax.set_xticks(np.arange(30, n_forecast_days, 30))
     ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
@@ -800,7 +800,7 @@ def plot_metrics_leadtime_avg(metric: str,
         if not output_path else output_path    
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
-        
+    
     return fc_metric_df, seas_metric_df
 
 
