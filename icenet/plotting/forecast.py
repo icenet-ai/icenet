@@ -477,10 +477,20 @@ def compute_metric_as_dataframe(metric: str,
                                            threshold=kwargs["threshold"])
     else:
         raise NotImplementedError(f"{metric} is not implemented")
-        
-    return pd.DataFrame({"date": pd.to_datetime(init_date),
-                         "dayofyear": pd.to_datetime(init_date).dayofyear,
-                         "month": pd.to_datetime(init_date).month,
+    
+    init_date = pd.to_datetime(init_date)
+    # compute day of year after first converting year to a non-leap year
+    # avoids issue where 2016-03-31 is different to 2015-03-31
+    if init_date.strftime("%m-%d") == "02-29":
+        # if date is 29th Feb on a leap year, use dayofyear 59
+        # (corresponds to 28th Feb in non-leap years)
+        dayofyear = 59
+    else:
+        dayofyear = init_date.replace(year=2001).dayofyear
+    month = init_date.month
+    return pd.DataFrame({"date": init_date,
+                         "dayofyear": dayofyear,
+                         "month": month,
                          "leadtime": list(range(1, len(met.values)+1)),
                          f"{metric}": met.values})
 
@@ -594,6 +604,12 @@ def compute_metrics_leadtime_avg(metric: str,
         
     return fc_metric_df.reset_index(drop=True)
 
+
+def parse_day_of_year(dayofyear, leapyear=False):
+    if leapyear:
+        return (pd.Timestamp("2000-01-01") + timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
+    else:
+        return (pd.Timestamp("2001-01-01") + timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
 
 def plot_metrics_leadtime_avg(metric: str,
                               masks: object,
@@ -741,12 +757,24 @@ def plot_metrics_leadtime_avg(metric: str,
             f"forecasts between {start_date} - {end_date}"
 
         # y-axis
-        month_names = np.array(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
-        ax.yaxis.set_major_formatter(matplotlib.dates.DateFormatter('%m'))
-        ax.yaxis.set_major_locator(matplotlib.dates.DayLocator(bymonthday=1))
-        ax.yaxis.set_minor_locator(matplotlib.dates.DayLocator(bymonthday=1))
-        ax.set_yticklabels(month_names[(fc_metric_df["month"].min()-1):])
+        if groupby_col == "dayofyear":
+            # only add labels to the start, end dates
+            # and any days that represent the start of months
+            days_of_interest = np.array([fc_metric_df[groupby_col].min(),
+                                         1, 32, 60, 91, 121, 152,
+                                         182, 213, 244, 274, 305, 335,
+                                         fc_metric_df[groupby_col].max()])
+            labels = [parse_day_of_year(day)
+                      if day in days_of_interest else ""
+                      for day in fc_metric_df[groupby_col].unique()]
+        else:
+            # find out what months have been plotted and add their names
+            month_names = np.array(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                    'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
+            labels = [month_names[month-1]
+                      for month in fc_metric_df[groupby_col].unique()]
+        # ax.set_yticks(tick_locations)
+        ax.set_yticklabels(labels)
         ax.set_ylabel('Initialisation date of forecast')
     else:
         raise NotImplementedError(f"averaging over {average_over} not a valid option.")
