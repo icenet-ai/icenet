@@ -768,7 +768,7 @@ def plot_metrics_leadtime_avg(metric: str,
             f"forecasts between {start_date} - {end_date}"
 
         # y-axis
-        ax.set_yticks(np.arange(1, len(fc_metric_df[groupby_col].unique())+1, 1))
+        ax.set_yticks(np.arange(len(fc_metric_df[groupby_col].unique()))+0.5)
         if average_over == "day":
             # only add labels to the start, end dates
             # and any days that represent the start of months
