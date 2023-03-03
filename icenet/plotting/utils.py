@@ -194,10 +194,7 @@ Coordinates:
         pd.to_datetime(max(seas_da.time.values)).strftime("%Y-%m-%d"),
         len(seas_da.time)
     ))
-
-    import sys
-    sys.exit(0)
-
+    
     return seas_da
 
 
