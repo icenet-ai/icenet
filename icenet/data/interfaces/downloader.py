@@ -32,6 +32,91 @@ import xarray as xr
 """
 
 
+def filter_dates_on_data(latlon_path: str,
+                         regridded_name: str,
+                         req_dates: object,
+                         check_latlon: bool = True,
+                         check_regridded: bool = True,
+                         drop_vars: list = None):
+    """Reduces request dates and target files based on existing data
+
+    To avoid what is potentially significant resource expense downloading
+    extant data, downloaders should call this method to reduce the request
+    dates only to that data not already present. This is a fairly naive
+    implementation, in that if the data is present in either the latlon
+    intermediate file OR the target regridded file, we'll not bother
+    downloading again. This can be overridden via the method arguments.
+
+    :param latlon_path:
+    :param regridded_name:
+    :param req_dates:
+    :param check_latlon:
+    :param check_regridded:
+    :param drop_vars:
+    :return: req_dates(list)
+    """
+
+    latlon_dates = list()
+    regridded_dates = list()
+    drop_vars = list() if drop_vars is None else drop_vars
+
+    # Latlon files should in theory be aggregated and singular arrays
+    # meaning we can naively open and interrogate the dates
+    if check_latlon and os.path.exists(latlon_path):
+        try:
+            latlon_dates = xr.open_dataarray(
+                latlon_path,
+                drop_variables=drop_vars).time.values
+            logging.debug("{} latlon dates already available in {}".format(
+                len(latlon_dates), latlon_path
+            ))
+        except ValueError:
+            logging.warning("Latlon {} dates not readable, ignoring file")
+
+    if check_regridded and os.path.exists(regridded_name):
+        regridded_dates = xr.open_dataarray(
+            regridded_name,
+            drop_variables=drop_vars).time.values
+        logging.debug("{} regridded dates already available in {}".format(
+            len(regridded_dates), regridded_name
+        ))
+
+    exclude_dates = list(set(latlon_dates).union(set(regridded_dates)))
+    logging.debug("Excluding {} dates already existing from {} dates "
+                  "requested.".format(len(exclude_dates), len(req_dates)))
+
+    return sorted(list(pd.to_datetime(req_dates).
+                       difference(pd.to_datetime(exclude_dates))))
+
+
+def merge_files(new_datafile: str,
+                other_datafile: str):
+    """
+
+    :param new_datafile:
+    :param other_datafile:
+    """
+
+    if other_datafile is not None:
+        (datafile_path, new_filename) = os.path.split(new_datafile)
+        moved_new_datafile = \
+            os.path.join(datafile_path, "new.{}".format(new_filename))
+        os.rename(new_datafile, moved_new_datafile)
+        d1 = xr.open_dataset(moved_new_datafile)
+
+        logging.info("Concatenating with previous data {}".format(
+            other_datafile
+        ))
+        d2 = xr.open_dataset(other_datafile)
+        new_ds = xr.concat([d1, d2], dim="time").sortby("time")
+
+        logging.info("Saving merged data to {}... ".
+                     format(new_datafile))
+        new_ds.to_netcdf(new_datafile)
+        os.unlink(other_datafile)
+        os.unlink(moved_new_datafile)
+
+
 class ClimateDownloader(Downloader):
     """Climate downloader base class
 
@@ -73,6 +158,7 @@ class ClimateDownloader(Downloader):
         self._max_threads = max_threads
         self._postprocess = postprocess
         self._pregrid_prefix = pregrid_prefix
+        self._rotatable_files = []
         self._sic_ease_cubes = dict()
         self._var_name_idx = var_name_idx
         self._var_names = list(var_names)
@@ -144,60 +230,6 @@ class ClimateDownloader(Downloader):
         logging.info("{} daily files downloaded".
                      format(len(self._files_downloaded)))
 
-    def filter_dates_on_data(self,
-                             latlon_path: str,
-                             regridded_name: str,
-                             req_dates: object,
-                             check_latlon: bool = True,
-                             check_regridded: bool = True):
-        """Reduces request dates and target files based on existing data
-
-        To avoid what is potentially significant resource expense downloading
-        extant data, downloaders should call this method to reduce the request
-        dates only to that data not already present. This is a fairly naive
-        implementation, in that if the data is present in either the latlon
-        intermediate file OR the target regridded file, we'll not bother
-        downloading again. This can be overridden via the method arguments.
-
-        :param latlon_path:
-        :param regridded_name:
-        :param req_dates:
-        :param check_latlon:
-        :param check_regridded:
-        :return: req_dates(list)
-        """
-
-        latlon_dates = list()
-        regridded_dates = list()
-
-        # Latlon files should in theory be aggregated and singular arrays
-        # meaning we can naively open and interrogate the dates
-        if check_latlon and os.path.exists(latlon_path):
-            try:
-                latlon_dates = xr.open_dataarray(
-                    latlon_path,
-                    drop_variables=self._drop_vars).time.values
-                logging.debug("{} latlon dates already available in {}".format(
-                    len(latlon_dates), latlon_path
-                ))
-            except ValueError:
-                logging.warning("Latlon {} dates not readable, ignoring file")
-
-        if check_regridded and os.path.exists(regridded_name):
-            regridded_dates = xr.open_dataarray(
-                regridded_name,
-                drop_variables=self._drop_vars).time.values
-            logging.debug("{} regridded dates already available in {}".format(
-                len(regridded_dates), regridded_name
-            ))
-
-        exclude_dates = list(set(latlon_dates).union(set(regridded_dates)))
-        logging.debug("Excluding {} dates already existing from {} dates "
-                      "requested.".format(len(exclude_dates), len(req_dates)))
-
-        return sorted(list(pd.to_datetime(req_dates).
-                           difference(pd.to_datetime(exclude_dates))))
-
     def _single_download(self,
                          var_prefix: str,
                          level: object,
@@ -222,8 +254,7 @@ class ClimateDownloader(Downloader):
         latlon_path, regridded_name = \
             self.get_req_filenames(var_folder, req_dates[0])
 
-        req_dates = self.filter_dates_on_data(
-            latlon_path, regridded_name, req_dates)
+        req_dates = filter_dates_on_data(latlon_path, regridded_name, req_dates)
 
         if len(req_dates):
             if self._download:
@@ -263,12 +294,11 @@ class ClimateDownloader(Downloader):
             else:
                 logging.info("Skipping actual download to {}".
                              format(latlon_path))
-
-            if self._postprocess and os.path.exists(latlon_path):
-                self.postprocess(var, latlon_path)
-
         else:
             logging.info("No requested dates remain, likely already present")
+
+        if self._postprocess and os.path.exists(latlon_path):
+            self.postprocess(var, latlon_path)
 
         if os.path.exists(latlon_path):
             self._files_downloaded.append(latlon_path)
@@ -339,7 +369,8 @@ class ClimateDownloader(Downloader):
         return self._sic_ease_cubes[self._hemisphere]
 
     def regrid(self,
-               files: object = None):
+               files: object = None,
+               rotate_wind: bool = True):
         """
 
         :param files:
@@ -348,6 +379,7 @@ class ClimateDownloader(Downloader):
         batches = [filelist[b:b + 1000] for b in range(0, len(filelist), 1000)]
 
         max_workers = min(len(batches), self._max_threads)
+        regrid_results = list()
 
         if max_workers > 0:
             with ThreadPoolExecutor(max_workers=max_workers) \
@@ -360,11 +392,23 @@ class ClimateDownloader(Downloader):
 
                 for future in concurrent.futures.as_completed(futures):
                     try:
-                        future.result()
+                        fut_results = future.result()
+
+                        for res in fut_results:
+                            logging.debug("Future result -> regrid_results: {}".
+                                          format(res))
+                            regrid_results.append(res)
                     except Exception as e:
                         logging.exception("Thread failure: {}".format(e))
         else:
             logging.info("No regrid batches to processing, moving on...")
+
+        if rotate_wind:
+            logging.info("Rotating wind data prior to merging")
+            self.rotate_wind_data()
+
+        for new_datafile, moved_datafile in regrid_results:
+            merge_files(new_datafile, moved_datafile)
 
     def _batch_regrid(self,
                       files: object):
@@ -372,6 +416,8 @@ class ClimateDownloader(Downloader):
 
         :param files:
         """
+        results = list()
+
         for datafile in files:
             (datafile_path, datafile_name) = os.path.split(datafile)
 
@@ -411,30 +457,13 @@ class ClimateDownloader(Downloader):
 
             logging.info("Saving regridded data to {}... ".format(new_datafile))
             iris.save(cube_ease, new_datafile, fill_value=np.nan)
-
-            # We don't use iris for this, because it's a pain in the bum with
-            # metadata, so it's easier to roll back to using xarray!
-            if moved_datafile is not None:
-                moved_new_datafile = \
-                    os.path.join(datafile_path, "new.{}".format(new_filename))
-                os.rename(new_datafile, moved_new_datafile)
-                d1 = xr.open_dataset(moved_new_datafile)
-
-                logging.info("Concatenating with previous data {}".format(
-                    moved_datafile
-                ))
-                d2 = xr.open_dataset(moved_datafile)
-                new_da = xr.concat([d1, d2], dim="time").sortby("time")
-
-                logging.info("Saving merged data to {}... ".
-                             format(new_datafile))
-                new_da.to_netcdf(new_datafile)
-                os.unlink(moved_datafile)
-                os.unlink(moved_new_datafile)
+            results.append((new_datafile, moved_datafile))
 
             if self.delete:
                 logging.info("Removing {}".format(datafile))
                 os.remove(datafile)
+
+        return results
 
     def convert_cube(self, cube: object):
         """Converts Iris cube to be fit for regrid
@@ -546,6 +575,7 @@ class ClimateDownloader(Downloader):
 
                 iris.save(wind_cubes_r[apply_to[i]], temp_name)
                 os.replace(temp_name, name)
+                logging.debug("Overwritten {}".format(name))
 
     def get_req_filenames(self,
                           var_folder: str,

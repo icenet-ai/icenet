@@ -10,7 +10,6 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
-matplotlib.use('Agg')
 
 import numpy as np
 import pandas as pd
@@ -22,12 +21,6 @@ from icenet.plotting.utils import \
     filter_ds_by_obs, get_forecast_ds, get_obs_da, get_seas_forecast_da, \
     show_img, get_plot_axes
 from icenet.plotting.video import xarray_to_video
-
-# FIXME: This shouldn't be here, 300 dpi is print quality (not always required)
-matplotlib.rcParams.update({
-    'figure.facecolor': 'w',
-    'figure.dpi': 300
-})
 
 
 def region_arg(argument: str):
