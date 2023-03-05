@@ -664,87 +664,79 @@ def sic_error_local_plots(fc_da: object,
     return figs
 
 
-def forecast_plot_args(ecmwf: bool = True,
-                       threshold: bool = False,
-                       sie: bool = False,
-                       metrics: bool = False,
-                       allow_probes: bool = False,
-                       extra_args: object = None,
-                       ) -> object:
-    """
-    Process command line arguments.
-    
-    :param ecmwf:
-    :param threshold:
-    :param metrics:
-    :param sie:
-    :param allow_probes:
+class ForecastPlotArgParser(argparse.ArgumentParser):
 
-    :param extra_args:
+    """An ArgumentParser specialised to support forecast plot arguments
+
+    Additional argument enabled by allow_ecmwf() etc.
+
+    The 'allow_*' methods return self to permit method chaining.
     """
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument("hemisphere", choices=("north", "south"))
-    ap.add_argument("forecast_file", type=str)
-    ap.add_argument("forecast_date", type=date_arg)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    ap.add_argument("-r", "--region", default=None, type=region_arg,
-                    help="Region specified x1, y1, x2, y2")
-    ap.add_argument("-o", "--output-path", type=str, default=None)
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+        self.add_argument("hemisphere", choices=("north", "south"))
+        self.add_argument("forecast_file", type=str)
+        self.add_argument("forecast_date", type=date_arg)
 
-    if ecmwf:
-        ap.add_argument("-b", "--bias-correct",
-                        help="Bias correct SEAS forecast array",
-                        action="store_true",
-                        default=False)
-        ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
+        self.add_argument("-o", "--output-path", type=str, default=None)
+        self.add_argument("-v", "--verbose", action="store_true", default=False)
+        self.add_argument("-r", "--region", default=None, type=region_arg,
+                          help="Region specified x1, y1, x2, y2")
 
-    if threshold:
-        ap.add_argument("-t",
-                        "--threshold",
-                        help="The SIC threshold of interest",
-                        type=float,
-                        default=0.15)
+    def allow_ecmwf(self):
+        self.add_argument("-b", "--bias-correct",
+                          help="Bias correct SEAS forecast array",
+                          action="store_true",
+                          default=False)
+        self.add_argument("-e", "--ecmwf", action="store_true", default=False)
+        return self
 
-    if sie:
-        ap.add_argument("-ga",
-                        "--grid-area",
-                        help="The length of the sides of the grid used (in km)",
-                        type=int,
-                        default=25)
+    def allow_threshold(self):
+        self.add_argument("-t",
+                          "--threshold",
+                          help="The SIC threshold of interest",
+                          type=float,
+                          default=0.15)
+        return self
 
-    if metrics:
-        ap.add_argument("-m", 
-                        "--metrics",
-                        help="Which metrics to compute and plot",
-                        type=str,
-                        default="MAE,MSE,RMSE")
-        ap.add_argument("-s",
-                        "--separate",
-                        help="Whether or not to produce separate plots for each metric",
-                        action="store_true",
-                        default=False)
+    def allow_sie(self):
+        self.add_argument("-ga",
+                          "--grid-area",
+                          help="The length of the sides of the grid used (in km)",
+                          type=int,
+                          default=25)
+        return self
 
-    if allow_probes:
-        ap.add_argument(
+    def allow_metrics(self):
+        self.add_argument("-m", 
+                          "--metrics",
+                          help="Which metrics to compute and plot",
+                          type=str,
+                          default="MAE,MSE,RMSE")
+        self.add_argument("-s",
+                          "--separate",
+                          help="Whether or not to produce separate plots for each metric",
+                          action="store_true",
+                          default=False)
+        return self
+
+    def allow_probes(self):
+        self.add_argument(
             "-p", "--probe", action="append", dest="probes",
             type=location_arg, metavar="LOCATION",
             help="Sample at LOCATION",
         )
+        return self
 
-    if type(extra_args) == list:
-        for arg in extra_args:
-            ap.add_argument(*arg[0], **arg[1])
-    elif extra_args is not None:
-        logging.warning("Implementation error: extra_args is invalid")
+    def parse_args(self, *args, **kwargs):
+        args = super().parse_args(*args, **kwargs)
 
-    args = ap.parse_args()
+        logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+        logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("matplotlib").setLevel(logging.WARNING)
-
-    return args
+        return args
 
 ##
 # CLI endpoints
@@ -755,7 +747,12 @@ def binary_accuracy():
     """
     Produces plot of the binary classification accuracy of forecasts.
     """
-    args = forecast_plot_args(ecmwf=True, threshold=True)
+    ap = (
+        ForecastPlotArgParser()
+        .allow_ecmwf()
+        .allow_threshold()
+    )
+    args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -798,7 +795,13 @@ def sie_error():
     """
     Produces plot of the sea-ice extent (SIE) error of forecasts.
     """
-    args = forecast_plot_args(ecmwf=True, threshold=True, sie=True)
+    ap = (
+        ForecastPlotArgParser()
+        .allow_ecmwf()
+        .allow_threshold()
+        .allow_sie()
+    )
+    args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -843,30 +846,28 @@ def plot_forecast():
 
     :return:
     """
-    args = forecast_plot_args(ecmwf=False,
-                              extra_args=[
-                                  (("-l", "--leadtimes"), dict(
-                                      help="Leadtimes to output, multiple as CSV, range as n..n",
-                                      type=lambda s: [int(i) for i in
-                                                      list(s.split(",") if "," in s else
-                                                           range(int(s.split("..")[0]),
-                                                                 int(s.split("..")[1]) + 1) if ".." in s else
-                                                           [s])])),
-                                  (("-c", "--no-coastlines"), dict(
-                                      help="Turn off cartopy integration",
-                                      action="store_true", default=False,
-                                  )),
-                                  (("-f", "--format"), dict(
-                                      help="Format to output in",
-                                      choices=("mp4", "png", "svg", "tiff"),
-                                      default="png"
-                                  )),
-                                  (("-s", "--stddev"), dict(
-                                      help="Plot the standard deviation from the ensemble",
-                                      action="store_true",
-                                      default=False
-                                  ))
-                              ])
+    ap = ForecastPlotArgParser()
+    ap.add_argument("-l", "--leadtimes",
+                    help="Leadtimes to output, multiple as CSV, range as n..n",
+                    type=lambda s: [int(i) for i in
+                                    list(s.split(",") if "," in s else
+                                         range(int(s.split("..")[0]),
+                                               int(s.split("..")[1]) + 1) if ".." in s else
+                                         [s])])
+    ap.add_argument("-c", "--no-coastlines",
+                    help="Turn off cartopy integration",
+                    action="store_true", default=False)
+    ap.add_argument("-f", "--format",
+                    help="Format to output in",
+                    choices=("mp4", "png", "svg", "tiff"),
+                    default="png")
+    ap.add_argument("-s", "--stddev",
+                    help="Plot the standard deviation from the ensemble",
+                    action="store_true",
+                    default=False)
+    args = ap.parse_args()
+
+    
     fc = get_forecast_ds(args.forecast_file,
                          args.forecast_date,
                          stddev=args.stddev)
@@ -990,7 +991,12 @@ def metric_plots():
     """
     Produces plot of requested metrics for forecasts.
     """
-    args = forecast_plot_args(ecmwf=True, metrics=True)
+    ap = (
+        ForecastPlotArgParser()
+        .allow_ecmwf()
+        .allow_metrics()
+    )
+    args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -1036,7 +1042,8 @@ def sic_error():
     """
     Produces video visualisation of SIC of forecast and ground truth.
     """
-    args = forecast_plot_args(ecmwf=False)
+    ap = ForecastPlotArgParser()
+    args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -1064,9 +1071,11 @@ def sic_error_local():
     Entry point for the icenet_plot_sic_error_local command
     """
 
-    # NB obtaining args, fc, obs is identical to sic_error
-
-    args = forecast_plot_args(allow_probes=True)
+    ap = (
+        ForecastPlotArgParser()
+        .allow_probes()
+    )
+    args = ap.parse_args()
 
     fc = get_forecast_ds(args.forecast_file,
                          args.forecast_date)
@@ -1076,7 +1085,6 @@ def sic_error_local():
                      pd.to_datetime(args.forecast_date) +
                      timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
-
 
     fc, obs = process_probes(args.probes, [fc, obs])
 
