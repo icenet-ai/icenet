@@ -621,10 +621,12 @@ def sic_error_local_plots(fc_da: object,
 
     error_da = fc_da - obs_da
 
-    # write csv file
-    combined_da = xr.concat([fc_da, obs_da, error_da], dim="obs_kind")
+    combined_da = xr.concat(
+        [fc_da, obs_da, error_da],
+        dim="obs_kind", coords="minimal"
+    )
 
-    # convert to a dataframe for writing
+    # convert to a dataframe for csv output
     df = (
         combined_da
         .to_dataframe(name="SIC")
