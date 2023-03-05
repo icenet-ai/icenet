@@ -13,6 +13,7 @@ import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
+from matplotlib.backends.backend_pdf import PdfPages
 
 import numpy as np
 import pandas as pd
@@ -531,6 +532,89 @@ def sic_error_local_header_data(da: xr.DataArray):
     }
 
 
+def sic_error_local_write_fig(combined_da: xr.DataArray,
+                              output_prefix: str):
+    """A helper function for `sic_error_local_plots`: plot error and
+    forecast/observation data.
+
+    :param combined_da: A DataArray with dims ('time', 'probe', 'obs_kind')
+
+    :param output_prefix: A string from which to produce the output
+    path (the probe index and file extension will be appended).
+    """
+
+    OBS_KIND_FC = 0
+    OBS_KIND_OBS = 1
+    OBS_KIND_ERR = 2
+
+    plot_series = combined_da.to_dataframe(name="SIC")["SIC"]
+
+    outfile = output_prefix + ".fc.pdf"
+
+    all_figs = []
+    with PdfPages(outfile) as output_pdf:
+        n_probe = len(combined_da.probe)
+        for i_probe in range(n_probe):
+
+            #### Forecast/observed ####
+
+            lat = combined_da.probe.lat.values[i_probe]
+            lon = combined_da.probe.lon.values[i_probe]
+
+            lat_h = "N" if lat >= 0.0 else "S"
+            lat = abs(lat)
+
+            lon_h = "E" if lon >= 0.0 else "W"
+            lon = abs(lon)
+
+            fig, ax = plt.subplots()
+            all_figs.append(fig)
+
+            ax.set_title(
+                f"Sea ice concentration at location {i_probe + 1}\n"
+                f"{lat:.3f}° {lat_h}, {lon:.3f}° {lon_h}"
+            )
+
+            ax.set_xlabel("Date")
+
+            ax.set_ylabel("Concentration (fraction)")
+            ax.set_ylim([0.0, 1.0])
+
+            # dims: (obs_kind, time, probe)
+            ax.plot(plot_series.loc[OBS_KIND_FC,:,i_probe], label="Icenet forecast")
+            ax.plot(plot_series.loc[OBS_KIND_OBS,:,i_probe], label="Observed")
+
+            ax.legend()
+
+            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+
+            output_pdf.savefig(fig, bbox_inches='tight')
+
+            #### Error ####
+
+            fig2, ax2 = plt.subplots()
+            all_figs.append(fig2)
+
+            ax2.set_title(
+                f"Sea ice concentration error at location {i_probe + 1}\n"
+                f"{lat:.3f}° {lat_h}, {lon:.3f}° {lon_h}"
+            )
+
+            ax2.set_xlabel("Date")
+
+            ax2.set_ylabel("Sea ice concentration error (signed difference)")
+
+            ax2.axhline(color='k', lw=0.5, ls='--')
+
+            ax2.plot(plot_series.loc[OBS_KIND_ERR,:,i_probe], color='C2')
+
+            plt.setp(ax2.get_xticklabels(), rotation=45, ha='right')
+
+            output_pdf.savefig(fig2, bbox_inches='tight')
+
+    return all_figs
+
+
 def sic_error_local_plots(fc_da: object,
                           obs_da: object,
                           output_path: object,
@@ -580,8 +664,10 @@ def sic_error_local_plots(fc_da: object,
     with open(output_path, "w") as outfile:
         outfile.write(header)
         df.to_csv(outfile)
-    
-    # (later) write figure
+
+    figs = sic_error_local_write_fig(combined_da, "sic_error_local")
+
+    return figs
 
 
 def forecast_plot_args(ecmwf: bool = True,
