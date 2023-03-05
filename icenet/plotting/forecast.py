@@ -3,6 +3,7 @@ import datetime as dt
 import logging
 import os
 import re
+import sys
 
 from datetime import timedelta
 
@@ -18,6 +19,7 @@ import pandas as pd
 import dask.array as da
 import xarray as xr
 
+from icenet import __version__ as icenet_version
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
 from icenet.plotting.utils import \
@@ -90,6 +92,10 @@ def process_probes(probes, data) -> tuple:
     xcs, ycs = probes_da.sel(coord=0), probes_da.sel(coord=1)
     
     for idx, arr in enumerate(data):
+        arr = arr.assign_coords({
+            "xi": ("xc", np.arange(len(arr.xc))),
+            "yi": ("yc", np.arange(len(arr.yc))),
+        })
         if arr is not None:
             data[idx] = arr.isel(xc=xcs, yc=ycs)
 
@@ -492,9 +498,43 @@ def sic_error_video(fc_da: object,
     return animation
 
 
+def sic_error_local_header_data(da: xr.DataArray):
+    n_probe = len(da.probe)
+    return {
+        "probe array index": {
+            i_probe: (
+                f"{da.xi.values[i_probe]},"
+                f"{da.yi.values[i_probe]}"
+            )
+            for i_probe in range(n_probe)
+        },
+        "probe location (EASE)": {
+            i_probe: (
+                f"{da.xc.values[i_probe]},"
+                f"{da.yc.values[i_probe]}"
+            )
+            for i_probe in range(n_probe)
+        },
+        "probe location (lat, lon)": {
+            i_probe: (
+                f"{da.lat.values[i_probe]},"
+                f"{da.lon.values[i_probe]}"
+            )
+            for i_probe in range(n_probe)            
+        },
+        "obs_kind": {
+            0: "forecast",
+            1: "observation",
+            2: "forecast error ('0' - '1')",
+            # optionally, include SEAS comparison
+        },
+    }
+
+
 def sic_error_local_plots(fc_da: object,
                           obs_da: object,
-                          output_path: object):
+                          output_path: object,
+                          as_command: bool = False):
 
     """
     :param fc_da: a DataArray with dims ('time', 'probe')
@@ -519,7 +559,27 @@ def sic_error_local_plots(fc_da: object,
     if output_path is None:
         output_path = "sic_error_local.csv"
 
-    df.to_csv(output_path)
+    header_info = sic_error_local_header_data(combined_da)
+
+    header = "# icenet_plot_sic_error_local\n"
+    header += f"# Part of Icenet, version {icenet_version}\n"
+    header += "#\n"
+
+    if as_command:
+        header += "# Command output from \n"
+        cmd = ' '.join([a.__repr__() for a in sys.argv])
+        header += f"#   {cmd}\n"
+        header += "#\n"
+
+    header += "# Key\n"
+    for header_kind, header_data in header_info.items():
+        header += f"# {header_kind}\n"
+        for k, v in header_data.items():
+            header += f"#   {k}: {v}\n"
+
+    with open(output_path, "w") as outfile:        
+        outfile.write(header)
+        df.to_csv(outfile)
     
     # (later) write figure
 
@@ -942,5 +1002,5 @@ def sic_error_local():
 
     sic_error_local_plots(fc,
                           obs,
-                          args.output_path)
-
+                          args.output_path,
+                          as_command=True)
