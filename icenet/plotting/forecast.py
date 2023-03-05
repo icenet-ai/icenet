@@ -556,7 +556,7 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
         n_probe = len(combined_da.probe)
         for i_probe in range(n_probe):
 
-            #### Forecast/observed ####
+            #### Forecast/observed plots ####
 
             lat = combined_da.probe.lat.values[i_probe]
             lon = combined_da.probe.lon.values[i_probe]
@@ -576,21 +576,18 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
             )
 
             ax.set_xlabel("Date")
-
             ax.set_ylabel("Concentration (fraction)")
             ax.set_ylim([0.0, 1.0])
 
             # dims: (obs_kind, time, probe)
             ax.plot(plot_series.loc[OBS_KIND_FC,:,i_probe], label="Icenet forecast")
             ax.plot(plot_series.loc[OBS_KIND_OBS,:,i_probe], label="Observed")
-
             ax.legend()
 
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-
             output_pdf.savefig(fig, bbox_inches='tight')
 
-            #### Error ####
+            #### Error plot ####
 
             fig2, ax2 = plt.subplots()
             all_figs.append(fig2)
@@ -601,15 +598,12 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
             )
 
             ax2.set_xlabel("Date")
-
             ax2.set_ylabel("Sea ice concentration error (signed difference)")
 
             ax2.axhline(color='k', lw=0.5, ls='--')
-
             ax2.plot(plot_series.loc[OBS_KIND_ERR,:,i_probe], color='C2')
 
             plt.setp(ax2.get_xticklabels(), rotation=45, ha='right')
-
             output_pdf.savefig(fig2, bbox_inches='tight')
 
     return all_figs
