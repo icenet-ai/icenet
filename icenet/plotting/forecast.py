@@ -90,7 +90,7 @@ def process_probes(probes, data) -> tuple:
 
     probes_da = xr.DataArray(probes, dims=('probe', 'coord'))
     xcs, ycs = probes_da.sel(coord=0), probes_da.sel(coord=1)
-    
+
     for idx, arr in enumerate(data):
         arr = arr.assign_coords({
             "xi": ("xc", np.arange(len(arr.xc))),
@@ -470,11 +470,11 @@ def sic_error_video(fc_da: object,
         fc_plot = fc_da.isel(time=date).to_numpy()
         obs_plot = obs_da.isel(time=date).to_numpy()
         diff_plot = diff.isel(time=date).to_numpy()
-        
-        tic.set_text("IceNet "
-                     f"{pd.to_datetime(fc_da.isel(time=date).time.values).strftime('%d/%m/%Y')}")
-        tio.set_text("OSISAF Obs "
-                     f"{pd.to_datetime(obs_da.isel(time=date).time.values).strftime('%d/%m/%Y')}")
+
+        tic.set_text("IceNet {}".format(
+            pd.to_datetime(fc_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
+        tio.set_text("OSISAF Obs {}".format(
+            pd.to_datetime(obs_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
 
         im1.set_data(fc_plot)
         im2.set_data(obs_plot)
@@ -520,7 +520,7 @@ def sic_error_local_header_data(da: xr.DataArray):
                 f"{da.lat.values[i_probe]},"
                 f"{da.lon.values[i_probe]}"
             )
-            for i_probe in range(n_probe)            
+            for i_probe in range(n_probe)
         },
         "obs_kind": {
             0: "forecast",
@@ -542,7 +542,7 @@ def sic_error_local_plots(fc_da: object,
     """
 
     error_da = fc_da - obs_da
-    
+
     # write csv file
     combined_da = xr.concat([fc_da, obs_da, error_da], dim="obs_kind")
 
@@ -577,7 +577,7 @@ def sic_error_local_plots(fc_da: object,
         for k, v in header_data.items():
             header += f"#   {k}: {v}\n"
 
-    with open(output_path, "w") as outfile:        
+    with open(output_path, "w") as outfile:
         outfile.write(header)
         df.to_csv(outfile)
     
@@ -663,7 +663,7 @@ def forecast_plot_args(ecmwf: bool = True,
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
-    
+
     return args
 
 ##
@@ -985,9 +985,9 @@ def sic_error_local():
     """
 
     # NB obtaining args, fc, obs is identical to sic_error
-    
+
     args = forecast_plot_args(allow_probes=True)
-    
+
     fc = get_forecast_ds(args.forecast_file,
                          args.forecast_date)
     obs = get_obs_da(args.hemisphere,
@@ -997,7 +997,7 @@ def sic_error_local():
                      timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
-    
+
     fc, obs = process_probes(args.probes, [fc, obs])
 
     sic_error_local_plots(fc,
