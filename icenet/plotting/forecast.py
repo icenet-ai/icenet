@@ -8,7 +8,6 @@ from datetime import timedelta
 
 import matplotlib as mpl
 import matplotlib.cm as cm
-import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
@@ -18,7 +17,6 @@ import seaborn as sns
 
 import numpy as np
 import pandas as pd
-import xarray as xr
 import dask.array as da
 import xarray as xr
 
@@ -297,9 +295,9 @@ def plot_sea_ice_extent_error(masks: object,
 
     if cmp_da is not None:
         cmp_sie_error = compute_sea_ice_extent_error(masks=masks,
-                                                      fc_da=cmp_da,
-                                                      obs_da=obs_da,
-                                                      grid_area_size=grid_area_size)
+                                                     fc_da=cmp_da,
+                                                     obs_da=obs_da,
+                                                     grid_area_size=grid_area_size)
         ax.plot(cmp_sie_error.time, cmp_sie_error.values, label="SEAS")
     else:
         cmp_sie_error = None
@@ -595,7 +593,7 @@ def compute_metrics_leadtime_avg(metric: str,
         seas_metrics_list = []
     for time in fc_ds.time.values:
         # obtain forecast
-        fc = fc_ds.sel(time=slice(time,time))["sic_mean"]
+        fc = fc_ds.sel(time=slice(time, time))["sic_mean"]
         obs = get_obs_da(hemisphere=hemisphere,
                          start_date=pd.to_datetime(time) + timedelta(days=1),
                          end_date=pd.to_datetime(time) + timedelta(days=int(fc.leadtime.max())))
@@ -643,9 +641,9 @@ def compute_metrics_leadtime_avg(metric: str,
         logging.info(f"Saving the metric dataframe in {data_path}")
         try:
             fc_metric_df.to_csv(data_path)
-        except:
+        except OSError:
             # don't break if not successful, still return dataframe
-            logging.info(f"Save not successful! Make sure the data_path directory exists")
+            logging.info("Save not successful! Make sure the data_path directory exists")
         
     return fc_metric_df.reset_index(drop=True)
 
@@ -716,19 +714,19 @@ def plot_metrics_leadtime_avg(metric: str,
         if "threshold" not in kwargs.keys():
             kwargs["threshold"] = 0.15
     
-    compute_metrics = True
+    do_compute_metrics = True
     if data_path is not None:
         # loading in precomputed dataframes for the metrics
         logging.info(f"Attempting to read in metrics dataframe from {data_path}")
         try:
             metric_df = pd.read_csv(data_path)
             metric_df["date"] = pd.to_datetime(metric_df["date"])
-            compute_metrics = False
-        except:
+            do_compute_metrics = False
+        except OSError:
             logging.info(f"Couldn't load in dataframe from {data_path}, "
                          f"will compute metric dataframe and try save to {data_path}")
 
-    if compute_metrics:
+    if do_compute_metrics:
         # computing the dataframes for the metrics
         # will save dataframe in data_path if data_path is not None
         metric_df = compute_metrics_leadtime_avg(metric=metric,
@@ -741,9 +739,9 @@ def plot_metrics_leadtime_avg(metric: str,
                                                  region=region,
                                                  **kwargs)
 
-    fc_metric_df = metric_df[metric_df["forecast_name"]=="IceNet"]
-    seas_metric_df = metric_df[metric_df["forecast_name"]=="SEAS"]
-    seas_metric_df = seas_metric_df if len(seas_metric_df)!=0 else None
+    fc_metric_df = metric_df[metric_df["forecast_name"] == "IceNet"]
+    seas_metric_df = metric_df[metric_df["forecast_name"] == "SEAS"]
+    seas_metric_df = seas_metric_df if len(seas_metric_df) != 0 else None
 
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -838,10 +836,10 @@ def plot_metrics_leadtime_avg(metric: str,
         ax.set_title(f"{metric} comparison" + time_coverage)
     elif metric == "binacc":
         ax.set_title("Binary accuracy comparison (threshold SIC = "
-                        f"{kwargs['threshold']*100}%)" + time_coverage)
+                     f"{kwargs['threshold'] * 100}%)" + time_coverage)
     elif metric == "SIE":
         ax.set_title(f"SIE comparison ({kwargs['grid_area_size']} km grid resolution, "
-                    f"threshold SIC = {kwargs['threshold']*100}%)" + time_coverage)
+                     f"threshold SIC = {kwargs['threshold'] * 100}%)" + time_coverage)
         
     # x-axis
     ax.set_xticks(np.arange(30, n_forecast_days, 30))
@@ -1047,15 +1045,14 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
             ax.set_ylim([0.0, 1.0])
 
             # dims: (obs_kind, time, probe)
-            ax.plot(plot_series.loc[OBS_KIND_FC,:,i_probe], label="Icenet forecast")
-            ax.plot(plot_series.loc[OBS_KIND_OBS,:,i_probe], label="Observed")
+            ax.plot(plot_series.loc[OBS_KIND_FC, :, i_probe], label="Icenet forecast")
+            ax.plot(plot_series.loc[OBS_KIND_OBS, :, i_probe], label="Observed")
             ax.legend()
 
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
             output_pdf.savefig(fig, bbox_inches='tight')
 
             #### Error plot ####
-
             fig2, ax2 = plt.subplots()
             all_figs.append(fig2)
 
@@ -1068,7 +1065,7 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
             ax2.set_ylabel("Sea ice concentration error (signed difference)")
 
             ax2.axhline(color='k', lw=0.5, ls='--')
-            ax2.plot(plot_series.loc[OBS_KIND_ERR,:,i_probe], color='C2')
+            ax2.plot(plot_series.loc[OBS_KIND_ERR, :, i_probe], color='C2')
 
             plt.setp(ax2.get_xticklabels(), rotation=45, ha='right')
             output_pdf.savefig(fig2, bbox_inches='tight')
@@ -1409,9 +1406,7 @@ def plot_forecast():
                         **anim_args)
     else:
         for leadtime in leadtimes:
-            pred_da = fc.sel(leadtime=leadtime).isel(time=0)    #.sic_mean. \
-                      # .where(~lm)
-
+            pred_da = fc.sel(leadtime=leadtime).isel(time=0)
             bound_args = dict()
 
             if args.region is not None:

@@ -214,8 +214,8 @@ class ClimateDownloader(Downloader):
                     product([var_name], levels, dates_per_request):
                 requests.append((var_prefix, level, req_date))
 
-        with ThreadPoolExecutor(max_workers=
-                                min(len(requests), self._max_threads)) \
+        with ThreadPoolExecutor(max_workers=min(len(requests),
+                                                self._max_threads)) \
                 as executor:
             futures = []
 
@@ -540,7 +540,7 @@ class ClimateDownloader(Downloader):
                          os.path.basename(wind_file_0))
 
             if not wind_file_1.endswith(wd0):
-                logging.error("Wind file array is not valid:".format(
+                logging.error("Wind file array is not valid: {}".format(
                     zip(wind_files)))
                 raise RuntimeError("{} is not at the end of {}, something is "
                                    "wrong".format(wd0, wind_file_1))

@@ -111,7 +111,7 @@ def unet_batchnorm(input_shape: object,
     up7 = Conv2D(int(256*n_filters_factor), 2, activation='relu',
                  padding='same', kernel_initializer='he_normal')(
         UpSampling2D(size=(2, 2), interpolation='nearest')(bn6))
-    merge7 = concatenate([bn3,up7], axis=3)
+    merge7 = concatenate([bn3, up7], axis=3)
     conv7 = Conv2D(int(256*n_filters_factor), filter_size, activation='relu',
                    padding='same', kernel_initializer='he_normal')(merge7)
     conv7 = Conv2D(int(256*n_filters_factor), filter_size, activation='relu',
@@ -121,7 +121,7 @@ def unet_batchnorm(input_shape: object,
     up8 = Conv2D(int(128*n_filters_factor), 2, activation='relu',
                  padding='same', kernel_initializer='he_normal')(
         UpSampling2D(size=(2, 2), interpolation='nearest')(bn7))
-    merge8 = concatenate([bn2,up8], axis=3)
+    merge8 = concatenate([bn2, up8], axis=3)
     conv8 = Conv2D(int(128*n_filters_factor), filter_size, activation='relu',
                    padding='same', kernel_initializer='he_normal')(merge8)
     conv8 = Conv2D(int(128*n_filters_factor), filter_size, activation='relu',

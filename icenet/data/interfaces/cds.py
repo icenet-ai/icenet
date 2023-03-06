@@ -284,4 +284,3 @@ def main():
     )
     era5.download()
     era5.regrid()
-

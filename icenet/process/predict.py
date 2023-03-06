@@ -210,7 +210,7 @@ def create_cf_output():
             geospatial_vertical_min=0.0,
             geospatial_vertical_max=0.0,
             history="{} - creation".format(dt.datetime.now()),
-            id="IceNet.TBC".format(icenet_version),
+            id="IceNet {}".format(icenet_version),
             institution="British Antarctic Survey",
             keywords="""'Earth Science > Cryosphere > Sea Ice > Sea Ice Concentration
             Earth Science > Oceans > Sea Ice > Sea Ice Concentration
@@ -224,13 +224,13 @@ def create_cf_output():
             license="Open Government Licece (OGL) V3",
             naming_authority="uk.ac.bas",
             platform="BAS HPC",
-            #program="",
-            #processing_level="",
+            # program="",
+            # processing_level="",
             product_version=icenet_version,
             project="IceNet",
             publisher_email="",
             publisher_institution="British Antarctic Survey",
-            #publisher_name="Polar Data Center",
+            # publisher_name="Polar Data Center",
             publisher_url="",
             source="""
             IceNet model generation at v{}
@@ -279,7 +279,7 @@ def create_cf_output():
     xarr.leadtime.attrs = dict(
         long_name="leadtime of forecast in relation to reference time",
         short_name="leadtime",
-        #units="1",
+        # units="1",
     )
 
     xarr.lat.attrs = dict(

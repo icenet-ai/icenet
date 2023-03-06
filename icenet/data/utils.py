@@ -110,8 +110,8 @@ def gridcell_angles_from_dim_coords(cube: object):
     for yi in [0, 1]:
         for xi in [0, 1]:
             xy = np.meshgrid(x_bounds[:, xi], y_bounds[:, yi])
-            x[:,:,c[cind]] = xy[0]
-            y[:,:,c[cind]] = xy[1]
+            x[:, :, c[cind]] = xy[0]
+            y[:, :, c[cind]] = xy[1]
             cind += 1
 
     # convert the X and Y coordinates to longitudes and latitudes
@@ -179,7 +179,7 @@ def esgf_search(server: str = "https://esgf-node.llnl.gov/esg-search/search",
     client = requests.session()
     payload = search
     payload["project"] = project
-    payload["type"]="File"
+    payload["type"] = "File"
     if latest:
         payload["latest"] = "true"
     if local_node:
@@ -217,7 +217,7 @@ def esgf_search(server: str = "https://esgf-node.llnl.gov/esg-search/search",
         offset += len(resp)
         for d in resp:
             for k in d:
-                logging.debug("{}: {}".format(k,d[k]))
+                logging.debug("{}: {}".format(k, d[k]))
             url = d["url"]
             for f in d["url"]:
                 sp = f.split("|")

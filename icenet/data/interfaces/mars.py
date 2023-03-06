@@ -10,8 +10,7 @@ import pandas as pd
 import xarray as xr
 
 from icenet.data.cli import download_args
-from icenet.data.interfaces.downloader \
-    import ClimateDownloader, filter_dates_on_data, merge_files
+from icenet.data.interfaces.downloader import ClimateDownloader
 from icenet.data.interfaces.utils import batch_requested_dates
 
 """
@@ -32,7 +31,7 @@ class HRESDownloader(ClimateDownloader):
     # https://confluence.ecmwf.int/pages/viewpage.action?pageId=85402030
     # https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation#ERA5:datadocumentation-Dateandtimespecification
     HRES_PARAMS = {
-        "siconca":      (31, "siconc"), # sea_ice_area_fraction
+        "siconca":      (31, "siconc"),  # sea_ice_area_fraction
         "tos":          (34, "sst"),    # sea surface temperature (actually
                                         # sst?)
         "zg":           (129, "z"),     # geopotential
@@ -59,11 +58,11 @@ class HRESDownloader(ClimateDownloader):
         #       165.128 / 166.128 / 167.128 / 169.128 / 177.128
 
         # ORAS5 variables in param-db (need to consider depth)
-        #"thetao":       (151129, "thetao"),
-        #"so":           (151130, "so"),
+        # "thetao":       (151129, "thetao"),
+        # "so":           (151130, "so"),
         # Better matches than equivalent X / Y parameters in param-db
-        #"uo":           (151131, "uo"),
-        #"vo":           (151132, "vo"),
+        # "uo":           (151131, "uo"),
+        # "vo":           (151132, "vo"),
     }
 
     # https://confluence.ecmwf.int/display/UDOC/Keywords+in+MARS+and+Dissemination+requests

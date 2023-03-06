@@ -38,8 +38,8 @@ def get_dataarray_from_files(files: object,
         dates = []
 
         assert len(first_file.shape) == 2, \
-            "Wrong number of dims for use in videos".\
-                format(len(first_file.shape))
+            "Wrong number of dims for use in videos {}".\
+            format(len(first_file.shape))
 
         for np_idx in range(0, len(files)):
             arr[np_idx] = np.load(files[np_idx])

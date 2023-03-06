@@ -233,7 +233,7 @@ class SICDownloader(Downloader):
         self._dates = dates
         self._delete = delete_tempfiles
         self._download = download
-        self._dtype=dtype
+        self._dtype = dtype
         self._invalid_dates = invalid_sic_days[self.hemisphere] + \
             list(additional_invalid_dates)
         self._masks = Masks(north=self.north, south=self.south)

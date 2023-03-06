@@ -9,6 +9,7 @@ icenet_entry_points = [
     if ep.module.startswith('icenet')
 ]
 
+
 def test_have_entry_points():
     """Check that there is at least one entry point (to stop the other
     tests passing vacuously if these are moved)

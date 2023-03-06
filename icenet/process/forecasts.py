@@ -103,10 +103,10 @@ def geotiff_args() -> argparse.Namespace:
     ap.add_argument("leadtimes",
                     help="Leadtimes to output, multiple as CSV, range as n..n",
                     type=lambda s: [int(i) for i in
-                        list(s.split(",") if "," in s else
-                             range(int(s.split("..")[0]),
-                                   int(s.split("..")[1]) + 1) if ".." in s else
-                             [s])])
+                                    list(s.split(",") if "," in s else
+                                         range(int(s.split("..")[0]),
+                                               int(s.split("..")[1]) + 1) if ".." in s else
+                                         [s])])
 
     args = ap.parse_args()
     return args

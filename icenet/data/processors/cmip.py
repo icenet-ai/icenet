@@ -1,5 +1,3 @@
-import logging
-
 from icenet.data.cli import process_args, process_date_args
 from icenet.data.process import IceNetPreProcessor
 from icenet.data.sic.mask import Masks
