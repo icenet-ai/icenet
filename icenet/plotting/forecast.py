@@ -759,7 +759,7 @@ def plot_metrics_leadtime_avg(metric: str,
             # plot heatmap of the leadtime averaged metric when grouped by groupby_col
             sns.heatmap(data=fc_avg_metric, 
                         ax=ax,
-                        cmap='inferno_r',
+                        cmap='inferno',
                         cbar_kws=dict(label=metric))
 
         # string to add in plot title
