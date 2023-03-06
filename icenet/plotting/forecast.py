@@ -2,6 +2,8 @@ import argparse
 import datetime as dt
 import logging
 import os
+import re
+import sys
 
 from datetime import timedelta
 
@@ -11,6 +13,7 @@ import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
+from matplotlib.backends.backend_pdf import PdfPages
 
 import seaborn as sns
 
@@ -18,7 +21,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import dask.array as da
+import xarray as xr
 
+from icenet import __version__ as icenet_version
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
 from icenet.plotting.utils import (
@@ -33,6 +38,22 @@ from icenet.plotting.utils import (
 from icenet.plotting.video import xarray_to_video
 
 
+def parse_location_or_region(argument: str):
+    separator = ','
+    # Allow ValueError to propagate if not given sequence of integers
+    return tuple(int(s) for s in argument.split(separator))
+
+
+def location_arg(argument: str):
+    try:
+        x, y = parse_location_or_region(argument)
+        return (x, y)
+    except ValueError:
+        argparse.ArgumentTypeError(
+            "Expected a location (pair of integers separated by a comma)"
+        )
+
+
 def region_arg(argument: str):
     """type handler for region arguments with argparse
 
@@ -41,7 +62,7 @@ def region_arg(argument: str):
     :return:
     """
     try:
-        x1, y1, x2, y2 = tuple([int(s) for s in argument.split(",")])
+        x1, y1, x2, y2 = parse_location_or_region(argument)
 
         assert x2 > x1 and y2 > y1, "Region is not valid"
         return x1, y1, x2, y2
@@ -70,6 +91,29 @@ def process_regions(region: tuple,
     return data
 
 
+def process_probes(probes, data) -> tuple:
+    """
+    :param probes: A sequence of locations (pairs)
+    :param data: A sequence of xr.DataArray
+    """
+
+    # index into each element of data with a xr.DataArray, for pointwise
+    # selection.  Construct the indexing DataArray as follows:
+
+    probes_da = xr.DataArray(probes, dims=('probe', 'coord'))
+    xcs, ycs = probes_da.sel(coord=0), probes_da.sel(coord=1)
+
+    for idx, arr in enumerate(data):
+        arr = arr.assign_coords({
+            "xi": ("xc", np.arange(len(arr.xc))),
+            "yi": ("yc", np.arange(len(arr.yc))),
+        })
+        if arr is not None:
+            data[idx] = arr.isel(xc=xcs, yc=ycs)
+
+    return data
+
+
 def compute_binary_accuracy(masks: object,
                             fc_da: object,
                             obs_da: object,
@@ -79,35 +123,35 @@ def compute_binary_accuracy(masks: object,
     where we consider a binary class prediction of ice with SIC > 15%.
     In particular, we compute the mean percentage of correct
     classifications over the active grid cell area.
-    
+
     :param masks: an icenet Masks object
-    :param fc_da: the forecasts given as an xarray.DataArray object 
+    :param fc_da: the forecasts given as an xarray.DataArray object
                   with time, xc, yc coordinates
     :param obs_da: the "ground truth" given as an xarray.DataArray object
                    with time, xc, yc coordinates
     :param threshold: the SIC threshold of interest (in percentage as a fraction),
                       i.e. threshold is between 0 and 1
-    
-    :return: binary accuracy for forecast as xarray.DataArray object 
+
+    :return: binary accuracy for forecast as xarray.DataArray object
     """
     threshold = 0.15 if threshold is None else threshold
     if (threshold < 0) or (threshold > 1):
         raise ValueError("threshold must be a float between 0 and 1")
-    
-     # obtain mask
+
+    # obtain mask
     agcm = masks.get_active_cell_da(obs_da)
-    
+
     # binary for observed (i.e. truth)
     binary_obs_da = obs_da > threshold
-    
+
     # binary for forecast
     binary_fc_da = fc_da > threshold
-    
+
     # compute binary accuracy metric
-    binary_fc_da = (binary_fc_da == binary_obs_da).\
+    binary_fc_da = (binary_fc_da == binary_obs_da). \
         astype(np.float16).weighted(agcm)
     binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
-    
+
     return binacc_fc
 
 
@@ -613,6 +657,7 @@ def _parse_day_of_year(dayofyear, leapyear=False):
     else:
         return (pd.Timestamp("2001-01-01") + timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
 
+
 def plot_metrics_leadtime_avg(metric: str,
                               masks: object,
                               hemisphere: str,
@@ -644,8 +689,9 @@ def plot_metrics_leadtime_avg(metric: str,
                          If average_over="month" or "day", averages
                          over the month or day respectively and produces
                          heat map plot.
+    :param target_date_avg:
     :param data_path: string specifying a CSV file where metrics dataframe
-                      could be loaded from. If loading in the dataframe is 
+                      could be loaded from. If loading in the dataframe is
                       not possible, it will compute the metrics dataframe
                       and try to save the dataframe
     :param bias_correct: logical value to indicate whether or not to
@@ -893,11 +939,11 @@ def sic_error_video(fc_da: object,
         fc_plot = fc_da.isel(time=date).to_numpy()
         obs_plot = obs_da.isel(time=date).to_numpy()
         diff_plot = diff.isel(time=date).to_numpy()
-        
-        tic.set_text("IceNet "
-                     f"{pd.to_datetime(fc_da.isel(time=date).time.values).strftime('%d/%m/%Y')}")
-        tio.set_text("OSISAF Obs "
-                     f"{pd.to_datetime(obs_da.isel(time=date).time.values).strftime('%d/%m/%Y')}")
+
+        tic.set_text("IceNet {}".format(
+            pd.to_datetime(fc_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
+        tio.set_text("OSISAF Obs {}".format(
+            pd.to_datetime(obs_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
 
         im1.set_data(fc_plot)
         im2.set_data(obs_plot)
@@ -921,102 +967,250 @@ def sic_error_video(fc_da: object,
     return animation
 
 
-def forecast_plot_args(ecmwf: bool = True,
-                       threshold: bool = False,
-                       sie: bool = False,
-                       metrics: bool = False,
-                       leadtime: bool = False,
-                       extra_args: object = None) -> object:
+def sic_error_local_header_data(da: xr.DataArray):
+    n_probe = len(da.probe)
+    return {
+        "probe array index": {
+            i_probe: (
+                f"{da.xi.values[i_probe]},"
+                f"{da.yi.values[i_probe]}"
+            )
+            for i_probe in range(n_probe)
+        },
+        "probe location (EASE)": {
+            i_probe: (
+                f"{da.xc.values[i_probe]},"
+                f"{da.yc.values[i_probe]}"
+            )
+            for i_probe in range(n_probe)
+        },
+        "probe location (lat, lon)": {
+            i_probe: (
+                f"{da.lat.values[i_probe]},"
+                f"{da.lon.values[i_probe]}"
+            )
+            for i_probe in range(n_probe)
+        },
+        "obs_kind": {
+            0: "forecast",
+            1: "observation",
+            2: "forecast error ('0' - '1')",
+            # optionally, include SEAS comparison
+        },
+    }
+
+
+def sic_error_local_write_fig(combined_da: xr.DataArray,
+                              output_prefix: str):
+    """A helper function for `sic_error_local_plots`: plot error and
+    forecast/observation data.
+
+    :param combined_da: A DataArray with dims ('time', 'probe', 'obs_kind')
+
+    :param output_prefix: A string from which to produce the output
+    path (the probe index and file extension will be appended).
     """
-    Process command line arguments.
-    
-    :param ecmwf:
-    :param threshold:
-    :param sie:
-    :param metrics:
-    :param extra_args:
 
-    :return:
+    OBS_KIND_FC = 0
+    OBS_KIND_OBS = 1
+    OBS_KIND_ERR = 2
+
+    plot_series = combined_da.to_dataframe(name="SIC")["SIC"]
+
+    outfile = output_prefix + ".fc.pdf"
+
+    all_figs = []
+    with PdfPages(outfile) as output_pdf:
+        n_probe = len(combined_da.probe)
+        for i_probe in range(n_probe):
+
+            #### Forecast/observed plots ####
+
+            lat = combined_da.probe.lat.values[i_probe]
+            lon = combined_da.probe.lon.values[i_probe]
+
+            lat_h = "N" if lat >= 0.0 else "S"
+            lat = abs(lat)
+
+            lon_h = "E" if lon >= 0.0 else "W"
+            lon = abs(lon)
+
+            fig, ax = plt.subplots()
+            all_figs.append(fig)
+
+            ax.set_title(
+                f"Sea ice concentration at location {i_probe + 1}\n"
+                f"{lat:.3f}° {lat_h}, {lon:.3f}° {lon_h}"
+            )
+
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Concentration (fraction)")
+            ax.set_ylim([0.0, 1.0])
+
+            # dims: (obs_kind, time, probe)
+            ax.plot(plot_series.loc[OBS_KIND_FC,:,i_probe], label="Icenet forecast")
+            ax.plot(plot_series.loc[OBS_KIND_OBS,:,i_probe], label="Observed")
+            ax.legend()
+
+            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+            output_pdf.savefig(fig, bbox_inches='tight')
+
+            #### Error plot ####
+
+            fig2, ax2 = plt.subplots()
+            all_figs.append(fig2)
+
+            ax2.set_title(
+                f"Sea ice concentration error at location {i_probe + 1}\n"
+                f"{lat:.3f}° {lat_h}, {lon:.3f}° {lon_h}"
+            )
+
+            ax2.set_xlabel("Date")
+            ax2.set_ylabel("Sea ice concentration error (signed difference)")
+
+            ax2.axhline(color='k', lw=0.5, ls='--')
+            ax2.plot(plot_series.loc[OBS_KIND_ERR,:,i_probe], color='C2')
+
+            plt.setp(ax2.get_xticklabels(), rotation=45, ha='right')
+            output_pdf.savefig(fig2, bbox_inches='tight')
+
+    return all_figs
+
+
+def sic_error_local_plots(fc_da: object,
+                          obs_da: object,
+                          output_path: object,
+                          as_command: bool = False):
+
+    """
+    :param fc_da: a DataArray with dims ('time', 'probe')
+    :param obs_da: a DataArray with dims ('time', 'probe')
     """
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument("hemisphere", choices=("north", "south"))
-    ap.add_argument("forecast_file", type=str)
+    error_da = fc_da - obs_da
+    combined_da = xr.concat(
+        [fc_da, obs_da, error_da],
+        dim="obs_kind", coords="minimal"
+    )
 
-    if leadtime:
-        ap.add_argument("-m",
-                        "--metric",
-                        help="Which metric to compute and plot",
-                        type=str)
-        ap.add_argument("-dp",
-                        "--data_path",
-                        help="Where to find (or store) metrics dataframe",
-                        type=str,
-                        default=None)
-        ap.add_argument("-ao",
-                        "--average_over",
-                        help="How to average the forecast metrics",
-                        type=str,
-                        choices=["all", "month", "day"])
-        ap.add_argument("-td",
-                        "--target_date_average",
-                        help="Averages metric over target date instead of init date",
-                        action="store_true",
-                        default=False)
-    else:
-        ap.add_argument("forecast_date", type=date_arg)
-        
-    ap.add_argument("-r", "--region", default=None, type=region_arg,
-                    help="Region specified x1, y1, x2, y2")
+    # convert to a dataframe for csv output
+    df = (
+        combined_da
+        .to_dataframe(name="SIC")
+        # drop unneeded coords (lat, lon, xc, yc)
+        .loc[:, "SIC"]
+        # Convert mult-indices
+        .unstack(2).unstack(0)
+    )
 
-    ap.add_argument("-o", "--output-path", type=str, default=None)
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+    if output_path is None:
+        output_path = "sic_error_local.csv"
 
-    if ecmwf:
-        ap.add_argument("-b", "--bias-correct",
-                        help="Bias correct SEAS forecast array",
-                        action="store_true",
-                        default=False)
-        ap.add_argument("-e", "--ecmwf", action="store_true", default=False)
+    header_info = sic_error_local_header_data(combined_da)
 
-    if threshold:
-        ap.add_argument("-t",
-                        "--threshold",
-                        help="The SIC threshold of interest",
-                        type=float,
-                        default=0.15)
+    header = "# icenet_plot_sic_error_local\n"
+    header += f"# Part of Icenet, version {icenet_version}\n"
+    header += "#\n"
 
-    if sie:
-        ap.add_argument("-ga",
-                        "--grid-area",
-                        help="The length of the sides of the grid used (in km)",
-                        type=int,
-                        default=25)
+    if as_command:
+        header += "# Command output from \n"
+        cmd = ' '.join([a.__repr__() for a in sys.argv])
+        header += f"#   {cmd}\n"
+        header += "#\n"
 
-    if metrics:
-        ap.add_argument("-m", 
-                        "--metrics",
-                        help="Which metrics to compute and plot",
-                        type=str,
-                        default="MAE,MSE,RMSE")
-        ap.add_argument("-s",
-                        "--separate",
-                        help="Whether or not to produce separate plots for each metric",
-                        action="store_true",
-                        default=False)
+    header += "# Key\n"
+    for header_kind, header_data in header_info.items():
+        header += f"# {header_kind}\n"
+        for k, v in header_data.items():
+            header += f"#   {k}: {v}\n"
 
-    if type(extra_args) == list:
-        for arg in extra_args:
-            ap.add_argument(*arg[0], **arg[1])
-    elif extra_args is not None:
-        logging.warning("Implementation error: extra_args is invalid")
+    with open(output_path, "w") as outfile:
+        outfile.write(header)
+        df.to_csv(outfile)
 
-    args = ap.parse_args()
+    figs = sic_error_local_write_fig(combined_da, "sic_error_local")
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    return figs
 
-    return args
+
+class ForecastPlotArgParser(argparse.ArgumentParser):
+
+    """An ArgumentParser specialised to support forecast plot arguments
+
+    Additional argument enabled by allow_ecmwf() etc.
+
+    The 'allow_*' methods return self to permit method chaining.
+
+    :param forecast_date: allows this positional argument to be disabled
+    """
+
+    def __init__(self, *args,
+                 forecast_date: bool = True,
+                 **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.add_argument("hemisphere", choices=("north", "south"))
+        self.add_argument("forecast_file", type=str)
+        if forecast_date:
+            self.add_argument("forecast_date", type=date_arg)
+
+        self.add_argument("-o", "--output-path", type=str, default=None)
+        self.add_argument("-v", "--verbose", action="store_true", default=False)
+        self.add_argument("-r", "--region", default=None, type=region_arg,
+                          help="Region specified x1, y1, x2, y2")
+
+    def allow_ecmwf(self):
+        self.add_argument("-b", "--bias-correct",
+                          help="Bias correct SEAS forecast array",
+                          action="store_true",
+                          default=False)
+        self.add_argument("-e", "--ecmwf", action="store_true", default=False)
+        return self
+
+    def allow_threshold(self):
+        self.add_argument("-t",
+                          "--threshold",
+                          help="The SIC threshold of interest",
+                          type=float,
+                          default=0.15)
+        return self
+
+    def allow_sie(self):
+        self.add_argument("-ga",
+                          "--grid-area",
+                          help="The length of the sides of the grid used (in km)",
+                          type=int,
+                          default=25)
+        return self
+
+    def allow_metrics(self):
+        self.add_argument("-m", 
+                          "--metrics",
+                          help="Which metrics to compute and plot",
+                          type=str,
+                          default="MAE,MSE,RMSE")
+        self.add_argument("-s",
+                          "--separate",
+                          help="Whether or not to produce separate plots for each metric",
+                          action="store_true",
+                          default=False)
+        return self
+
+    def allow_probes(self):
+        self.add_argument(
+            "-p", "--probe", action="append", dest="probes",
+            type=location_arg, metavar="LOCATION",
+            help="Sample at LOCATION",
+        )
+        return self
+
+    def parse_args(self, *args, **kwargs):
+        args = super().parse_args(*args, **kwargs)
+
+        logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+        logging.getLogger("matplotlib").setLevel(logging.WARNING)
+
+        return args
 
 ##
 # CLI endpoints
@@ -1027,7 +1221,12 @@ def binary_accuracy():
     """
     Produces plot of the binary classification accuracy of forecasts.
     """
-    args = forecast_plot_args(ecmwf=True, threshold=True)
+    ap = (
+        ForecastPlotArgParser()
+        .allow_ecmwf()
+        .allow_threshold()
+    )
+    args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -1070,7 +1269,13 @@ def sie_error():
     """
     Produces plot of the sea-ice extent (SIE) error of forecasts.
     """
-    args = forecast_plot_args(ecmwf=True, threshold=True, sie=True)
+    ap = (
+        ForecastPlotArgParser()
+        .allow_ecmwf()
+        .allow_threshold()
+        .allow_sie()
+    )
+    args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -1115,30 +1320,27 @@ def plot_forecast():
 
     :return:
     """
-    args = forecast_plot_args(ecmwf=False,
-                              extra_args=[
-                                  (("-l", "--leadtimes"), dict(
-                                      help="Leadtimes to output, multiple as CSV, range as n..n",
-                                      type=lambda s: [int(i) for i in
-                                                      list(s.split(",") if "," in s else
-                                                           range(int(s.split("..")[0]),
-                                                                 int(s.split("..")[1]) + 1) if ".." in s else
-                                                           [s])])),
-                                  (("-c", "--no-coastlines"), dict(
-                                      help="Turn off cartopy integration",
-                                      action="store_true", default=False,
-                                  )),
-                                  (("-f", "--format"), dict(
-                                      help="Format to output in",
-                                      choices=("mp4", "png", "svg", "tiff"),
-                                      default="png"
-                                  )),
-                                  (("-s", "--stddev"), dict(
-                                      help="Plot the standard deviation from the ensemble",
-                                      action="store_true",
-                                      default=False
-                                  ))
-                              ])
+    ap = ForecastPlotArgParser()
+    ap.add_argument("-l", "--leadtimes",
+                    help="Leadtimes to output, multiple as CSV, range as n..n",
+                    type=lambda s: [int(i) for i in
+                                    list(s.split(",") if "," in s else
+                                         range(int(s.split("..")[0]),
+                                               int(s.split("..")[1]) + 1) if ".." in s else
+                                         [s])])
+    ap.add_argument("-c", "--no-coastlines",
+                    help="Turn off cartopy integration",
+                    action="store_true", default=False)
+    ap.add_argument("-f", "--format",
+                    help="Format to output in",
+                    choices=("mp4", "png", "svg", "tiff"),
+                    default="png")
+    ap.add_argument("-s", "--stddev",
+                    help="Plot the standard deviation from the ensemble",
+                    action="store_true",
+                    default=False)
+    args = ap.parse_args()
+
     fc = get_forecast_ds(args.forecast_file,
                          args.forecast_date,
                          stddev=args.stddev)
@@ -1262,7 +1464,12 @@ def metric_plots():
     """
     Produces plot of requested metrics for forecasts.
     """
-    args = forecast_plot_args(ecmwf=True, metrics=True)
+    ap = (
+        ForecastPlotArgParser()
+        .allow_ecmwf()
+        .allow_metrics()
+    )
+    args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -1308,7 +1515,30 @@ def leadtime_avg_plots():
     """
     Produces plot of leadtime averaged metrics for forecasts.
     """
-    args = forecast_plot_args(ecmwf=True, leadtime=True)
+    ap = (
+        ForecastPlotArgParser(forecast_date=False)
+        .allow_ecmwf()
+    )
+    ap.add_argument("-m",
+                    "--metric",
+                    help="Which metric to compute and plot",
+                    type=str)
+    ap.add_argument("-dp",
+                    "--data_path",
+                    help="Where to find (or store) metrics dataframe",
+                    type=str,
+                    default=None)
+    ap.add_argument("-ao",
+                    "--average_over",
+                    help="How to average the forecast metrics",
+                    type=str,
+                    choices=["all", "month", "day"])
+    ap.add_argument("-td",
+                    "--target_date_average",
+                    help="Averages metric over target date instead of init date",
+                    action="store_true",
+                    default=False)
+    args = ap.parse_args()
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
     
@@ -1329,7 +1559,8 @@ def sic_error():
     """
     Produces video visualisation of SIC of forecast and ground truth.
     """
-    args = forecast_plot_args(ecmwf=False)
+    ap = ForecastPlotArgParser()
+    args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -1350,3 +1581,31 @@ def sic_error():
                     obs_da=obs,
                     land_mask=masks.get_land_mask(),
                     output_path=args.output_path)
+
+
+def sic_error_local():
+    """
+    Entry point for the icenet_plot_sic_error_local command
+    """
+
+    ap = (
+        ForecastPlotArgParser()
+        .allow_probes()
+    )
+    args = ap.parse_args()
+
+    fc = get_forecast_ds(args.forecast_file,
+                         args.forecast_date)
+    obs = get_obs_da(args.hemisphere,
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=1),
+                     pd.to_datetime(args.forecast_date) +
+                     timedelta(days=int(fc.leadtime.max())))
+    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+
+    fc, obs = process_probes(args.probes, [fc, obs])
+
+    sic_error_local_plots(fc,
+                          obs,
+                          args.output_path,
+                          as_command=True)
