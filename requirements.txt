@@ -12,6 +12,7 @@ h5py==2.10.0
 ibicus
 imageio
 imageio-ffmpeg
+matplotlib
 motuclient
 netcdf4
 plotly
@@ -19,6 +20,7 @@ pip
 pydap
 rioxarray
 scitools-iris
+seaborn
 setuptools
 tensorboard
 tensorflow
