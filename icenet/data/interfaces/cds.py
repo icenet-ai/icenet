@@ -257,7 +257,7 @@ class ERA5Downloader(ClimateDownloader):
         elif var_name in ['zg500', 'zg250']:
             # Convert from geopotential to geopotential height
             logging.debug("ERA5 additional regrid: {}".format(var_name))
-            cube_ease /= 9.80665
+            cube_ease.data /= 9.80665
 
 
 def main():
