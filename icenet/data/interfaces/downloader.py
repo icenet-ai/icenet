@@ -90,24 +90,29 @@ def filter_dates_on_data(latlon_path: str,
 
 
 def merge_files(new_datafile: str,
-                other_datafile: str):
+                other_datafile: str,
+                drop_variables: object = None):
     """
 
     :param new_datafile:
     :param other_datafile:
+    :param drop_variables:
     """
+    drop_variables = list() if drop_variables is None else drop_variables
 
     if other_datafile is not None:
         (datafile_path, new_filename) = os.path.split(new_datafile)
         moved_new_datafile = \
             os.path.join(datafile_path, "new.{}".format(new_filename))
         os.rename(new_datafile, moved_new_datafile)
-        d1 = xr.open_dataset(moved_new_datafile)
+        d1 = xr.open_dataset(moved_new_datafile,
+                             drop_variables=drop_variables)
 
         logging.info("Concatenating with previous data {}".format(
             other_datafile
         ))
-        d2 = xr.open_dataset(other_datafile)
+        d2 = xr.open_dataset(other_datafile,
+                             drop_variables=drop_variables)
         new_ds = xr.concat([d1, d2], dim="time").sortby("time")
 
         logging.info("Saving merged data to {}... ".
@@ -408,7 +413,7 @@ class ClimateDownloader(Downloader):
             self.rotate_wind_data()
 
         for new_datafile, moved_datafile in regrid_results:
-            merge_files(new_datafile, moved_datafile)
+            merge_files(new_datafile, moved_datafile, self._drop_vars)
 
     def _batch_regrid(self,
                       files: object):
