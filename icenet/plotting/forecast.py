@@ -286,7 +286,8 @@ def plot_sea_ice_extent_error(masks: object,
     forecast_sie_error = compute_sea_ice_extent_error(masks=masks,
                                                       fc_da=fc_da,
                                                       obs_da=obs_da,
-                                                      grid_area_size=grid_area_size)
+                                                      grid_area_size=grid_area_size,
+                                                      threshold=threshold)
     
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.set_title(f"SIE comparison ({grid_area_size} km grid resolution) "
@@ -297,7 +298,8 @@ def plot_sea_ice_extent_error(masks: object,
         cmp_sie_error = compute_sea_ice_extent_error(masks=masks,
                                                      fc_da=cmp_da,
                                                      obs_da=obs_da,
-                                                     grid_area_size=grid_area_size)
+                                                     grid_area_size=grid_area_size,
+                                                     threshold=threshold)
         ax.plot(cmp_sie_error.time, cmp_sie_error.values, label="SEAS")
     else:
         cmp_sie_error = None
