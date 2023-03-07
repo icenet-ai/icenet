@@ -48,9 +48,9 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .pytest_cache
 
 lint/flake8: ## check style with flake8
-	flake8 icenet tests
+	flake8 --extend-ignore "W291,W293,E501,W391,E712,E266,E251" icenet
 lint/black: ## check style with black
-	black --check icenet tests
+	black --check icenet
 
 lint: lint/flake8 lint/black ## check style
 

@@ -97,7 +97,8 @@ invalid_sic_days = {
         dt.date(1987, 4, 14),
         dt.date(1987, 4, 16),
         dt.date(1987, 4, 4),
-        dt.date(1990, 1, 26)
+        dt.date(1990, 1, 26),
+        dt.date(2022, 11, 9),
     ],
     Hemisphere.SOUTH: [
         dt.date(1979, 2, 5),
@@ -190,7 +191,8 @@ invalid_sic_days = {
         *pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 1)),
         dt.date(1990, 8, 14),
         dt.date(1990, 8, 15),
-        dt.date(1990, 8, 24)
+        dt.date(1990, 8, 24),
+        dt.date(2022, 11, 9),
     ]
 }
 
@@ -231,7 +233,7 @@ class SICDownloader(Downloader):
         self._dates = dates
         self._delete = delete_tempfiles
         self._download = download
-        self._dtype=dtype
+        self._dtype = dtype
         self._invalid_dates = invalid_sic_days[self.hemisphere] + \
             list(additional_invalid_dates)
         self._masks = Masks(north=self.north, south=self.south)
@@ -246,6 +248,9 @@ class SICDownloader(Downloader):
 
         """
         hs = SIC_HEMI_STR[self.hemisphere_str[0]]
+        data_files = []
+        ftp = None
+        var = "siconca"
 
         logging.info(
             "Not downloading SIC files, (re)processing NC files in "
@@ -257,11 +262,29 @@ class SICDownloader(Downloader):
         cache = {}
         osi430b_start = dt.date(2016, 1, 1)
 
-        # TODO: filter based on existing data
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
-        data_files = []
-        ftp = None
-        var = "siconca"
+
+        # Filtering dates based on existing data
+        filter_years = sorted(set([d.year for d in dt_arr]))
+        extant_paths = [
+            os.path.join(self.get_data_var_folder(var),
+                         "{}.nc".format(filter_ds))
+            for filter_ds in filter_years
+        ]
+        extant_paths = [df for df in extant_paths if os.path.exists(df)]
+
+        if len(extant_paths) > 0:
+            extant_ds = xr.open_mfdataset(extant_paths)
+            exclude_dates = pd.to_datetime(extant_ds.time.values)
+            logging.info("Excluding {} dates already existing from {} dates "
+                         "requested.".format(len(exclude_dates), len(dt_arr)))
+
+            dt_arr = sorted(list(set(dt_arr).difference(exclude_dates)))
+            dt_arr.reverse()
+
+            # We won't hold onto an active dataset during network I/O
+            extant_ds.close()
+        # End filtering
 
         while len(dt_arr):
             el = dt_arr.pop()
@@ -388,12 +411,25 @@ class SICDownloader(Downloader):
             var_folder = self.get_data_var_folder(var)
             group_by = "time.year"
 
-            # xr.concat([ds, ds2], dim="time").sortby("time")
             for year, year_da in da.groupby(group_by):
                 req_date = pd.to_datetime(year_da.time.values[0])
+
                 year_path = os.path.join(
-                    var_folder, "{}.nc".format(
-                        getattr(req_date, "year")))
+                    var_folder, "{}.nc".format(getattr(req_date, "year")))
+                old_year_path = os.path.join(
+                    var_folder, "old.{}.nc".format(getattr(req_date, "year")))
+
+                if os.path.exists(year_path):
+                    logging.info("Existing file needs concatenating: {} -> {}".
+                                 format(year_path, old_year_path))
+                    os.rename(year_path, old_year_path)
+                    old_da = xr.open_dataarray(old_year_path)
+                    year_da = year_da.drop_sel(time=old_da.time,
+                                               errors="ignore")
+                    year_da = xr.concat([old_da, year_da],
+                                        dim="time").sortby("time")
+                    old_da.close()
+                    os.unlink(old_year_path)
 
                 logging.info("Saving {}".format(year_path))
                 year_da.compute()
@@ -463,7 +499,6 @@ class SICDownloader(Downloader):
                       format(len(missing_dates)))
 
         for date in missing_dates:
-            # TODO: test, but overcomes issue with reprocessing
             if pd.Timestamp(date) not in da.time.values:
                 logging.info("Interpolating {}".format(date))
                 da = xr.concat([da,

@@ -20,28 +20,28 @@ from icenet.model.models import linear_trend_forecast
 class IceNetPreProcessor(Processor):
     """
 
-    :param abs_vars: 
-    :param anom_vars: 
-    :param name: 
+    :param abs_vars:
+    :param anom_vars:
+    :param name:
     :param train_dates:
-    :param val_dates: 
+    :param val_dates:
     :param test_dates: 
-    :param *args: 
+    :param *args:
     :param data_shape: 
-    :param dtype: 
+    :param dtype:
     :param exclude_vars: 
-    :param file_filters: 
-    :param identifier: 
+    :param file_filters:
+    :param identifier:
     :param linear_trends: 
     :param linear_trend_days: 
-    :param meta_vars: 
-    :param missing_dates: 
-    :param minmax: 
+    :param meta_vars:
+    :param missing_dates:
+    :param minmax:
     :param no_normalise: 
-    :param path: 
+    :param path:
     :param ref_procdir: 
-    :param source_data: 
-    :param update_key: 
+    :param source_data:
+    :param update_key:
     :param update_loader: 
     """
 
@@ -478,7 +478,7 @@ class IceNetPreProcessor(Processor):
             logging.debug("Loading norm-scaling min-max from {}".
                           format(scale_path))
             minimum, maximum = tuple([self._dtype(el) for el in
-                               open(scale_path, "r").read().split(",")])
+                                      open(scale_path, "r").read().split(",")])
         elif self._dates.train:
             logging.debug("Generating norm-scaling min-max from {} training "
                           "dates".format(len(self._dates.train)))

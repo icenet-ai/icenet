@@ -145,9 +145,6 @@ class CMIP6Downloader(ClimateDownloader):
 
         var = var_prefix if not level else "{}{}".format(var_prefix, level)
 
-        req_dates, merge_files = \
-            self.filter_dates_on_data(var_prefix, level, req_dates)
-
         logging.info("Querying ESGF")
         results = []
 
@@ -257,11 +254,11 @@ def main():
         source=args.source,
         member=args.member,
         var_names=args.vars,
-        pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         grid_override=args.override,
+        levels=args.levels,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
         max_threads=args.workers,

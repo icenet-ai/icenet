@@ -2,6 +2,7 @@ import logging
 import requests
 
 import cartopy.crs as ccrs
+import cf_units
 import iris
 import numpy as np
 
@@ -19,7 +20,9 @@ def assign_lat_lon_coord_system(cube: object):
     # NOTE: CMIP6 original assignment, but cs in this case is bring assigned to
     # a module call that doesn't exist, let alone contain this member
     # cs = grid_cube.coord_system().ellipsoid
-    # for coord in ['longitude', 'latitude']:
+    for coord in ['longitude', 'latitude']:
+        if cube.coord(coord).units != cf_units.Unit("degrees"):
+            cube.coord(coord).units = cf_units.Unit("degrees")
     #     cmip6_cube.coord(coord).coord_system = cs
 
     return cube
@@ -107,8 +110,8 @@ def gridcell_angles_from_dim_coords(cube: object):
     for yi in [0, 1]:
         for xi in [0, 1]:
             xy = np.meshgrid(x_bounds[:, xi], y_bounds[:, yi])
-            x[:,:,c[cind]] = xy[0]
-            y[:,:,c[cind]] = xy[1]
+            x[:, :, c[cind]] = xy[0]
+            y[:, :, c[cind]] = xy[1]
             cind += 1
 
     # convert the X and Y coordinates to longitudes and latitudes
@@ -176,7 +179,7 @@ def esgf_search(server: str = "https://esgf-node.llnl.gov/esg-search/search",
     client = requests.session()
     payload = search
     payload["project"] = project
-    payload["type"]="File"
+    payload["type"] = "File"
     if latest:
         payload["latest"] = "true"
     if local_node:
@@ -214,7 +217,7 @@ def esgf_search(server: str = "https://esgf-node.llnl.gov/esg-search/search",
         offset += len(resp)
         for d in resp:
             for k in d:
-                logging.debug("{}: {}".format(k,d[k]))
+                logging.debug("{}: {}".format(k, d[k]))
             url = d["url"]
             for f in d["url"]:
                 sp = f.split("|")

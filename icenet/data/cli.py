@@ -4,8 +4,6 @@ import datetime as dt
 import logging
 import re
 
-from pprint import pformat
-
 import pandas as pd
 
 from icenet.utils import setup_logging
@@ -243,4 +241,3 @@ def process_date_args(args: object) -> dict:
 
         dates[dataset] = sorted(list(dataset_dates))
     return dates
-

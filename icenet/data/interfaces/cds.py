@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 import os
 import requests
@@ -12,7 +13,6 @@ import xarray as xr
 
 from icenet.data.cli import download_args
 from icenet.data.interfaces.downloader import ClimateDownloader
-from icenet.data.interfaces.utils import batch_requested_dates
 
 """
 Module to download hourly ERA5 reanalysis latitude-longitude maps,
@@ -51,6 +51,7 @@ class ERA5Downloader(ClimateDownloader):
                  show_progress: bool = False,
                  **kwargs):
         super().__init__(*args,
+                         drop_vars=["lambert_azimuthal_equal_area"],
                          identifier=identifier,
                          **kwargs)
         self.client = cds.Client(progress=show_progress)
@@ -202,23 +203,38 @@ class ERA5Downloader(ClimateDownloader):
         """
         # if not self._use_toolbox:
         logging.info("Postprocessing CDS API data at {}".format(download_path))
-        da = xr.open_dataarray(download_path)
+
+        temp_path = "{}.bak{}".format(*os.path.splitext(download_path))
+        logging.debug("Moving to {}".format(temp_path))
+        os.rename(download_path, temp_path)
+
+        ds = xr.open_dataset(temp_path)
+        nom = list(ds.data_vars)[0]
+        da = getattr(ds.rename({nom: var}), var)
+
+        doy_counts = da.time.groupby("time.dayofyear").count()
+
+        # There are situations where the API will spit out unordered and
+        # partial data, so we ensure here means come from full days and don't
+        # leave gaps. If we can avoid expver with this, might as well, so
+        # that's second
+        # FIXME: This will cause issues for already processed latlon data
+        if len(doy_counts[doy_counts < 24]) > 0:
+            strip_dates_before = min([
+                dt.datetime.strptime("{}-{}".format(
+                    d, pd.to_datetime(da.time.values[0]).year), "%j-%Y")
+                for d in doy_counts[doy_counts < 24].dayofyear.values])
+            da = da.where(da.time < pd.Timestamp(strip_dates_before), drop=True)
 
         if 'expver' in da.coords:
-            raise RuntimeError("fix_near_real_time_era5_coords no longer "
-                               "exists in the codebase for expver "
-                               "in coordinates")
+            logging.warning("expvers {} in coordinates, will process out but "
+                            "this needs further work: expver needs storing for "
+                            "later overwriting".format(da.expver))
+            # Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=173385064
+            da = da.sel(expver=1).combine_first(da.sel(expver=5))
 
-        da = da.resample(time='1D').mean().compute()
+        da = da.sortby("time").resample(time='1D').mean()
         da.to_netcdf(download_path)
-
-    def _get_dates_for_request(self) -> object:
-        """Appropriate monthly batching of dates for CDS requests
-
-        :return:
-
-        """
-        return batch_requested_dates(self._dates, attribute="month")
 
     def additional_regrid_processing(self,
                                      datafile: str,
@@ -241,42 +257,7 @@ class ERA5Downloader(ClimateDownloader):
         elif var_name in ['zg500', 'zg250']:
             # Convert from geopotential to geopotential height
             logging.debug("ERA5 additional regrid: {}".format(var_name))
-            cube_ease /= 9.80665
-
-    def filter_expver_data(self, da):
-        """Fix issue with expver non-validated data
-
-        ERA5 data within several months of the present date is considered as a
-        separate system, ERA5T. Downloads that contain both ERA5 and ERA5T data
-        produce datasets with a length-2 'expver' dimension along axis 1, taking a value
-        of 1 for ERA5 and a value of 5 for ERA5. This results in all-NaN values
-        along latitude & longitude outside of the valid expver time span. This function
-        finds the ERA5 and ERA5T time indexes and removes the expver dimension
-        by concatenating the sub-arrays where the data is not NaN.
-
-        Reference: https://confluence.ecmwf.int/pages/viewpage.action?pageId=173385064
-
-        :param da:
-        :return:
-        """
-
-        if 'expver' in da.coords:
-            # Find invalid time indexes in expver == 1 (ERA5) dataset
-            arr = da.sel(expver=1).data
-            arr = arr.reshape(arr.shape[0], -1)
-            arr = np.sort(arr, axis=1)
-            era5t_time_idxs = (arr[:, 1:] != arr[:, :-1]).sum(axis=1)+1 == 1
-            era5t_time_idxs = (era5t_time_idxs) | (np.isnan(arr[:, 0]))
-
-            era5_time_idxs = ~era5t_time_idxs
-
-            da = xr.concat((da[era5_time_idxs, 0, :], da[era5t_time_idxs, 1, :]), dim='time')
-
-            da = da.reset_coords('expver', drop=True)
-
-        raise RuntimeError("Please do not use this method without addressing "
-                           "state recording against data date requests in #81")
-        #return da
+            cube_ease.data /= 9.80665
 
 
 def main():
@@ -290,11 +271,11 @@ def main():
     logging.info("ERA5 Data Downloading")
     era5 = ERA5Downloader(
         var_names=args.vars,
-        pressure_levels=args.levels,
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         download=args.download,
+        levels=args.levels,
         max_threads=args.workers,
         postprocess=args.postprocess,
         north=args.hemisphere == "north",
@@ -303,4 +284,3 @@ def main():
     )
     era5.download()
     era5.regrid()
-    era5.rotate_wind_data()

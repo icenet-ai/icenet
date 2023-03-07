@@ -4,8 +4,6 @@
 
 import pytest
 
-import icenet
-
 
 @pytest.fixture
 def response():

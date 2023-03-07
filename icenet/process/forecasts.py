@@ -1,91 +1,19 @@
 import argparse
 import datetime as dt
 import logging
+import os
 
+import cf_units
 import iris
 import pandas as pd
-import xarray as xr
+import rasterio
 
 import iris.analysis
 
 from icenet.process.utils import date_arg
 from icenet.utils import setup_logging
 
-
-def broadcast_forecast(start_date: object,
-                       end_date: object,
-                       datafiles: object = None,
-                       dataset: object = None,
-                       target: object = None) -> object:
-    """
-
-    :param start_date:
-    :param end_date:
-    :param datafiles:
-    :param dataset:
-    :param target:
-    :return:
-    """
-
-    assert (datafiles is None) ^ (dataset is None), \
-        "Only one of datafiles and dataset can be set"
-
-    if datafiles:
-        logging.info("Using {} to generate forecast through {} to {}".
-                     format(", ".join(datafiles), start_date, end_date))
-        dataset = xr.open_mfdataset(datafiles, engine="netcdf4")
-
-    dates = pd.date_range(start_date, end_date)
-    i = 0
-
-    logging.debug("Dataset summary: \n{}".format(dataset))
-
-    if len(dataset.time.values) > 1:
-        while dataset.time.values[i + 1] < dates[0]:
-            i += 1
-
-    logging.info("Starting index will be {} for {} - {}".
-                 format(i, dates[0], dates[-1]))
-    dt_arr = []
-
-    for d in dates:
-        logging.debug("Looking for date {}".format(d))
-        arr = None
-
-        while arr is None:
-            if d >= dataset.time.values[i]:
-                d_lead = (d - dataset.time.values[i]).days
-
-                if i + 1 < len(dataset.time.values):
-                    if pd.to_datetime(dataset.time.values[i]) + \
-                            dt.timedelta(days=d_lead) >= \
-                            pd.to_datetime(dataset.time.values[i + 1]) + \
-                            dt.timedelta(days=1):
-                        i += 1
-                        continue
-
-                logging.debug("Selecting date {} and lead {}".
-                              format(pd.to_datetime(
-                                     dataset.time.values[i]).strftime("%D"), 
-                                     d_lead))
-
-                arr = dataset.sel(time=dataset.time.values[i],
-                                  leadtime=d_lead).\
-                    copy().\
-                    drop("time").\
-                    assign_coords(dict(time=d)).\
-                    drop("leadtime")
-            else:
-                i += 1
-
-        dt_arr.append(arr)
-
-    target_ds = xr.concat(dt_arr, dim="time")
-
-    if target:
-        logging.info("Saving dataset to {}".format(target))
-        target_ds.to_netcdf(target)
-    return target_ds
+from icenet.plotting.utils import broadcast_forecast, get_forecast_ds
 
 
 def reproject_output(forecast_file: object,
@@ -113,7 +41,10 @@ def reproject_output(forecast_file: object,
 
 
 @setup_logging
-def broadcast_args():
+def broadcast_args() -> argparse.Namespace:
+    """CLI arguments for broadcasting several forecasts linearly through time
+
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("-o", "--output-target", dest="target", default=None)
     ap.add_argument("start_date", type=date_arg)
@@ -124,13 +55,21 @@ def broadcast_args():
 
 
 def broadcast_main():
+    """CLI entry point for icenet_output_broadcast
+
+    """
     args = broadcast_args()
-    broadcast_forecast(args.start_date, args.end_date,
-                       args.datafiles, args.target)
+    broadcast_forecast(args.start_date,
+                       args.end_date,
+                       args.datafiles,
+                       args.target)
 
 
 @setup_logging
-def reproject_args():
+def reproject_args() -> argparse.Namespace:
+    """CLI args for reprojecting against another file
+
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("forecast_file")
     ap.add_argument("proj_file")
@@ -140,5 +79,98 @@ def reproject_args():
 
 
 def reproject_main():
+    """CLI entry point for icenet_output_reproject
+
+    """
     args = reproject_args()
     reproject_output(args.forecast_file, args.proj_file, args.save_file)
+
+
+@setup_logging
+def geotiff_args() -> argparse.Namespace:
+    """CLI args for creating geotiffs
+
+    """
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-o", "--output-path", default=".")
+    ap.add_argument("-s", "--stddev",
+                    help="Plot the standard deviation from the ensemble",
+                    action="store_true",
+                    default=False)
+    ap.add_argument("-v", "--verbose", default=False, action="store_true")
+    ap.add_argument("forecast_file")
+    ap.add_argument("forecast_date")
+    ap.add_argument("leadtimes",
+                    help="Leadtimes to output, multiple as CSV, range as n..n",
+                    type=lambda s: [int(i) for i in
+                                    list(s.split(",") if "," in s else
+                                         range(int(s.split("..")[0]),
+                                               int(s.split("..")[1]) + 1) if ".." in s else
+                                         [s])])
+
+    args = ap.parse_args()
+    return args
+
+
+def create_geotiff_output():
+    """CLI entry point for icenet_output_geotiff
+
+    """
+    args = geotiff_args()
+
+    if not os.path.isdir(args.output_path):
+        logging.warning("No directory at: {}, creating".
+                        format(args.output_path))
+        os.makedirs(args.output_path)
+    elif os.path.isfile(args.output_path):
+        raise RuntimeError("{} should be a directory and not existent...".
+                           format(args.output_path))
+
+    ds = get_forecast_ds(args.forecast_file,
+                         args.forecast_date,
+                         stddev=args.stddev)
+    ds = ds.isel(time=0).transpose(..., "yc", "xc")
+
+    # The projection information set when we create NetCDF output compliant
+    # with CF standards still has units as meters, but the attributes on the
+    # variables is 1000 meters. It's easier to reset this for the GeoTIFF output
+    # else you'll get scale errors that are a pain to fix in downstream
+    x_meters = ds.xc * 1000
+    y_meters = ds.yc * 1000
+    x_attrs = ds.xc.attrs
+    y_attrs = ds.yc.attrs
+
+    ds = ds.assign_coords(xc=x_meters, yc=y_meters)
+    ds['xc'].attrs = x_attrs
+    ds['yc'].attrs = y_attrs
+    ds['xc'].attrs['units'] = cf_units.Unit('meters')
+    ds['yc'].attrs['units'] = cf_units.Unit('meters')
+
+    if type(ds.rio.crs) != rasterio.crs.CRS:
+        raise RuntimeError("Did not extract CRS via the coordinates, ds.rio.crs"
+                           " is not of type rasterio.crs.CRS")
+
+    leadtimes = args.leadtimes \
+        if args.leadtimes is not None \
+        else list(range(1, int(max(ds.leadtime.values)) + 1))
+
+    forecast_name = "{}.{}".format(
+        os.path.splitext(os.path.basename(args.forecast_file))[0],
+        args.forecast_date)
+
+    logging.info("Selecting and outputting files from {} for {}".
+                 format(args.forecast_file, args.forecast_date))
+
+    for leadtime in leadtimes:
+        pred_da = ds.sel(leadtime=leadtime)
+
+        output_filename = os.path.join(args.output_path, "{}.{}.{}tiff".format(
+            forecast_name,
+            (pd.to_datetime(args.forecast_date) + dt.timedelta(
+                days=leadtime)).strftime("%Y-%m-%d"),
+            "" if not args.stddev else "stddev."
+        ))
+
+        logging.debug("Outputting leadtime {} to {}".
+                      format(leadtime, output_filename))
+        pred_da.rio.to_raster(output_filename)

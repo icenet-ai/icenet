@@ -4,12 +4,109 @@ import logging
 import os
 import re
 
+import cartopy.crs as ccrs
+import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
+
 from ibicus.debias import LinearScaling
 
-from icenet.process.forecasts import broadcast_forecast
+
+def broadcast_forecast(start_date: object,
+                       end_date: object,
+                       datafiles: object = None,
+                       dataset: object = None,
+                       target: object = None) -> object:
+    """
+
+    :param start_date:
+    :param end_date:
+    :param datafiles:
+    :param dataset:
+    :param target:
+    :return:
+    """
+
+    assert (datafiles is None) ^ (dataset is None), \
+        "Only one of datafiles and dataset can be set"
+
+    if datafiles:
+        logging.info("Using {} to generate forecast through {} to {}".
+                     format(", ".join(datafiles), start_date, end_date))
+        dataset = xr.open_mfdataset(datafiles, engine="netcdf4")
+
+    dates = pd.date_range(start_date, end_date)
+    i = 0
+
+    logging.debug("Dataset summary: \n{}".format(dataset))
+
+    if len(dataset.time.values) > 1:
+        while dataset.time.values[i + 1] < dates[0]:
+            i += 1
+
+    logging.info("Starting index will be {} for {} - {}".
+                 format(i, dates[0], dates[-1]))
+    dt_arr = []
+
+    for d in dates:
+        logging.debug("Looking for date {}".format(d))
+        arr = None
+
+        while arr is None:
+            if d >= dataset.time.values[i]:
+                d_lead = (d - dataset.time.values[i]).days
+
+                if i + 1 < len(dataset.time.values):
+                    if pd.to_datetime(dataset.time.values[i]) + \
+                            dt.timedelta(days=d_lead) >= \
+                            pd.to_datetime(dataset.time.values[i + 1]) + \
+                            dt.timedelta(days=1):
+                        i += 1
+                        continue
+
+                logging.debug("Selecting date {} and lead {}".
+                              format(pd.to_datetime(
+                                     dataset.time.values[i]).strftime("%D"),
+                                     d_lead))
+
+                arr = dataset.sel(time=dataset.time.values[i],
+                                  leadtime=d_lead).\
+                    copy().\
+                    drop("time").\
+                    assign_coords(dict(time=d)).\
+                    drop("leadtime")
+            else:
+                i += 1
+
+        dt_arr.append(arr)
+
+    target_ds = xr.concat(dt_arr, dim="time")
+
+    if target:
+        logging.info("Saving dataset to {}".format(target))
+        target_ds.to_netcdf(target)
+    return target_ds
+
+
+def get_seas_forecast_init_dates(hemisphere: str,
+                                 source_path: object = os.path.join(".", "data", "mars.seas")) -> object:
+    """
+    Obtains list of dates for which we have SEAS forecasts we have.
+
+    :param hemisphere: string, typically either 'north' or 'south'
+    :param source_path: path where north and south SEAS forecasts are stored
+    
+    :return: list of dates
+    """
+    # list the files in the path where SEAS forecasts are stored
+    filenames = os.listdir(os.path.join(source_path, 
+                                        hemisphere,
+                                        "siconca"))
+    # obtain the dates from files with YYYYMMDD.nc format
+    return pd.to_datetime([x.split('.')[0]
+                           for x in filenames
+                           if re.search(r'^\d{8}\.nc$', x)])
 
 
 def get_seas_forecast_da(hemisphere: str,
@@ -25,7 +122,7 @@ Coordinates:
   * yc                            (yc) float64 5.388e+06 ... -5.388e+06
   * xc                            (xc) float64 -5.388e+06 ... 5.388e+06
 
-    :param hemisphere:
+    :param hemisphere: string, typically either 'north' or 'south'
     :param date:
     :param bias_correct:
     :param source_path:
@@ -35,8 +132,13 @@ Coordinates:
         source_path,
         hemisphere,
         "siconca",
-        "{}.nc".format(date.strftime("%Y%m%d")))
-    seas_da = xr.open_dataset(seas_file).siconc
+        "{}.nc".format(date.replace(day=1).strftime("%Y%m%d")))
+
+    if os.path.exists(seas_file):
+        seas_da = xr.open_dataset(seas_file).siconc
+    else:
+        logging.warning("No SEAS data available at {}".format(seas_file))
+        return None
 
     if bias_correct:
         # Let's have some maximum, though it's quite high
@@ -95,23 +197,41 @@ Coordinates:
         seas_da.values = seas_array
         logging.info("Debiaser output range: {:.2f} - {:.2f}".
                      format(float(seas_da.min()), float(seas_da.max())))
+
+    logging.info("Returning SEAS data from {} from {}".format(seas_file, date))
+
+    # This isn't great looking, but we know we're not dealing with huge
+    # indexes in here
+    date_location = list(seas_da.time.values).index(pd.Timestamp(date))
+    if date_location > 0:
+        logging.warning("SEAS forecast started {} day before the requested "
+                        "date {}, make sure you account for this!".
+                        format(date_location, date))
+
+    seas_da = seas_da.sel(time=slice(date, None))
+    logging.debug("SEAS data range: {} - {}, {} dates".format(
+        pd.to_datetime(min(seas_da.time.values)).strftime("%Y-%m-%d"),
+        pd.to_datetime(max(seas_da.time.values)).strftime("%Y-%m-%d"),
+        len(seas_da.time)
+    ))
+    
     return seas_da
 
 
 def get_forecast_ds(forecast_file: object,
                     forecast_date: str,
                     stddev: bool = False
-                    ) -> tuple:
+                    ) -> object:
     """
 
-    :param forecast_file:
-    :param forecast_date:
+    :param forecast_file: a path to a .nc file
+    :param forecast_date: initialisation date of the forecast
     :param stddev:
     :returns tuple(fc_ds, obs_ds, land_mask):
     """
     forecast_date = pd.to_datetime(forecast_date)
 
-    forecast_ds = xr.open_dataset(forecast_file)
+    forecast_ds = xr.open_dataset(forecast_file, decode_coords="all")
     get_key = "sic_mean" if not stddev else "sic_stddev"
 
     forecast_ds = getattr(
@@ -128,7 +248,7 @@ def filter_ds_by_obs(ds: object,
 
     :param ds:
     :param obs_da:
-    :param forecast_date:
+    :param forecast_date: initialisation date of the forecast
     :return:
     """
     forecast_date = pd.to_datetime(forecast_date)
@@ -138,8 +258,13 @@ def filter_ds_by_obs(ds: object,
     )
 
     if len(obs_da.time) < len(ds.leadtime):
+        if len(obs_da.time) < 1:
+            raise RuntimeError("No observational data available between {} "
+                               "and {}".format(start_date.strftime("%D"),
+                                               end_date.strftime("%D")))
+
         logging.warning("Observational data not available for full range of "
-                        "forecast leadtimes: {}-{} vs {}-{}".format(
+                        "forecast lead times: {}-{} vs {}-{}".format(
                          obs_da.time.to_series()[0].strftime("%D"),
                          obs_da.time.to_series()[-1].strftime("%D"),
                          start_date.strftime("%D"),
@@ -163,7 +288,7 @@ def get_obs_da(hemisphere: str,
                ) -> object:
     """
 
-    :param hemisphere:
+    :param hemisphere: string, typically either 'north' or 'south'
     :param start_date:
     :param end_date:
     :param obs_source:
@@ -184,3 +309,115 @@ def get_obs_da(hemisphere: str,
     obs_ds = obs_ds.sel(time=slice(start_date, end_date))
 
     return obs_ds.ice_conc
+
+
+def calculate_data_extents(x1: int,
+                           x2: int,
+                           y1: int,
+                           y2: int):
+    """
+
+    :param x1:
+    :param x2:
+    :param y1:
+    :param y2:
+    :return:
+    """
+    data_extent_estimate = 5400000.0    # 216 * 25000
+
+    return [-(data_extent_estimate) + (x1 * 25000),
+            data_extent_estimate - ((432 - x2) * 25000),
+            -(data_extent_estimate) + ((432 - y2) * 25000),
+            data_extent_estimate - (y1 * 25000)]
+
+
+def calculate_proj_extents(x1: int,
+                           x2: int,
+                           y1: int,
+                           y2: int):
+    """
+
+    :param x1:
+    :param x2:
+    :param y1:
+    :param y2:
+    :return:
+    """
+    data_extent_estimate = 5400000.0    # 216 * 25000
+
+    return [-(data_extent_estimate) + (y1 * 25000),
+            data_extent_estimate - ((432 - y2) * 25000),
+            -(data_extent_estimate) + (x1 * 25000),
+            data_extent_estimate - ((432 - x2) * 25000)]
+
+
+def get_plot_axes(x1: int = 0,
+                  x2: int = 432,
+                  y1: int = 0,
+                  y2: int = 432,
+                  do_coastlines: bool = True):
+    """
+
+    :param x1:
+    :param x2:
+    :param y1:
+    :param y2:
+    :param do_coastlines:
+    :return:
+    """
+    fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
+
+    if do_coastlines:
+        proj = ccrs.LambertAzimuthalEqualArea(-90, 90)
+        ax = fig.add_subplot(1, 1, 1, projection=proj)
+        bounds = calculate_proj_extents(x1, x2, y1, y2)
+        ax.set_extent(bounds, crs=proj)
+    else:
+        ax = fig.add_subplot(1, 1, 1)
+
+    return ax
+
+
+def show_img(ax,
+             arr,
+             x1: int = 0,
+             x2: int = 432,
+             y1: int = 0,
+             y2: int = 432,
+             cmap: object = None,
+             do_coastlines: bool = True,
+             vmin = 0.,
+             vmax = 1.):
+    """
+
+    :param ax:
+    :param arr:
+    :param x1:
+    :param x2:
+    :param y1:
+    :param y2:
+    :param cmap:
+    :param do_coastlines:
+    :param vmin:
+    :param vmax:
+    :return:
+    """
+
+    if do_coastlines:
+        data_globe = ccrs.Globe(datum="WGS84",
+                                inverse_flattening=298.257223563,
+                                semimajor_axis=6378137.0)
+        data_crs = ccrs.LambertAzimuthalEqualArea(0, 90, globe=data_globe)
+
+        im = ax.imshow(arr,
+                       vmin=vmin,
+                       vmax=vmax,
+                       cmap=cmap,
+                       transform=data_crs,
+                       extent=calculate_data_extents(x1, x2, y1, y2))
+        ax.coastlines()
+    else:
+        im = ax.imshow(arr, cmap=cmap, vmin=vmin, vmax=vmax)
+
+    return im
+

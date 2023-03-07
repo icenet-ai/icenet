@@ -5,11 +5,12 @@ Credits
 Development Leads
 -----------------
 
-* James Byrne <jambyr@bas.ac.uk>
-* Tom Andersson <tomand@bas.ac.uk>
-* Scott Hosking <jask@bas.ac.uk>
+* James Byrne <jambyr@bas.ac.uk> (@jimcircadian)
+* Tom Andersson <tomand@bas.ac.uk> (@tom-andersson)
+* Scott Hosking <jask@bas.ac.uk> (@scotthosking)
 
 Contributors
 ------------
 
-None yet. Why not be the first?
+* Oliver Strickson (@ots22)
+* Ryan Chan (@rchan26)

@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow.keras import backend as K
 
 """
 TensorFlow metrics.
@@ -55,7 +54,7 @@ class ConstructLeadtimeAccuracy(tf.keras.metrics.CategoricalAccuracy):
             super().update_state(
                 y_true[..., self.single_forecast_leadtime_idx],
                 y_pred[..., self.single_forecast_leadtime_idx],
-                sample_weight=sample_weight[..., self.single_forecast_leadtime_idx]>0)
+                sample_weight=sample_weight[..., self.single_forecast_leadtime_idx] > 0)
 
     def result(self):
         """

@@ -83,7 +83,10 @@ class SplittingMixin:
         :return:
         """
         if not (len(self.train_fns) + len(self.val_fns) + len(self.test_fns)):
-            raise RuntimeError("No files have been found, abandoning...")
+            raise RuntimeError("No files have been found, abandoning. This is "
+                               "likely because you're trying to use a config "
+                               "only mode dataset in a situation that demands "
+                               "tfrecords to be generated (like training...)")
 
         logging.info("Datasets: {} train, {} val and {} test filenames".format(
             len(self.train_fns), len(self.val_fns), len(self.test_fns)))
@@ -168,14 +171,26 @@ class SplittingMixin:
                     y = y.numpy()
                     sw = sw.numpy()
 
-                    logging.debug("Got record {} with x {} y {} sw {}".
-                                  format(i,
+                    logging.debug("Got record {}:{} with x {} y {} sw {}".
+                                  format(df,
+                                         i,
                                          x.shape,
                                          y.shape,
                                          sw.shape))
 
                     input_nans = np.isnan(x).sum()
                     output_nans = np.isnan(y[sw > 0.]).sum()
+                    input_min = np.min(x)
+                    input_max = np.max(x)
+                    output_min = np.min(x)
+                    output_max = np.max(x)
+                    sw_min = np.min(x)
+                    sw_max = np.max(x)
+
+                    logging.debug("Bounds: Input {}:{} Output {}:{} SW {}:{}".
+                                  format(input_min, input_max,
+                                         output_min, output_max,
+                                         sw_min, sw_max))
 
                     if input_nans > 0:
                         logging.warning("Input NaNs detected in {}:{}".
