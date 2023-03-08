@@ -148,16 +148,16 @@ def run_prediction(network,
     if save_args:
         logging.debug("Saving loader generated data for reference...")
         for date, output, directory in \
-                ((date, net_input, "input"),
-                (date, net_output, "outputs"),
-                (date, sample_weights, "weights")):
-            output_directory = os.path.join(output_folder, "loader", directory)
-            os.makedirs(output_directory, exist_ok=True)
-            loader_output_path = os.path.join(output_directory,
-                                            date.strftime("%Y_%m_%d.npy"))
-
+            ((date, net_input, "input"),
+             (date, net_output, "outputs"),
+             (date, sample_weights, "weights")):
+                output_directory = os.path.join(output_folder, "loader", directory)
+                os.makedirs(output_directory, exist_ok=True)
+                loader_output_path = os.path.join(output_directory,
+                                                  date.strftime("%Y_%m_%d.npy"))
+                
             logging.info("Saving {} - generated {} {}".
-                        format(date, directory, output.shape))
+                         format(date, directory, output.shape))
             np.save(loader_output_path, output)
 
     return output_path
