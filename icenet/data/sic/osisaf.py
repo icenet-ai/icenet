@@ -543,7 +543,7 @@ class SICDownloader(Downloader):
             ftp_source_path = self._ftp_osi450.format(2000, 1)
 
             retrieve_cmd_template_osi450 = \
-                "wget -m -nH --cut-dirs=4 -P {} " \
+                "wget -m -nH -nd -O {} " \
                 "ftp://osisaf.met.no{}/{}"
             filename_osi450 = \
                 "ice_conc_{}_ease2-250_cdr-v2p0_200001011200.nc".format(hs)
@@ -555,7 +555,6 @@ class SICDownloader(Downloader):
                          format(missing_coord_file))
 
         ds = xr.open_dataset(missing_coord_file,
-                             data_vars=["ice_conc"],
                              drop_variables=var_remove_list,
                              engine="netcdf4").load()
         try:
