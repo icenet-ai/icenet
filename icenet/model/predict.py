@@ -156,9 +156,9 @@ def run_prediction(network,
                 loader_output_path = os.path.join(output_directory,
                                                   date.strftime("%Y_%m_%d.npy"))
                 
-            logging.info("Saving {} - generated {} {}".
-                         format(date, directory, output.shape))
-            np.save(loader_output_path, output)
+                logging.info("Saving {} - generated {} {}".
+                             format(date, directory, output.shape))
+                np.save(loader_output_path, output)
 
     return output_path
 
