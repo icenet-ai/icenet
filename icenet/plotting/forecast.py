@@ -752,13 +752,15 @@ def plot_metrics_leadtime_avg(metric: str,
     
     if average_over == "all":
         # averaging metric over leadtime for all forecasts
-        fc_avg_metric = fc_metric_df.groupby("leadtime")[metric].mean()
+        fc_avg_metric = fc_metric_df.groupby("leadtime").mean().\
+            sort_values("leadtime", ascending=True)[metric]
         n_forecast_days = fc_avg_metric.index.max()
         
         # plot leadtime averaged metrics
         ax.plot(fc_avg_metric.index, fc_avg_metric, label="IceNet")
         if seas_metric_df is not None:
-            seas_avg_metric = seas_metric_df.groupby("leadtime")[metric].mean()
+            seas_avg_metric = seas_metric_df.groupby("leadtime").mean().\
+                sort_values("leadtime", ascending=True)[metric]
             ax.plot(seas_avg_metric.index, seas_avg_metric, label="SEAS")
 
         # string to add in plot title
@@ -777,13 +779,15 @@ def plot_metrics_leadtime_avg(metric: str,
         
         # compute metric by first grouping the dataframe by groupby_col and leadtime
         fc_avg_metric = fc_metric_df.groupby([groupby_col, "leadtime"]).mean(metric).\
-            reset_index().pivot(index=groupby_col, columns="leadtime", values=metric)
+            reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
+                sort_values(groupby_col, ascending=True)
         n_forecast_days = fc_avg_metric.shape[1]
         
         if seas_metric_df is not None:
             # compute the difference in leadtime average to SEAS forecast
             seas_avg_metric = seas_metric_df.groupby([groupby_col, "leadtime"]).mean(metric).\
-                reset_index().pivot(index=groupby_col, columns="leadtime", values=metric)
+                reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
+                    sort_values(groupby_col, ascending=True)
             heatmap_df_diff = fc_avg_metric - seas_avg_metric
             max = np.nanmax(np.abs(heatmap_df_diff.values))
             
@@ -817,13 +821,13 @@ def plot_metrics_leadtime_avg(metric: str,
                                          fc_metric_df[groupby_col].max()])
             labels = [_parse_day_of_year(day)
                       if day in days_of_interest else ""
-                      for day in fc_metric_df[groupby_col].unique()]
+                      for day in sorted(fc_metric_df[groupby_col].unique())]
         else:
             # find out what months have been plotted and add their names
             month_names = np.array(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                                     'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
             labels = [month_names[month-1]
-                      for month in fc_metric_df[groupby_col].unique()]
+                      for month in sorted(fc_metric_df[groupby_col].unique())]
         ax.set_yticklabels(labels)
         plt.yticks(rotation=0)
         if target_date_avg:
