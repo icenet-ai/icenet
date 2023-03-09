@@ -14,7 +14,7 @@ import xarray as xr
 from icenet.data.cli import download_args
 from icenet.data.producers import Downloader
 from icenet.data.sic.mask import Masks
-from icenet.utils import Hemisphere
+from icenet.utils import Hemisphere, run_command
 from icenet.data.sic.utils import SIC_HEMI_STR
 
 """
@@ -238,6 +238,9 @@ class SICDownloader(Downloader):
             list(additional_invalid_dates)
         self._masks = Masks(north=self.north, south=self.south)
 
+        self._ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
+        self._ftp_osi430b = "/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/"
+
         self._mask_dict = {
             month: self._masks.get_active_cell_mask(month)
             for month in np.arange(1, 12+1)
@@ -257,8 +260,6 @@ class SICDownloader(Downloader):
             "existence already" if not self._download else
             "Downloading SIC datafiles to .temp intermediates...")
 
-        ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
-        ftp_osi430b = "/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/"
         cache = {}
         osi430b_start = dt.date(2016, 1, 1)
 
@@ -334,7 +335,8 @@ class SICDownloader(Downloader):
                     ftp = FTP('osisaf.met.no')
                     ftp.login()
 
-                chdir_path = ftp_osi450 if el < osi430b_start else ftp_osi430b
+                chdir_path = self._ftp_osi450 \
+                    if el < osi430b_start else self._ftp_osi430b
                 chdir_path = chdir_path.format(el.year, el.month)
 
                 try:
@@ -387,14 +389,13 @@ class SICDownloader(Downloader):
             da = da.where(da < 9.9e+36, 0.)  # Missing values
             da /= 100.  # Convert from SIC % to fraction
 
-            if 'lat' not in da.coords:
-                raise RuntimeError("latitude missing, fix required that has "
-                                   "been removed in this version")
-                # TODO: ref another file if this is missing, but hopefully the
-                #  coordinates will be projected from mfdataset
-                # logging.warning("Adding lat vals to coords, as missing in "
-                #                "this set: {}".format(file))
-                # da.coords['lat'] = lat_vals
+            for coord in ['lat', 'lon']:
+                if coord not in da.coords:
+                    logging.warning("Adding {} vals to coords, as missing in "
+                                    "this the combined dataset".format(coord))
+                    da.coords[coord] = self._get_missing_coordinates(var,
+                                                                     hs,
+                                                                     coord)
 
             # In experimenting, I don't think this is actually required
             for month, mask in self._mask_dict.items():
@@ -527,6 +528,42 @@ class SICDownloader(Downloader):
                 day_da.to_netcdf(fpath)
 
         return da
+
+    def _get_missing_coordinates(self, var, hs, coord):
+        """
+
+        :param var:
+        :param hs:
+        :param coord:
+        """
+        missing_coord_file = os.path.join(
+            self.get_data_var_folder(var), "missing_coord_data.nc")
+
+        if not os.path.exists(missing_coord_file):
+            ftp_source_path = self._ftp_osi450.format(2000, 1)
+
+            retrieve_cmd_template_osi450 = \
+                "wget -m -nH -nd -O {} " \
+                "ftp://osisaf.met.no{}/{}"
+            filename_osi450 = \
+                "ice_conc_{}_ease2-250_cdr-v2p0_200001011200.nc".format(hs)
+
+            run_command(retrieve_cmd_template_osi450.format(
+                missing_coord_file, ftp_source_path, filename_osi450))
+        else:
+            logging.info("Coordinate path {} already exists".
+                         format(missing_coord_file))
+
+        ds = xr.open_dataset(missing_coord_file,
+                             drop_variables=var_remove_list,
+                             engine="netcdf4").load()
+        try:
+            coord_data = getattr(ds, coord)
+        except AttributeError as e:
+            logging.exception("{} does not exist in coord reference file {}".
+                              format(coord, missing_coord_file))
+            raise RuntimeError(e)
+        return coord_data
 
 
 def main():
