@@ -7,6 +7,8 @@ import os
 import datetime as dt
 from ftplib import FTP
 
+import dask
+from distributed import Client, LocalCluster
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -201,6 +203,56 @@ var_remove_list = ['time_bnds', 'raw_ice_conc_values', 'total_standard_error',
                    'status_flag', 'Lambert_Azimuthal_Grid']
 
 
+# This is adapted from the data/loaders implementations
+class DaskWrapper:
+    """
+
+    :param dask_port:
+    :param dask_timeouts:
+    :param dask_tmp_dir:
+    :param workers:
+    """
+
+    def __init__(self,
+                 dask_port: int = 8888,
+                 dask_timeouts: int = 60,
+                 dask_tmp_dir: object = "/tmp",
+                 workers: int = 8):
+
+        self._dashboard_port = dask_port
+        self._timeout = dask_timeouts
+        self._tmp_dir = dask_tmp_dir
+        self._workers = workers
+
+    def dask_process(self,
+                     *args,
+                     method: callable,
+                     **kwargs):
+        """
+
+        :param method:
+        """
+        dashboard = "localhost:{}".format(self._dashboard_port)
+
+        with dask.config.set({
+            "temporary_directory": self._tmp_dir,
+            "distributed.comm.timeouts.connect": self._timeout,
+            "distributed.comm.timeouts.tcp": self._timeout,
+        }):
+            cluster = LocalCluster(
+                dashboard_address=dashboard,
+                n_workers=self._workers,
+                threads_per_worker=1,
+                scheduler_port=0,
+            )
+            logging.info("Dashboard at {}".format(dashboard))
+
+            with Client(cluster) as client:
+                logging.info("Using dask client {}".format(client))
+                ret = method(*args, **kwargs)
+        return ret
+
+
 class SICDownloader(Downloader):
     """Downloads OSI-SAF SIC data from 1979-present using OpenDAP.
 
@@ -215,6 +267,7 @@ class SICDownloader(Downloader):
             met.no/reprocessed/ice/conc_crb_nh_agg.html
 
     :param additional_invalid_dates:
+    :param chunk_size:
     :param dates:
     :param delete_tempfiles:
     :param download:
@@ -223,6 +276,7 @@ class SICDownloader(Downloader):
     def __init__(self,
                  *args,
                  additional_invalid_dates: object = (),
+                 chunk_size: int = 10,
                  dates: object = (),
                  delete_tempfiles: bool = True,
                  download: bool = True,
@@ -230,6 +284,7 @@ class SICDownloader(Downloader):
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
 
+        self._chunk_size = chunk_size
         self._dates = dates
         self._delete = delete_tempfiles
         self._download = download
@@ -379,7 +434,9 @@ class SICDownloader(Downloader):
                                    concat_dim="time",
                                    data_vars=["ice_conc"],
                                    drop_variables=var_remove_list,
-                                   engine="netcdf4")
+                                   engine="netcdf4",
+                                   chunks=dict(time=self._chunk_size,),
+                                   parallel=True)
 
             logging.debug("Processing out extraneous data")
 
@@ -457,6 +514,7 @@ class SICDownloader(Downloader):
         ds = xr.open_mfdataset(filenames,
                                combine="nested",
                                concat_dim="time",
+                               chunks=dict(time=self._chunk_size, ),
                                parallel=True)
         return self._missing_dates(ds.ice_conc)
 
@@ -567,14 +625,31 @@ class SICDownloader(Downloader):
 
 
 def main():
-    args = download_args(var_specs=False)
+    args = download_args(var_specs=False,
+                         workers=True,
+                         extra_args=[
+                            (("-u", "--use-dask"),
+                             dict(action="store_true", default=False)),
+                            (("-c", "--sic-chunking-size"),
+                             dict(type=int, default=10)),
+                            (("-dt", "--dask-timeouts"),
+                             dict(type=int, default=120)),
+                            (("-dp", "--dask-port"),
+                             dict(type=int, default=8888))
+                         ])
 
     logging.info("OSASIF-SIC Data Downloading")
     sic = SICDownloader(
+        chunk_size=args.sic_chunking_size,
         dates=[pd.to_datetime(date).date() for date in
                pd.date_range(args.start_date, args.end_date, freq="D")],
         delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
     )
-    sic.download()
+    if args.use_dask:
+        logging.warning("Attempting to use dask client for SIC processing")
+        dw = DaskWrapper(workers=args.workers)
+        dw.dask_process(method=sic.download)
+    else:
+        sic.download()
