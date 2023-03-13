@@ -336,7 +336,7 @@ def compute_metrics(metrics: object,
              xarray.DataArray's storing the computed metrics for each forecast
     """
     # check requested metrics have been implemented
-    implemented_metrics = ['MAE', 'MSE', 'RMSE']
+    implemented_metrics = ["MAE", "MSE", "RMSE"]
     for metric in metrics:
         if metric not in implemented_metrics:
             raise NotImplementedError(f"{metric} metric has not been implemented. "
@@ -529,6 +529,10 @@ def compute_metric_as_dataframe(metric: str,
     leadtime = list(range(1, len(met.values)+1, 1))
     target_date = pd.Series([init_date + timedelta(days=d) for d in leadtime])
     target_dayofyear = target_date.dt.dayofyear
+    # obtain day of year using same method above to avoid any leap-year issues
+    target_dayofyear = pd.Series([59 if d.strftime("%m-%d")=="02-29"
+                                  else d.replace(year=2001).dayofyear
+                                  for d in target_date])
     target_month = target_date.dt.month
     return pd.DataFrame({"date": init_date,
                          "dayofyear": dayofyear,
@@ -743,7 +747,7 @@ def plot_metrics_leadtime_avg(metric: str,
 
     fc_metric_df = metric_df[metric_df["forecast_name"] == "IceNet"]
     seas_metric_df = metric_df[metric_df["forecast_name"] == "SEAS"]
-    seas_metric_df = seas_metric_df if len(seas_metric_df) != 0 else None
+    seas_metric_df = seas_metric_df if (len(seas_metric_df) != 0) and emcwf else None
 
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -796,13 +800,13 @@ def plot_metrics_leadtime_avg(metric: str,
                         ax=ax,
                         vmax=max,
                         vmin=-max,
-                        cmap='seismic_r',
+                        cmap="seismic_r" if metric in ["binacc", "SIE"] else "seismic",
                         cbar_kws=dict(label=f"{metric} difference between IceNet and SEAS"))
         else:
             # plot heatmap of the leadtime averaged metric when grouped by groupby_col
             sns.heatmap(data=fc_avg_metric, 
                         ax=ax,
-                        cmap='inferno',
+                        cmap="inferno" if metric in ["binacc", "SIE"] else "inferno_r",
                         cbar_kws=dict(label=metric))
 
         # string to add in plot title
@@ -824,8 +828,8 @@ def plot_metrics_leadtime_avg(metric: str,
                       for day in sorted(fc_metric_df[groupby_col].unique())]
         else:
             # find out what months have been plotted and add their names
-            month_names = np.array(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                    'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
+            month_names = np.array(["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                    "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"])
             labels = [month_names[month-1]
                       for month in sorted(fc_metric_df[groupby_col].unique())]
         ax.set_yticklabels(labels)
@@ -851,12 +855,13 @@ def plot_metrics_leadtime_avg(metric: str,
     ax.set_xticks(np.arange(30, n_forecast_days, 30))
     ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
     plt.xticks(rotation=0)
-    ax.set_xlabel('Lead time (days)')
+    ax.set_xlabel("Lead time (days)")
     
     # save plot
     targ = "target" if target_date_avg else "init"
-    output_path = os.path.join("plot",
-                               f"leadtime_averaged_{targ}_{average_over}_{metric}.png") \
+    filename = f"leadtime_averaged_{targ}_{average_over}_{metric}" + \
+        ("_comp" if seas_metric_df is not None else "") + ".png"
+    output_path = os.path.join("plot", filename) \
         if not output_path else output_path    
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
