@@ -548,7 +548,7 @@ def compute_metrics_leadtime_avg(metric: str,
                                  masks: object,
                                  hemisphere: str,
                                  forecast_file: str,
-                                 emcwf: bool,
+                                 ecmwf: bool,
                                  data_path: str,
                                  bias_correct: bool = False,
                                  region: tuple = None,
@@ -564,15 +564,15 @@ def compute_metrics_leadtime_avg(metric: str,
     :param masks: an icenet Masks object
     :param hemisphere: string, typically either 'north' or 'south'
     :param forecast_file: string specifying a path to a .nc file
-    :param emcwf: logical value to indicate whether or not to compare
-                  with EMCWF SEAS forecast. If True, will only average
+    :param ecmwf: logical value to indicate whether or not to compare
+                  with ECMWF SEAS forecast. If True, will only average
                   over forecasts where the initialisation dates between IceNet
                   and SEAS are the same
     :param data_path: string specifying where to save the metrics dataframe.
                       If None, dataframe is not saved
     :param bias_correct: logical value to indicate whether or not to
                          perform a bias correction on SEAS forecast,
-                         by default False. Ignored if emcwf=False
+                         by default False. Ignored if ecmwf=False
     :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE and binary accuracy
@@ -583,7 +583,7 @@ def compute_metrics_leadtime_avg(metric: str,
     # open forecast file
     fc_ds = xr.open_dataset(forecast_file)
     
-    if emcwf:
+    if ecmwf:
         # find out what dates cross over with the SEAS5 predictions
         (fc_start_date, fc_end_date) = (fc_ds.time.values.min(), fc_ds.time.values.max())
         dates = get_seas_forecast_init_dates(hemisphere)
@@ -595,7 +595,7 @@ def compute_metrics_leadtime_avg(metric: str,
     # obtain metric for each leadtime at each initialised date in the forecast file
     
     fc_metrics_list = []
-    if emcwf:
+    if ecmwf:
         seas_metrics_list = []
     for time in fc_ds.time.values:
         # obtain forecast
@@ -605,7 +605,7 @@ def compute_metrics_leadtime_avg(metric: str,
                          end_date=pd.to_datetime(time) + timedelta(days=int(fc.leadtime.max())))
         fc = filter_ds_by_obs(fc, obs, time)
         
-        if emcwf:
+        if ecmwf:
             # obtain SEAS forecast
             seas = get_seas_forecast_da(hemisphere=hemisphere,
                                         date=pd.to_datetime(time),
@@ -638,7 +638,7 @@ def compute_metrics_leadtime_avg(metric: str,
     # groupby the leadtime and compute the mean average of the metric
     fc_metric_df = pd.concat(fc_metrics_list)
     fc_metric_df["forecast_name"] = "IceNet"
-    if emcwf:
+    if ecmwf:
         seas_metric_df = pd.concat(seas_metrics_list)
         seas_metric_df["forecast_name"] = "SEAS"
         fc_metric_df = pd.concat([fc_metric_df, seas_metric_df])
@@ -665,7 +665,7 @@ def plot_metrics_leadtime_avg(metric: str,
                               masks: object,
                               hemisphere: str,
                               forecast_file: str,
-                              emcwf: bool,
+                              ecmwf: bool,
                               output_path: str,
                               average_over: str,
                               data_path: str = None,
@@ -681,8 +681,8 @@ def plot_metrics_leadtime_avg(metric: str,
     :param masks: an icenet Masks object
     :param hemisphere: string, typically either 'north' or 'south'
     :param forecast_file: a path to a .nc file
-    :param emcwf: logical value to indicate whether or not to compare
-                  with EMCWF SEAS forecast. If True, will only average
+    :param ecmwf: logical value to indicate whether or not to compare
+                  with ECMWF SEAS forecast. If True, will only average
                   over forecasts where the initialisation dates between IceNet
                   and SEAS are the same
     :param output_path: string specifying the path to store the plot
@@ -699,7 +699,7 @@ def plot_metrics_leadtime_avg(metric: str,
                       and try to save the dataframe
     :param bias_correct: logical value to indicate whether or not to
                          perform a bias correction on SEAS forecast,
-                         by default False. Ignored if emcwf=False
+                         by default False. Ignored if ecmwf=False
     :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE and binary accuracy
@@ -738,7 +738,7 @@ def plot_metrics_leadtime_avg(metric: str,
         metric_df = compute_metrics_leadtime_avg(metric=metric,
                                                  hemisphere=hemisphere,
                                                  forecast_file=forecast_file,
-                                                 emcwf=emcwf,
+                                                 ecmwf=ecmwf,
                                                  masks=masks,
                                                  data_path=data_path,
                                                  bias_correct=bias_correct,
@@ -747,7 +747,7 @@ def plot_metrics_leadtime_avg(metric: str,
 
     fc_metric_df = metric_df[metric_df["forecast_name"] == "IceNet"]
     seas_metric_df = metric_df[metric_df["forecast_name"] == "SEAS"]
-    seas_metric_df = seas_metric_df if (len(seas_metric_df) != 0) and emcwf else None
+    seas_metric_df = seas_metric_df if (len(seas_metric_df) != 0) and ecmwf else None
 
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -756,14 +756,14 @@ def plot_metrics_leadtime_avg(metric: str,
     
     if average_over == "all":
         # averaging metric over leadtime for all forecasts
-        fc_avg_metric = fc_metric_df.groupby("leadtime").mean().\
+        fc_avg_metric = fc_metric_df.groupby("leadtime").mean(metric).\
             sort_values("leadtime", ascending=True)[metric]
         n_forecast_days = fc_avg_metric.index.max()
         
         # plot leadtime averaged metrics
         ax.plot(fc_avg_metric.index, fc_avg_metric, label="IceNet")
         if seas_metric_df is not None:
-            seas_avg_metric = seas_metric_df.groupby("leadtime").mean().\
+            seas_avg_metric = seas_metric_df.groupby("leadtime").mean(metric).\
                 sort_values("leadtime", ascending=True)[metric]
             ax.plot(seas_avg_metric.index, seas_avg_metric, label="SEAS")
 
@@ -858,7 +858,7 @@ def plot_metrics_leadtime_avg(metric: str,
     ax.set_xlabel("Lead time (days)")
     
     # save plot
-    targ = "target" if target_date_avg else "init"
+    targ = "target" if target_date_avg and average_over != "all" else "init"
     filename = f"leadtime_averaged_{targ}_{average_over}_{metric}" + \
         ("_comp" if seas_metric_df is not None else "") + ".png"
     output_path = os.path.join("plot", filename) \
@@ -1551,7 +1551,7 @@ def leadtime_avg_plots():
                               masks=masks,
                               hemisphere=args.hemisphere,
                               forecast_file=args.forecast_file,
-                              emcwf=args.ecmwf,
+                              ecmwf=args.ecmwf,
                               output_path=args.output_path,
                               average_over=args.average_over,
                               data_path=args.data_path,
