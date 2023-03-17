@@ -1085,7 +1085,7 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
             )
 
             ax2.set_xlabel("Date")
-            ax2.set_ylabel("SIC (%) error")
+            ax2.set_ylabel("SIC error (%)")
 
             ax2.axhline(color='k', lw=0.5, ls='--')
             ax2.plot(plot_series.loc[OBS_KIND_ERR, :, i_probe], color='C2')
