@@ -196,10 +196,12 @@ def plot_binary_accuracy(masks: object,
     else:
         binacc_cmp = None
 
+    ax.set_ylabel("Binary accuracy (%)")
     ax.xaxis.set_major_formatter(
         mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_minor_locator(mdates.DayLocator())
+    ax.set_xlabel("Date")
     ax.legend(loc='lower right')
 
     output_path = os.path.join("plot", "binacc.png") \
@@ -216,7 +218,7 @@ def compute_sea_ice_extent_error(masks: object,
                                  grid_area_size: int,
                                  threshold: float) -> object:
     """
-    Compute sea ice extent (SIE) error of a forecast, where SIE is
+    Compute sea ice extent (SIE) error of a forecast, where SIE error is
     defined as the total area covered by grid cells with SIC > (threshold*100)%.
 
     :param masks: an icenet Masks object
@@ -229,7 +231,7 @@ def compute_sea_ice_extent_error(masks: object,
     :param threshold: the SIC threshold of interest (in percentage as a fraction),
                       i.e. threshold is between 0 and 1
 
-    :return: SIE for forecast as xarray.DataArray object
+    :return: SIE error for forecast as xarray.DataArray object
     """
     grid_area_size = 25 if grid_area_size is None else grid_area_size
     threshold = 0.15 if threshold is None else threshold
@@ -264,7 +266,7 @@ def plot_sea_ice_extent_error(masks: object,
                               grid_area_size: int = 25,
                               threshold: float = 0.15) -> object:
     """
-    Compute and plot sea ice extent (SIE) error of a forecast, where SIE is
+    Compute and plot sea ice extent (SIE) error of a forecast, where SIE error is
     defined as the total area covered by grid cells with SIC > (threshold*100)%.
     
     :param masks: an icenet Masks object
@@ -281,7 +283,7 @@ def plot_sea_ice_extent_error(masks: object,
     :param threshold: the SIC threshold of interest (in percentage as a fraction),
                       i.e. threshold is between 0 and 1
     
-    :return: tuple of (SIE for forecast (fc_da), SIE for comparison (cmp_da))
+    :return: tuple of (SIE error for forecast (fc_da), SIE error for comparison (cmp_da))
     """
     forecast_sie_error = compute_sea_ice_extent_error(masks=masks,
                                                       fc_da=fc_da,
@@ -290,7 +292,7 @@ def plot_sea_ice_extent_error(masks: object,
                                                       threshold=threshold)
     
     fig, ax = plt.subplots(figsize=(12, 6))
-    ax.set_title(f"SIE comparison ({grid_area_size} km grid resolution) "
+    ax.set_title(f"SIE error comparison ({grid_area_size} km grid resolution) "
                  f"(threshold SIC = {threshold*100}%)")
     ax.plot(forecast_sie_error.time, forecast_sie_error.values, label="IceNet")
 
@@ -304,10 +306,12 @@ def plot_sea_ice_extent_error(masks: object,
     else:
         cmp_sie_error = None
 
+    ax.set_ylabel("Sea ice extent error (km)")
     ax.xaxis.set_major_formatter(
         mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_minor_locator(mdates.DayLocator())
+    ax.set_xlabel("Date")
     ax.legend(loc='lower right')
 
     output_path = os.path.join("plot", "sie_error.png") \
@@ -452,10 +456,12 @@ def plot_metrics(metrics: object,
                         label=f"SEAS {metric}",
                         linestyle="dotted")
         
+        ax.set_ylabel("SIC (%)")
         ax.xaxis.set_major_formatter(
             mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
         ax.xaxis.set_major_locator(mdates.MonthLocator())
         ax.xaxis.set_minor_locator(mdates.DayLocator())
+        ax.set_xlabel("Date")
         ax.legend(loc='lower right')
         
         output_path = os.path.join("plot", "metrics.png") \
@@ -484,8 +490,8 @@ def compute_metric_as_dataframe(metric: str,
     :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
     :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
     :param kwargs: any keyword arguments that are required for the computation
-                   of the metric, e.g. 'threshold' for SIE and binary accuracy
-                   metrics, or 'grid_area_size' for SIE metric
+                   of the metric, e.g. 'threshold' for SIE error and binary accuracy
+                   metrics, or 'grid_area_size' for SIE error metric
     
     :return: computed metric in a pandas dataframe with columns 'date',
              'leadtime' and 'metric'
@@ -575,8 +581,8 @@ def compute_metrics_leadtime_avg(metric: str,
                          by default False. Ignored if ecmwf=False
     :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
-                   of the metric, e.g. 'threshold' for SIE and binary accuracy
-                   metrics, or 'grid_area_size' for SIE metric
+                   of the metric, e.g. 'threshold' for SIE error and binary accuracy
+                   metrics, or 'grid_area_size' for SIE error metric
     
     :return: pandas dataframe with columns 'date', 'leadtime' and the metric name.
     """
@@ -702,8 +708,8 @@ def plot_metrics_leadtime_avg(metric: str,
                          by default False. Ignored if ecmwf=False
     :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
-                   of the metric, e.g. 'threshold' for SIE and binary accuracy
-                   metrics, or 'grid_area_size' for SIE metric
+                   of the metric, e.g. 'threshold' for SIE error and binary accuracy
+                   metrics, or 'grid_area_size' for SIE error metric
     
     :return: pandas dataframe with columns 'date', 'leadtime' and the metric name.
     """
@@ -754,6 +760,14 @@ def plot_metrics_leadtime_avg(metric: str,
     (start_date, end_date) = (fc_metric_df["date"].min().strftime('%d/%m/%Y'),
                               fc_metric_df["date"].max().strftime('%d/%m/%Y'))
     
+    # set ylabel (if average_over == "all"), or legend label (otherwise)
+    if metric in ["MAE", "MSE", "RMSE"]:
+        ylabel = f"SIC {metric} (%)"
+    elif metric == "binacc":
+        ylabel = f"Binary accuracy (%)"
+    elif metric == "SIE":
+        ylabel = f"SIE error (km)"
+    
     if average_over == "all":
         # averaging metric over leadtime for all forecasts
         fc_avg_metric = fc_metric_df.groupby("leadtime").mean(metric).\
@@ -770,8 +784,7 @@ def plot_metrics_leadtime_avg(metric: str,
         # string to add in plot title
         time_coverage = f"\n Averaged over {len(fc_metric_df['date'].unique())} " + \
             f"forecasts between {start_date} - {end_date}"
-        
-        ax.set_ylabel(metric)
+        ax.set_ylabel(ylabel)
         ax.legend(loc='lower right')
     elif average_over in ["day", "month"]:
         if average_over == "day":
@@ -801,13 +814,13 @@ def plot_metrics_leadtime_avg(metric: str,
                         vmax=max,
                         vmin=-max,
                         cmap="seismic_r" if metric in ["binacc", "SIE"] else "seismic",
-                        cbar_kws=dict(label=f"{metric} difference between IceNet and SEAS"))
+                        cbar_kws=dict(label=f"{ylabel} difference between IceNet and SEAS"))
         else:
             # plot heatmap of the leadtime averaged metric when grouped by groupby_col
             sns.heatmap(data=fc_avg_metric, 
                         ax=ax,
                         cmap="inferno" if metric in ["binacc", "SIE"] else "inferno_r",
-                        cbar_kws=dict(label=metric))
+                        cbar_kws=dict(label=ylabel))
 
         # string to add in plot title
         time_coverage = "\n Averaged over a minimum of " + \
@@ -848,7 +861,7 @@ def plot_metrics_leadtime_avg(metric: str,
         ax.set_title("Binary accuracy comparison (threshold SIC = "
                      f"{kwargs['threshold'] * 100}%)" + time_coverage)
     elif metric == "SIE":
-        ax.set_title(f"SIE comparison ({kwargs['grid_area_size']} km grid resolution, "
+        ax.set_title(f"SIE error comparison ({kwargs['grid_area_size']} km grid resolution, "
                      f"threshold SIC = {kwargs['threshold'] * 100}%)" + time_coverage)
         
     # x-axis
@@ -1052,11 +1065,10 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
             )
 
             ax.set_xlabel("Date")
-            ax.set_ylabel("Concentration (fraction)")
-            ax.set_ylim([0.0, 1.0])
+            ax.set_ylabel("SIC (%)")
 
             # dims: (obs_kind, time, probe)
-            ax.plot(plot_series.loc[OBS_KIND_FC, :, i_probe], label="Icenet forecast")
+            ax.plot(plot_series.loc[OBS_KIND_FC, :, i_probe], label="IceNet")
             ax.plot(plot_series.loc[OBS_KIND_OBS, :, i_probe], label="Observed")
             ax.legend()
 
@@ -1073,7 +1085,7 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
             )
 
             ax2.set_xlabel("Date")
-            ax2.set_ylabel("Sea ice concentration error (signed difference)")
+            ax2.set_ylabel("SIC (%) error")
 
             ax2.axhline(color='k', lw=0.5, ls='--')
             ax2.plot(plot_series.loc[OBS_KIND_ERR, :, i_probe], color='C2')
@@ -1094,9 +1106,12 @@ def sic_error_local_plots(fc_da: object,
     :param obs_da: a DataArray with dims ('time', 'probe')
     """
 
-    error_da = fc_da - obs_da
+    # convert SIC to percentages (ranging from 0% to 100%) rather than a fraction
+    fc_da = fc_da*100
+    obs_da = obs_da*100
+    err_da = (fc_da-obs_da)
     combined_da = xr.concat(
-        [fc_da, obs_da, error_da],
+        [fc_da, obs_da, err_da],
         dim="obs_kind", coords="minimal"
     )
 
@@ -1274,7 +1289,7 @@ def binary_accuracy():
 
 def sie_error():
     """
-    Produces plot of the sea-ice extent (SIE) error of forecasts.
+    Produces plot of the sea ice extent (SIE) error of forecasts.
     """
     ap = (
         ForecastPlotArgParser()
