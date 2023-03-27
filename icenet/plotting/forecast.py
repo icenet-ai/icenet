@@ -1357,6 +1357,9 @@ def plot_forecast():
                     help="Format to output in",
                     choices=("mp4", "png", "svg", "tiff"),
                     default="png")
+    ap.add_argument("-n", "--cmap-name",
+                    help="Color map name if not wanting to use default",
+                    default=None)
     ap.add_argument("-s", "--stddev",
                     help="Plot the standard deviation from the ensemble",
                     action="store_true",
@@ -1379,14 +1382,15 @@ def plot_forecast():
         os.path.splitext(os.path.basename(args.forecast_file))[0],
         args.forecast_date)
 
-    cmap = cm.get_cmap("BuPu_r")
+    cmap_name = "BuPu_r" if args.stddev else "Blues_r"
+    if args.cmap_name is not None:
+        cmap_name = args.cmap_name
+
+    logging.info("Using cmap {}".format(cmap_name))
+    cmap = cm.get_cmap(cmap_name)
     cmap.set_bad("dimgrey")
 
     if args.region is not None:
-        if not args.stddev:
-            cmap = cm.get_cmap("tab20")
-            cmap.set_bad("dimgrey")
-
         fc = process_regions(args.region, [fc])[0]
 
     vmax = 1.
