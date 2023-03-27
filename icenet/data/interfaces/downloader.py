@@ -64,7 +64,7 @@ def filter_dates_on_data(latlon_path: str,
     # meaning we can naively open and interrogate the dates
     if check_latlon and os.path.exists(latlon_path):
         try:
-            latlon_dates = xr.open_dataarray(
+            latlon_dates = xr.open_dataset(
                 latlon_path,
                 drop_variables=drop_vars).time.values
             logging.debug("{} latlon dates already available in {}".format(
@@ -74,7 +74,7 @@ def filter_dates_on_data(latlon_path: str,
             logging.warning("Latlon {} dates not readable, ignoring file")
 
     if check_regridded and os.path.exists(regridded_name):
-        regridded_dates = xr.open_dataarray(
+        regridded_dates = xr.open_dataset(
             regridded_name,
             drop_variables=drop_vars).time.values
         logging.debug("{} regridded dates already available in {}".format(
@@ -259,7 +259,10 @@ class ClimateDownloader(Downloader):
         latlon_path, regridded_name = \
             self.get_req_filenames(var_folder, req_dates[0])
 
-        req_dates = filter_dates_on_data(latlon_path, regridded_name, req_dates)
+        req_dates = filter_dates_on_data(latlon_path,
+                                         regridded_name,
+                                         req_dates,
+                                         drop_vars=self._drop_vars)
 
         if len(req_dates):
             if self._download:
