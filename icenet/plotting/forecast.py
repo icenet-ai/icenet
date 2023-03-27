@@ -1371,12 +1371,14 @@ def plot_forecast():
                          stddev=args.stddev)
     fc = fc.transpose(..., "yc", "xc")
 
-    if not os.path.isdir(args.output_path):
-        logging.warning("No directory at: {}".format(args.output_path))
-        os.makedirs(args.output_path)
-    elif os.path.isfile(args.output_path):
+    output_path = "." if args.output_path is None else args.output_path
+
+    if not os.path.isdir(output_path):
+        logging.warning("No directory at: {}".format(output_path))
+        os.makedirs(output_path)
+    elif os.path.isfile(output_path):
         raise RuntimeError("{} should be a directory and not existent...".
-                           format(args.output_path))
+                           format(output_path))
 
     forecast_name = "{}.{}".format(
         os.path.splitext(os.path.basename(args.forecast_file))[0],
@@ -1423,7 +1425,7 @@ def plot_forecast():
             logging.warning("Coastlines will not work with the current "
                             "implementation of xarray_to_video")
 
-        output_filename = os.path.join(args.output_path, "{}.{}.{}{}".format(
+        output_filename = os.path.join(output_path, "{}.{}.{}{}".format(
             forecast_name,
             args.forecast_date.strftime("%Y%m%d"),
             "" if not args.stddev else "stddev.",
@@ -1458,7 +1460,7 @@ def plot_forecast():
             ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
                                                        plot_date.month,
                                                        plot_date.day))
-            output_filename = os.path.join(args.output_path, "{}.{}.{}{}".format(
+            output_filename = os.path.join(output_path, "{}.{}.{}{}".format(
                 forecast_name,
                 (args.forecast_date + dt.timedelta(
                     days=leadtime)).strftime("%Y%m%d"),
