@@ -105,14 +105,14 @@ def merge_files(new_datafile: str,
         moved_new_datafile = \
             os.path.join(datafile_path, "new.{}".format(new_filename))
         os.rename(new_datafile, moved_new_datafile)
-        d1 = xr.open_dataset(moved_new_datafile,
-                             drop_variables=drop_variables)
+        d1 = xr.open_dataarray(moved_new_datafile,
+                               drop_variables=drop_variables)
 
         logging.info("Concatenating with previous data {}".format(
             other_datafile
         ))
-        d2 = xr.open_dataset(other_datafile,
-                             drop_variables=drop_variables)
+        d2 = xr.open_dataarray(other_datafile,
+                               drop_variables=drop_variables)
         new_ds = xr.concat([d1, d2], dim="time").sortby("time")
 
         logging.info("Saving merged data to {}... ".
