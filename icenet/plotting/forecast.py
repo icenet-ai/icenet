@@ -1439,7 +1439,8 @@ def plot_forecast():
     else:
         for leadtime in leadtimes:
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
-            bound_args = dict()
+            bound_args = dict(north=args.hemisphere == "north",
+                              south=args.hemisphere == "south")
 
             if args.region is not None:
                 bound_args.update(x1=args.region[0],

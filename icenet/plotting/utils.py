@@ -355,7 +355,9 @@ def get_plot_axes(x1: int = 0,
                   x2: int = 432,
                   y1: int = 0,
                   y2: int = 432,
-                  do_coastlines: bool = True):
+                  do_coastlines: bool = True,
+                  north: bool = True,
+                  south: bool = False):
     """
 
     :param x1:
@@ -363,12 +365,17 @@ def get_plot_axes(x1: int = 0,
     :param y1:
     :param y2:
     :param do_coastlines:
+    :param north:
+    :param south:
     :return:
     """
+    assert north ^ south, "One hemisphere only must be selected"
+
     fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
 
     if do_coastlines:
-        proj = ccrs.LambertAzimuthalEqualArea(-90, 90)
+        pole = 1 if north else -1
+        proj = ccrs.LambertAzimuthalEqualArea(-90, pole * 90)
         ax = fig.add_subplot(1, 1, 1, projection=proj)
         bounds = calculate_proj_extents(x1, x2, y1, y2)
         ax.set_extent(bounds, crs=proj)
@@ -386,8 +393,10 @@ def show_img(ax,
              y2: int = 432,
              cmap: object = None,
              do_coastlines: bool = True,
-             vmin = 0.,
-             vmax = 1.):
+             vmin:float = 0.,
+             vmax: float = 1.,
+             north: bool = True,
+             south: bool = False):
     """
 
     :param ax:
@@ -400,14 +409,20 @@ def show_img(ax,
     :param do_coastlines:
     :param vmin:
     :param vmax:
+    :param north:
+    :param south:
     :return:
     """
 
+    assert north ^ south, "One hemisphere only must be selected"
+
     if do_coastlines:
+        pole = 1 if north else -1
         data_globe = ccrs.Globe(datum="WGS84",
                                 inverse_flattening=298.257223563,
                                 semimajor_axis=6378137.0)
-        data_crs = ccrs.LambertAzimuthalEqualArea(0, 90, globe=data_globe)
+        data_crs = ccrs.LambertAzimuthalEqualArea(0, pole * 90,
+                                                  globe=data_globe)
 
         im = ax.imshow(arr,
                        vmin=vmin,
