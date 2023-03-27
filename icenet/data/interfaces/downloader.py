@@ -113,7 +113,9 @@ def merge_files(new_datafile: str,
         ))
         d2 = xr.open_dataarray(other_datafile,
                                drop_variables=drop_variables)
-        new_ds = xr.concat([d1, d2], dim="time").sortby("time")
+        new_ds = xr.concat([d1, d2], dim="time").\
+            sortby("time").\
+            drop_duplicates("time", keep="first")
 
         logging.info("Saving merged data to {}... ".
                      format(new_datafile))
