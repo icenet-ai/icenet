@@ -30,7 +30,9 @@ from icenet.plotting.utils import (
     get_seas_forecast_da,
     get_seas_forecast_init_dates,
     show_img,
-    get_plot_axes
+    get_plot_axes,
+    process_probes,
+    process_regions
 )
 from icenet.plotting.video import xarray_to_video
 
@@ -66,49 +68,6 @@ def region_arg(argument: str):
     except TypeError:
         raise argparse.ArgumentTypeError(
             "Region argument must be list of four integers")
-
-
-def process_regions(region: tuple,
-                    data: tuple) -> tuple:
-    """
-
-    :param region:
-    :param data:
-    
-    :return:
-    """
-
-    assert len(region) == 4, "Region needs to be a list of four integers"
-    x1, y1, x2, y2 = region
-    assert x2 > x1 and y2 > y1, "Region is not valid"
-
-    for idx, arr in enumerate(data):
-        if arr is not None:
-            data[idx] = arr[..., y1:y2, x1:x2]
-    return data
-
-
-def process_probes(probes, data) -> tuple:
-    """
-    :param probes: A sequence of locations (pairs)
-    :param data: A sequence of xr.DataArray
-    """
-
-    # index into each element of data with a xr.DataArray, for pointwise
-    # selection.  Construct the indexing DataArray as follows:
-
-    probes_da = xr.DataArray(probes, dims=('probe', 'coord'))
-    xcs, ycs = probes_da.sel(coord=0), probes_da.sel(coord=1)
-
-    for idx, arr in enumerate(data):
-        arr = arr.assign_coords({
-            "xi": ("xc", np.arange(len(arr.xc))),
-            "yi": ("yc", np.arange(len(arr.yc))),
-        })
-        if arr is not None:
-            data[idx] = arr.isel(xc=xcs, yc=ycs)
-
-    return data
 
 
 def compute_binary_accuracy(masks: object,
