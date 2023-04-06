@@ -311,10 +311,10 @@ def get_obs_da(hemisphere: str,
     return obs_ds.ice_conc
 
 
-def calculate_data_extents(x1: int,
-                           x2: int,
-                           y1: int,
-                           y2: int):
+def calculate_extents(x1: int,
+                      x2: int,
+                      y1: int,
+                      y2: int):
     """
 
     :param x1:
@@ -323,39 +323,26 @@ def calculate_data_extents(x1: int,
     :param y2:
     :return:
     """
-    data_extent_estimate = 5400000.0    # 216 * 25000
+    data_extent_base = 5387500
 
-    return [-(data_extent_estimate) + (x1 * 25000),
-            data_extent_estimate - ((432 - x2) * 25000),
-            -(data_extent_estimate) + ((432 - y2) * 25000),
-            data_extent_estimate - (y1 * 25000)]
+    extents = [
+        -data_extent_base + (x1 * 25000),
+        data_extent_base - ((432 - x2) * 25000),
+        -data_extent_base + (y1 * 25000),
+        data_extent_base - ((432 - y2) * 25000),
+    ]
 
-
-def calculate_proj_extents(x1: int,
-                           x2: int,
-                           y1: int,
-                           y2: int):
-    """
-
-    :param x1:
-    :param x2:
-    :param y1:
-    :param y2:
-    :return:
-    """
-    data_extent_estimate = 5400000.0    # 216 * 25000
-
-    return [-(data_extent_estimate) + (y1 * 25000),
-            data_extent_estimate - ((432 - y2) * 25000),
-            -(data_extent_estimate) + (x1 * 25000),
-            data_extent_estimate - ((432 - x2) * 25000)]
+    logging.debug("Data extents: {}".format(extents))
+    return extents
 
 
 def get_plot_axes(x1: int = 0,
                   x2: int = 432,
                   y1: int = 0,
                   y2: int = 432,
-                  do_coastlines: bool = True):
+                  do_coastlines: bool = True,
+                  north: bool = True,
+                  south: bool = False):
     """
 
     :param x1:
@@ -363,15 +350,20 @@ def get_plot_axes(x1: int = 0,
     :param y1:
     :param y2:
     :param do_coastlines:
+    :param north:
+    :param south:
     :return:
     """
+    assert north ^ south, "One hemisphere only must be selected"
+
     fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
 
     if do_coastlines:
-        proj = ccrs.LambertAzimuthalEqualArea(-90, 90)
+        pole = 1 if north else -1
+        proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
         ax = fig.add_subplot(1, 1, 1, projection=proj)
-        bounds = calculate_proj_extents(x1, x2, y1, y2)
-        ax.set_extent(bounds, crs=proj)
+        extents = calculate_extents(x1, x2, y1, y2)
+        ax.set_extent(extents, crs=proj)
     else:
         ax = fig.add_subplot(1, 1, 1)
 
@@ -386,8 +378,10 @@ def show_img(ax,
              y2: int = 432,
              cmap: object = None,
              do_coastlines: bool = True,
-             vmin = 0.,
-             vmax = 1.):
+             vmin: float = 0.,
+             vmax: float = 1.,
+             north: bool = True,
+             south: bool = False):
     """
 
     :param ax:
@@ -400,24 +394,68 @@ def show_img(ax,
     :param do_coastlines:
     :param vmin:
     :param vmax:
+    :param north:
+    :param south:
     :return:
     """
 
-    if do_coastlines:
-        data_globe = ccrs.Globe(datum="WGS84",
-                                inverse_flattening=298.257223563,
-                                semimajor_axis=6378137.0)
-        data_crs = ccrs.LambertAzimuthalEqualArea(0, 90, globe=data_globe)
+    assert north ^ south, "One hemisphere only must be selected"
 
+    if do_coastlines:
+        pole = 1 if north else -1
+        data_crs = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
+        extents = calculate_extents(x1, x2, y1, y2)
         im = ax.imshow(arr,
                        vmin=vmin,
                        vmax=vmax,
                        cmap=cmap,
                        transform=data_crs,
-                       extent=calculate_data_extents(x1, x2, y1, y2))
+                       extent=extents)
         ax.coastlines()
     else:
         im = ax.imshow(arr, cmap=cmap, vmin=vmin, vmax=vmax)
 
     return im
 
+
+def process_probes(probes, data) -> tuple:
+    """
+    :param probes: A sequence of locations (pairs)
+    :param data: A sequence of xr.DataArray
+    """
+
+    # index into each element of data with a xr.DataArray, for pointwise
+    # selection.  Construct the indexing DataArray as follows:
+
+    probes_da = xr.DataArray(probes, dims=('probe', 'coord'))
+    xcs, ycs = probes_da.sel(coord=0), probes_da.sel(coord=1)
+
+    for idx, arr in enumerate(data):
+        arr = arr.assign_coords({
+            "xi": ("xc", np.arange(len(arr.xc))),
+            "yi": ("yc", np.arange(len(arr.yc))),
+        })
+        if arr is not None:
+            data[idx] = arr.isel(xc=xcs, yc=ycs)
+
+    return data
+
+
+def process_regions(region: tuple,
+                    data: tuple) -> tuple:
+    """
+
+    :param region:
+    :param data:
+
+    :return:
+    """
+
+    assert len(region) == 4, "Region needs to be a list of four integers"
+    x1, y1, x2, y2 = region
+    assert x2 > x1 and y2 > y1, "Region is not valid"
+
+    for idx, arr in enumerate(data):
+        if arr is not None:
+            data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
+    return data

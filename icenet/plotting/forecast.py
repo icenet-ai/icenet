@@ -30,7 +30,9 @@ from icenet.plotting.utils import (
     get_seas_forecast_da,
     get_seas_forecast_init_dates,
     show_img,
-    get_plot_axes
+    get_plot_axes,
+    process_probes,
+    process_regions
 )
 from icenet.plotting.video import xarray_to_video
 
@@ -66,49 +68,6 @@ def region_arg(argument: str):
     except TypeError:
         raise argparse.ArgumentTypeError(
             "Region argument must be list of four integers")
-
-
-def process_regions(region: tuple,
-                    data: tuple) -> tuple:
-    """
-
-    :param region:
-    :param data:
-    
-    :return:
-    """
-
-    assert len(region) == 4, "Region needs to be a list of four integers"
-    x1, y1, x2, y2 = region
-    assert x2 > x1 and y2 > y1, "Region is not valid"
-
-    for idx, arr in enumerate(data):
-        if arr is not None:
-            data[idx] = arr[..., y1:y2, x1:x2]
-    return data
-
-
-def process_probes(probes, data) -> tuple:
-    """
-    :param probes: A sequence of locations (pairs)
-    :param data: A sequence of xr.DataArray
-    """
-
-    # index into each element of data with a xr.DataArray, for pointwise
-    # selection.  Construct the indexing DataArray as follows:
-
-    probes_da = xr.DataArray(probes, dims=('probe', 'coord'))
-    xcs, ycs = probes_da.sel(coord=0), probes_da.sel(coord=1)
-
-    for idx, arr in enumerate(data):
-        arr = arr.assign_coords({
-            "xi": ("xc", np.arange(len(arr.xc))),
-            "yi": ("yc", np.arange(len(arr.yc))),
-        })
-        if arr is not None:
-            data[idx] = arr.isel(xc=xcs, yc=ycs)
-
-    return data
 
 
 def compute_binary_accuracy(masks: object,
@@ -1357,6 +1316,9 @@ def plot_forecast():
                     help="Format to output in",
                     choices=("mp4", "png", "svg", "tiff"),
                     default="png")
+    ap.add_argument("-n", "--cmap-name",
+                    help="Color map name if not wanting to use default",
+                    default=None)
     ap.add_argument("-s", "--stddev",
                     help="Plot the standard deviation from the ensemble",
                     action="store_true",
@@ -1368,25 +1330,28 @@ def plot_forecast():
                          stddev=args.stddev)
     fc = fc.transpose(..., "yc", "xc")
 
-    if not os.path.isdir(args.output_path):
-        logging.warning("No directory at: {}".format(args.output_path))
-        os.makedirs(args.output_path)
-    elif os.path.isfile(args.output_path):
+    output_path = "." if args.output_path is None else args.output_path
+
+    if not os.path.isdir(output_path):
+        logging.warning("No directory at: {}".format(output_path))
+        os.makedirs(output_path)
+    elif os.path.isfile(output_path):
         raise RuntimeError("{} should be a directory and not existent...".
-                           format(args.output_path))
+                           format(output_path))
 
     forecast_name = "{}.{}".format(
         os.path.splitext(os.path.basename(args.forecast_file))[0],
         args.forecast_date)
 
-    cmap = cm.get_cmap("BuPu_r")
+    cmap_name = "BuPu_r" if args.stddev else "Blues_r"
+    if args.cmap_name is not None:
+        cmap_name = args.cmap_name
+
+    logging.info("Using cmap {}".format(cmap_name))
+    cmap = cm.get_cmap(cmap_name)
     cmap.set_bad("dimgrey")
 
     if args.region is not None:
-        if not args.stddev:
-            cmap = cm.get_cmap("tab20")
-            cmap.set_bad("dimgrey")
-
         fc = process_regions(args.region, [fc])[0]
 
     vmax = 1.
@@ -1419,7 +1384,7 @@ def plot_forecast():
             logging.warning("Coastlines will not work with the current "
                             "implementation of xarray_to_video")
 
-        output_filename = os.path.join(args.output_path, "{}.{}.{}{}".format(
+        output_filename = os.path.join(output_path, "{}.{}.{}{}".format(
             forecast_name,
             args.forecast_date.strftime("%Y%m%d"),
             "" if not args.stddev else "stddev.",
@@ -1433,7 +1398,8 @@ def plot_forecast():
     else:
         for leadtime in leadtimes:
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
-            bound_args = dict()
+            bound_args = dict(north=args.hemisphere == "north",
+                              south=args.hemisphere == "south")
 
             if args.region is not None:
                 bound_args.update(x1=args.region[0],
@@ -1454,7 +1420,7 @@ def plot_forecast():
             ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
                                                        plot_date.month,
                                                        plot_date.day))
-            output_filename = os.path.join(args.output_path, "{}.{}.{}{}".format(
+            output_filename = os.path.join(output_path, "{}.{}.{}{}".format(
                 forecast_name,
                 (args.forecast_date + dt.timedelta(
                     days=leadtime)).strftime("%Y%m%d"),
