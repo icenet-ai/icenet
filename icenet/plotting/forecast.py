@@ -718,7 +718,7 @@ def standard_deviation_heatmap(metric: str,
     if target_date_avg:
         groupby_col = "target_" + groupby_col
     
-    if fc_std_metric is not None:
+    if fc_std_metric is None:
         # compute standard deviation of metric
         fc_std_metric = metrics_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
             reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
@@ -1736,7 +1736,7 @@ def leadtime_avg_plots():
                     default=False)
     ap.add_argument("-sm",
                     "--std_mult",
-                    "What multiple of the standard deviation to plot",
+                    help="What multiple of the standard deviation to plot",
                     type=float,
                     default=1.0)
     ap.add_argument("-td",
