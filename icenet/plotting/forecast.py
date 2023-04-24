@@ -359,7 +359,7 @@ def plot_metrics(metrics: object,
     :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
     :param output_path: string specifying the path to store the plot(s).
                         If separate=True, this should be a directory
-    :param separate: logical value specifying whether there is a plot created for
+    :param separate: bool specifying whether there is a plot created for
                      each metric (True) or not (False), default is False
     
     :return: dictionary with keys as metric names and values as 
@@ -529,13 +529,13 @@ def compute_metrics_leadtime_avg(metric: str,
     :param masks: an icenet Masks object
     :param hemisphere: string, typically either 'north' or 'south'
     :param forecast_file: string specifying a path to a .nc file
-    :param ecmwf: logical value to indicate whether or not to compare
+    :param ecmwf: bool to indicate whether or not to compare
                   with ECMWF SEAS forecast. If True, will only average
                   over forecasts where the initialisation dates between IceNet
                   and SEAS are the same
     :param data_path: string specifying where to save the metrics dataframe.
                       If None, dataframe is not saved
-    :param bias_correct: logical value to indicate whether or not to
+    :param bias_correct: bool to indicate whether or not to
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if ecmwf=False
     :param region: region to zoom in to
@@ -619,14 +619,44 @@ def compute_metrics_leadtime_avg(metric: str,
     return fc_metric_df.reset_index(drop=True)
 
 
-def _parse_day_of_year(dayofyear, leapyear=False):
+def _parse_day_of_year(dayofyear: int, leapyear: bool = False) -> int:
+    """
+    Private function which takes in a day of year (integer or float) and returns
+    the integer day of year. Useful for ensuring consistency over leap years,
+    as dates after March could have different day of years due to leap years.
+    For example, 01/03/00 is 60th day in 2000 but 01/03/01 is the 59th day in 2001.
+    
+    :param dayofyear: integer as int or float type
+    :param leapyear: bool to indicate if we want to convert a leapyear dayofyear to
+                     non-leapyear
+    
+    :return: int dayofyear
+    """
     if leapyear:
         return (pd.Timestamp("2000-01-01") + timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
     else:
         return (pd.Timestamp("2001-01-01") + timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
 
 
-def _heatmap_ylabels(metrics_df, average_over, groupby_col):
+def _heatmap_ylabels(metrics_df: pd.DataFrame, average_over: str, groupby_col: str) -> object:
+    """
+    Private function to return the labels for the y-axis in heatmap plots.
+
+    :param metrics_df: pandas dataframe with columns 'date', 'leadtime' and the metric name
+    :param average_over: string to specify how to average the metrics.
+                         If average_over="all", averages over all possible
+                         forecasts and produces line plot.
+                         If average_over="month" or "day", averages
+                         over the month or day respectively and produces
+                         heat map plot.
+    :param groupby_col: string to specify how we are grouping the data.
+                        If average_over="all", this is typically "dayofyear"
+                        or "target_dayofyear".
+                        If average_over="month" or "day", this is typically
+                        "month" or "target_month".
+    
+    :return: list of labels for the y-axis
+    """
     if average_over == "day":
         # only add labels to the start, end dates
         # and any days that represent the start of months
@@ -643,6 +673,7 @@ def _heatmap_ylabels(metrics_df, average_over, groupby_col):
                                 "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"])
         labels = [month_names[month-1]
                     for month in sorted(metrics_df[groupby_col].unique())]
+
     return labels
 
 
@@ -652,7 +683,32 @@ def standard_deviation_heatmap(metric: str,
                                average_over: str,
                                target_date_avg: bool = False,
                                output_path: str = None,
-                               **kwargs):
+                               fc_std_metric: pd.DataFrame = None,
+                               vmax: float = None,
+                               **kwargs) -> object:
+    """
+    Produces a heatmap plot of the leadtime standard deviation of a metric.
+
+    :param metric: string specifying which metric to compute
+    :param model_name: string specifying the name of the model or forecast
+    :param metrics_df: pandas dataframe with columns 'date', 'leadtime' and the metric name
+    :param average_over: string to specify how to average the metrics.
+                         If average_over="all", averages over all possible
+                         forecasts and produces line plot.
+                         If average_over="month" or "day", averages
+                         over the month or day respectively and produces
+                         heat map plot.
+    :param target_date_avg: bool to indiciate whether or not to average over
+                            the target date of forecast (as opposed to averaging
+                            over the initialisation date), by default False
+    :param output_path: string specifying the path to store the plot, default None
+    :param fc_std_metric: pandas dataframe of the standard deviation of the metric over leadtime.
+                          If None, this will be computed here
+    :param vmax: float specifying maximum to anchor the colourmap. If None,
+                 this is inferred from the data
+    
+    :return: dataframe of the standard deviation of the metric over leadtime
+    """
     logging.info(f"Creating standard deviation over leadtime plot for "
                  f"{metric} metric for {model_name} forecasts")
     if average_over == "day":
@@ -662,10 +718,11 @@ def standard_deviation_heatmap(metric: str,
     if target_date_avg:
         groupby_col = "target_" + groupby_col
     
-    # compute standard deviation of metric
-    fc_std_metric = metrics_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
-        reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
-            sort_values(groupby_col, ascending=True)
+    if fc_std_metric is not None:
+        # compute standard deviation of metric
+        fc_std_metric = metrics_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
+            reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
+                sort_values(groupby_col, ascending=True)
     n_forecast_days = fc_std_metric.shape[1]
     
     # set ylabel (if average_over == "all"), or legend label (otherwise)
@@ -681,6 +738,7 @@ def standard_deviation_heatmap(metric: str,
     sns.heatmap(data=fc_std_metric,
                 ax=ax,
                 vmin=0,
+                vmax=vmax,
                 cmap="mako_r",
                 cbar_kws=dict(label=f"Standard deviation of {ylabel}"))
     
@@ -750,7 +808,7 @@ def plot_metrics_leadtime_avg(metric: str,
     :param masks: an icenet Masks object
     :param hemisphere: string, typically either 'north' or 'south'
     :param forecast_file: a path to a .nc file
-    :param ecmwf: logical value to indicate whether or not to compare
+    :param ecmwf: bool to indicate whether or not to compare
                   with ECMWF SEAS forecast. If True, will only average
                   over forecasts where the initialisation dates between IceNet
                   and SEAS are the same
@@ -761,12 +819,14 @@ def plot_metrics_leadtime_avg(metric: str,
                          If average_over="month" or "day", averages
                          over the month or day respectively and produces
                          heat map plot.
-    :param target_date_avg:
+    :param target_date_avg: bool to indiciate whether or not to average over
+                            the target date of forecast (as opposed to averaging
+                            over the initialisation date), by default False
     :param data_path: string specifying a CSV file where metrics dataframe
                       could be loaded from. If loading in the dataframe is
                       not possible, it will compute the metrics dataframe
                       and try to save the dataframe
-    :param bias_correct: logical value to indicate whether or not to
+    :param bias_correct: bool to indicate whether or not to
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if ecmwf=False
     :param region: region to zoom in to
@@ -774,7 +834,7 @@ def plot_metrics_leadtime_avg(metric: str,
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics, or 'grid_area_size' for SIE error metric
     
-    :return: pandas dataframe with columns 'date', 'leadtime' and the metric name.
+    :return: pandas dataframe with columns 'date', 'leadtime' and the metric name
     """
     implemented_metrics = ["binacc", "SIE", "MAE", "MSE", "RMSE"]
     if metric not in implemented_metrics:
@@ -955,20 +1015,38 @@ def plot_metrics_leadtime_avg(metric: str,
     
     if plot_std and average_over in ["day", "month"]:
         # create heapmap for the standard deviation
-        standard_deviation_heatmap(metric=metric,
-                                   model_name="IceNet",
-                                   metrics_df=fc_metric_df,
-                                   average_over=average_over,
-                                   target_date_avg=target_date_avg,
-                                   **kwargs)
         if seas_metric_df is not None:
+            # compute the standard deviation of the metric for both the forecast and SEAS5
+            fc_std_metric = fc_metric_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
+                reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
+                    sort_values(groupby_col, ascending=True)
+            seas_std_metric = seas_metric_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
+                reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
+                    sort_values(groupby_col, ascending=True)
+            # compute the maximum standard deviation to obtain a common scale
+            vmax = np.nanmax([np.nanmax(fc_std_metric.values), np.nanmax(seas_std_metric.values)])
             # create heapmap for the standard deviation
             standard_deviation_heatmap(metric=metric,
                                        model_name="SEAS",
                                        metrics_df=seas_metric_df,
                                        average_over=average_over,
                                        target_date_avg=target_date_avg,
+                                       fc_std_metric=seas_std_metric,
+                                       vmax=vmax,
                                        **kwargs)
+        else:
+            # no need to pre-compute the scale for the heatmap, hence
+            # pre-computing the standard deviation of the metric is not required
+            fc_std_metric = None
+            vmax = None
+        standard_deviation_heatmap(metric=metric,
+                                   model_name="IceNet",
+                                   metrics_df=fc_metric_df,
+                                   average_over=average_over,
+                                   target_date_avg=target_date_avg,
+                                   fc_std_metric=fc_std_metric,
+                                   vmax=vmax,
+                                   **kwargs)
 
     return fc_metric_df, seas_metric_df
 
