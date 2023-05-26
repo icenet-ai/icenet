@@ -785,9 +785,9 @@ def standard_deviation_heatmap(metric: str,
 
     # save plot
     targ = "target" if target_date_avg and average_over != "all" else "init"
-    filename = f"leadtime_averaged_{targ}_{average_over}_{metric}_{model_name}_std" + ".png"
+    filename = f"leadtime_averaged_{targ}_{average_over}_{metric}_{model_name}_std.png"
     output_path = os.path.join("plot", filename) \
-        if not output_path else output_path.replace(".png", "_std.png")
+        if not output_path else output_path
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
     
@@ -849,13 +849,21 @@ def plot_metrics_leadtime_avg(metric: str,
         raise NotImplementedError(f"{metric} metric has not been implemented. "
                                   f"Please only choose out of {implemented_metrics}.")
     if metric == "binacc":
+        # add default kwargs
         if "threshold" not in kwargs.keys():
             kwargs["threshold"] = 0.15
     elif metric == "sie":
+        # add default kwargs
         if "grid_area_size" not in kwargs.keys():
             kwargs["grid_area_size"] = 25
         if "threshold" not in kwargs.keys():
             kwargs["threshold"] = 0.15
+    elif metric in ["mae", "mse", "rmse"]:
+        # remove grid_area_size and threshold kwargs if passed
+        if "grid_area_size" in kwargs.keys():
+            del kwargs["grid_area_size"]
+        if "threshold" in kwargs.keys():
+            del kwargs["threshold"]
     
     do_compute_metrics = True
     if data_path is not None:
@@ -1038,6 +1046,7 @@ def plot_metrics_leadtime_avg(metric: str,
                                        model_name="SEAS",
                                        metrics_df=seas_metric_df,
                                        average_over=average_over,
+                                       output_path=output_path.replace(".png", "_SEAS_std.png"),
                                        target_date_avg=target_date_avg,
                                        fc_std_metric=seas_std_metric,
                                        vmax=vmax,
@@ -1051,6 +1060,7 @@ def plot_metrics_leadtime_avg(metric: str,
                                    model_name="IceNet",
                                    metrics_df=fc_metric_df,
                                    average_over=average_over,
+                                   output_path=output_path.replace(".png", "_IceNet_std.png"),
                                    target_date_avg=target_date_avg,
                                    fc_std_metric=fc_std_metric,
                                    vmax=vmax,
@@ -1722,6 +1732,8 @@ def leadtime_avg_plots():
     ap = (
         ForecastPlotArgParser(forecast_date=False)
         .allow_ecmwf()
+        .allow_threshold()
+        .allow_sie()
     )
     ap.add_argument("-m",
                     "--metric",
@@ -1768,7 +1780,9 @@ def leadtime_avg_plots():
                               data_path=args.data_path,
                               target_date_avg=args.target_date_average,
                               bias_correct=args.bias_correct,
-                              region=args.region)
+                              region=args.region,
+                              kwargs={"threshold": args.threshold,
+                                      "grid_area_size": args.grid_area})
 
 
 def sic_error():
