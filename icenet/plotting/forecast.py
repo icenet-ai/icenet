@@ -382,7 +382,7 @@ def plot_metrics(metrics: object,
         # produce separate plots for each metric
         for metric in metrics:
             fig, ax = plt.subplots(figsize=(12, 6))
-            ax.set_title(f"{metric} comparison")
+            ax.set_title(f"{metric.upper()} comparison")
             ax.plot(fc_metric_dict[metric].time,
                     fc_metric_dict[metric].values,
                     label="IceNet")
@@ -408,11 +408,11 @@ def plot_metrics(metrics: object,
         for metric in metrics:
             ax.plot(fc_metric_dict[metric].time,
                     fc_metric_dict[metric].values,
-                    label=f"IceNet {metric}")
+                    label=f"IceNet {metric.upper()}")
             if cmp_metric_dict is not None:
                 ax.plot(cmp_metric_dict[metric].time,
                         cmp_metric_dict[metric].values,
-                        label=f"SEAS {metric}",
+                        label=f"SEAS {metric.upper()}",
                         linestyle="dotted")
         
         ax.set_ylabel("SIC (%)")
@@ -735,7 +735,7 @@ def standard_deviation_heatmap(metric: str,
     
     # set ylabel (if average_over == "all"), or legend label (otherwise)
     if metric in ["mae", "mse", "rmse"]:
-        ylabel = f"SIC {metric} (%)"
+        ylabel = f"SIC {metric.upper()} (%)"
     elif metric == "binacc":
         ylabel = f"Binary accuracy (%)"
     elif metric == "sie":
@@ -775,7 +775,7 @@ def standard_deviation_heatmap(metric: str,
         f"{round((metrics_df[groupby_col].value_counts()/n_forecast_days).min())} " + \
         f"forecasts between {start_date} - {end_date}"
     if metric in ["mae", "mse", "rmse"]:
-        title = f"{metric} comparison"
+        title = f"{metric.upper()} comparison"
     elif metric == "binacc":
         title = f"Binary accuracy comparison (threshold SIC = {kwargs['threshold'] * 100}%)"
     elif metric == "sie":
@@ -901,7 +901,7 @@ def plot_metrics_leadtime_avg(metric: str,
     
     # set ylabel (if average_over == "all"), or legend label (otherwise)
     if metric in ["mae", "mse", "rmse"]:
-        ylabel = f"SIC {metric} (%)"
+        ylabel = f"SIC {metric.upper()} (%)"
     elif metric == "binacc":
         ylabel = f"Binary accuracy (%)"
     elif metric == "sie":
@@ -1006,7 +1006,7 @@ def plot_metrics_leadtime_avg(metric: str,
     
     # add plot title
     if metric in ["mae", "mse", "rmse"]:
-        title = f"{metric} comparison"
+        title = f"{metric.upper()} comparison"
     elif metric == "binacc":
         title = f"Binary accuracy comparison (threshold SIC = {kwargs['threshold'] * 100}%)"
     elif metric == "sie":
