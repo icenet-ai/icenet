@@ -1781,8 +1781,8 @@ def leadtime_avg_plots():
                               target_date_avg=args.target_date_average,
                               bias_correct=args.bias_correct,
                               region=args.region,
-                              kwargs={"threshold": args.threshold,
-                                      "grid_area_size": args.grid_area})
+                              threshold=args.threshold,
+                              grid_area_size=args.grid_area)
 
 
 def sic_error():
