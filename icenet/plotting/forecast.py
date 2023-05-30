@@ -473,9 +473,9 @@ def compute_metric_as_dataframe(metric: object,
                                                        threshold=kwargs["threshold"]).values
         elif met == "sie":
             if "grid_area_size" not in kwargs.keys():
-                raise KeyError("if met = 'SIE', must pass in argument for grid_area_size")
+                raise KeyError("if met = 'sie', must pass in argument for grid_area_size")
             if "threshold" not in kwargs.keys():
-                raise KeyError("if met = 'SIE', must pass in argument for threshold")
+                raise KeyError("if met = 'sie', must pass in argument for threshold")
             metric_dict[met] = compute_sea_ice_extent_error(masks=masks,
                                                             fc_da=fc_da,
                                                             obs_da=obs_da,
@@ -1397,7 +1397,7 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           "--metrics",
                           help="Which metrics to compute and plot",
                           type=str,
-                          default="MAE,MSE,RMSE")
+                          default="mae,mse,rmse")
         self.add_argument("-s",
                           "--separate",
                           help="Whether or not to produce separate plots for each metric",
