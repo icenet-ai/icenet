@@ -299,7 +299,7 @@ def compute_metrics(metrics: object,
              xarray.DataArray's storing the computed metrics for each forecast
     """
     # check requested metrics have been implemented
-    implemented_metrics = ["MAE", "MSE", "RMSE"]
+    implemented_metrics = ["mae", "mse", "rmse"]
     for metric in metrics:
         if metric not in implemented_metrics:
             raise NotImplementedError(f"{metric} metric has not been implemented. "
@@ -311,27 +311,27 @@ def compute_metrics(metrics: object,
     metric_dict = {}
     # compute raw error
     err_da = (fc_da-obs_da)*100
-    if "MAE" in metrics:
+    if "mae" in metrics:
         # compute absolute SIC errors
         abs_err_da = da.fabs(err_da)
         abs_weighted_da = abs_err_da.weighted(mask_da)
-    if "MSE" in metrics or "RMSE" in metrics:
+    if "mse" in metrics or "rmse" in metrics:
         # compute squared SIC errors
         square_err_da = err_da**2
         square_weighted_da = square_err_da.weighted(mask_da)
         
     for metric in metrics:
-        if metric == "MAE":
+        if metric == "mae":
             metric_dict[metric] = abs_weighted_da.mean(dim=['yc', 'xc'])
-        elif metric == "MSE":
-            if "MSE" not in metric_dict.keys():
+        elif metric == "mse":
+            if "mse" not in metric_dict.keys():
                 # might've already been computed if RMSE came first
-                metric_dict["MSE"] = square_weighted_da.mean(dim=['yc', 'xc'])
-        elif metric == "RMSE":
-            if "MSE" not in metric_dict.keys():
+                metric_dict["mse"] = square_weighted_da.mean(dim=['yc', 'xc'])
+        elif metric == "rmse":
+            if "mse" not in metric_dict.keys():
                 # check if MSE already been computed
-                metric_dict["MSE"] = square_weighted_da.mean(dim=['yc', 'xc'])
-            metric_dict[metric] = da.sqrt(metric_dict["MSE"])
+                metric_dict["mse"] = square_weighted_da.mean(dim=['yc', 'xc'])
+            metric_dict[metric] = da.sqrt(metric_dict["mse"])
 
     # only return metrics requested (might've computed MSE when computing RMSE)
     return {k: metric_dict[k] for k in metrics}
@@ -382,7 +382,7 @@ def plot_metrics(metrics: object,
         # produce separate plots for each metric
         for metric in metrics:
             fig, ax = plt.subplots(figsize=(12, 6))
-            ax.set_title(f"{metric} comparison")
+            ax.set_title(f"{metric.upper()} comparison")
             ax.plot(fc_metric_dict[metric].time,
                     fc_metric_dict[metric].values,
                     label="IceNet")
@@ -408,11 +408,11 @@ def plot_metrics(metrics: object,
         for metric in metrics:
             ax.plot(fc_metric_dict[metric].time,
                     fc_metric_dict[metric].values,
-                    label=f"IceNet {metric}")
+                    label=f"IceNet {metric.upper()}")
             if cmp_metric_dict is not None:
                 ax.plot(cmp_metric_dict[metric].time,
                         cmp_metric_dict[metric].values,
-                        label=f"SEAS {metric}",
+                        label=f"SEAS {metric.upper()}",
                         linestyle="dotted")
         
         ax.set_ylabel("SIC (%)")
@@ -431,7 +431,7 @@ def plot_metrics(metrics: object,
     return fc_metric_dict, cmp_metric_dict
 
 
-def compute_metric_as_dataframe(metric: str,
+def compute_metric_as_dataframe(metric: object,
                                 masks: object,
                                 init_date: object,
                                 fc_da: object,
@@ -440,9 +440,9 @@ def compute_metric_as_dataframe(metric: str,
     """
     Computes a metric for each leadtime in a forecast and stores the
     results in a pandas dataframe with columns 'date' (which is the
-    initialisation date passed in), 'leadtime' and the metric name.
+    initialisation date passed in), 'leadtime' and the metric name(s).
     
-    :param metric: string specifying which metric to compute
+    :param metric: string, or list of strings, specifying which metric(s) to compute
     :param masks: an icenet Masks object
     :param init_date: forecast initialisation date which gets
                       added to pandas dataframe (as string, or datetime object)
@@ -453,32 +453,39 @@ def compute_metric_as_dataframe(metric: str,
                    metrics, or 'grid_area_size' for SIE error metric
     
     :return: computed metric in a pandas dataframe with columns 'date',
-             'leadtime' and 'metric'
+             'leadtime' and 'met' for each metric, met, in metric
     """
-    if metric in ["MAE", "MSE", "RMSE"]:
-        met = compute_metrics(metrics=[metric],
-                              masks=masks,
-                              fc_da=fc_da,
-                              obs_da=obs_da)[metric]
-    elif metric == "binacc":
-        if "threshold" not in kwargs.keys():
-            raise KeyError("if metric = 'binacc', must pass in argument for threshold")
-        met = compute_binary_accuracy(masks=masks,
-                                      fc_da=fc_da,
-                                      obs_da=obs_da,
-                                      threshold=kwargs["threshold"])
-    elif metric == "SIE":
-        if "grid_area_size" not in kwargs.keys():
-            raise KeyError("if metric = 'SIE', must pass in argument for grid_area_size")
-        if "threshold" not in kwargs.keys():
-            raise KeyError("if metric = 'SIE', must pass in argument for threshold")
-        met = compute_sea_ice_extent_error(masks=masks,
-                                           fc_da=fc_da,
-                                           obs_da=obs_da,
-                                           grid_area_size=kwargs["grid_area_size"],
-                                           threshold=kwargs["threshold"])
-    else:
-        raise NotImplementedError(f"{metric} is not implemented")
+    if isinstance(metric, str):
+        metric = [metric]
+    metric_dict = {}
+    for met in metric:
+        if met in ["mae", "mse", "rmse"]:
+            metric_dict[met] = compute_metrics(metrics=[met],
+                                               masks=masks,
+                                               fc_da=fc_da,
+                                               obs_da=obs_da)[met].values
+        elif met == "binacc":
+            if "threshold" not in kwargs.keys():
+                raise KeyError("if met = 'binacc', must pass in argument for threshold")
+            metric_dict[met] = compute_binary_accuracy(masks=masks,
+                                                       fc_da=fc_da,
+                                                       obs_da=obs_da,
+                                                       threshold=kwargs["threshold"]).values
+        elif met == "sie":
+            if "grid_area_size" not in kwargs.keys():
+                raise KeyError("if met = 'sie', must pass in argument for grid_area_size")
+            if "threshold" not in kwargs.keys():
+                raise KeyError("if met = 'sie', must pass in argument for threshold")
+            metric_dict[met] = compute_sea_ice_extent_error(masks=masks,
+                                                            fc_da=fc_da,
+                                                            obs_da=obs_da,
+                                                            grid_area_size=kwargs["grid_area_size"],
+                                                            threshold=kwargs["threshold"]).values
+        else:
+            raise NotImplementedError(f"{met} is not implemented")
+    
+    # create dataframe from metric_dict
+    metric_df = pd.DataFrame(metric_dict)
     
     init_date = pd.to_datetime(init_date)
     # compute day of year after first converting year to a non-leap year
@@ -491,7 +498,7 @@ def compute_metric_as_dataframe(metric: str,
         dayofyear = init_date.replace(year=2001).dayofyear
     month = init_date.month
     # get target dates
-    leadtime = list(range(1, len(met.values)+1, 1))
+    leadtime = list(range(1, len(metric_df.index)+1, 1))
     target_date = pd.Series([init_date + timedelta(days=d) for d in leadtime])
     target_dayofyear = target_date.dt.dayofyear
     # obtain day of year using same method above to avoid any leap-year issues
@@ -499,14 +506,15 @@ def compute_metric_as_dataframe(metric: str,
                                   else d.replace(year=2001).dayofyear
                                   for d in target_date])
     target_month = target_date.dt.month
-    return pd.DataFrame({"date": init_date,
-                         "dayofyear": dayofyear,
-                         "month": month,
-                         "target_date": target_date,
-                         "target_dayofyear": target_dayofyear,
-                         "target_month": target_month,
-                         "leadtime": leadtime,
-                         f"{metric}": met.values})
+    return pd.concat([pd.DataFrame({"date": init_date,
+                                    "dayofyear": dayofyear,
+                                    "month": month,
+                                    "target_date": target_date,
+                                    "target_dayofyear": target_dayofyear,
+                                    "target_month": target_month,
+                                    "leadtime": leadtime}),
+                      metric_df],
+                      axis=1)
 
 
 def compute_metrics_leadtime_avg(metric: str,
@@ -726,11 +734,11 @@ def standard_deviation_heatmap(metric: str,
     n_forecast_days = fc_std_metric.shape[1]
     
     # set ylabel (if average_over == "all"), or legend label (otherwise)
-    if metric in ["MAE", "MSE", "RMSE"]:
-        ylabel = f"SIC {metric} (%)"
+    if metric in ["mae", "mse", "rmse"]:
+        ylabel = f"SIC {metric.upper()} (%)"
     elif metric == "binacc":
         ylabel = f"Binary accuracy (%)"
-    elif metric == "SIE":
+    elif metric == "sie":
         ylabel = f"SIE error (km)"
         
     # plot heatmap of standard deviation for IceNet
@@ -766,20 +774,20 @@ def standard_deviation_heatmap(metric: str,
     time_coverage = "\nStandard deviation over a minimum of " + \
         f"{round((metrics_df[groupby_col].value_counts()/n_forecast_days).min())} " + \
         f"forecasts between {start_date} - {end_date}"
-    if metric in ["MAE", "MSE", "RMSE"]:
-        title = f"{metric} comparison"
+    if metric in ["mae", "mse", "rmse"]:
+        title = f"{metric.upper()} comparison"
     elif metric == "binacc":
         title = f"Binary accuracy comparison (threshold SIC = {kwargs['threshold'] * 100}%)"
-    elif metric == "SIE":
+    elif metric == "sie":
         title = f"SIE error comparison ({kwargs['grid_area_size']} km grid resolution, " +\
             f"threshold SIC = {kwargs['threshold'] * 100}%)"
     ax.set_title(title + f" ({model_name})" + time_coverage)
 
     # save plot
     targ = "target" if target_date_avg and average_over != "all" else "init"
-    filename = f"leadtime_averaged_{targ}_{average_over}_{metric}_{model_name}_std" + ".png"
+    filename = f"leadtime_averaged_{targ}_{average_over}_{metric}_{model_name}_std.png"
     output_path = os.path.join("plot", filename) \
-        if not output_path else output_path.replace(".png", "_std.png")
+        if not output_path else output_path
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
     
@@ -836,18 +844,26 @@ def plot_metrics_leadtime_avg(metric: str,
     
     :return: pandas dataframe with columns 'date', 'leadtime' and the metric name
     """
-    implemented_metrics = ["binacc", "SIE", "MAE", "MSE", "RMSE"]
+    implemented_metrics = ["binacc", "sie", "mae", "mse", "rmse"]
     if metric not in implemented_metrics:
         raise NotImplementedError(f"{metric} metric has not been implemented. "
                                   f"Please only choose out of {implemented_metrics}.")
     if metric == "binacc":
+        # add default kwargs
         if "threshold" not in kwargs.keys():
             kwargs["threshold"] = 0.15
-    elif metric == "SIE":
+    elif metric == "sie":
+        # add default kwargs
         if "grid_area_size" not in kwargs.keys():
             kwargs["grid_area_size"] = 25
         if "threshold" not in kwargs.keys():
             kwargs["threshold"] = 0.15
+    elif metric in ["mae", "mse", "rmse"]:
+        # remove grid_area_size and threshold kwargs if passed
+        if "grid_area_size" in kwargs.keys():
+            del kwargs["grid_area_size"]
+        if "threshold" in kwargs.keys():
+            del kwargs["threshold"]
     
     do_compute_metrics = True
     if data_path is not None:
@@ -884,11 +900,11 @@ def plot_metrics_leadtime_avg(metric: str,
                               fc_metric_df["date"].max().strftime('%d/%m/%Y'))
     
     # set ylabel (if average_over == "all"), or legend label (otherwise)
-    if metric in ["MAE", "MSE", "RMSE"]:
-        ylabel = f"SIC {metric} (%)"
+    if metric in ["mae", "mse", "rmse"]:
+        ylabel = f"SIC {metric.upper()} (%)"
     elif metric == "binacc":
         ylabel = f"Binary accuracy (%)"
-    elif metric == "SIE":
+    elif metric == "sie":
         ylabel = f"SIE error (km)"
     
     if average_over == "all":
@@ -958,14 +974,14 @@ def plot_metrics_leadtime_avg(metric: str,
                         ax=ax,
                         vmax=max,
                         vmin=-max,
-                        cmap="seismic_r" if metric in ["binacc", "SIE"] else "seismic",
+                        cmap="seismic_r" if metric in ["binacc", "sie"] else "seismic",
                         cbar_kws=dict(label=f"{ylabel} difference between IceNet and SEAS"))
 
         else:
             # plot heatmap of the leadtime averaged metric when grouped by groupby_col
             sns.heatmap(data=fc_avg_metric, 
                         ax=ax,
-                        cmap="inferno" if metric in ["binacc", "SIE"] else "inferno_r",
+                        cmap="inferno" if metric in ["binacc", "sie"] else "inferno_r",
                         cbar_kws=dict(label=ylabel))
 
         # string to add in plot title
@@ -989,11 +1005,11 @@ def plot_metrics_leadtime_avg(metric: str,
         raise NotImplementedError(f"averaging over {average_over} not a valid option.")
     
     # add plot title
-    if metric in ["MAE", "MSE", "RMSE"]:
-        title = f"{metric} comparison"
+    if metric in ["mae", "mse", "rmse"]:
+        title = f"{metric.upper()} comparison"
     elif metric == "binacc":
         title = f"Binary accuracy comparison (threshold SIC = {kwargs['threshold'] * 100}%)"
-    elif metric == "SIE":
+    elif metric == "sie":
         title = f"SIE error comparison ({kwargs['grid_area_size']} km grid resolution, " +\
             f"threshold SIC = {kwargs['threshold'] * 100}%)"
     ax.set_title(title + time_coverage)
@@ -1030,6 +1046,7 @@ def plot_metrics_leadtime_avg(metric: str,
                                        model_name="SEAS",
                                        metrics_df=seas_metric_df,
                                        average_over=average_over,
+                                       output_path=output_path.replace(".png", "_SEAS_std.png"),
                                        target_date_avg=target_date_avg,
                                        fc_std_metric=seas_std_metric,
                                        vmax=vmax,
@@ -1043,6 +1060,7 @@ def plot_metrics_leadtime_avg(metric: str,
                                    model_name="IceNet",
                                    metrics_df=fc_metric_df,
                                    average_over=average_over,
+                                   output_path=output_path.replace(".png", "_IceNet_std.png"),
                                    target_date_avg=target_date_avg,
                                    fc_std_metric=fc_std_metric,
                                    vmax=vmax,
@@ -1379,7 +1397,7 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           "--metrics",
                           help="Which metrics to compute and plot",
                           type=str,
-                          default="MAE,MSE,RMSE")
+                          default="mae,mse,rmse")
         self.add_argument("-s",
                           "--separate",
                           help="Whether or not to produce separate plots for each metric",
@@ -1447,7 +1465,7 @@ def binary_accuracy():
     if args.region:
         seas, fc, obs, masks = process_regions(args.region,
                                                [seas, fc, obs, masks])
-
+    
     plot_binary_accuracy(masks=masks,
                          fc_da=fc,
                          cmp_da=seas,
@@ -1714,6 +1732,8 @@ def leadtime_avg_plots():
     ap = (
         ForecastPlotArgParser(forecast_date=False)
         .allow_ecmwf()
+        .allow_threshold()
+        .allow_sie()
     )
     ap.add_argument("-m",
                     "--metric",
@@ -1760,7 +1780,9 @@ def leadtime_avg_plots():
                               data_path=args.data_path,
                               target_date_avg=args.target_date_average,
                               bias_correct=args.bias_correct,
-                              region=args.region)
+                              region=args.region,
+                              threshold=args.threshold,
+                              grid_area_size=args.grid_area)
 
 
 def sic_error():
