@@ -1,4 +1,8 @@
 import argparse
+import logging
+import os
+
+import numpy as np
 
 from icenet.data.loaders import IceNetDataLoaderFactory
 from icenet.data.cli import add_date_args, process_date_args
@@ -11,6 +15,10 @@ from icenet.utils import setup_logging
 
 @setup_logging
 def create_get_args():
+    """
+
+    :return:
+    """
     implementations = list(IceNetDataLoaderFactory().loader_map)
 
     ap = argparse.ArgumentParser()
@@ -56,6 +64,9 @@ def create_get_args():
 
 
 def create():
+    """
+
+    """
     args = create_get_args()
     dates = process_date_args(args)
 
@@ -82,5 +93,29 @@ def create():
         dl.generate()
 
 
-def get_sample():
-    raise NotImplementedError("get_sample is yet to be implemented")
+def save_sample(output_folder: str,
+                date: object,
+                sample: tuple):
+    """
+
+    :param output_folder:
+    :param date:
+    :param sample:
+    """
+    net_input, net_output, sample_weights = sample
+
+    if os.path.exists(output_folder):
+        logging.warning("{} output already exists".format(output_folder))
+    os.makedirs(output_folder, exist_ok=output_folder)
+
+    for date, output, directory in ((date, net_input, "input"),
+                                    (date, net_output, "outputs"),
+                                    (date, sample_weights, "weights")):
+        output_directory = os.path.join(output_folder, "loader", directory)
+        os.makedirs(output_directory, exist_ok=True)
+        loader_output_path = os.path.join(output_directory,
+                                          date.strftime("%Y_%m_%d.npy"))
+
+        logging.info("Saving {} - generated {} {}".
+                     format(date, directory, output.shape))
+        np.save(loader_output_path, output)

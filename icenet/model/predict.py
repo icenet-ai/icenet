@@ -10,6 +10,7 @@ import tensorflow as tf
 
 import icenet.model.models as models
 
+from icenet.data.loader import save_sample
 from icenet.data.dataset import IceNetDataSet
 from icenet.utils import setup_logging
 
@@ -74,13 +75,11 @@ def predict_forecast(
         logging.info("Generating forecast inputs from processed/ files")
 
         for date in start_dates:
-            net_input, net_output, sample_weights = dl.generate_sample(date, prediction=True)
+            data_sample = dl.generate_sample(date, prediction=True)
             run_prediction(network=network,
                            date=date,
                            output_folder=output_folder,
-                           net_input=net_input,
-                           net_output=net_output,
-                           sample_weights=sample_weights,
+                           sample=data_sample,
                            save_args=save_args)
     else:
         # TODO: This is horrible behaviour, rethink and refactor: we should
@@ -121,19 +120,19 @@ def predict_forecast(
             run_prediction(network=network,
                            date=test_dates[idx],
                            output_folder=output_folder,
-                           net_input=x[arr_idx, ...],
-                           net_output=y[arr_idx, ...],
-                           sample_weights=sw[arr_idx, ...],
+                           data_sample=(x[arr_idx, ...],
+                                        y[arr_idx, ...],
+                                        sw[arr_idx, ...]),
                            save_args=save_args)
 
 
 def run_prediction(network,
                    date,
                    output_folder,
-                   net_input,
-                   net_output,
-                   sample_weights,
+                   data_sample,
                    save_args):
+    net_input, net_output, sample_weights = data_sample
+
     logging.info("Running prediction {}".format(date))
     pred = network(tf.convert_to_tensor([net_input]), training=False)
 
@@ -147,17 +146,7 @@ def run_prediction(network,
 
     if save_args:
         logging.debug("Saving loader generated data for reference...")
-        for date, output, directory in ((date, net_input, "input"),
-                                        (date, net_output, "outputs"),
-                                        (date, sample_weights, "weights")):
-            output_directory = os.path.join(output_folder, "loader", directory)
-            os.makedirs(output_directory, exist_ok=True)
-            loader_output_path = os.path.join(output_directory,
-                                                date.strftime("%Y_%m_%d.npy"))
-            
-            logging.info("Saving {} - generated {} {}".
-                            format(date, directory, output.shape))
-            np.save(loader_output_path, output)
+        save_sample(output_path, date, data_sample)
 
     return output_path
 
