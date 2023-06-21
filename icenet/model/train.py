@@ -20,7 +20,7 @@ WANDB_AVAILABLE=False
 try:
     import wandb
     from wandb.keras import WandbCallback
-    WANDB_AVAILABLE=True
+    WANDB_AVAILABLE = True
 except ImportError:
     logging.info("WandB is not available, we will never use it")
 
@@ -235,7 +235,8 @@ def evaluate_model(model_path: object,
                    dataset_ratio: float = 1.0,
                    max_queue_size: int = 3,
                    workers: int = 5,
-                   use_multiprocessing: bool = True):
+                   use_multiprocessing: bool = True,
+                   use_wandb: bool = True):
     """
 
     :param model_path:
@@ -244,6 +245,7 @@ def evaluate_model(model_path: object,
     :param max_queue_size:
     :param workers:
     :param use_multiprocessing:
+    :param use_wandb:
     """
     logging.info("Running evaluation against test set")
     network = load_model(model_path, compile=False)
@@ -316,6 +318,7 @@ def get_args():
     ap.add_argument("-ds", "--additional-dataset",
                     dest="additional", nargs="*", default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
+    ap.add_argument("-f", "--filter-size", type=int, default=3)
     ap.add_argument("--early-stopping", type=int, default=50)
     ap.add_argument("-m", "--multiprocessing",
                     action="store_true", default=False)
@@ -388,26 +391,26 @@ def main():
         if args.strategy == "central" \
         else tf.distribute.get_strategy()
 
-    if not args.no_wandb:
+    if WANDB_AVAILABLE and not args.no_wandb:
         logging.warning("Initialising WANDB for this run at user request")
         wandb.init(
             project=args.wandb_project,
-            name="{}.{}".format(run_name, seed),
-            notes="{}: run at {}{}".format(run_name,
+            name="{}.{}".format(args.run_name, args.seed),
+            notes="{}: run at {}{}".format(args.run_name,
                                            dt.datetime.now().strftime("%D %T"),
                                            "" if
-                                           not pre_load_network else
-                                           " preload {}".format(pre_load_path)),
+                                           not args.preload is not None else
+                                           " preload {}".format(args.preload)),
             entity=args.wandb_user,
             config=dict(
-                seed=seed,
-                learning_rate=learning_rate,
-                filter_size=filter_size,
-                n_filters_factor=n_filters_factor,
-                lr_10e_decay_fac=lr_10e_decay_fac,
-                lr_decay_start=lr_decay_start,
-                lr_decay_end=lr_decay_end,
-                batch_size=batch_size,
+                seed=args.seed,
+                learning_rate=args.lr,
+                filter_size=args.filter_size,
+                n_filters_factor=args.n_filters_factor,
+                lr_10e_decay_fac=args.lr_10e_decay_fac,
+                lr_decay_start=args.lr_decay_start,
+                lr_decay_end=args.lr_decay_end,
+                batch_size=args.batch_size,
             ),
             allow_val_change=True,
             mode='offline' if args.wandb_offline else 'online',
@@ -415,7 +418,7 @@ def main():
                 start_method="fork",
                 _disable_stats=True,
             ),
-            group=run_name,
+            group=args.run_name,
         )
 
     weights_path, model_path = \
@@ -425,6 +428,7 @@ def main():
                     dataset_ratio=args.ratio,
                     early_stopping_patience=args.early_stopping,
                     epochs=args.epochs,
+                    filter_size=args.filter_size,
                     learning_rate=args.lr,
                     lr_10e_decay_fac=args.lr_10e_decay_fac,
                     lr_decay_start=args.lr_decay_start,
