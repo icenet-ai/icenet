@@ -21,6 +21,5 @@ setuptools
 tensorboard
 tensorflow
 tensorflow-probability
-wandb
 wheel
 xarray[io]
