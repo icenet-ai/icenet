@@ -35,7 +35,6 @@ from icenet.utils import setup_logging
 def train_model(
         run_name: object,
         dataset: object,
-        batch_size: int = 4,
         checkpoint_monitor: str = 'val_rmse',
         checkpoint_mode: str = 'min',
         dataset_ratio: float = 1.0,
@@ -65,7 +64,6 @@ def train_model(
 
     :param run_name:
     :param dataset:
-    :param batch_size:
     :param checkpoint_monitor:
     :param checkpoint_mode:
     :param dataset_ratio:
@@ -424,7 +422,6 @@ def main():
     weights_path, model_path = \
         train_model(args.run_name,
                     dataset,
-                    batch_size=args.batch_size,
                     dataset_ratio=args.ratio,
                     early_stopping_patience=args.early_stopping,
                     epochs=args.epochs,
