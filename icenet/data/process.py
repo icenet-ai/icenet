@@ -39,7 +39,8 @@ class IceNetPreProcessor(Processor):
     :param minmax:
     :param no_normalise: 
     :param path:
-    :param ref_procdir: 
+    :param parallel_opens:
+    :param ref_procdir:
     :param source_data:
     :param update_key:
     :param update_loader: 
@@ -71,6 +72,7 @@ class IceNetPreProcessor(Processor):
                  minmax=True,
                  no_normalise=tuple(["siconca"]),
                  path=os.path.join(".", "processed"),
+                 parallel_opens=False,
                  ref_procdir=None,
                  source_data=os.path.join(".", "data"),
                  update_key=None,
@@ -101,6 +103,7 @@ class IceNetPreProcessor(Processor):
         self._no_normalise = no_normalise
         self._normalise = self._normalise_array_mean \
             if not minmax else self._normalise_array_scaling
+        self._parallel = parallel_opens
         self._refdir = ref_procdir
         self._update_key = self.identifier if not update_key else update_key
         self._update_loader = os.path.join(".",
@@ -344,9 +347,7 @@ class IceNetPreProcessor(Processor):
                                coords="minimal",
                                compat="override",
                                drop_variables=("lat", "lon"),
-                               # TODO: Wasteful on small sets, but much faster
-                               #  on big sets: make optional
-                               parallel=True)
+                               parallel=self._parallel)
 
         # For processing one file, we're going to assume a single non-lambert
         # variable exists at the start and rename all of them
