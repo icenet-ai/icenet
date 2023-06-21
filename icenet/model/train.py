@@ -11,12 +11,18 @@ from pprint import pformat
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import wandb
 
 from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
 from tensorflow.keras.models import load_model, save_model
-from wandb.keras import WandbCallback
+
+WANDB_AVAILABLE=False
+try:
+    import wandb
+    from wandb.keras import WandbCallback
+    WANDB_AVAILABLE = True
+except ImportError:
+    logging.info("WandB is not available, we will never use it")
 
 from icenet.data.dataset import IceNetDataSet, MergedIceNetDataSet
 import icenet.model.losses as losses
@@ -29,7 +35,6 @@ from icenet.utils import setup_logging
 def train_model(
         run_name: object,
         dataset: object,
-        batch_size: int = 4,
         checkpoint_monitor: str = 'val_rmse',
         checkpoint_mode: str = 'min',
         dataset_ratio: float = 1.0,
@@ -54,15 +59,11 @@ def train_model(
         workers: int = 5,
         use_multiprocessing: bool = True,
         use_tensorboard: bool = True,
-        use_wandb: bool = True,
-        wandb_offline: bool = False,
-        wandb_project: str = os.environ.get("ICENET_ENVIRONMENT"),
-        wandb_user: str = os.environ.get("USER")) -> object:
+        use_wandb: bool = True) -> object:
     """
 
     :param run_name:
     :param dataset:
-    :param batch_size:
     :param checkpoint_monitor:
     :param checkpoint_mode:
     :param dataset_ratio:
@@ -88,42 +89,10 @@ def train_model(
     :param use_multiprocessing:
     :param use_tensorboard:
     :param use_wandb:
-    :param wandb_offline:
-    :param wandb_project:
-    :param wandb_user:
     :return:
     """
 
     lr_decay = -0.1 * np.log(lr_10e_decay_fac)
-    wandb.init(
-        project=wandb_project,
-        name="{}.{}".format(run_name, seed),
-        notes="{}: run at {}{}".format(run_name,
-                                       dt.datetime.now().strftime("%D %T"),
-                                       "" if
-                                       not pre_load_network else
-                                       " preload {}".format(pre_load_path)),
-        entity=wandb_user,
-        config=dict(
-            seed=seed,
-            learning_rate=learning_rate,
-            filter_size=filter_size,
-            n_filters_factor=n_filters_factor,
-            lr_10e_decay_fac=lr_10e_decay_fac,
-            lr_decay=lr_decay,
-            lr_decay_start=lr_decay_start,
-            lr_decay_end=lr_decay_end,
-            batch_size=batch_size,
-        ),
-        allow_val_change=True,
-        mode='disabled' if not use_wandb else 'offline' if wandb_offline else 'online',
-        settings=wandb.Settings(
-            start_method="fork",
-            _disable_stats=True,
-        ),
-        group=run_name,
-    )
-
     logging.info("Hyperparameters: {}".format(pformat(wandb.config)))
 
     input_shape = (*dataset.shape, dataset.num_channels)
@@ -188,7 +157,7 @@ def train_model(
         callbacks_list.append(tf.keras.callbacks.TensorBoard(log_dir=log_dir,
                                                              histogram_freq=1))
 
-    if use_wandb:
+    if WANDB_AVAILABLE and use_wandb:
         # Log training metrics to wandb each epoch
         logging.info("Adding wandb callback")
         callbacks_list.append(
@@ -264,7 +233,8 @@ def evaluate_model(model_path: object,
                    dataset_ratio: float = 1.0,
                    max_queue_size: int = 3,
                    workers: int = 5,
-                   use_multiprocessing: bool = True):
+                   use_multiprocessing: bool = True,
+                   use_wandb: bool = True):
     """
 
     :param model_path:
@@ -273,6 +243,7 @@ def evaluate_model(model_path: object,
     :param max_queue_size:
     :param workers:
     :param use_multiprocessing:
+    :param use_wandb:
     """
     logging.info("Running evaluation against test set")
     network = load_model(model_path, compile=False)
@@ -318,15 +289,16 @@ def evaluate_model(model_path: object,
     logging.debug(results)
     logging.info("Done in {:.1f}s".format(time.time() - tic))
 
-    metric_vals = [[results[f'{name}{lt}']
-                    for lt in lead_times] for name in metric_names]
-    table_data = list(zip(lead_times, *metric_vals))
-    table = wandb.Table(data=table_data, columns=['leadtime', *metric_names])
+    if WANDB_AVAILABLE and use_wandb:
+        metric_vals = [[results[f'{name}{lt}']
+                        for lt in lead_times] for name in metric_names]
+        table_data = list(zip(lead_times, *metric_vals))
+        table = wandb.Table(data=table_data, columns=['leadtime', *metric_names])
 
-    # Log each metric vs. leadtime as a plot to wandb
-    for name in metric_names:
-        wandb.log(
-            {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
+        # Log each metric vs. leadtime as a plot to wandb
+        for name in metric_names:
+            wandb.log(
+                {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
 
 
 @setup_logging
@@ -344,11 +316,11 @@ def get_args():
     ap.add_argument("-ds", "--additional-dataset",
                     dest="additional", nargs="*", default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
+    ap.add_argument("-f", "--filter-size", type=int, default=3)
     ap.add_argument("--early-stopping", type=int, default=50)
     ap.add_argument("-m", "--multiprocessing",
                     action="store_true", default=False)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
-    ap.add_argument("-nw", "--no-wandb", default=False, action="store_true")
     ap.add_argument("-p", "--preload", type=str)
     ap.add_argument("-pw", "--pickup-weights",
                     action="store_true", default=False)
@@ -361,6 +333,9 @@ def get_args():
     ap.add_argument("--gpus", default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-w", "--workers", type=int, default=4)
+
+    # WandB additional arguments
+    ap.add_argument("-nw", "--no-wandb", default=False, action="store_false")
     ap.add_argument("-wo", "--wandb-offline", default=False, action="store_true")
     ap.add_argument("-wp", "--wandb-project",
                     default=os.environ.get("ICENET_ENVIRONMENT"), type=str)
@@ -414,13 +389,43 @@ def main():
         if args.strategy == "central" \
         else tf.distribute.get_strategy()
 
+    if WANDB_AVAILABLE and not args.no_wandb:
+        logging.warning("Initialising WANDB for this run at user request")
+        wandb.init(
+            project=args.wandb_project,
+            name="{}.{}".format(args.run_name, args.seed),
+            notes="{}: run at {}{}".format(args.run_name,
+                                           dt.datetime.now().strftime("%D %T"),
+                                           "" if
+                                           not args.preload is not None else
+                                           " preload {}".format(args.preload)),
+            entity=args.wandb_user,
+            config=dict(
+                seed=args.seed,
+                learning_rate=args.lr,
+                filter_size=args.filter_size,
+                n_filters_factor=args.n_filters_factor,
+                lr_10e_decay_fac=args.lr_10e_decay_fac,
+                lr_decay_start=args.lr_decay_start,
+                lr_decay_end=args.lr_decay_end,
+                batch_size=args.batch_size,
+            ),
+            allow_val_change=True,
+            mode='offline' if args.wandb_offline else 'online',
+            settings=wandb.Settings(
+                start_method="fork",
+                _disable_stats=True,
+            ),
+            group=args.run_name,
+        )
+
     weights_path, model_path = \
         train_model(args.run_name,
                     dataset,
-                    batch_size=args.batch_size,
                     dataset_ratio=args.ratio,
                     early_stopping_patience=args.early_stopping,
                     epochs=args.epochs,
+                    filter_size=args.filter_size,
                     learning_rate=args.lr,
                     lr_10e_decay_fac=args.lr_10e_decay_fac,
                     lr_decay_start=args.lr_decay_start,
@@ -435,9 +440,6 @@ def main():
                     training_verbosity=1 if args.verbose else 2,
                     use_multiprocessing=args.multiprocessing,
                     use_wandb=not args.no_wandb,
-                    wandb_offline=args.wandb_offline,
-                    wandb_project=args.wandb_project,
-                    wandb_user=args.wandb_user,
                     workers=args.workers)
 
     evaluate_model(model_path,
@@ -445,4 +447,5 @@ def main():
                    dataset_ratio=args.ratio,
                    max_queue_size=args.max_queue_size,
                    use_multiprocessing=args.multiprocessing,
+                   use_wandb=not args.no_wandb,
                    workers=args.workers)

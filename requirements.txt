@@ -1,17 +1,13 @@
 azure-storage-blob
-bokeh
 cartopy
 cdsapi
 cfgrib
 dask
 distributed
-dm-tree
 eccodes
 ecmwf-api-client
 h5py==2.10.0
 ibicus
-imageio
-imageio-ffmpeg
 matplotlib
 motuclient
 netcdf4
@@ -27,4 +23,4 @@ tensorflow
 tensorflow-probability
 wandb
 wheel
-xarray[complete]
+xarray[io]

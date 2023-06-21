@@ -7,10 +7,16 @@ import subprocess
 import numpy as np
 import tensorflow as tf
 
+from math import ceil
+
 from icenet.data.datasets.utils import get_decoder
+from icenet.data.cli import date_arg
+from icenet.data.dataset import IceNetDataSet
 from icenet.utils import setup_logging
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 @setup_logging
@@ -80,3 +86,69 @@ def plot_tfrecord():
             ax.contourf(y_out, levels=args.levels)
             plt.savefig(output_path)
             plt.close()
+
+
+@setup_logging
+def get_sample_get_args():
+    """
+
+    :return:
+    """
+    ap = argparse.ArgumentParser()
+    ap.add_argument("dataset", type=str)
+    ap.add_argument("date", type=date_arg)
+    ap.add_argument("output_path", type=str)
+
+    ap.add_argument("-p", "--prediction", action="store_true", default=False)
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+
+    args = ap.parse_args()
+    return args
+
+
+def plot_sample_cli():
+    """
+
+    """
+    args = get_sample_get_args()
+    logging.debug("Opening dataset to get loader: {}".format(args.dataset))
+    ds = IceNetDataSet(args.dataset)
+    dl = ds.get_data_loader()
+    logging.debug("Generating sample for {}".format(args.date))
+    net_input, _, _ = dl.generate_sample(
+        args.date, prediction=args.prediction)
+    plot_channel_data(net_input, dl.channel_names, "test.png")
+
+
+def plot_channel_data(data: object,
+                      var_names: list,
+                      output_path: str,
+                      cols: int = 4,
+                      square_size: int = 4):
+    """
+
+    :param data:
+    :param var_names:
+    :param output_path:
+    :param cols:
+    :param square_size:
+    """
+    num_rows = int(len(var_names) / cols) + \
+        ceil(len(var_names) / cols - int(len(var_names) / cols))
+
+    logging.debug("Plot Rows {} Cols {} Channels {}".
+                  format(num_rows, cols, len(var_names)))
+    fig = plt.figure(figsize=(cols * square_size, num_rows * square_size),
+                     layout="tight", dpi=150)
+
+    for i, var in enumerate(var_names):
+        ax1 = fig.add_subplot(num_rows, cols, i + 1)
+        ax1.set_title("{}".format(var))
+
+        im1 = ax1.imshow(data[..., i], interpolation='None')
+        divider = make_axes_locatable(ax1)
+        cax1 = divider.append_axes('right', size='3%', pad=square_size / 25)
+        fig.colorbar(im1, cax=cax1, orientation='vertical')
+
+    plt.savefig(output_path)
+    plt.close()

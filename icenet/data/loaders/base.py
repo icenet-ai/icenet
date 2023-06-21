@@ -318,6 +318,12 @@ class IceNetBaseDataLoader(Generator):
             json.dump(configuration, fh, indent=4, default=_serialize)
 
     @property
+    def channel_names(self):
+        return ["{}_{}".format(nom, idx) if idx_qty > 1 else nom
+                for nom, idx_qty in self._channels.items()
+                for idx in range(1, idx_qty + 1)]
+
+    @property
     def config(self):
         return self._config
 
