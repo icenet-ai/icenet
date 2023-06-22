@@ -10,6 +10,7 @@ import tensorflow as tf
 
 import icenet.model.models as models
 
+from icenet.data.loader import save_sample
 from icenet.data.dataset import IceNetDataSet
 from icenet.utils import setup_logging
 
@@ -26,6 +27,7 @@ def predict_forecast(
     n_filters_factor: float = 1 / 8,
     network_folder: object = None,
     output_folder: object = None,
+    save_args: bool = False,
     seed: int = 42,
     start_dates: object = tuple([dt.datetime.now().date()]),
     test_set: bool = False,
@@ -39,6 +41,7 @@ def predict_forecast(
     :param n_filters_factor:
     :param network_folder:
     :param output_folder:
+    :param save_args:
     :param seed:
     :param start_dates:
     :param test_set:
@@ -72,10 +75,12 @@ def predict_forecast(
         logging.info("Generating forecast inputs from processed/ files")
 
         for date in start_dates:
-            run_prediction(network,
-                           date,
-                           output_folder,
-                           *dl.generate_sample(date, prediction=True))
+            data_sample = dl.generate_sample(date, prediction=True)
+            run_prediction(network=network,
+                           date=date,
+                           output_folder=output_folder,
+                           sample=data_sample,
+                           save_args=save_args)
     else:
         # TODO: This is horrible behaviour, rethink and refactor: we should
         #  be able to pull from the test set in a nicer and more efficient
@@ -112,16 +117,22 @@ def predict_forecast(
             logging.info("Processing test batch {}, item {} (date {})".format(
                 batch + 1, arr_idx, test_dates[idx]))
 
-            run_prediction(network,
-                           test_dates[idx],
-                           output_folder,
-                           x[arr_idx, ...],
-                           y[arr_idx, ...],
-                           sw[arr_idx, ...])
+            run_prediction(network=network,
+                           date=test_dates[idx],
+                           output_folder=output_folder,
+                           data_sample=(x[arr_idx, ...],
+                                        y[arr_idx, ...],
+                                        sw[arr_idx, ...]),
+                           save_args=save_args)
 
 
-def run_prediction(network, date, output_folder,
-                   net_input, net_output, sample_weights):
+def run_prediction(network,
+                   date,
+                   output_folder,
+                   data_sample,
+                   save_args):
+    net_input, net_output, sample_weights = data_sample
+
     logging.info("Running prediction {}".format(date))
     pred = network(tf.convert_to_tensor([net_input]), training=False)
 
@@ -133,20 +144,9 @@ def run_prediction(network, date, output_folder,
     logging.info("Saving {} - forecast output {}".format(date, pred.shape))
     np.save(output_path, pred)
 
-    logging.debug("Saving loader generated data for reference...")
-
-    for date, output, directory in \
-            ((date, net_input, "input"),
-             (date, net_output, "outputs"),
-             (date, sample_weights, "weights")):
-        output_directory = os.path.join(output_folder, "loader", directory)
-        os.makedirs(output_directory, exist_ok=True)
-        loader_output_path = os.path.join(output_directory,
-                                          date.strftime("%Y_%m_%d.npy"))
-
-        logging.info("Saving {} - generated {} {}".
-                     format(date, directory, output.shape))
-        np.save(loader_output_path, output)
+    if save_args:
+        logging.debug("Saving loader generated data for reference...")
+        save_sample(output_path, date, data_sample)
 
     return output_path
 
@@ -177,8 +177,9 @@ def get_args():
     ap.add_argument("-i", "--train-identifier", dest="ident",
                     help="Train dataset identifier", type=str, default=None)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
-    ap.add_argument("-t", "--testset", default=False, action="store_true")
+    ap.add_argument("-t", "--testset", action="store_true", default=False)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
+    ap.add_argument("-s", "--save_args", action="store_true", default=False)
 
     return ap.parse_args()
 
@@ -203,11 +204,10 @@ def main():
                      # FIXME: this is turning into a mapping mess,
                      #  do we need to retain the train SD name in the
                      #  network?
-                     dataset_name=
-                     args.ident if args.ident else args.dataset,
-                     n_filters_factor=
-                     args.n_filters_factor,
+                     dataset_name=args.ident if args.ident else args.dataset,
+                     n_filters_factor=args.n_filters_factor,
                      output_folder=output_folder,
+                     save_args=args.save_args,
                      seed=args.seed,
                      start_dates=dates,
                      test_set=args.testset)

@@ -66,7 +66,6 @@ setup(
 
             "icenet_dataset_check = icenet.data.dataset:check_dataset",
             "icenet_dataset_create = icenet.data.loader:create",
-            "icenet_loader_sample = icenet.data.loader:get_sample",
 
             "icenet_train = icenet.model.train:main",
             "icenet_predict = icenet.model.predict:main",
@@ -76,6 +75,7 @@ setup(
             "icenet_plot_record = icenet.plotting.data:plot_tfrecord",
 
             "icenet_plot_forecast = icenet.plotting.forecast:plot_forecast",
+            "icenet_plot_input = icenet.plotting.data:plot_sample_cli",
             "icenet_plot_sic_error = icenet.plotting.forecast:sic_error",
             "icenet_plot_sic_error_local = icenet.plotting.forecast:sic_error_local",
             "icenet_plot_bin_accuracy = "

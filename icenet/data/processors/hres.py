@@ -32,6 +32,7 @@ def main():
         linear_trends=args.trends,
         linear_trend_steps=args.trend_lead,
         north=args.hemisphere == "north",
+        parallel_opens=args.parallel_opens,
         ref_procdir=args.ref,
         south=args.hemisphere == "south",
         update_key=args.update_key,
