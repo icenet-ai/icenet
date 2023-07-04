@@ -79,7 +79,7 @@ def predict_forecast(
             run_prediction(network=network,
                            date=date,
                            output_folder=output_folder,
-                           sample=data_sample,
+                           data_sample=data_sample,
                            save_args=save_args)
     else:
         # TODO: This is horrible behaviour, rethink and refactor: we should
