@@ -505,12 +505,6 @@ def generate_sample(forecast_date: object,
             x[:, :, v1] = da.array(meta_ds.to_numpy())
         v1 += channels[var_name]
 
-    #    x.visualize(filename='x.svg', optimize_graph=True)
-    #    y.visualize(filename='y.svg', optimize_graph=True)
-    #    sample_weights.visualize(filename='sample_weights.svg', optimize_graph=True)
-    #    import sys
-    #    sys.exit(0)
-
     return x, y, sample_weights
 
 
