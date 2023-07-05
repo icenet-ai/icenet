@@ -97,9 +97,13 @@ def get_sample_get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset", type=str)
     ap.add_argument("date", type=date_arg)
-    ap.add_argument("output_path", type=str)
+    ap.add_argument("output_path", type=str, default="test.png")
+
+    ap.add_argument("-c" "--cols", type=int, default=8,
+                    help="Plotting data over this number of columns")
 
     ap.add_argument("-p", "--prediction", action="store_true", default=False)
+    ap.add_argument("-s", "--size", type=int, default=4)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     args = ap.parse_args()
@@ -114,10 +118,16 @@ def plot_sample_cli():
     logging.debug("Opening dataset to get loader: {}".format(args.dataset))
     ds = IceNetDataSet(args.dataset)
     dl = ds.get_data_loader()
+
     logging.debug("Generating sample for {}".format(args.date))
     net_input, _, _ = dl.generate_sample(
         args.date, prediction=args.prediction)
-    plot_channel_data(net_input, dl.channel_names, "test.png")
+
+    plot_channel_data(net_input,
+                      dl.channel_names,
+                      args.output_path,
+                      cols=args.col,
+                      square_size=args.size)
 
 
 def plot_channel_data(data: object,
