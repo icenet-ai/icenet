@@ -133,13 +133,13 @@ def plot_sample_cli():
     if args.weights:
         channel_data = net_weight.squeeze()
         channel_labels = ["weights{}".format(i)
-                          for i in range(net_weight.shape[-1])]
+                          for i in range(channel_data.shape[-1])]
         logging.info("Plotting {} weights from sample".
                      format(len(channel_labels)))
     elif args.outputs:
         channel_data = net_output.squeeze()
         channel_labels = ["outputs{}".format(i)
-                          for i in range(net_output.shape[-1])]
+                          for i in range(channel_data.shape[-1])]
         logging.info("Plotting {} outputs from sample".
                      format(len(channel_labels)))
     else:
