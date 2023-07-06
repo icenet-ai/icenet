@@ -123,7 +123,7 @@ def plot_sample_cli():
     ds = IceNetDataSet(args.dataset)
     dl = ds.get_data_loader()
 
-    assert not (args.output or args.weights) and args.prediction, \
+    assert not (args.outputs or args.weights) and args.prediction, \
         "Don't ask for outputs or weights if it's a prediction sample"
 
     logging.debug("Generating sample for {}".format(args.date))
