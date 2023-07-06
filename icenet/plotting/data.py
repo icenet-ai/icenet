@@ -131,19 +131,23 @@ def plot_sample_cli():
         args.date, prediction=args.prediction)
 
     if args.weights:
-        logging.info("Plotting weights from sample")
         channel_data = net_weight.squeeze()
         channel_labels = ["weights{}".format(i)
                           for i in range(net_weight.shape[-1])]
+        logging.info("Plotting {} weights from sample".
+                     format(len(channel_labels)))
     elif args.outputs:
-        logging.info("Plotting outputs from sample")
         channel_data = net_output.squeeze()
         channel_labels = ["outputs{}".format(i)
                           for i in range(net_output.shape[-1])]
+        logging.info("Plotting {} outputs from sample".
+                     format(len(channel_labels)))
     else:
         logging.info("Plotting inputs from sample")
         channel_data = net_input
         channel_labels = dl.channel_names
+        logging.info("Plotting {} inputs from sample".
+                     format(len(channel_labels)))
 
     plot_channel_data(channel_data,
                       channel_labels,
