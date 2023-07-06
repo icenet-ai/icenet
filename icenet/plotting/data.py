@@ -148,7 +148,7 @@ def plot_sample_cli():
     plot_channel_data(channel_data,
                       channel_labels,
                       args.output_path,
-                      cols=args.col,
+                      cols=args.cols,
                       square_size=args.size)
 
 
