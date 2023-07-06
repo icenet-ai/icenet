@@ -99,7 +99,7 @@ def get_sample_get_args():
     ap.add_argument("date", type=date_arg)
     ap.add_argument("output_path", type=str, default="test.png")
 
-    ap.add_argument("-c" "--cols", type=int, default=8,
+    ap.add_argument("-c", "--cols", type=int, default=8,
                     help="Plotting data over this number of columns")
 
     data_type = ap.add_mutually_exclusive_group(required=False)
@@ -135,7 +135,7 @@ def plot_sample_cli():
         channel_data = net_weight
         channel_labels = ["weights{}".format(i)
                           for i in range(net_weight.shape[0])]
-    elif args.output:
+    elif args.outputs:
         logging.info("Plotting outputs from sample")
         channel_data = net_output
         channel_labels = ["outputs{}".format(i)
