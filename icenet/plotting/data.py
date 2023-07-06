@@ -102,6 +102,10 @@ def get_sample_get_args():
     ap.add_argument("-c" "--cols", type=int, default=8,
                     help="Plotting data over this number of columns")
 
+    data_type = ap.add_mutually_exclusive_group(required=False)
+    data_type.add_argument("--outputs", action="store_true", default=False)
+    data_type.add_argument("--weights", action="store_true", default=False)
+
     ap.add_argument("-p", "--prediction", action="store_true", default=False)
     ap.add_argument("-s", "--size", type=int, default=4)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
@@ -119,12 +123,30 @@ def plot_sample_cli():
     ds = IceNetDataSet(args.dataset)
     dl = ds.get_data_loader()
 
+    assert not (args.output or args.weights) and args.prediction, \
+        "Don't ask for outputs or weights if it's a prediction sample"
+
     logging.debug("Generating sample for {}".format(args.date))
-    net_input, _, _ = dl.generate_sample(
+    net_input, net_output, net_weight = dl.generate_sample(
         args.date, prediction=args.prediction)
 
-    plot_channel_data(net_input,
-                      dl.channel_names,
+    if args.weights:
+        logging.info("Plotting weights from sample")
+        channel_data = net_weight
+        channel_labels = ["weights{}".format(i)
+                          for i in range(net_weight.shape[0])]
+    elif args.output:
+        logging.info("Plotting outputs from sample")
+        channel_data = net_output
+        channel_labels = ["outputs{}".format(i)
+                          for i in range(net_output.shape[0])]
+    else:
+        logging.info("Plotting inputs from sample")
+        channel_data = net_input
+        channel_labels = dl.channel_names
+
+    plot_channel_data(channel_data,
+                      channel_labels,
                       args.output_path,
                       cols=args.col,
                       square_size=args.size)
