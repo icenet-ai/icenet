@@ -449,11 +449,11 @@ def main():
 
     if using_wandb:
         metric_vals = [[results[f'{name}{lt}']
-                        for lt in leads] for name in metrics]
+                        for lt in leads] for name in metric_names]
         table_data = list(zip(leads, *metric_vals))
-        table = wandb.Table(data=table_data, columns=['leadtime', *metrics])
+        table = wandb.Table(data=table_data, columns=['leadtime', *metric_names])
 
         # Log each metric vs. leadtime as a plot to wandb
-        for name in metrics:
+        for name in metric_names:
             wandb.log(
                 {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
