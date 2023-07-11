@@ -375,11 +375,12 @@ def main():
     # for other integrations, but for the moment I have no shame
     callback_objects = list()
     using_wandb = False
+    run = None
 
     if not args.no_wandb and wandb_available:
         logging.warning("Initialising WANDB for this run at user request")
 
-        wandb.init(
+        run = wandb.init(
             project=args.wandb_project,
             name="{}.{}".format(args.run_name, args.seed),
             notes="{}: run at {}{}".format(args.run_name,
@@ -398,12 +399,12 @@ def main():
                 lr_decay_end=args.lr_decay_end,
                 batch_size=args.batch_size,
             ),
+            settings=wandb.Settings(
+            #    start_method="fork",
+            #    _disable_stats=True,
+            ),
             allow_val_change=True,
             mode='offline' if args.wandb_offline else 'online',
-            settings=wandb.Settings(
-                start_method="fork",
-                _disable_stats=True,
-            ),
             group=args.run_name,
         )
         using_wandb = True
@@ -455,7 +456,6 @@ def main():
 
     if using_wandb:
         logging.info("Updating wandb run with evaluation metrics")
-        logging.debug("WandB module: {}".format(wandb))
         metric_vals = [[results[f'{name}{lt}']
                         for lt in leads] for name in metric_names]
         table_data = list(zip(leads, *metric_vals))
@@ -464,5 +464,5 @@ def main():
         # Log each metric vs. leadtime as a plot to wandb
         for name in metric_names:
             logging.debug("WandB logging {}".format(name))
-            wandb.log(
+            run.log(
                 {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
