@@ -84,7 +84,7 @@ class AMSRDownloader(Downloader):
                  download: bool = True,
                  dtype: object = np.float32,
                  **kwargs):
-        super().__init__(*args, identifier="amsr2", **kwargs)
+        super().__init__(*args, identifier="amsr2_3125", **kwargs)
 
         self._chunk_size = chunk_size
         self._dates = dates
