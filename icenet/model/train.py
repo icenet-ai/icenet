@@ -24,6 +24,14 @@ from icenet.model.utils import make_exp_decay_lr_schedule
 import icenet.model.models as models
 from icenet.utils import setup_logging
 
+wandb_available = False
+try:
+    import wandb
+    import wandb.keras
+    wandb_available = True
+except ModuleNotFoundError:
+    pass
+
 
 def train_model(
     run_name: object,
@@ -368,53 +376,49 @@ def main():
     callback_objects = list()
     using_wandb = False
 
-    if not args.no_wandb:
+    if not args.no_wandb and wandb_available:
         logging.warning("Initialising WANDB for this run at user request")
 
-        try:
-            import wandb
-            import wandb.keras
-        except ModuleNotFoundError:
-            logging.info("WandB is not available, we will never use it")
-        else:
-            wandb.init(
-                project=args.wandb_project,
-                name="{}.{}".format(args.run_name, args.seed),
-                notes="{}: run at {}{}".format(args.run_name,
-                                               dt.datetime.now().strftime("%D %T"),
-                                               "" if
-                                               not args.preload is not None else
-                                               " preload {}".format(args.preload)),
-                entity=args.wandb_user,
-                config=dict(
-                    seed=args.seed,
-                    learning_rate=args.lr,
-                    filter_size=args.filter_size,
-                    n_filters_factor=args.n_filters_factor,
-                    lr_10e_decay_fac=args.lr_10e_decay_fac,
-                    lr_decay_start=args.lr_decay_start,
-                    lr_decay_end=args.lr_decay_end,
-                    batch_size=args.batch_size,
-                ),
-                allow_val_change=True,
-                mode='offline' if args.wandb_offline else 'online',
-                settings=wandb.Settings(
-                    start_method="fork",
-                    _disable_stats=True,
-                ),
-                group=args.run_name,
-            )
-            using_wandb = True
+        wandb.init(
+            project=args.wandb_project,
+            name="{}.{}".format(args.run_name, args.seed),
+            notes="{}: run at {}{}".format(args.run_name,
+                                           dt.datetime.now().strftime("%D %T"),
+                                           "" if
+                                           not args.preload is not None else
+                                           " preload {}".format(args.preload)),
+            entity=args.wandb_user,
+            config=dict(
+                seed=args.seed,
+                learning_rate=args.lr,
+                filter_size=args.filter_size,
+                n_filters_factor=args.n_filters_factor,
+                lr_10e_decay_fac=args.lr_10e_decay_fac,
+                lr_decay_start=args.lr_decay_start,
+                lr_decay_end=args.lr_decay_end,
+                batch_size=args.batch_size,
+            ),
+            allow_val_change=True,
+            mode='offline' if args.wandb_offline else 'online',
+            settings=wandb.Settings(
+                start_method="fork",
+                _disable_stats=True,
+            ),
+            group=args.run_name,
+        )
+        using_wandb = True
 
-            # Log training metrics to wandb each epoch
-            logging.info("Adding wandb callback")
-            callback_objects.append(
-                wandb.keras.WandbCallback(
-                    monitor=args.checkpoint_monitor,
-                    mode=args.checkpoint_mode,
-                    save_model=False,
-                    save_graph=False,
-                ))
+        # Log training metrics to wandb each epoch
+        logging.info("Adding wandb callback")
+        callback_objects.append(
+            wandb.keras.WandbCallback(
+                monitor=args.checkpoint_monitor,
+                mode=args.checkpoint_mode,
+                save_model=False,
+                save_graph=False,
+            ))
+    elif not wandb_available:
+        logging.warning("WandB is not available, we will never use it")
 
     weights_path, model_path = \
         train_model(args.run_name,
@@ -450,6 +454,8 @@ def main():
                        workers=args.workers)
 
     if using_wandb:
+        logging.info("Updating wandb run with evaluation metrics")
+        logging.debug("WandB module: {}".format(wandb))
         metric_vals = [[results[f'{name}{lt}']
                         for lt in leads] for name in metric_names]
         table_data = list(zip(leads, *metric_vals))
@@ -457,5 +463,6 @@ def main():
 
         # Log each metric vs. leadtime as a plot to wandb
         for name in metric_names:
+            logging.debug("WandB logging {}".format(name))
             wandb.log(
                 {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
