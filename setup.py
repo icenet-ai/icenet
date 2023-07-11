@@ -46,6 +46,9 @@ setup(
             "icenet_data_oras5 = icenet.data.interfaces.cmems:main",
             "icenet_data_hres = icenet.data.interfaces.mars:hres_main",
             "icenet_data_seas = icenet.data.interfaces.mars:seas_main",
+
+            "icenet_data_amsr = icenet.data.sic.amsr:main",
+            "icenet_data_osisaf = icenet.data.sic.osisaf:main",
             "icenet_data_sic = icenet.data.sic.osisaf:main",
 
             "icenet_data_reproc_monthly = "
