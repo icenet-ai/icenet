@@ -231,9 +231,11 @@ def evaluate_model(model_path: object,
     eval_data = val_ds
 
     if dataset.counts["test"] > 0:
+        eval_data = test_ds
+        logging.info("Using test set for validation")
+    else:
         logging.warning("Using validation data source for evaluation, rather "
                         "than test set")
-        eval_data = test_ds
 
     lead_times = list(range(1, dataset.n_forecast_days + 1))
     logging.info("Metric creation for lead time of {} days".
