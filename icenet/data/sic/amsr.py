@@ -1,6 +1,12 @@
 import copy
+import fnmatch
+import ftplib
+import gzip
 import logging
 import os
+
+import datetime as dt
+from ftplib import FTP
 
 import datetime as dt
 import numpy as np
@@ -14,7 +20,7 @@ from icenet.utils import Hemisphere, run_command
 from icenet.data.sic.utils import SIC_HEMI_STR, DaskWrapper
 
 
-var_remove_list = ["polar_stereographic"]
+var_remove_list = ["polar_stereographic", "land"]
 
 
 class AMSRDownloader(Downloader):
@@ -22,9 +28,47 @@ class AMSRDownloader(Downloader):
 
     The data can come from yearly zips, or individual files
 
-    The query URLs were obtained from the following site:
+    We used to use the following for HTTP downloads:
         - https://seaice.uni-bremen.de/data/amsr2/asi_daygrid_swath/
         - n3125/ or n6250/ for lower or higher resolutions respectively
+    But now realise there's anonymous FTP with 3.125km NetCDFs for both hemis
+    provided by the University of Hamburg, how kind!
+
+        {'CDI': 'Climate Data Interface version 1.6.5.1 '
+                '(http://code.zmaw.de/projects/cdi)',
+         'CDO': 'Climate Data Operators version 1.6.5.1 '
+                '(http://code.zmaw.de/projects/cdo)',
+         'Comment1': 'Scaled land mask value is 12500, NaN values are masked 11500',
+         'Comment2': 'After application of scale_factor (multiply with 0.01): land '
+                     'mask value is 125, NaN values are masked 115',
+         'Conventions': 'CF-1.4',
+         'algorithm': 'ASI v5',
+         'cite': 'Spreen, G., L. Kaleschke, G. Heygster, Sea Ice Remote Sensing Using '
+                 'AMSR-E 89 GHz Channels, J. Geophys. Res., 113, C02S03, '
+                 'doi:10.1029/2005JC003384, 2008.',
+         'contact': 'alexander.beitsch@zmaw.de',
+         'datasource': 'JAXA',
+         'description': 'gridded ASI AMSR2 sea ice concentration',
+         'geocorrection': 'none',
+         'grid': 'NSIDC polar stereographic with tangential plane at 70degN , see '
+                 'http://nsidc.org/data/polar_stereo/ps_grids.html',
+         'grid_resolution': '3.125 km',
+         'gridding_method': 'Nearest Neighbor, with Python package pyresample',
+         'hemisphere': 'South',
+         'history': 'Tue Nov 11 21:26:36 2014: cdo setdate,2014-11-10 '
+                    '-settime,12:00:00 '
+                    '/scratch/clisap/seaice/OWN_PRODUCTS/AMSR2_SIC_3125/2014/Ant_20141110_res3.125_pyres_temp.nc '
+                    '/scratch/clisap/seaice/OWN_PRODUCTS/AMSR2_SIC_3125/2014/Ant_20141110_res3.125_pyres.nc\n'
+                    'Created Tue Nov 11 21:26:35 2014',
+         'landmask_value': '12500',
+         'missing_value': '11500',
+         'netCDF_created_by': 'Alexander Beitsch, alexander.beitsch(at)zmaw.de',
+         'offset': '0',
+         'sensor': 'AMSR2',
+         'tiepoints': 'P0=47 K, P1=11.7 K',
+         'title': 'Daily averaged Arctic sea ice concentration derived from AMSR2 L1R '
+                  'brightness temperature measurements'}
+
 
     :param chunk_size:
     :param dates:
@@ -58,18 +102,19 @@ class AMSRDownloader(Downloader):
         """
 
         """
-        hs = SIC_HEMI_STR[self.hemisphere_str[0]][0]
+        hemi_str = "Ant" if self.south else "Arc"
         data_files = []
         var = "siconca"
+        ftp = None
 
         logging.info(
             "Not downloading AMSR SIC files, (re)processing NC files in "
             "existence already" if not self._download else
-            "Downloading SIC datafiles to .temp intermediates...")
+            "Downloading SIC datafiles and ungzipping...")
 
         cache = {}
         amsr2_start = dt.date(2012, 7, 2)
-
+        chdir_path = "/seaice/AMSR2/3.125km"
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
 
         # Filtering dates based on existing data (SAME AS OSISAF)
@@ -98,37 +143,87 @@ class AMSRDownloader(Downloader):
             el = dt_arr.pop()
 
             date_str = el.strftime("%Y_%m_%d")
-            nc_path = os.path.join(
+            temp_path = os.path.join(
                 self.get_data_var_folder(var, append=[str(el.year)]),
-                "{}.nc".format(date_str))
+                "{}.nc.gz".format(date_str))
+            nc_path = temp_path[:-3]
 
             if not self._download:
-                if os.path.exists(nc_path):
-                    reproc_path = os.path.join(
-                        self.get_data_var_folder(var,
-                                                 append=[str(el.year)]),
-                        "{}.reproc.nc".format(date_str))
-
-                    logging.debug("{} exists, becoming {}".
-                                  format(nc_path, reproc_path))
-                    os.rename(nc_path, reproc_path)
-                    data_files.append(reproc_path)
-                else:
-                    logging.debug("{} does not exist".format(nc_path))
-                continue
+                if os.path.exists(temp_path) and not os.path.exists(nc_path):
+                    logging.info("Decompressing {} to {}".
+                                 format(temp_path, nc_path))
+                    with open(nc_path, "wb") as fh_out:
+                        with gzip.open(temp_path, "rb") as fh_in:
+                            fh_out.write(fh_in.read())
+                    data_files.append(nc_path)
             else:
                 if not os.path.isdir(os.path.dirname(nc_path)):
                     os.makedirs(os.path.dirname(nc_path), exist_ok=True)
 
-                if os.path.exists(nc_path):
-                    logging.debug("{} file exists, skipping".format(date_str))
+                if os.path.exists(temp_path) and not os.path.exists(nc_path):
+                    logging.info("Decompressing {} to {}".
+                                 format(temp_path, nc_path))
+                    with open(nc_path, "wb") as fh_out:
+                        with gzip.open(temp_path, "rb") as fh_in:
+                            fh_out.write(fh_in.read())
+                    data_files.append(nc_path)
                     continue
 
-                # TODO: check for file existence
-                # TODO: download nc_file
+                if os.path.exists(nc_path):
+                    logging.debug("{} file exists, skipping".format(date_str))
+                    data_files.append(nc_path)
+                    continue
 
-                logging.debug("Downloaded {}".format(nc_file))
-                data_files.append(nc_file)
+                if not ftp:
+                    logging.info("FTP opening")
+                    ftp = FTP("ftp-projects.cen.uni-hamburg.de")
+                    ftp.login()
+
+                try:
+                    ftp.cwd(chdir_path)
+
+                    if chdir_path not in cache:
+                        cache[chdir_path] = ftp.nlst()
+
+                    cache_match = "{}_{}{:02d}{:02d}_res3.125_pyres.nc".\
+                        format(hemi_str, el.year, el.month, el.day)
+                    ftp_files = [el for el in cache[chdir_path]
+                                 if fnmatch.fnmatch(el, cache_match)
+                                 or fnmatch.fnmatch(el, "{}.gz".format(cache_match))]
+
+                    if len(ftp_files) > 1:
+                        raise ValueError("More than a single file found: {}".
+                                         format(ftp_files))
+                    elif not len(ftp_files):
+                        logging.warning("File is not available: {}".
+                                        format(cache_match))
+                        continue
+                except ftplib.error_perm:
+                    logging.warning("FTP error, possibly missing month chdir "
+                                    "for {}".format(date_str))
+                    continue
+
+                with open(temp_path, "wb") as fh:
+                    ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
+
+                is_gzipped = True
+                with open(temp_path, "rb") as fh:
+                    if fh.read(2).decode("latin-1") == "CD":
+                        is_gzipped = False
+
+                if is_gzipped:
+                    logging.debug("Downloaded {}, decompressing to {}".
+                                  format(temp_path, nc_path))
+                    with open(nc_path, "wb") as fh_out:
+                        with gzip.open(temp_path, "rb") as fh_in:
+                            fh_out.write(fh_in.read())
+                else:
+                    os.rename(temp_path, nc_path)
+
+                data_files.append(nc_path)
+
+        if ftp:
+            ftp.quit()
 
         logging.debug("Files being processed: {}".format(data_files))
 
@@ -136,7 +231,7 @@ class AMSRDownloader(Downloader):
             ds = xr.open_mfdataset(data_files,
                                    combine="nested",
                                    concat_dim="time",
-                                   data_vars=["ice_conc"],
+                                   data_vars=["sea_ice_concentration"],
                                    drop_variables=var_remove_list,
                                    engine="netcdf4",
                                    chunks=dict(time=self._chunk_size,),
@@ -144,21 +239,16 @@ class AMSRDownloader(Downloader):
 
             logging.debug("Processing out extraneous data")
 
-            da = ds.resample(time="1D").mean().z
+            da = ds.resample(time="1D").mean().sea_ice_concentration
 
+            # Remove land mask @ 115 and invalid mask at 125
+            da = da.where(da <= 100, 0.)
             da /= 100.  # Convert from SIC % to fraction
 
             # TODO: validate, are we to be applying the OSISAF mask?
-            for month, mask in self._mask_dict.items():
-                da.loc[dict(time=(da['time.month'] == month))].values[:, ~mask] = 0.
-
-            for date in da.time.values:
-                day_da = da.sel(time=slice(date, date))
-
-                if np.sum(np.isnan(day_da.data)) > 0:
-                    logging.warning("NaNs detected, adding to invalid "
-                                    "list: {}".format(date))
-                    self._invalid_dates.append(pd.to_datetime(date))
+            # It will need substantial reprojection if so
+            #for month, mask in self._mask_dict.items():
+            #    da.loc[dict(time=(da['time.month'] == month))].values[:, ~mask] = 0.
 
             var_folder = self.get_data_var_folder(var)
             group_by = "time.year"
@@ -210,7 +300,7 @@ class AMSRDownloader(Downloader):
                                concat_dim="time",
                                chunks=dict(time=self._chunk_size, ),
                                parallel=True)
-        return self._missing_dates(ds.ice_conc)
+        return self._missing_dates(ds.sea_ice_concentration)
 
     def _missing_dates(self, da: object) -> object:
         """
@@ -218,25 +308,14 @@ class AMSRDownloader(Downloader):
         :param da:
         :return:
         """
-        if pd.Timestamp(1979, 1, 2) in da.time.values \
-                and dt.date(1979, 1, 1) in self._dates\
-                and pd.Timestamp(1979, 1, 1) not in da.time.values:
-            da_1979_01_01 = da.sel(
-                time=[pd.Timestamp(1979, 1, 2)]).copy().assign_coords(
-                {'time': [pd.Timestamp(1979, 1, 1)]})
-            da = xr.concat([da, da_1979_01_01], dim='time')
-            da = da.sortby('time')
-
         dates_obs = [pd.to_datetime(date).date() for date in da.time.values]
         dates_all = [pd.to_datetime(date).date() for date in
                      pd.date_range(min(self._dates), max(self._dates))]
 
         # Weirdly, we were getting future warnings for timestamps, but unsure
         # where from
-        invalid_dates = [pd.to_datetime(d).date() for d in self._invalid_dates]
         missing_dates = [date for date in dates_all
-                         if date not in dates_obs
-                         or date in invalid_dates]
+                         if date not in dates_obs]
 
         logging.info("Processing {} missing dates".format(len(missing_dates)))
 
