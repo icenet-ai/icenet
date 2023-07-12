@@ -191,10 +191,7 @@ class AMSRDownloader(Downloader):
                                  if fnmatch.fnmatch(el, cache_match)
                                  or fnmatch.fnmatch(el, "{}.gz".format(cache_match))]
 
-                    if len(ftp_files) > 1:
-                        raise ValueError("More than a single file found: {}".
-                                         format(ftp_files))
-                    elif not len(ftp_files):
+                    if not len(ftp_files):
                         logging.warning("File is not available: {}".
                                         format(cache_match))
                         continue
