@@ -190,7 +190,8 @@ invalid_sic_days = {
         dt.date(1984, 11, 19),
         dt.date(1984, 11, 21),
         dt.date(1985, 7, 23),
-        *pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 1)),
+        *[d.date() for d in
+          pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 1))],
         dt.date(1990, 8, 14),
         dt.date(1990, 8, 15),
         dt.date(1990, 8, 24),
