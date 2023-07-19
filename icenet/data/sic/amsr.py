@@ -225,7 +225,8 @@ class AMSRDownloader(Downloader):
         logging.debug("Files being processed: {}".format(data_files))
 
         if len(data_files):
-            ds = xr.open_mfdataset(data_files,
+            ds = xr.open_mfdataset([df for df in data_files
+                                    if os.stat(df).st_size > 0],
                                    combine="nested",
                                    concat_dim="time",
                                    data_vars=["sea_ice_concentration"],
