@@ -119,6 +119,10 @@ def download_args(choices: object = None,
 
     if workers:
         ap.add_argument("-w", "--workers", default=8, type=int)
+    
+    ap.add_argument("-p", "--parallel-opens",
+                    default=False, action="store_true",
+                    help="Allow xarray mfdataset to work with parallel opens")
 
     ap.add_argument("-d", "--dont-delete", dest="delete",
                     action="store_false", default=True)

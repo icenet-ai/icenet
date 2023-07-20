@@ -282,6 +282,7 @@ class SICDownloader(Downloader):
                  delete_tempfiles: bool = True,
                  download: bool = True,
                  dtype: object = np.float32,
+                 parallel_opens: bool = True,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
 
@@ -290,6 +291,7 @@ class SICDownloader(Downloader):
         self._delete = delete_tempfiles
         self._download = download
         self._dtype = dtype
+        self._parallel_opens = parallel_opens
         self._invalid_dates = invalid_sic_days[self.hemisphere] + \
             list(additional_invalid_dates)
         self._masks = Masks(north=self.north, south=self.south)
@@ -341,6 +343,7 @@ class SICDownloader(Downloader):
 
             # We won't hold onto an active dataset during network I/O
             extant_ds.close()
+
         # End filtering
 
         while len(dt_arr):
@@ -437,7 +440,7 @@ class SICDownloader(Downloader):
                                    drop_variables=var_remove_list,
                                    engine="netcdf4",
                                    chunks=dict(time=self._chunk_size,),
-                                   parallel=True)
+                                   parallel=self._parallel_opens)
 
             logging.debug("Processing out extraneous data")
 
@@ -516,7 +519,7 @@ class SICDownloader(Downloader):
                                combine="nested",
                                concat_dim="time",
                                chunks=dict(time=self._chunk_size, ),
-                               parallel=True)
+                               parallel=self._parallel_opens)
         return self._missing_dates(ds.ice_conc)
 
     def _missing_dates(self, da: object) -> object:
@@ -647,6 +650,7 @@ def main():
         delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
+        parallel_opens=args.parallel_opens,
     )
     if args.use_dask:
         logging.warning("Attempting to use dask client for SIC processing")
