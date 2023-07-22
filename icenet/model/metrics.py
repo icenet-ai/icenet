@@ -86,16 +86,21 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
     """
 
     :param leadtime_idx:
+    :param y_pred_distr: Whether or not y_pred is a TensorFlow Probability
+    Distribution objet. If so, the mean is taken before computation of the metric.
     """
 
     def __init__(self,
-                 leadtime_idx=None, **kwargs):
+                 leadtime_idx: int = None,
+                 y_pred_distr: bool = False,
+                 **kwargs):
         name = 'binacc'
 
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
             name += str(leadtime_idx+1)
         self._leadtime_idx = leadtime_idx
+        self._y_pred_distr = y_pred_distr
 
         super().__init__(name=name, **kwargs)
 
@@ -111,6 +116,8 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
 
         :return: Root mean squared error of SIC (%) (float)
         """
+        if self.y_pred_distr:
+            y_pred = y_pred.mean()
 
         y_true = y_true > 0.15
         y_pred = y_pred > 0.15
@@ -154,16 +161,20 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
 
     :param name:
     :param leadtime_idx:
+    :param y_pred_distr: Whether or not y_pred is a TensorFlow Probability
+    Distribution object. If so, the mean is taken before computation of the metric.
     """
 
     def __init__(self,
                  name: str = 'mae',
                  leadtime_idx: object = None,
+                 y_pred_distr: bool = False,
                  **kwargs):
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
             name += str(leadtime_idx+1)
         self._leadtime_idx = leadtime_idx
+        self._y_pred_distr = y_pred_distr
 
         super().__init__(name=name, **kwargs)
     
@@ -178,6 +189,9 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
         :param sample_weight:
         :return:
         """
+
+        if self.y_pred_distr:
+            y_pred = y_pred.mean()
 
         if self._leadtime_idx is not None:
             y_true = y_true[..., self._leadtime_idx, 0]
@@ -209,16 +223,24 @@ class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
 
     :param leadtime_idx:
     :param name:
+    :param y_pred_distr: Whether or not y_pred is a TensorFlow Probability
+    Distribution object. If so, the mean is taken before computation of the metric.
+    :param loc: if True, use the loc of the TruncatedNormal rather than the mean.
     """
 
     def __init__(self,
                  leadtime_idx: object = None,
                  name: str = 'rmse',
+                 y_pred_distr: bool = False,
+                 loc: bool = False,
                  **kwargs):
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
             name += str(leadtime_idx+1)
+
         self._leadtime_idx = leadtime_idx
+        self._y_pred_distr = y_pred_distr
+        self._loc = loc
 
         super().__init__(name=name, **kwargs)
 
@@ -233,6 +255,12 @@ class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
         :param sample_weight:
         :return:
         """
+        if self._y_pred_distr:
+            if self._loc:
+                y_pred = y_pred.distribution.loc
+            else:
+                y_pred = y_pred.mean()
+
         if self._leadtime_idx is not None:
             y_true = y_true[..., self._leadtime_idx, 0]
             y_pred = y_pred[..., self._leadtime_idx]
@@ -263,16 +291,24 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
 
     :param leadtime_idx:
     :param name:
+    :param y_pred_distr: Whether or not y_pred is a TensorFlow Probability
+    Distribution object. If so, the mean is taken before computation of the metric.
+    :param loc: if True, use the loc of the TruncatedNormal rather than the mean.
     """
 
     def __init__(self,
                  leadtime_idx: object = None,
+                 y_pred_distr: bool = False,
+                 loc: bool = False,
                  **kwargs):
         name = 'mse'
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
             name += str(leadtime_idx+1)
+
         self._leadtime_idx = leadtime_idx
+        self._y_pred_distr = y_pred_distr
+        self._loc = loc
 
         super().__init__(name=name, **kwargs)
 
@@ -288,6 +324,12 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
         :return:
         """
 
+        if self._y_pred_distr:
+            if self._loc:
+                y_pred = y_pred.distribution.loc
+            else:
+                y_pred = y_pred.mean()
+                
         if self._leadtime_idx is not None:
             y_true = y_true[..., self._leadtime_idx, 0]
             y_pred = y_pred[..., self._leadtime_idx]
@@ -311,4 +353,5 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
         :return:
         """
         return 100 * super().result()
+
 
