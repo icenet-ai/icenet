@@ -265,6 +265,7 @@ class SICDownloader(Downloader):
             met.no/reprocessed/ice/conc_v2p0_nh_agg.html
         - OSI-430-b (2016-present): https://thredds.met.no/thredds/dodsC/osisaf/
             met.no/reprocessed/ice/conc_crb_nh_agg.html
+        - OSI-430-a (2022-present): https://osi-saf.eumetsat.int/products/osi-430-as
 
     :param additional_invalid_dates:
     :param chunk_size:
@@ -295,6 +296,7 @@ class SICDownloader(Downloader):
 
         self._ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
         self._ftp_osi430b = "/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/"
+        self._ftp_osi430a = "/reprocessed/ice/conc-cont-reproc/v3p0/{:04d}/{:02d}/"
 
         self._mask_dict = {
             month: self._masks.get_active_cell_mask(month)
@@ -317,6 +319,7 @@ class SICDownloader(Downloader):
 
         cache = {}
         osi430b_start = dt.date(2016, 1, 1)
+        osi430a_start = dt.date(2018, 11, 18)
 
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
 
@@ -391,7 +394,9 @@ class SICDownloader(Downloader):
                     ftp.login()
 
                 chdir_path = self._ftp_osi450 \
-                    if el < osi430b_start else self._ftp_osi430b
+                    if el < osi430b_start else self._ftp_osi430b \
+                    if el < osi430a_start else self._ftp_osi430a
+
                 chdir_path = chdir_path.format(el.year, el.month)
 
                 try:
