@@ -146,7 +146,7 @@ def run_prediction(network,
 
     if save_args:
         logging.debug("Saving loader generated data for reference...")
-        save_sample(output_path, date, data_sample)
+        save_sample(os.path.join(output_path, "loader"), date, data_sample)
 
     return output_path
 
