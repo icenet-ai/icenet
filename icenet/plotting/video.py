@@ -236,6 +236,7 @@ def recurse_data_folders(base_path: object,
                   or
                   re.search(r'(abs|anom|linear_trend)\.nc$', f))])
         
+        logging.debug("Files found: {}".format(", ".join(files)))
         if not len(files):
             return None
     else:
@@ -333,6 +334,8 @@ def data_cli():
                                          path_children,
                                          filetype="nc"
                                          if not args.numpy else "npy")
+    logging.debug("Batches: {}".format(video_batches))
+
     video_batches = [
         v_el for h_list in video_batches
         for v_list in h_list
