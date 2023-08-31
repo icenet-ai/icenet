@@ -421,6 +421,7 @@ def generate_sample(forecast_date: object,
     y = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
     
+    
     if not prediction:
         try:
             sample_output = var_ds.siconca_abs.sel(time=forecast_dts)
