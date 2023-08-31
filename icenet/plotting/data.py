@@ -97,9 +97,17 @@ def get_sample_get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset", type=str)
     ap.add_argument("date", type=date_arg)
-    ap.add_argument("output_path", type=str)
+    ap.add_argument("output_path", type=str, default="test.png")
+
+    ap.add_argument("-c", "--cols", type=int, default=8,
+                    help="Plotting data over this number of columns")
+
+    data_type = ap.add_mutually_exclusive_group(required=False)
+    data_type.add_argument("--outputs", action="store_true", default=False)
+    data_type.add_argument("--weights", action="store_true", default=False)
 
     ap.add_argument("-p", "--prediction", action="store_true", default=False)
+    ap.add_argument("-s", "--size", type=int, default=4)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     args = ap.parse_args()
@@ -114,10 +122,35 @@ def plot_sample_cli():
     logging.debug("Opening dataset to get loader: {}".format(args.dataset))
     ds = IceNetDataSet(args.dataset)
     dl = ds.get_data_loader()
+
     logging.debug("Generating sample for {}".format(args.date))
-    net_input, _, _ = dl.generate_sample(
+    net_input, net_output, net_weight = dl.generate_sample(
         args.date, prediction=args.prediction)
-    plot_channel_data(net_input, dl.channel_names, "test.png")
+
+    if args.weights:
+        channel_data = net_weight.squeeze()
+        channel_labels = ["weights{}".format(i)
+                          for i in range(channel_data.shape[-1])]
+        logging.info("Plotting {} weights from sample".
+                     format(len(channel_labels)))
+    elif args.outputs:
+        channel_data = net_output.squeeze()
+        channel_labels = ["outputs{}".format(i)
+                          for i in range(channel_data.shape[-1])]
+        logging.info("Plotting {} outputs from sample".
+                     format(len(channel_labels)))
+    else:
+        logging.info("Plotting inputs from sample")
+        channel_data = net_input
+        channel_labels = dl.channel_names
+        logging.info("Plotting {} inputs from sample".
+                     format(len(channel_labels)))
+
+    plot_channel_data(channel_data,
+                      channel_labels,
+                      args.output_path,
+                      cols=args.cols,
+                      square_size=args.size)
 
 
 def plot_channel_data(data: object,
