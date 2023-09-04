@@ -49,6 +49,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         self._counts = self._config["counts"]
         self._dtype = getattr(np, self._config["dtype"])
         self._loader_config = self._config["loader_config"]
+        self._generate_workers = self._config["generate_workers"]
         self._n_forecast_days = self._config["n_forecast_days"]
         self._num_channels = self._config["num_channels"]
         self._shape = tuple(self._config["shape"])
@@ -84,16 +85,22 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         else:
             raise OSError("{} not found".format(path))
 
-    def get_data_loader(self):
+    def get_data_loader(self, n_forecast_days = None, generate_workers = None):
         """
 
         :return:
         """
+        if n_forecast_days is None:
+            n_forecast_days = self._config["n_forecast_days"]
+        if generate_workers is None:
+            generate_workers = self._config["generate_workers"]
         loader = IceNetDataLoaderFactory().create_data_loader(
             "dask",
             self.loader_config,
             self.identifier,
             self._config["var_lag"],
+            n_forecast_days=n_forecast_days,
+            generate_workers=generate_workers,
             dataset_config_path=os.path.dirname(
                 self._configuration_path),
             loss_weight_days=self._config[
@@ -103,7 +110,8 @@ class IceNetDataSet(SplittingMixin, DataCollection):
                 "output_batch_size"],
             south=self.south,
             var_lag_override=self._config[
-                "var_lag_override"])
+                "var_lag_override"],
+        )
         return loader
 
     @property

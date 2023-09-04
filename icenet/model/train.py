@@ -36,7 +36,7 @@ except ModuleNotFoundError:
 def train_model(
     run_name: object,
     dataset: object,
-    callback_objects: list = None,
+    callback_objects: list = [],
     checkpoint_monitor: str = 'val_rmse',
     checkpoint_mode: str = 'min',
     dataset_ratio: float = 1.0,
