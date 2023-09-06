@@ -302,6 +302,7 @@ class IceNetBaseDataLoader(Generator):
             # For recreating this dataloader
             # "dataset_config_path = ".",
             "dataset_path":     self._path if network_dataset else False,
+            "generate_workers": self.workers,
             "loss_weight_days": self._loss_weight_days,
             "output_batch_size": self._output_batch_size,
             "var_lag":          self._var_lag,

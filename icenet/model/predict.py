@@ -79,7 +79,7 @@ def predict_forecast(
             run_prediction(network=network,
                            date=date,
                            output_folder=output_folder,
-                           sample=data_sample,
+                           data_sample=data_sample,
                            save_args=save_args)
     else:
         # TODO: This is horrible behaviour, rethink and refactor: we should
@@ -146,7 +146,7 @@ def run_prediction(network,
 
     if save_args:
         logging.debug("Saving loader generated data for reference...")
-        save_sample(output_path, date, data_sample)
+        save_sample(os.path.join(output_path, "loader"), date, data_sample)
 
     return output_path
 

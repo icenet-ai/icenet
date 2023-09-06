@@ -70,11 +70,11 @@ class SplittingMixin:
         test_path = os.path.join(base_path, hemi, "test")
 
         logging.info("Training dataset path: {}".format(train_path))
-        self.train_fns += glob.glob("{}/*.tfrecord".format(train_path))
+        self.train_fns += sorted(glob.glob("{}/*.tfrecord".format(train_path)))
         logging.info("Validation dataset path: {}".format(val_path))
-        self.val_fns += glob.glob("{}/*.tfrecord".format(val_path))
+        self.val_fns += sorted(glob.glob("{}/*.tfrecord".format(val_path)))
         logging.info("Test dataset path: {}".format(test_path))
-        self.test_fns += glob.glob("{}/*.tfrecord".format(test_path))
+        self.test_fns += sorted(glob.glob("{}/*.tfrecord".format(test_path)))
 
     def get_split_datasets(self, ratio: object = None):
         """

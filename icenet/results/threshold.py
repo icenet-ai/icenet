@@ -8,17 +8,27 @@ from icenet.data.cli import date_arg
 from icenet.utils import setup_logging
 
 
-def threshold_exceeds(da: object, sic_thresh: float, window_length: int = 1):
+def threshold_exceeds(da: object,
+                      sic_thresh: float,
+                      window_length: int = 1,
+                      dimensions: dict = None):
     """
 
     :param da:
     :param sic_thresh:
     :param window_length:
+    :param dimensions:
     :return:
     """
     logging.info("Checking thresholds for forecast(s)")
 
+    if dimensions:
+        logging.debug("Selecting within given dimensions: {}".
+                      format(dimensions))
+        da = da.sel(**dimensions)
+
     thresh_arr = da > sic_thresh
+
     window_acc = thresh_arr.rolling(leadtime=window_length).reduce(np.sum)
     threshold_exceed_arr = xr.where(window_acc == window_length, da, 0)
 

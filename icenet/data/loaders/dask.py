@@ -420,7 +420,8 @@ def generate_sample(forecast_date: object,
 
     y = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
-
+    
+    
     if not prediction:
         try:
             sample_output = var_ds.siconca_abs.sel(time=forecast_dts)
@@ -504,12 +505,6 @@ def generate_sample(forecast_date: object,
         else:
             x[:, :, v1] = da.array(meta_ds.to_numpy())
         v1 += channels[var_name]
-
-    #    x.visualize(filename='x.svg', optimize_graph=True)
-    #    y.visualize(filename='y.svg', optimize_graph=True)
-    #    sample_weights.visualize(filename='sample_weights.svg', optimize_graph=True)
-    #    import sys
-    #    sys.exit(0)
 
     return x, y, sample_weights
 

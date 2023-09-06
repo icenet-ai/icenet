@@ -24,35 +24,43 @@ from icenet.model.utils import make_exp_decay_lr_schedule
 import icenet.model.models as models
 from icenet.utils import setup_logging
 
+wandb_available = False
+try:
+    import wandb
+    import wandb.keras
+    wandb_available = True
+except ModuleNotFoundError:
+    pass
+
 
 def train_model(
-        run_name: object,
-        dataset: object,
-        callback_objects: list = None,
-        checkpoint_monitor: str = 'val_rmse',
-        checkpoint_mode: str = 'min',
-        dataset_ratio: float = 1.0,
-        early_stopping_patience: int = 30,
-        epochs: int = 2,
-        filter_size: float = 3,
-        learning_rate: float = 1e-4,
-        lr_10e_decay_fac: float = 1.0,
-        lr_decay_start: float = 10,
-        lr_decay_end: float = 30,
-        max_queue_size: int = 3,
-        model_func: object = models.unet_batchnorm,
-        n_filters_factor: float = 2,
-        network_folder: object = None,
-        network_save: bool = True,
-        pickup_weights: bool = False,
-        pre_load_network: bool = False,
-        pre_load_path: object = None,
-        seed: int = 42,
-        strategy: object = tf.distribute.get_strategy(),
-        training_verbosity: int = 1,
-        workers: int = 5,
-        use_multiprocessing: bool = True,
-        use_tensorboard: bool = True) -> object:
+    run_name: object,
+    dataset: object,
+    callback_objects: list = [],
+    checkpoint_monitor: str = 'val_rmse',
+    checkpoint_mode: str = 'min',
+    dataset_ratio: float = 1.0,
+    early_stopping_patience: int = 30,
+    epochs: int = 2,
+    filter_size: float = 3,
+    learning_rate: float = 1e-4,
+    lr_10e_decay_fac: float = 1.0,
+    lr_decay_start: float = 10,
+    lr_decay_end: float = 30,
+    max_queue_size: int = 3,
+    model_func: object = models.unet_batchnorm,
+    n_filters_factor: float = 2,
+    network_folder: object = None,
+    network_save: bool = True,
+    pickup_weights: bool = False,
+    pre_load_network: bool = False,
+    pre_load_path: object = None,
+    seed: int = 42,
+    strategy: object = tf.distribute.get_strategy(),
+    training_verbosity: int = 1,
+    workers: int = 5,
+    use_multiprocessing: bool = True,
+    use_tensorboard: bool = True) -> object:
     """
 
     :param run_name:
@@ -231,9 +239,11 @@ def evaluate_model(model_path: object,
     eval_data = val_ds
 
     if dataset.counts["test"] > 0:
+        eval_data = test_ds
+        logging.info("Using test set for validation")
+    else:
         logging.warning("Using validation data source for evaluation, rather "
                         "than test set")
-        eval_data = test_ds
 
     lead_times = list(range(1, dataset.n_forecast_days + 1))
     logging.info("Metric creation for lead time of {} days".
@@ -365,54 +375,51 @@ def main():
     # for other integrations, but for the moment I have no shame
     callback_objects = list()
     using_wandb = False
+    run = None
 
-    if not args.no_wandb:
+    if not args.no_wandb and wandb_available:
         logging.warning("Initialising WANDB for this run at user request")
 
-        try:
-            import wandb
-            import wandb.keras
-        except ModuleNotFoundError:
-            logging.info("WandB is not available, we will never use it")
-        else:
-            wandb.init(
-                project=args.wandb_project,
-                name="{}.{}".format(args.run_name, args.seed),
-                notes="{}: run at {}{}".format(args.run_name,
-                                               dt.datetime.now().strftime("%D %T"),
-                                               "" if
-                                               not args.preload is not None else
-                                               " preload {}".format(args.preload)),
-                entity=args.wandb_user,
-                config=dict(
-                    seed=args.seed,
-                    learning_rate=args.lr,
-                    filter_size=args.filter_size,
-                    n_filters_factor=args.n_filters_factor,
-                    lr_10e_decay_fac=args.lr_10e_decay_fac,
-                    lr_decay_start=args.lr_decay_start,
-                    lr_decay_end=args.lr_decay_end,
-                    batch_size=args.batch_size,
-                ),
-                allow_val_change=True,
-                mode='offline' if args.wandb_offline else 'online',
-                settings=wandb.Settings(
-                    start_method="fork",
-                    _disable_stats=True,
-                ),
-                group=args.run_name,
-            )
-            using_wandb = True
+        run = wandb.init(
+            project=args.wandb_project,
+            name="{}.{}".format(args.run_name, args.seed),
+            notes="{}: run at {}{}".format(args.run_name,
+                                           dt.datetime.now().strftime("%D %T"),
+                                           "" if
+                                           not args.preload is not None else
+                                           " preload {}".format(args.preload)),
+            entity=args.wandb_user,
+            config=dict(
+                seed=args.seed,
+                learning_rate=args.lr,
+                filter_size=args.filter_size,
+                n_filters_factor=args.n_filters_factor,
+                lr_10e_decay_fac=args.lr_10e_decay_fac,
+                lr_decay_start=args.lr_decay_start,
+                lr_decay_end=args.lr_decay_end,
+                batch_size=args.batch_size,
+            ),
+            settings=wandb.Settings(
+            #    start_method="fork",
+            #    _disable_stats=True,
+            ),
+            allow_val_change=True,
+            mode='offline' if args.wandb_offline else 'online',
+            group=args.run_name,
+        )
+        using_wandb = True
 
-            # Log training metrics to wandb each epoch
-            logging.info("Adding wandb callback")
-            callback_objects.append(
-                wandb.keras.WandbCallback(
-                    monitor=args.checkpoint_monitor,
-                    mode=args.checkpoint_mode,
-                    save_model=False,
-                    save_graph=False,
-                ))
+        # Log training metrics to wandb each epoch
+        logging.info("Adding wandb callback")
+        callback_objects.append(
+            wandb.keras.WandbCallback(
+                monitor=args.checkpoint_monitor,
+                mode=args.checkpoint_mode,
+                save_model=False,
+                save_graph=False,
+            ))
+    elif not wandb_available:
+        logging.warning("WandB is not available, we will never use it")
 
     weights_path, model_path = \
         train_model(args.run_name,
@@ -448,12 +455,14 @@ def main():
                        workers=args.workers)
 
     if using_wandb:
+        logging.info("Updating wandb run with evaluation metrics")
         metric_vals = [[results[f'{name}{lt}']
-                        for lt in leads] for name in metrics]
+                        for lt in leads] for name in metric_names]
         table_data = list(zip(leads, *metric_vals))
-        table = wandb.Table(data=table_data, columns=['leadtime', *metrics])
+        table = wandb.Table(data=table_data, columns=['leadtime', *metric_names])
 
         # Log each metric vs. leadtime as a plot to wandb
-        for name in metrics:
-            wandb.log(
+        for name in metric_names:
+            logging.debug("WandB logging {}".format(name))
+            run.log(
                 {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})
