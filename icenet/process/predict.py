@@ -167,8 +167,14 @@ def create_cf_output():
             mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
             mask = np.repeat(mask, sic_mean.shape[0], axis=0)
 
-            sic_mean[mask] = 0 if not args.nan else np.nan
-            sic_stddev[mask] = 0 if not args.nan else np.nan
+            if not args.nan:
+                logging.info("Applying nans to land mask")
+                sic_mean[mask] = np.nan
+                sic_stddev[mask] = np.nan
+            else:
+                logging.info("Applying zeros to land mask")
+                sic_mean[mask] = 0
+                sic_stddev[mask] = 0
 
         if args.agcm:
             logging.info("Applying active grid cell masks")
