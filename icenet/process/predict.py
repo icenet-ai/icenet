@@ -183,6 +183,12 @@ def create_cf_output():
                     sic_mean[idx, ~grid_cell_mask, lead_idx] = 0
                     sic_stddev[idx, ~grid_cell_mask, lead_idx] = 0
 
+    lists_of_fcast_dates = [
+        [pd.Timestamp(date + dt.timedelta(days=int(lead_idx)))
+         for lead_idx in np.arange(1, arr.shape[3] + 1, 1)]
+        for date in dates
+    ]
+
     xarr = xr.Dataset(
         data_vars=dict(
             Lambert_Azimuthal_Grid=ref_sic.Lambert_Azimuthal_Grid,
@@ -192,11 +198,7 @@ def create_cf_output():
         coords=dict(
             time=[pd.Timestamp(d) for d in dates],
             leadtime=np.arange(1, arr.shape[3] + 1, 1),
-            forecast_date=(("time", "leadtime"), [
-                [pd.Timestamp(date + dt.timedelta(days=int(lead_idx)))
-                 for lead_idx in np.arange(1, arr.shape[3] + 1, 1)]
-                for date in dates
-            ]),
+            forecast_date=(("time", "leadtime"), lists_of_fcast_dates),
             xc=ref_cube.coord("projection_x_coordinate").points,
             yc=ref_cube.coord("projection_y_coordinate").points,
             lat=(("yc", "xc"), ref_cube.coord("latitude").points),
@@ -257,8 +259,8 @@ def create_cf_output():
             """,
             # Use ISO 8601:2004 duration format, preferably the extended format
             # as recommended in the Attribute Content Guidance section.
-            time_coverage_start="",
-            time_coverage_end="",
+            time_coverage_start=min(set([item for row in lists_of_fcast_dates for item in row])).isoformat(),
+            time_coverage_end=max(set([item for row in lists_of_fcast_dates for item in row])).isoformat(),
             time_coverage_duration="P1D",
             time_coverage_resolution="P1D",
             title="Sea Ice Concentration Prediction",
