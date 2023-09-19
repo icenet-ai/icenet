@@ -167,7 +167,7 @@ def process_args(dates: bool = True,
 
     ap.add_argument("-l", "--lag", type=int, default=2)
     ap.add_argument("-f", "--forecast", type=int, default=93)
-    ap.add_argument("-p", "--parallel-opens",
+    ap.add_argument("-po", "--parallel-opens",
                     default=False, action="store_true",
                     help="Allow xarray mfdataset to work with parallel opens")
 
