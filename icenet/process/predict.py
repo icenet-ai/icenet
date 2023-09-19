@@ -115,6 +115,14 @@ def get_args():
     ap.add_argument("datefile", type=argparse.FileType("r"))
 
     ap.add_argument("-m", "--mask", default=False, action="store_true")
+
+    ap.add_argument("--nan", help="Apply nans, not zeroes, to land mask",
+                    default=False, action="store_true")
+    ap.add_argument("--no-acgm", help="No active grid cell masking",
+                    default=True, action="store_false", dest="acgm")
+    ap.add_argument("--no-land", help="No land while masking",
+                    default=True, action="store_false", dest="land")
+
     ap.add_argument("-o", "--output-dir", default=".")
     ap.add_argument("-r", "--root", type=str, default=".")
 
@@ -152,26 +160,28 @@ def create_cf_output():
     if args.mask:
         mask_gen = Masks(north=ds.north, south=ds.south)
 
-        logging.info("Land masking the forecast output")
-        land_mask = mask_gen.get_land_mask()
-        mask = land_mask[np.newaxis, ..., np.newaxis]
-        mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
-        mask = np.repeat(mask, sic_mean.shape[0], axis=0)
+        if args.land:
+            logging.info("Land masking the forecast output")
+            land_mask = mask_gen.get_land_mask()
+            mask = land_mask[np.newaxis, ..., np.newaxis]
+            mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
+            mask = np.repeat(mask, sic_mean.shape[0], axis=0)
 
-        sic_mean[mask] = 0
-        sic_stddev[mask] = 0
+            sic_mean[mask] = 0 if not args.nan else np.nan
+            sic_stddev[mask] = 0 if not args.nan else np.nan
 
-        logging.info("Applying active grid cell masks")
+        if args.agcm:
+            logging.info("Applying active grid cell masks")
 
-        for idx, forecast_date in enumerate(dates):
-            for lead_idx in np.arange(0, arr.shape[3], 1):
-                lead_dt = forecast_date + dt.timedelta(days=int(lead_idx) + 1)
-                logging.debug("Active grid cell mask start {} forecast date {}".
-                              format(forecast_date, lead_dt))
+            for idx, forecast_date in enumerate(dates):
+                for lead_idx in np.arange(0, arr.shape[3], 1):
+                    lead_dt = forecast_date + dt.timedelta(days=int(lead_idx) + 1)
+                    logging.debug("Active grid cell mask start {} forecast date {}".
+                                  format(forecast_date, lead_dt))
 
-                grid_cell_mask = mask_gen.get_active_cell_mask(lead_dt.month)
-                sic_mean[idx, ~grid_cell_mask, lead_idx] = 0
-                sic_stddev[idx, ~grid_cell_mask, lead_idx] = 0
+                    grid_cell_mask = mask_gen.get_active_cell_mask(lead_dt.month)
+                    sic_mean[idx, ~grid_cell_mask, lead_idx] = 0
+                    sic_stddev[idx, ~grid_cell_mask, lead_idx] = 0
 
     xarr = xr.Dataset(
         data_vars=dict(
