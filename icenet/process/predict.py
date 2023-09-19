@@ -118,8 +118,8 @@ def get_args():
 
     ap.add_argument("--nan", help="Apply nans, not zeroes, to land mask",
                     default=False, action="store_true")
-    ap.add_argument("--no-acgm", help="No active grid cell masking",
-                    default=True, action="store_false", dest="acgm")
+    ap.add_argument("--no-agcm", help="No active grid cell masking",
+                    default=True, action="store_false", dest="agcm")
     ap.add_argument("--no-land", help="No land while masking",
                     default=True, action="store_false", dest="land")
 
