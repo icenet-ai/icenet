@@ -167,7 +167,7 @@ def create_cf_output():
             mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
             mask = np.repeat(mask, sic_mean.shape[0], axis=0)
 
-            if not args.nan:
+            if args.nan:
                 logging.info("Applying nans to land mask")
                 sic_mean[mask] = np.nan
                 sic_stddev[mask] = np.nan
