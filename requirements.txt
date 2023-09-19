@@ -4,6 +4,7 @@ cdsapi
 cfgrib
 dask
 distributed
+download-toolbox @ git+https://github.com/antarctica/download-toolbox@main
 eccodes
 ecmwf-api-client
 h5py==2.10.0
