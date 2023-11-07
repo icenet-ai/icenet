@@ -7,3 +7,5 @@ pytest
 black
 build
 importlib_metadata
+ruff
+pre-commit
