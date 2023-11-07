@@ -71,12 +71,12 @@ def sic_interpolate(da: object,
                 nan_neighbour_arr[-1, :] = False
 
             if np.sum(nan_neighbour_arr) == 1:
-                res = np.where(np.array(nan_neighbour_arr) == True)
+                res = np.where(np.array(nan_neighbour_arr) == True)  # noqa: E712
                 logging.warning("Not enough nans for interpolation, extending {}".format(res))
                 x_idx, y_idx = res[0][0], res[1][0]
                 nan_neighbour_arr[x_idx-1:x_idx+2, y_idx] = True
                 nan_neighbour_arr[x_idx, y_idx-1:y_idx+2] = True
-                logging.debug(np.where(np.array(nan_neighbour_arr) == True))
+                logging.debug(np.where(np.array(nan_neighbour_arr) == True))  # noqa: E712
 
             # Perform bilinear interpolation
             x_valid = xx[nan_neighbour_arr]
