@@ -3,11 +3,8 @@ import datetime as dt
 import json
 import logging
 import os
-import pkg_resources
 import random
 import time
-
-from pprint import pformat
 
 import numpy as np
 import pandas as pd

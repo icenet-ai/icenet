@@ -737,9 +737,9 @@ def standard_deviation_heatmap(metric: str,
     if metric in ["mae", "mse", "rmse"]:
         ylabel = f"SIC {metric.upper()} (%)"
     elif metric == "binacc":
-        ylabel = f"Binary accuracy (%)"
+        ylabel = "Binary accuracy (%)"
     elif metric == "sie":
-        ylabel = f"SIE error (km)"
+        ylabel = "SIE error (km)"
         
     # plot heatmap of standard deviation for IceNet
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -903,9 +903,9 @@ def plot_metrics_leadtime_avg(metric: str,
     if metric in ["mae", "mse", "rmse"]:
         ylabel = f"SIC {metric.upper()} (%)"
     elif metric == "binacc":
-        ylabel = f"Binary accuracy (%)"
+        ylabel = "Binary accuracy (%)"
     elif metric == "sie":
-        ylabel = f"SIE error (km)"
+        ylabel = "SIE error (km)"
     
     if average_over == "all":
         # averaging metric over leadtime for all forecasts
