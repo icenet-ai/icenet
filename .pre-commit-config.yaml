@@ -10,12 +10,12 @@ repos:
       - id: trailing-whitespace
         language_version: python3
 
-  # isort - Sorting imports
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        args: ["--filter-files"]
+  # # isort - Sorting imports
+  # - repo: https://github.com/pycqa/isort
+  #   rev: 5.12.0
+  #   hooks:
+  #     - id: isort
+  #       args: ["--filter-files"]
 
   # yapf - Formatting
   - repo: https://github.com/google/yapf
