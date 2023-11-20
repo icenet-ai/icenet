@@ -8,27 +8,27 @@ repos:
       - id: trailing-whitespace
         language_version: python3
 
-  # black - Formatting
-  - repo: https://github.com/psf/black
-    rev: 23.10.1
+  - repo: https://github.com/google/yapf
+    rev: v0.40.2
     hooks:
-      - id: black
-        args: []
+      - id: yapf
+        name: "yapf"
+        args: ["--in-place", "--parallel"]
 
   # isort - Sorting imports
   - repo: https://github.com/pycqa/isort
     rev: 5.12.0
     hooks:
       - id: isort
-        args: ["--profile", "black", "--filter-files"]
+        args: ["--filter-files"]
 
   # ruff - Linting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.4
+    rev: v0.1.6
     hooks:
       - id: ruff
-        args: ["--exclude", "setup.py"]
-  
+        args: []
+
   - repo: local
     hooks:
       # Run pytest

@@ -1,0 +1,4 @@
+[lint]
+select = ["E", "F"]
+ignore = ["E721"]
+exclude = ["setup.py"]
