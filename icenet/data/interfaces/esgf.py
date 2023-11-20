@@ -9,7 +9,6 @@ import xarray as xr
 from icenet.data.interfaces.downloader import ClimateDownloader
 from icenet.data.cli import download_args
 from icenet.data.utils import esgf_search
-
 """
 
 """
@@ -68,8 +67,8 @@ class CMIP6Downloader(ClimateDownloader):
         'hus': 'gn',
         'psl': 'gn',
         'rlds': 'gn',
-        'rsus': 'gn',   # Surface Upwelling Shortwave Radiation
-        'rsds': 'gn',   # Surface Downwelling Shortwave Radiation
+        'rsus': 'gn',  # Surface Upwelling Shortwave Radiation
+        'rsds': 'gn',  # Surface Downwelling Shortwave Radiation
         'zg': 'gn',
         'uas': 'gn',
         'vas': 'gn',
@@ -79,15 +78,17 @@ class CMIP6Downloader(ClimateDownloader):
     # Prioritise European first, US last, avoiding unnecessary queries
     # against nodes further afield (all traffic has a cost, and the coverage
     # of local nodes is more than enough)
-    ESGF_NODES = ("esgf.ceda.ac.uk",
-                  "esg1.umr-cnrm.fr",
-                  "vesg.ipsl.upmc.fr",
-                  "esgf3.dkrz.de",
-                  "esgf.bsc.es",
-                  "esgf-data.csc.fi",
-                  "noresg.nird.sigma2.no",
-                  "esgf-data.ucar.edu",
-                  "esgf-data2.diasjp.net",)
+    ESGF_NODES = (
+        "esgf.ceda.ac.uk",
+        "esg1.umr-cnrm.fr",
+        "vesg.ipsl.upmc.fr",
+        "esgf3.dkrz.de",
+        "esgf.bsc.es",
+        "esgf-data.csc.fi",
+        "noresg.nird.sigma2.no",
+        "esgf-data.ucar.edu",
+        "esgf-data2.diasjp.net",
+    )
 
     def __init__(self,
                  *args,
@@ -117,9 +118,7 @@ class CMIP6Downloader(ClimateDownloader):
         self._grid_map = grid_map if grid_map else CMIP6Downloader.GRID_MAP
         self._grid_map_override = grid_override
 
-    def _single_download(self,
-                         var_prefix: str,
-                         level: object,
+    def _single_download(self, var_prefix: str, level: object,
                          req_dates: object):
         """Overridden CMIP implementation for downloading from DAP server
 
@@ -133,14 +132,19 @@ class CMIP6Downloader(ClimateDownloader):
         """
 
         query = {
-            'source_id': self._source,
-            'member_id': self._member,
-            'frequency': self._frequency,
-            'variable_id': var_prefix,
-            'table_id': self._table_map[var_prefix],
-            'grid_label': self._grid_map_override
-            if self._grid_map_override
-            else self._grid_map[var_prefix],
+            'source_id':
+                self._source,
+            'member_id':
+                self._member,
+            'frequency':
+                self._frequency,
+            'variable_id':
+                var_prefix,
+            'table_id':
+                self._table_map[var_prefix],
+            'grid_label':
+                self._grid_map_override
+                if self._grid_map_override else self._grid_map[var_prefix],
         }
 
         var = var_prefix if not level else "{}{}".format(var_prefix, level)
@@ -166,34 +170,29 @@ class CMIP6Downloader(ClimateDownloader):
                     results.extend(node_results)
                     break
 
-        logging.info("Found {} {} results from ESGF search".
-                     format(len(results), var_prefix))
+        logging.info("Found {} {} results from ESGF search".format(
+            len(results), var_prefix))
 
         try:
             # http://xarray.pydata.org/en/stable/user-guide/io.html?highlight=opendap#opendap
             # Avoid 500MB DAP request limit
             cmip6_da = xr.open_mfdataset(results,
                                          combine='by_coords',
-                                         chunks={'time': '499MB'}
-                                         )[var_prefix]
+                                         chunks={'time': '499MB'})[var_prefix]
 
-            cmip6_da = cmip6_da.sel(time=slice(req_dates[0],
-                                               req_dates[-1]))
+            cmip6_da = cmip6_da.sel(time=slice(req_dates[0], req_dates[-1]))
 
             # TODO: possibly other attributes, especially with ocean vars
             if level:
                 cmip6_da = cmip6_da.sel(plev=int(level) * 100)
 
-            cmip6_da = cmip6_da.sel(lat=slice(self.hemisphere_loc[2],
-                                              self.hemisphere_loc[0]))
+            cmip6_da = cmip6_da.sel(
+                lat=slice(self.hemisphere_loc[2], self.hemisphere_loc[0]))
             self.save_temporal_files(var, cmip6_da)
         except OSError as e:
-            logging.exception("Error encountered: {}".format(e),
-                              exc_info=False)
+            logging.exception("Error encountered: {}".format(e), exc_info=False)
 
-    def additional_regrid_processing(self,
-                                     datafile: str,
-                                     cube_ease: object):
+    def additional_regrid_processing(self, datafile: str, cube_ease: object):
         """
 
         :param datafile:
@@ -217,8 +216,8 @@ class CMIP6Downloader(ClimateDownloader):
             cube_ease.data = cube_ease.data.data
 
         if cube_ease.data.dtype != np.float32:
-            logging.info("Regrid processing, data type not float: {}".
-                         format(cube_ease.data.dtype))
+            logging.info("Regrid processing, data type not float: {}".format(
+                cube_ease.data.dtype))
             cube_ease.data = cube_ease.data.astype(np.float32)
 
     def convert_cube(self, cube: object) -> object:
@@ -236,17 +235,16 @@ class CMIP6Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args(
-        dates=True,
-        extra_args=[
-            (["source"], dict(type=str)),
-            (["member"], dict(type=str)),
-            (("-xs", "--exclude-server"),
-             dict(default=[], nargs="*")),
-            (("-o", "--override"), dict(required=None, type=str)),
-        ],
-        workers=True
-    )
+    args = download_args(dates=True,
+                         extra_args=[
+                             (["source"], dict(type=str)),
+                             (["member"], dict(type=str)),
+                             (("-xs", "--exclude-server"),
+                              dict(default=[], nargs="*")),
+                             (("-o", "--override"), dict(required=None,
+                                                         type=str)),
+                         ],
+                         workers=True)
 
     logging.info("CMIP6 Data Downloading")
 
@@ -254,8 +252,10 @@ def main():
         source=args.source,
         member=args.member,
         var_names=args.vars,
-        dates=[pd.to_datetime(date).date() for date in
-               pd.date_range(args.start_date, args.end_date, freq="D")],
+        dates=[
+            pd.to_datetime(date).date()
+            for date in pd.date_range(args.start_date, args.end_date, freq="D")
+        ],
         delete_tempfiles=args.delete,
         grid_override=args.override,
         levels=args.levels,

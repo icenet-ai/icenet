@@ -17,8 +17,6 @@ from icenet.data.process import IceNetPreProcessor
 from icenet.data.loaders.base import IceNetBaseDataLoader
 from icenet.data.loaders.utils import IceNetDataWarning, write_tfrecord
 from icenet.data.sic.mask import Masks
-
-
 """
 Dask implementations for icenet data loading
 
@@ -29,6 +27,7 @@ certain deployments
 
 
 class DaskBaseDataLoader(IceNetBaseDataLoader):
+
     def __init__(self,
                  *args,
                  dask_port: int = 8888,
@@ -48,9 +47,9 @@ class DaskBaseDataLoader(IceNetBaseDataLoader):
         dashboard = "localhost:{}".format(self._dashboard_port)
 
         with dask.config.set({
-            "temporary_directory": self._tmp_dir,
-            "distributed.comm.timeouts.connect": self._timeout,
-            "distributed.comm.timeouts.tcp": self._timeout,
+                "temporary_directory": self._tmp_dir,
+                "distributed.comm.timeouts.connect": self._timeout,
+                "distributed.comm.timeouts.tcp": self._timeout,
         }):
             cluster = LocalCluster(
                 dashboard_address=dashboard,
@@ -80,9 +79,8 @@ class DaskBaseDataLoader(IceNetBaseDataLoader):
 
 
 class DaskMultiSharingWorkerLoader(DaskBaseDataLoader):
-    def __init__(self,
-                 *args,
-                 **kwargs):
+
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # TODO: https://github.com/icenet-ai/icenet/blob/83fdbf4b23ccf6ac221e77809b47d407b70b707f/icenet2/data/loader.py
         raise NotImplementedError("Not yet adapted from old implementation")
@@ -99,9 +97,7 @@ class DaskMultiSharingWorkerLoader(DaskBaseDataLoader):
         """
         pass
 
-    def generate_sample(self,
-                        date: object,
-                        prediction: bool = False):
+    def generate_sample(self, date: object, prediction: bool = False):
         """
 
         :param date:
@@ -111,15 +107,13 @@ class DaskMultiSharingWorkerLoader(DaskBaseDataLoader):
 
 
 class DaskMultiWorkerLoader(DaskBaseDataLoader):
-    def __init__(self,
-                 *args,
-                 futures_per_worker: int = 2,
-                 **kwargs):
+
+    def __init__(self, *args, futures_per_worker: int = 2, **kwargs):
         super().__init__(*args, **kwargs)
 
         masks = Masks(north=self.north, south=self.south)
-        self._masks = da.array([
-            masks.get_active_cell_mask(month) for month in range(1, 13)])
+        self._masks = da.array(
+            [masks.get_active_cell_mask(month) for month in range(1, 13)])
 
         self._futures = futures_per_worker
 
@@ -160,17 +154,15 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
             batch_number = 0
             futures = []
 
-            forecast_dates = set([dt.datetime.strptime(s,
-                                  IceNetPreProcessor.DATE_FORMAT).date()
-                                  for identity in
-                                  self._config["sources"].keys()
-                                  for s in
-                                  self._config["sources"][identity]
-                                  ["dates"][dataset]])
+            forecast_dates = set([
+                dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT).date()
+                for identity in self._config["sources"].keys()
+                for s in self._config["sources"][identity]["dates"][dataset]
+            ])
 
             if dates_override:
-                logging.info("{} available {} dates".
-                             format(len(forecast_dates), dataset))
+                logging.info("{} available {} dates".format(
+                    len(forecast_dates), dataset))
                 forecast_dates = forecast_dates.intersection(
                     dates_override[dataset])
             forecast_dates = sorted(list(forecast_dates))
@@ -186,17 +178,10 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                     (pickup and
                      not os.path.exists(tf_path.format(batch_number))):
                     args = [
-                        self._channels,
-                        self._dtype,
-                        self._loss_weight_days,
-                        self._meta_channels,
-                        self._missing_dates,
-                        self._n_forecast_days,
-                        self.num_channels,
-                        self._shape,
-                        self._trend_steps,
-                        masks,
-                        False
+                        self._channels, self._dtype, self._loss_weight_days,
+                        self._meta_channels, self._missing_dates,
+                        self._n_forecast_days, self.num_channels, self._shape,
+                        self._trend_steps, masks, False
                     ]
 
                     fut = client.submit(generate_and_write,
@@ -221,8 +206,8 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                     #    tf_path.format(batch_number), args, dry=self._dry)
                 else:
                     counts[dataset] += len(dates)
-                    logging.warning("Skipping {} on pickup run".
-                                    format(tf_path.format(batch_number)))
+                    logging.warning("Skipping {} on pickup run".format(
+                        tf_path.format(batch_number)))
 
                 batch_number += 1
 
@@ -234,13 +219,11 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                 exec_times += gen_times
 
         if len(exec_times) > 0:
-            logging.info("Average sample generation time: {}".
-                         format(np.average(exec_times)))
+            logging.info("Average sample generation time: {}".format(
+                np.average(exec_times)))
         self._write_dataset_config(counts)
 
-    def generate_sample(self,
-                        date: object,
-                        prediction: bool = False):
+    def generate_sample(self, date: object, prediction: bool = False):
         """
 
         :param date:
@@ -255,11 +238,10 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         )
         var_files = self.get_sample_files()
 
-        var_ds = xr.open_mfdataset(
-            [v for k, v in var_files.items()
-             if k not in self._meta_channels
-             and not k.endswith("linear_trend")],
-            **ds_kwargs)
+        var_ds = xr.open_mfdataset([
+            v for k, v in var_files.items()
+            if k not in self._meta_channels and not k.endswith("linear_trend")
+        ], **ds_kwargs)
         var_ds = var_ds.transpose("yc", "xc", "time")
 
         trend_files = \
@@ -268,31 +250,18 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         trend_ds = None
 
         if len(trend_files) > 0:
-            trend_ds = xr.open_mfdataset(
-                trend_files,
-                **ds_kwargs)
+            trend_ds = xr.open_mfdataset(trend_files, **ds_kwargs)
 
             trend_ds = trend_ds.transpose("yc", "xc", "time")
 
         args = [
-            self._channels,
-            self._dtype,
-            self._loss_weight_days,
-            self._meta_channels,
-            self._missing_dates,
-            self._n_forecast_days,
-            self.num_channels,
-            self._shape,
-            self._trend_steps,
-            self._masks,
+            self._channels, self._dtype, self._loss_weight_days,
+            self._meta_channels, self._missing_dates, self._n_forecast_days,
+            self.num_channels, self._shape, self._trend_steps, self._masks,
             prediction
         ]
 
-        x, y, sw = generate_sample(date,
-                                   var_ds,
-                                   var_files,
-                                   trend_ds,
-                                   *args)
+        x, y, sw = generate_sample(date, var_ds, var_files, trend_ds, *args)
         return x.compute(), y.compute(), sw.compute()
 
 
@@ -315,16 +284,8 @@ def generate_and_write(path: str,
 
     # TODO: refactor, this is very smelly - with new data throughput args
     #  will always be the same
-    (channels,
-     dtype,
-     loss_weight_days,
-     meta_channels,
-     missing_dates,
-     n_forecast_days,
-     num_channels,
-     shape,
-     trend_steps,
-     masks,
+    (channels, dtype, loss_weight_days, meta_channels, missing_dates,
+     n_forecast_days, num_channels, shape, trend_steps, masks,
      prediction) = args
 
     ds_kwargs = dict(
@@ -333,20 +294,19 @@ def generate_and_write(path: str,
         parallel=True,
     )
 
-    var_ds = xr.open_mfdataset(
-        [v for k, v in var_files.items()
-         if k not in meta_channels and not k.endswith("linear_trend")],
-        **ds_kwargs)
+    var_ds = xr.open_mfdataset([
+        v for k, v in var_files.items()
+        if k not in meta_channels and not k.endswith("linear_trend")
+    ], **ds_kwargs)
     var_ds = var_ds.transpose("yc", "xc", "time")
 
-    trend_files = [v for k, v in var_files.items()
-                   if k.endswith("linear_trend")]
+    trend_files = [
+        v for k, v in var_files.items() if k.endswith("linear_trend")
+    ]
     trend_ds = None
 
     if len(trend_files):
-        trend_ds = xr.open_mfdataset(
-            trend_files,
-            **ds_kwargs)
+        trend_ds = xr.open_mfdataset(trend_files, **ds_kwargs)
         trend_ds = trend_ds.transpose("yc", "xc", "time")
 
     with tf.io.TFRecordWriter(path) as writer:
@@ -354,26 +314,24 @@ def generate_and_write(path: str,
             start = time.time()
 
             try:
-                x, y, sample_weights = generate_sample(date,
-                                                       var_ds,
-                                                       var_files,
-                                                       trend_ds,
-                                                       *args)
+                x, y, sample_weights = generate_sample(date, var_ds, var_files,
+                                                       trend_ds, *args)
                 if not dry:
                     x[da.isnan(x)] = 0.
 
-                    x, y, sample_weights = dask.compute(x, y, sample_weights,
+                    x, y, sample_weights = dask.compute(x,
+                                                        y,
+                                                        sample_weights,
                                                         optimize_graph=True)
-                    write_tfrecord(writer,
-                                   x, y, sample_weights)
+                    write_tfrecord(writer, x, y, sample_weights)
                 count += 1
             except IceNetDataWarning:
                 continue
 
             end = time.time()
             times.append(end - start)
-            logging.debug("Time taken to produce {}: {}".
-                          format(date, times[-1]))
+            logging.debug("Time taken to produce {}: {}".format(
+                date, times[-1]))
     return path, count, times
 
 
@@ -415,20 +373,21 @@ def generate_sample(forecast_date: object,
 
     # Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_days)
-    forecast_dts = [forecast_date + dt.timedelta(days=n)
-                    for n in range(n_forecast_days)]
+    forecast_dts = [
+        forecast_date + dt.timedelta(days=n) for n in range(n_forecast_days)
+    ]
 
     y = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
-
 
     if not prediction:
         try:
             sample_output = var_ds.siconca_abs.sel(time=forecast_dts)
         except KeyError as sic_ex:
-            logging.exception("Issue selecting data for non-prediction sample, "
-                              "please review siconca ground-truth: dates {}".
-                              format(forecast_dts))
+            logging.exception(
+                "Issue selecting data for non-prediction sample, "
+                "please review siconca ground-truth: dates {}".format(
+                    forecast_dts))
             raise RuntimeError(sic_ex)
         y[:, :, :, 0] = sample_output
 
@@ -436,8 +395,8 @@ def generate_sample(forecast_date: object,
     for leadtime_idx in range(n_forecast_days):
         forecast_day = forecast_date + dt.timedelta(days=leadtime_idx)
 
-        if any([forecast_day == missing_date
-                for missing_date in missing_dates]):
+        if any([forecast_day == missing_date for missing_date in missing_dates
+               ]):
             sample_weight = da.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
@@ -467,23 +426,27 @@ def generate_sample(forecast_date: object,
         if var_name.endswith("linear_trend"):
             channel_ds = trend_ds
             if type(trend_steps) == list:
-                channel_dates = [pd.Timestamp(forecast_date +
-                                              dt.timedelta(days=int(n)))
-                                 for n in trend_steps]
+                channel_dates = [
+                    pd.Timestamp(forecast_date + dt.timedelta(days=int(n)))
+                    for n in trend_steps
+                ]
             else:
-                channel_dates = [pd.Timestamp(forecast_date +
-                                              dt.timedelta(days=n))
-                                 for n in range(num_channels)]
+                channel_dates = [
+                    pd.Timestamp(forecast_date + dt.timedelta(days=n))
+                    for n in range(num_channels)
+                ]
         else:
             channel_ds = var_ds
-            channel_dates = [pd.Timestamp(forecast_date - dt.timedelta(days=n))
-                             for n in range(num_channels)]
+            channel_dates = [
+                pd.Timestamp(forecast_date - dt.timedelta(days=n))
+                for n in range(num_channels)
+            ]
 
         channel_data = []
         for cdate in channel_dates:
             try:
-                channel_data.append(getattr(channel_ds, var_name).
-                                    sel(time=cdate))
+                channel_data.append(
+                    getattr(channel_ds, var_name).sel(time=cdate))
             except KeyError:
                 channel_data.append(da.zeros(shape))
 

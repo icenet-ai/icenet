@@ -13,7 +13,6 @@ import xarray as xr
 
 from icenet.data.cli import download_args
 from icenet.data.interfaces.downloader import ClimateDownloader
-
 """
 Module to download hourly ERA5 reanalysis latitude-longitude maps,
 compute daily averages, regrid them to the same EASE grid as the OSI-SAF sea
@@ -67,15 +66,11 @@ class ERA5Downloader(ClimateDownloader):
             logging.info("Upping connection limit for max_threads > 10")
             adapter = requests.adapters.HTTPAdapter(
                 pool_connections=self._max_threads,
-                pool_maxsize=self._max_threads
-            )
+                pool_maxsize=self._max_threads)
             self.client.session.mount("https://", adapter)
 
-    def _single_toolbox_download(self,
-                                 var: object,
-                                 level: object,
-                                 req_dates: object,
-                                 download_path: object):
+    def _single_toolbox_download(self, var: object, level: object,
+                                 req_dates: object, download_path: object):
         """Implements a single download from CDS Toolbox API
 
         :param var:
@@ -88,9 +83,9 @@ class ERA5Downloader(ClimateDownloader):
         var_prefix = var[0:-(len(str(level)))] if level else var
 
         params_dict = {
-            "realm":    "c3s",
-            "project":  "app-c3s-daily-era5-statistics",
-            "version":  "master",
+            "realm": "c3s",
+            "project": "app-c3s-daily-era5-statistics",
+            "version": "master",
             "workflow_name": "application",
             "kwargs": {
                 "dataset": "reanalysis-era5-single-levels",
@@ -104,14 +99,14 @@ class ERA5Downloader(ClimateDownloader):
                 "time_zone": "UTC+00:00",
                 "grid": "0.25/0.25",
                 "area": {
-                    "lat": [min([self.hemisphere_loc[0],
-                                 self.hemisphere_loc[2]]),
-                            max([self.hemisphere_loc[0],
-                                 self.hemisphere_loc[2]])],
-                    "lon": [min([self.hemisphere_loc[1],
-                                 self.hemisphere_loc[3]]),
-                            max([self.hemisphere_loc[1],
-                                 self.hemisphere_loc[3]])],
+                    "lat": [
+                        min([self.hemisphere_loc[0], self.hemisphere_loc[2]]),
+                        max([self.hemisphere_loc[0], self.hemisphere_loc[2]])
+                    ],
+                    "lon": [
+                        min([self.hemisphere_loc[1], self.hemisphere_loc[3]]),
+                        max([self.hemisphere_loc[1], self.hemisphere_loc[3]])
+                    ],
                 },
             },
         }
@@ -122,9 +117,8 @@ class ERA5Downloader(ClimateDownloader):
             params_dict["kwargs"]["pressure_level"] = level
 
         logging.debug("params_dict: {}".format(pformat(params_dict)))
-        result = self.client.service(
-            "tool.toolbox.orchestrator.workflow",
-            params=params_dict)
+        result = self.client.service("tool.toolbox.orchestrator.workflow",
+                                     params=params_dict)
 
         try:
             logging.info("Downloading data for {}...".format(var))
@@ -146,10 +140,7 @@ class ERA5Downloader(ClimateDownloader):
                               "problem".format(download_path))
             raise RuntimeError(e)
 
-    def _single_api_download(self,
-                             var: str,
-                             level: object,
-                             req_dates: object,
+    def _single_api_download(self, var: str, level: object, req_dates: object,
                              download_path: object):
         """Implements a single download from CDS API
 
@@ -163,15 +154,22 @@ class ERA5Downloader(ClimateDownloader):
         var_prefix = var[0:-(len(str(level)))] if level else var
 
         retrieve_dict = {
-            "product_type": "reanalysis",
-            "variable": self._cdi_map[var_prefix],
-            "year": req_dates[0].year,
-            "month": list(set(["{:02d}".format(rd.month)
-                               for rd in sorted(req_dates)])),
+            "product_type":
+                "reanalysis",
+            "variable":
+                self._cdi_map[var_prefix],
+            "year":
+                req_dates[0].year,
+            "month":
+                list(
+                    set(["{:02d}".format(rd.month) for rd in sorted(req_dates)])
+                ),
             "day": ["{:02d}".format(d) for d in range(1, 32)],
             "time": ["{:02d}:00".format(h) for h in range(0, 24)],
-            "format": "netcdf",
-            "area": self.hemisphere_loc,
+            "format":
+                "netcdf",
+            "area":
+                self.hemisphere_loc,
         }
 
         dataset = "reanalysis-era5-single-levels"
@@ -190,9 +188,7 @@ class ERA5Downloader(ClimateDownloader):
                               "problem".format(download_path))
             raise RuntimeError(e)
 
-    def postprocess(self,
-                    var: str,
-                    download_path: object):
+    def postprocess(self, var: str, download_path: object):
         """Processing of CDS downloaded files
 
         If we've not used the toolbox to download the files, we have a lot of
@@ -221,9 +217,12 @@ class ERA5Downloader(ClimateDownloader):
         # FIXME: This will cause issues for already processed latlon data
         if len(doy_counts[doy_counts < 24]) > 0:
             strip_dates_before = min([
-                dt.datetime.strptime("{}-{}".format(
-                    d, pd.to_datetime(da.time.values[0]).year), "%j-%Y")
-                for d in doy_counts[doy_counts < 24].dayofyear.values])
+                dt.datetime.strptime(
+                    "{}-{}".format(d,
+                                   pd.to_datetime(da.time.values[0]).year),
+                    "%j-%Y")
+                for d in doy_counts[doy_counts < 24].dayofyear.values
+            ])
             da = da.where(da.time < pd.Timestamp(strip_dates_before), drop=True)
 
         if 'expver' in da.coords:
@@ -236,9 +235,7 @@ class ERA5Downloader(ClimateDownloader):
         da = da.sortby("time").resample(time='1D').mean()
         da.to_netcdf(download_path)
 
-    def additional_regrid_processing(self,
-                                     datafile: str,
-                                     cube_ease: object):
+    def additional_regrid_processing(self, datafile: str, cube_ease: object):
         """
 
         :param datafile:
@@ -252,7 +249,8 @@ class ERA5Downloader(ClimateDownloader):
             logging.debug("ERA5 regrid postprocess: {}".format(var_name))
             cube_ease.data[cube_ease.data.mask] = 0.
             cube_ease.data = cube_ease.data.data
-            cube_ease.data = np.where(np.isnan(cube_ease.data), 0., cube_ease.data)
+            cube_ease.data = np.where(np.isnan(cube_ease.data), 0.,
+                                      cube_ease.data)
         elif var_name in ['zg500', 'zg250']:
             # Convert from geopotential to geopotential height
             logging.debug("ERA5 additional regrid: {}".format(var_name))
@@ -261,17 +259,23 @@ class ERA5Downloader(ClimateDownloader):
 
 def main():
     args = download_args(choices=["cdsapi", "toolbox"],
-                         workers=True, extra_args=(
-        (("-n", "--do-not-download"),
-         dict(dest="download", action="store_false", default=True)),
-        (("-p", "--do-not-postprocess"),
-         dict(dest="postprocess", action="store_false", default=True))))
+                         workers=True,
+                         extra_args=((("-n", "--do-not-download"),
+                                      dict(dest="download",
+                                           action="store_false",
+                                           default=True)),
+                                     (("-p", "--do-not-postprocess"),
+                                      dict(dest="postprocess",
+                                           action="store_false",
+                                           default=True))))
 
     logging.info("ERA5 Data Downloading")
     era5 = ERA5Downloader(
         var_names=args.vars,
-        dates=[pd.to_datetime(date).date() for date in
-               pd.date_range(args.start_date, args.end_date, freq="D")],
+        dates=[
+            pd.to_datetime(date).date()
+            for date in pd.date_range(args.start_date, args.end_date, freq="D")
+        ],
         delete_tempfiles=args.delete,
         download=args.download,
         levels=args.levels,
@@ -279,7 +283,6 @@ def main():
         postprocess=args.postprocess,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
-        use_toolbox=args.choice == "toolbox"
-    )
+        use_toolbox=args.choice == "toolbox")
     era5.download()
     era5.regrid()

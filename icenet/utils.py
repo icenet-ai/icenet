@@ -68,8 +68,8 @@ def run_command(command: str, dry: bool = False):
 
     ret = sp.run(command, shell=True)
     if ret.returncode < 0:
-        logging.warning("Child was terminated by signal: {}".
-                        format(-ret.returncode))
+        logging.warning(
+            "Child was terminated by signal: {}".format(-ret.returncode))
     else:
         logging.info("Child returned: {}".format(-ret.returncode))
 
@@ -78,6 +78,7 @@ def run_command(command: str, dry: bool = False):
 
 def setup_logging(func,
                   log_format="[%(asctime)-17s :%(levelname)-8s] - %(message)s"):
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         parsed_args = func(*args, **kwargs)
@@ -100,4 +101,5 @@ def setup_logging(func,
         logging.getLogger("tensorflow").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         return parsed_args
+
     return wrapper

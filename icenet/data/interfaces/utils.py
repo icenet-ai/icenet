@@ -10,8 +10,7 @@ import xarray as xr
 from icenet.utils import setup_logging
 
 
-def batch_requested_dates(dates: object,
-                          attribute: str = "month") -> object:
+def batch_requested_dates(dates: object, attribute: str = "month") -> object:
     """
 
     TODO: should be using Pandas DatetimeIndexes / Periods for this, but the
@@ -81,26 +80,26 @@ def reprocess_monthlies(source: str,
                 logging.warning("Cannot derive year from {}".format(year))
                 continue
 
-            destination = os.path.join(output_base,
-                                       identifier,
-                                       hemisphere,
-                                       var_name,
-                                       str(year))
+            destination = os.path.join(output_base, identifier, hemisphere,
+                                       var_name, str(year))
 
             if not os.path.exists(destination):
                 os.makedirs(destination, exist_ok=True)
 
-            logging.info("Processing {} from {} to {}".
-                         format(var_name, year, destination))
+            logging.info("Processing {} from {} to {}".format(
+                var_name, year, destination))
 
             ds = xr.open_dataset(file)
 
-            var_names = [name for name in list(ds.data_vars.keys())
-                         if not name.startswith("lambert_")]
+            var_names = [
+                name for name in list(ds.data_vars.keys())
+                if not name.startswith("lambert_")
+            ]
 
             var_names = set(var_names)
-            logging.debug("Files have var names {} which will be renamed to {}".
-                          format(", ".join(var_names), var_name))
+            logging.debug(
+                "Files have var names {} which will be renamed to {}".format(
+                    ", ".join(var_names), var_name))
 
             ds = ds.rename({k: var_name for k in var_names})
             da = getattr(ds, var_name)
@@ -144,9 +143,9 @@ def add_time_dim(source: str,
 
         for path, filename in [os.path.split(el) for el in file_list]:
             if filename.startswith("{}_".format(var_name)):
-                raise RuntimeError("{} starts with var name, we only want "
-                                   "correctly named files to convert".
-                                   format(filename))
+                raise RuntimeError(
+                    "{} starts with var name, we only want "
+                    "correctly named files to convert".format(filename))
             year = str(path.split(os.sep)[-1])
 
             if year not in files[var_name]:
@@ -177,14 +176,15 @@ def add_time_dim(source: str,
             if "siconca" in year_files[0]:
                 ds = ds.rename_vars({"siconca": "ice_conc"})
                 ds = ds.sortby("time")
-                ds['time'] = [pd.Timestamp(el) for el in
-                              ds.indexes['time'].normalize()]
+                ds['time'] = [
+                    pd.Timestamp(el) for el in ds.indexes['time'].normalize()
+                ]
 
             for d in ds.time.values:
                 dt = pd.to_datetime(d)
                 date_str = dt.strftime("%Y_%m_%d")
-                fpath = os.path.join(os.path.split(year_files[0])[0],
-                                     "{}.nc".format(date_str))
+                fpath = os.path.join(
+                    os.path.split(year_files[0])[0], "{}.nc".format(date_str))
 
                 if not os.path.exists(fpath):
                     dw = ds.sel(time=slice(dt, dt))
@@ -231,7 +231,9 @@ def add_time_dim_main():
         raise RuntimeError("output is not used for this command: {}".format(
             args.output))
 
-    add_time_dim(args.source, args.hemisphere, args.identifier,
+    add_time_dim(args.source,
+                 args.hemisphere,
+                 args.identifier,
                  dry=args.dry,
                  var_names=args.vars)
 
@@ -241,7 +243,9 @@ def reprocess_main():
     """
     args = get_args()
     logging.info("Temporary solution for reprocessing monthly files")
-    reprocess_monthlies(args.source, args.hemisphere, args.identifier,
+    reprocess_monthlies(args.source,
+                        args.hemisphere,
+                        args.identifier,
                         output_base=args.output,
                         dry=args.dry,
                         var_names=args.vars)

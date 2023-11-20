@@ -13,7 +13,6 @@ import icenet.model.models as models
 from icenet.data.loader import save_sample
 from icenet.data.dataset import IceNetDataSet
 from icenet.utils import setup_logging
-
 """
 
 """
@@ -55,20 +54,15 @@ def predict_forecast(
         network_folder = os.path.join(".", "results", "networks", network_name)
 
     dataset_name = dataset_name if dataset_name else ds.identifier
-    network_path = os.path.join(network_folder,
-                                "{}.network_{}.{}.h5".format(network_name,
-                                                             dataset_name,
-                                                             seed))
+    network_path = os.path.join(
+        network_folder, "{}.network_{}.{}.h5".format(network_name, dataset_name,
+                                                     seed))
 
     logging.info("Loading model from {}...".format(network_path))
 
-    network = model_func(
-        (*ds.shape, dl.num_channels),
-        [],
-        [],
-        n_filters_factor=n_filters_factor,
-        n_forecast_days=ds.n_forecast_days
-    )
+    network = model_func((*ds.shape, dl.num_channels), [], [],
+                         n_filters_factor=n_filters_factor,
+                         n_forecast_days=ds.n_forecast_days)
     network.load_weights(network_path)
 
     if not test_set:
@@ -89,8 +83,11 @@ def predict_forecast(
 
         source_key = [k for k in dl.config['sources'].keys() if k != "meta"][0]
         # FIXME: should be using date format from class
-        test_dates = [dt.date(*[int(v) for v in d.split("_")]) for d in
-                      dl.config["sources"][source_key]["dates"]["test"]]
+        test_dates = [
+            dt.date(*[int(v)
+                      for v in d.split("_")])
+            for d in dl.config["sources"][source_key]["dates"]["test"]
+        ]
 
         if len(test_dates) == 0:
             raise RuntimeError("No processed files were produced for the test "
@@ -98,9 +95,8 @@ def predict_forecast(
 
         missing = set(start_dates).difference(test_dates)
         if len(missing) > 0:
-            raise RuntimeError("{} are not in the test set".
-                               format(", ".join([str(pd.to_datetime(el).date())
-                                                 for el in missing])))
+            raise RuntimeError("{} are not in the test set".format(", ".join(
+                [str(pd.to_datetime(el).date()) for el in missing])))
 
         data_iter = test_inputs.as_numpy_iterator()
         # FIXME: this is broken, this entry never gets added to the set?
@@ -120,17 +116,13 @@ def predict_forecast(
             run_prediction(network=network,
                            date=test_dates[idx],
                            output_folder=output_folder,
-                           data_sample=(x[arr_idx, ...],
-                                        y[arr_idx, ...],
-                                        sw[arr_idx, ...]),
+                           data_sample=(x[arr_idx, ...], y[arr_idx,
+                                                           ...], sw[arr_idx,
+                                                                    ...]),
                            save_args=save_args)
 
 
-def run_prediction(network,
-                   date,
-                   output_folder,
-                   data_sample,
-                   save_args):
+def run_prediction(network, date, output_folder, data_sample, save_args):
     net_input, net_output, sample_weights = data_sample
 
     logging.info("Running prediction {}".format(date))
@@ -174,8 +166,12 @@ def get_args():
     ap.add_argument("seed", type=int, default=42)
     ap.add_argument("datefile", type=argparse.FileType("r"))
 
-    ap.add_argument("-i", "--train-identifier", dest="ident",
-                    help="Train dataset identifier", type=str, default=None)
+    ap.add_argument("-i",
+                    "--train-identifier",
+                    dest="ident",
+                    help="Train dataset identifier",
+                    type=str,
+                    default=None)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
     ap.add_argument("-t", "--testset", action="store_true", default=False)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
@@ -191,23 +187,24 @@ def main():
         os.path.join(".", "dataset_config.{}.json".format(args.dataset))
 
     date_content = args.datefile.read()
-    dates = [dt.date(*[int(v) for v in s.split("-")])
-             for s in date_content.split()]
+    dates = [
+        dt.date(*[int(v) for v in s.split("-")]) for s in date_content.split()
+    ]
     args.datefile.close()
 
-    output_folder = os.path.join(".", "results", "predict",
-                                 args.output_name,
+    output_folder = os.path.join(".", "results", "predict", args.output_name,
                                  "{}.{}".format(args.network_name, args.seed))
 
-    predict_forecast(dataset_config,
-                     args.network_name,
-                     # FIXME: this is turning into a mapping mess,
-                     #  do we need to retain the train SD name in the
-                     #  network?
-                     dataset_name=args.ident if args.ident else args.dataset,
-                     n_filters_factor=args.n_filters_factor,
-                     output_folder=output_folder,
-                     save_args=args.save_args,
-                     seed=args.seed,
-                     start_dates=dates,
-                     test_set=args.testset)
+    predict_forecast(
+        dataset_config,
+        args.network_name,
+        # FIXME: this is turning into a mapping mess,
+        #  do we need to retain the train SD name in the
+        #  network?
+        dataset_name=args.ident if args.ident else args.dataset,
+        n_filters_factor=args.n_filters_factor,
+        output_folder=output_folder,
+        save_args=args.save_args,
+        seed=args.seed,
+        start_dates=dates,
+        test_set=args.testset)

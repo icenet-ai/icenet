@@ -16,6 +16,7 @@ repos:
       - id: yapf
         name: "yapf"
         args: ["--in-place", "--parallel"]
+        exclude: "docs/"
 
   # isort - Sorting imports
   - repo: https://github.com/pycqa/isort

@@ -55,8 +55,10 @@ def compute_heatmap(results_df: object,
     :return:
     """
 
-    month_names = np.array(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                            'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'])
+    month_names = np.array([
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct',
+        'Nov', 'Dec'
+    ])
 
     # Mean over calendar month
     mean_df = results_df.loc[model, seed].reset_index().\
@@ -69,11 +71,8 @@ def compute_heatmap(results_df: object,
     return heatmap_df
 
 
-def arr_to_ice_edge_arr(arr: object,
-                        thresh: object,
-                        land_mask: object,
+def arr_to_ice_edge_arr(arr: object, thresh: object, land_mask: object,
                         region_mask: object) -> object:
-
     """
     Compute a boolean mask with True over ice edge contour grid cells using
     matplotlib.pyplot.contour and an input threshold to define the ice edge
@@ -108,11 +107,8 @@ def arr_to_ice_edge_arr(arr: object,
     return ice_edge_arr
 
 
-def arr_to_ice_edge_rgba_arr(arr: object,
-                             thresh: object,
-                             land_mask: object,
-                             region_mask: object,
-                             rgb: object) -> object:
+def arr_to_ice_edge_rgba_arr(arr: object, thresh: object, land_mask: object,
+                             region_mask: object, rgb: object) -> object:
     """
 
     :param arr:

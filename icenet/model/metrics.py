@@ -1,5 +1,4 @@
 import tensorflow as tf
-
 """
 TensorFlow metrics.
 """
@@ -46,15 +45,16 @@ class ConstructLeadtimeAccuracy(tf.keras.metrics.CategoricalAccuracy):
             if sample_weight is not None:
                 sample_weight = tf.transpose(sample_weight, [0, 1, 2, 4, 3])
 
-            super().update_state(
-                y_true, y_pred, sample_weight=sample_weight)
+            super().update_state(y_true, y_pred, sample_weight=sample_weight)
 
         elif not self.use_all_forecast_months:
 
             super().update_state(
                 y_true[..., self.single_forecast_leadtime_idx],
                 y_pred[..., self.single_forecast_leadtime_idx],
-                sample_weight=sample_weight[..., self.single_forecast_leadtime_idx] > 0)
+                sample_weight=sample_weight[...,
+                                            self.single_forecast_leadtime_idx]
+                > 0)
 
     def result(self):
         """
@@ -88,13 +88,12 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
     :param leadtime_idx:
     """
 
-    def __init__(self,
-                 leadtime_idx=None, **kwargs):
+    def __init__(self, leadtime_idx=None, **kwargs):
         name = 'binacc'
 
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
-            name += str(leadtime_idx+1)
+            name += str(leadtime_idx + 1)
         self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
@@ -162,7 +161,7 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
                  **kwargs):
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
-            name += str(leadtime_idx+1)
+            name += str(leadtime_idx + 1)
         self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
@@ -217,7 +216,7 @@ class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
                  **kwargs):
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
-            name += str(leadtime_idx+1)
+            name += str(leadtime_idx + 1)
         self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
@@ -265,13 +264,11 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
     :param name:
     """
 
-    def __init__(self,
-                 leadtime_idx: object = None,
-                 **kwargs):
+    def __init__(self, leadtime_idx: object = None, **kwargs):
         name = 'mse'
         # Leadtime to compute metric over - leave as None to use all lead times
         if leadtime_idx is not None:
-            name += str(leadtime_idx+1)
+            name += str(leadtime_idx + 1)
         self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)

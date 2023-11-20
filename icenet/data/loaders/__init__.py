@@ -10,6 +10,7 @@ class IceNetDataLoaderFactory:
     """
 
     """
+
     def __init__(self):
         self._loader_map = dict(
             dask=icenet.data.loaders.dask.DaskMultiWorkerLoader,
@@ -28,11 +29,11 @@ class IceNetDataLoaderFactory:
                 self._loader_map[loader_name] = loader_impl
             else:
                 raise RuntimeError("{} is not descended from "
-                                   "IceNetBaseDataLoader".
-                                   format(loader_impl.__name__))
+                                   "IceNetBaseDataLoader".format(
+                                       loader_impl.__name__))
         else:
-            raise RuntimeError("Cannot add {} as already in loader map".
-                               format(loader_name))
+            raise RuntimeError(
+                "Cannot add {} as already in loader map".format(loader_name))
 
     def create_data_loader(self, loader_name, *args, **kwargs):
         """

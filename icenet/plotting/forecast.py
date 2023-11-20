@@ -23,17 +23,11 @@ import xarray as xr
 from icenet import __version__ as icenet_version
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
-from icenet.plotting.utils import (
-    filter_ds_by_obs,
-    get_forecast_ds,
-    get_obs_da,
-    get_seas_forecast_da,
-    get_seas_forecast_init_dates,
-    show_img,
-    get_plot_axes,
-    process_probes,
-    process_regions
-)
+from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_ds,
+                                   get_obs_da, get_seas_forecast_da,
+                                   get_seas_forecast_init_dates, show_img,
+                                   get_plot_axes, process_probes,
+                                   process_regions)
 from icenet.plotting.video import xarray_to_video
 
 
@@ -49,8 +43,7 @@ def location_arg(argument: str):
         return (x, y)
     except ValueError:
         argparse.ArgumentTypeError(
-            "Expected a location (pair of integers separated by a comma)"
-        )
+            "Expected a location (pair of integers separated by a comma)")
 
 
 def region_arg(argument: str):
@@ -70,9 +63,7 @@ def region_arg(argument: str):
             "Region argument must be list of four integers")
 
 
-def compute_binary_accuracy(masks: object,
-                            fc_da: object,
-                            obs_da: object,
+def compute_binary_accuracy(masks: object, fc_da: object, obs_da: object,
                             threshold: float) -> object:
     """
     Compute the binary class accuracy of a forecast,
@@ -143,7 +134,8 @@ def plot_binary_accuracy(masks: object,
                                         obs_da=obs_da,
                                         threshold=threshold)
     fig, ax = plt.subplots(figsize=(12, 6))
-    ax.set_title(f"Binary accuracy comparison (threshold SIC = {threshold*100}%)")
+    ax.set_title(
+        f"Binary accuracy comparison (threshold SIC = {threshold*100}%)")
     ax.plot(binacc_fc.time, binacc_fc.values, label="IceNet")
 
     if cmp_da is not None:
@@ -171,9 +163,7 @@ def plot_binary_accuracy(masks: object,
     return binacc_fc, binacc_cmp
 
 
-def compute_sea_ice_extent_error(masks: object,
-                                 fc_da: object,
-                                 obs_da: object,
+def compute_sea_ice_extent_error(masks: object, fc_da: object, obs_da: object,
                                  grid_area_size: int,
                                  threshold: float) -> object:
     """
@@ -209,10 +199,9 @@ def compute_sea_ice_extent_error(masks: object,
     binary_fc_weighted_da = binary_fc_da.astype(int).weighted(agcm)
 
     # sie error
-    forecast_sie_error = (
-        binary_fc_weighted_da.sum(['xc', 'yc']) -
-        binary_obs_weighted_da.sum(['xc', 'yc'])
-    ) * (grid_area_size**2)
+    forecast_sie_error = (binary_fc_weighted_da.sum(['xc', 'yc']) -
+                          binary_obs_weighted_da.sum(['xc', 'yc'])) * (
+                              grid_area_size**2)
 
     return forecast_sie_error
 
@@ -244,11 +233,12 @@ def plot_sea_ice_extent_error(masks: object,
 
     :return: tuple of (SIE error for forecast (fc_da), SIE error for comparison (cmp_da))
     """
-    forecast_sie_error = compute_sea_ice_extent_error(masks=masks,
-                                                      fc_da=fc_da,
-                                                      obs_da=obs_da,
-                                                      grid_area_size=grid_area_size,
-                                                      threshold=threshold)
+    forecast_sie_error = compute_sea_ice_extent_error(
+        masks=masks,
+        fc_da=fc_da,
+        obs_da=obs_da,
+        grid_area_size=grid_area_size,
+        threshold=threshold)
 
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.set_title(f"SIE error comparison ({grid_area_size} km grid resolution) "
@@ -256,11 +246,12 @@ def plot_sea_ice_extent_error(masks: object,
     ax.plot(forecast_sie_error.time, forecast_sie_error.values, label="IceNet")
 
     if cmp_da is not None:
-        cmp_sie_error = compute_sea_ice_extent_error(masks=masks,
-                                                     fc_da=cmp_da,
-                                                     obs_da=obs_da,
-                                                     grid_area_size=grid_area_size,
-                                                     threshold=threshold)
+        cmp_sie_error = compute_sea_ice_extent_error(
+            masks=masks,
+            fc_da=cmp_da,
+            obs_da=obs_da,
+            grid_area_size=grid_area_size,
+            threshold=threshold)
         ax.plot(cmp_sie_error.time, cmp_sie_error.values, label="SEAS")
     else:
         cmp_sie_error = None
@@ -281,9 +272,7 @@ def plot_sea_ice_extent_error(masks: object,
     return forecast_sie_error, cmp_sie_error
 
 
-def compute_metrics(metrics: object,
-                    masks: object,
-                    fc_da: object,
+def compute_metrics(metrics: object, masks: object, fc_da: object,
                     obs_da: object) -> object:
     """
     Computes metrics based on SIC error which are passed in as a list of strings.
@@ -302,15 +291,16 @@ def compute_metrics(metrics: object,
     implemented_metrics = ["mae", "mse", "rmse"]
     for metric in metrics:
         if metric not in implemented_metrics:
-            raise NotImplementedError(f"{metric} metric has not been implemented. "
-                                      f"Please only choose out of {implemented_metrics}.")
+            raise NotImplementedError(
+                f"{metric} metric has not been implemented. "
+                f"Please only choose out of {implemented_metrics}.")
 
     # obtain mask
     mask_da = masks.get_active_cell_da(obs_da)
 
     metric_dict = {}
     # compute raw error
-    err_da = (fc_da-obs_da)*100
+    err_da = (fc_da - obs_da) * 100
     if "mae" in metrics:
         # compute absolute SIC errors
         abs_err_da = da.fabs(err_da)
@@ -431,12 +421,9 @@ def plot_metrics(metrics: object,
     return fc_metric_dict, cmp_metric_dict
 
 
-def compute_metric_as_dataframe(metric: object,
-                                masks: object,
-                                init_date: object,
-                                fc_da: object,
-                                obs_da: object,
-                                **kwargs) -> pd.DataFrame:
+def compute_metric_as_dataframe(metric: object, masks: object,
+                                init_date: object, fc_da: object,
+                                obs_da: object, **kwargs) -> pd.DataFrame:
     """
     Computes a metric for each leadtime in a forecast and stores the
     results in a pandas dataframe with columns 'date' (which is the
@@ -466,21 +453,26 @@ def compute_metric_as_dataframe(metric: object,
                                                obs_da=obs_da)[met].values
         elif met == "binacc":
             if "threshold" not in kwargs.keys():
-                raise KeyError("if met = 'binacc', must pass in argument for threshold")
-            metric_dict[met] = compute_binary_accuracy(masks=masks,
-                                                       fc_da=fc_da,
-                                                       obs_da=obs_da,
-                                                       threshold=kwargs["threshold"]).values
+                raise KeyError(
+                    "if met = 'binacc', must pass in argument for threshold")
+            metric_dict[met] = compute_binary_accuracy(
+                masks=masks,
+                fc_da=fc_da,
+                obs_da=obs_da,
+                threshold=kwargs["threshold"]).values
         elif met == "sie":
             if "grid_area_size" not in kwargs.keys():
-                raise KeyError("if met = 'sie', must pass in argument for grid_area_size")
+                raise KeyError(
+                    "if met = 'sie', must pass in argument for grid_area_size")
             if "threshold" not in kwargs.keys():
-                raise KeyError("if met = 'sie', must pass in argument for threshold")
-            metric_dict[met] = compute_sea_ice_extent_error(masks=masks,
-                                                            fc_da=fc_da,
-                                                            obs_da=obs_da,
-                                                            grid_area_size=kwargs["grid_area_size"],
-                                                            threshold=kwargs["threshold"]).values
+                raise KeyError(
+                    "if met = 'sie', must pass in argument for threshold")
+            metric_dict[met] = compute_sea_ice_extent_error(
+                masks=masks,
+                fc_da=fc_da,
+                obs_da=obs_da,
+                grid_area_size=kwargs["grid_area_size"],
+                threshold=kwargs["threshold"]).values
         else:
             raise NotImplementedError(f"{met} is not implemented")
 
@@ -498,23 +490,27 @@ def compute_metric_as_dataframe(metric: object,
         dayofyear = init_date.replace(year=2001).dayofyear
     month = init_date.month
     # get target dates
-    leadtime = list(range(1, len(metric_df.index)+1, 1))
+    leadtime = list(range(1, len(metric_df.index) + 1, 1))
     target_date = pd.Series([init_date + timedelta(days=d) for d in leadtime])
     target_dayofyear = target_date.dt.dayofyear
     # obtain day of year using same method above to avoid any leap-year issues
-    target_dayofyear = pd.Series([59 if d.strftime("%m-%d")=="02-29"
-                                  else d.replace(year=2001).dayofyear
-                                  for d in target_date])
+    target_dayofyear = pd.Series([
+        59 if d.strftime("%m-%d") == "02-29" else d.replace(year=2001).dayofyear
+        for d in target_date
+    ])
     target_month = target_date.dt.month
-    return pd.concat([pd.DataFrame({"date": init_date,
-                                    "dayofyear": dayofyear,
-                                    "month": month,
-                                    "target_date": target_date,
-                                    "target_dayofyear": target_dayofyear,
-                                    "target_month": target_month,
-                                    "leadtime": leadtime}),
-                      metric_df],
-                      axis=1)
+    return pd.concat([
+        pd.DataFrame({
+            "date": init_date,
+            "dayofyear": dayofyear,
+            "month": month,
+            "target_date": target_date,
+            "target_dayofyear": target_dayofyear,
+            "target_month": target_month,
+            "leadtime": leadtime
+        }), metric_df
+    ],
+                     axis=1)
 
 
 def compute_metrics_leadtime_avg(metric: str,
@@ -558,7 +554,8 @@ def compute_metrics_leadtime_avg(metric: str,
 
     if ecmwf:
         # find out what dates cross over with the SEAS5 predictions
-        (fc_start_date, fc_end_date) = (fc_ds.time.values.min(), fc_ds.time.values.max())
+        (fc_start_date, fc_end_date) = (fc_ds.time.values.min(),
+                                        fc_ds.time.values.max())
         dates = get_seas_forecast_init_dates(hemisphere)
         dates = dates[(dates > fc_start_date) & (dates <= fc_end_date)]
         times = [x for x in fc_ds.time.values if x in dates]
@@ -575,7 +572,8 @@ def compute_metrics_leadtime_avg(metric: str,
         fc = fc_ds.sel(time=slice(time, time))["sic_mean"]
         obs = get_obs_da(hemisphere=hemisphere,
                          start_date=pd.to_datetime(time) + timedelta(days=1),
-                         end_date=pd.to_datetime(time) + timedelta(days=int(fc.leadtime.max())))
+                         end_date=pd.to_datetime(time) +
+                         timedelta(days=int(fc.leadtime.max())))
         fc = filter_ds_by_obs(fc, obs, time)
 
         if ecmwf:
@@ -594,19 +592,21 @@ def compute_metrics_leadtime_avg(metric: str,
                                                    [seas, fc, obs, masks])
 
         # compute metrics
-        fc_metrics_list.append(compute_metric_as_dataframe(metric=metric,
-                                                           masks=masks,
-                                                           init_date=time,
-                                                           fc_da=fc,
-                                                           obs_da=obs,
-                                                           **kwargs))
+        fc_metrics_list.append(
+            compute_metric_as_dataframe(metric=metric,
+                                        masks=masks,
+                                        init_date=time,
+                                        fc_da=fc,
+                                        obs_da=obs,
+                                        **kwargs))
         if seas is not None:
-            seas_metrics_list.append(compute_metric_as_dataframe(metric=metric,
-                                                                 masks=masks,
-                                                                 init_date=time,
-                                                                 fc_da=seas,
-                                                                 obs_da=obs,
-                                                                 **kwargs))
+            seas_metrics_list.append(
+                compute_metric_as_dataframe(metric=metric,
+                                            masks=masks,
+                                            init_date=time,
+                                            fc_da=seas,
+                                            obs_da=obs,
+                                            **kwargs))
 
     # groupby the leadtime and compute the mean average of the metric
     fc_metric_df = pd.concat(fc_metrics_list)
@@ -622,7 +622,8 @@ def compute_metrics_leadtime_avg(metric: str,
             fc_metric_df.to_csv(data_path)
         except OSError:
             # don't break if not successful, still return dataframe
-            logging.info("Save not successful! Make sure the data_path directory exists")
+            logging.info(
+                "Save not successful! Make sure the data_path directory exists")
 
     return fc_metric_df.reset_index(drop=True)
 
@@ -641,12 +642,15 @@ def _parse_day_of_year(dayofyear: int, leapyear: bool = False) -> int:
     :return: int dayofyear
     """
     if leapyear:
-        return (pd.Timestamp("2000-01-01") + timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
+        return (pd.Timestamp("2000-01-01") +
+                timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
     else:
-        return (pd.Timestamp("2001-01-01") + timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
+        return (pd.Timestamp("2001-01-01") +
+                timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
 
 
-def _heatmap_ylabels(metrics_df: pd.DataFrame, average_over: str, groupby_col: str) -> object:
+def _heatmap_ylabels(metrics_df: pd.DataFrame, average_over: str,
+                     groupby_col: str) -> object:
     """
     Private function to return the labels for the y-axis in heatmap plots.
 
@@ -668,19 +672,24 @@ def _heatmap_ylabels(metrics_df: pd.DataFrame, average_over: str, groupby_col: s
     if average_over == "day":
         # only add labels to the start, end dates
         # and any days that represent the start of months
-        days_of_interest = np.array([metrics_df[groupby_col].min(),
-                                     1, 32, 60, 91, 121, 152,
-                                     182, 213, 244, 274, 305, 335,
-                                     metrics_df[groupby_col].max()])
-        labels = [_parse_day_of_year(day)
-                    if day in days_of_interest else ""
-                    for day in sorted(metrics_df[groupby_col].unique())]
+        days_of_interest = np.array([
+            metrics_df[groupby_col].min(), 1, 32, 60, 91, 121, 152, 182, 213,
+            244, 274, 305, 335, metrics_df[groupby_col].max()
+        ])
+        labels = [
+            _parse_day_of_year(day) if day in days_of_interest else ""
+            for day in sorted(metrics_df[groupby_col].unique())
+        ]
     else:
         # find out what months have been plotted and add their names
-        month_names = np.array(["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"])
-        labels = [month_names[month-1]
-                    for month in sorted(metrics_df[groupby_col].unique())]
+        month_names = np.array([
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept",
+            "Oct", "Nov", "Dec"
+        ])
+        labels = [
+            month_names[month - 1]
+            for month in sorted(metrics_df[groupby_col].unique())
+        ]
 
     return labels
 
@@ -754,7 +763,7 @@ def standard_deviation_heatmap(metric: str,
     labels = _heatmap_ylabels(metrics_df=metrics_df,
                               average_over=average_over,
                               groupby_col=groupby_col)
-    ax.set_yticks(np.arange(len(metrics_df[groupby_col].unique()))+0.5)
+    ax.set_yticks(np.arange(len(metrics_df[groupby_col].unique())) + 0.5)
     ax.set_yticklabels(labels)
     plt.yticks(rotation=0)
     if target_date_avg:
@@ -846,8 +855,9 @@ def plot_metrics_leadtime_avg(metric: str,
     """
     implemented_metrics = ["binacc", "sie", "mae", "mse", "rmse"]
     if metric not in implemented_metrics:
-        raise NotImplementedError(f"{metric} metric has not been implemented. "
-                                  f"Please only choose out of {implemented_metrics}.")
+        raise NotImplementedError(
+            f"{metric} metric has not been implemented. "
+            f"Please only choose out of {implemented_metrics}.")
     if metric == "binacc":
         # add default kwargs
         if "threshold" not in kwargs.keys():
@@ -868,14 +878,16 @@ def plot_metrics_leadtime_avg(metric: str,
     do_compute_metrics = True
     if data_path is not None:
         # loading in precomputed dataframes for the metrics
-        logging.info(f"Attempting to read in metrics dataframe from {data_path}")
+        logging.info(
+            f"Attempting to read in metrics dataframe from {data_path}")
         try:
             metric_df = pd.read_csv(data_path)
             metric_df["date"] = pd.to_datetime(metric_df["date"])
             do_compute_metrics = False
         except OSError:
-            logging.info(f"Couldn't load in dataframe from {data_path}, "
-                         f"will compute metric dataframe and try save to {data_path}")
+            logging.info(
+                f"Couldn't load in dataframe from {data_path}, "
+                f"will compute metric dataframe and try save to {data_path}")
 
     if do_compute_metrics:
         # computing the dataframes for the metrics
@@ -892,7 +904,8 @@ def plot_metrics_leadtime_avg(metric: str,
 
     fc_metric_df = metric_df[metric_df["forecast_name"] == "IceNet"]
     seas_metric_df = metric_df[metric_df["forecast_name"] == "SEAS"]
-    seas_metric_df = seas_metric_df if (len(seas_metric_df) != 0) and ecmwf else None
+    seas_metric_df = seas_metric_df if (len(seas_metric_df)
+                                        != 0) and ecmwf else None
 
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -914,7 +927,10 @@ def plot_metrics_leadtime_avg(metric: str,
         n_forecast_days = fc_avg_metric.index.max()
 
         # plot leadtime averaged metrics
-        ax.plot(fc_avg_metric.index, fc_avg_metric, label="IceNet", color="blue")
+        ax.plot(fc_avg_metric.index,
+                fc_avg_metric,
+                label="IceNet",
+                color="blue")
         if plot_std:
             # obtaining the standard deviation of the metric
             fc_std_metric = fc_metric_df.groupby("leadtime")[metric].std().\
@@ -928,7 +944,10 @@ def plot_metrics_leadtime_avg(metric: str,
         if seas_metric_df is not None:
             seas_avg_metric = seas_metric_df.groupby("leadtime").mean(metric).\
                 sort_values("leadtime", ascending=True)[metric]
-            ax.plot(seas_avg_metric.index, seas_avg_metric, label="SEAS", color="darkorange")
+            ax.plot(seas_avg_metric.index,
+                    seas_avg_metric,
+                    label="SEAS",
+                    color="darkorange")
             if plot_std:
                 # obtaining the standard deviation of the metric
                 seas_std_metric = seas_metric_df.groupby("leadtime")[metric].std().\
@@ -970,19 +989,22 @@ def plot_metrics_leadtime_avg(metric: str,
             max = np.nanmax(np.abs(heatmap_df_diff.values))
 
             # plot heatmap of the difference between IceNet and SEAS
-            sns.heatmap(data=heatmap_df_diff,
-                        ax=ax,
-                        vmax=max,
-                        vmin=-max,
-                        cmap="seismic_r" if metric in ["binacc", "sie"] else "seismic",
-                        cbar_kws=dict(label=f"{ylabel} difference between IceNet and SEAS"))
+            sns.heatmap(
+                data=heatmap_df_diff,
+                ax=ax,
+                vmax=max,
+                vmin=-max,
+                cmap="seismic_r" if metric in ["binacc", "sie"] else "seismic",
+                cbar_kws=dict(
+                    label=f"{ylabel} difference between IceNet and SEAS"))
 
         else:
             # plot heatmap of the leadtime averaged metric when grouped by groupby_col
-            sns.heatmap(data=fc_avg_metric,
-                        ax=ax,
-                        cmap="inferno" if metric in ["binacc", "sie"] else "inferno_r",
-                        cbar_kws=dict(label=ylabel))
+            sns.heatmap(
+                data=fc_avg_metric,
+                ax=ax,
+                cmap="inferno" if metric in ["binacc", "sie"] else "inferno_r",
+                cbar_kws=dict(label=ylabel))
 
         # string to add in plot title
         time_coverage = "\nAveraged over a minimum of " + \
@@ -993,7 +1015,7 @@ def plot_metrics_leadtime_avg(metric: str,
         labels = _heatmap_ylabels(metrics_df=fc_metric_df,
                                   average_over=average_over,
                                   groupby_col=groupby_col)
-        ax.set_yticks(np.arange(len(fc_metric_df[groupby_col].unique()))+0.5)
+        ax.set_yticks(np.arange(len(fc_metric_df[groupby_col].unique())) + 0.5)
         ax.set_yticklabels(labels)
 
         plt.yticks(rotation=0)
@@ -1002,7 +1024,8 @@ def plot_metrics_leadtime_avg(metric: str,
         else:
             ax.set_ylabel("Initialisation date of forecast")
     else:
-        raise NotImplementedError(f"averaging over {average_over} not a valid option.")
+        raise NotImplementedError(
+            f"averaging over {average_over} not a valid option.")
 
     # add plot title
     if metric in ["mae", "mse", "rmse"]:
@@ -1040,13 +1063,17 @@ def plot_metrics_leadtime_avg(metric: str,
                 reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
                     sort_values(groupby_col, ascending=True)
             # compute the maximum standard deviation to obtain a common scale
-            vmax = np.nanmax([np.nanmax(fc_std_metric.values), np.nanmax(seas_std_metric.values)])
+            vmax = np.nanmax([
+                np.nanmax(fc_std_metric.values),
+                np.nanmax(seas_std_metric.values)
+            ])
             # create heapmap for the standard deviation
             standard_deviation_heatmap(metric=metric,
                                        model_name="SEAS",
                                        metrics_df=seas_metric_df,
                                        average_over=average_over,
-                                       output_path=output_path.replace(".png", "_SEAS_std.png"),
+                                       output_path=output_path.replace(
+                                           ".png", "_SEAS_std.png"),
                                        target_date_avg=target_date_avg,
                                        fc_std_metric=seas_std_metric,
                                        vmax=vmax,
@@ -1060,7 +1087,8 @@ def plot_metrics_leadtime_avg(metric: str,
                                    model_name="IceNet",
                                    metrics_df=fc_metric_df,
                                    average_over=average_over,
-                                   output_path=output_path.replace(".png", "_IceNet_std.png"),
+                                   output_path=output_path.replace(
+                                       ".png", "_IceNet_std.png"),
                                    target_date_avg=target_date_avg,
                                    fc_std_metric=fc_std_metric,
                                    vmax=vmax,
@@ -1069,9 +1097,7 @@ def plot_metrics_leadtime_avg(metric: str,
     return fc_metric_df, seas_metric_df
 
 
-def sic_error_video(fc_da: object,
-                    obs_da: object,
-                    land_mask: object,
+def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
                     output_path: object) -> object:
     """
 
@@ -1084,10 +1110,7 @@ def sic_error_video(fc_da: object,
     """
 
     diff = fc_da - obs_da
-    fig, maps = plt.subplots(nrows=1,
-                             ncols=3,
-                             figsize=(16, 6),
-                             layout="tight")
+    fig, maps = plt.subplots(nrows=1, ncols=3, figsize=(16, 6), layout="tight")
     fig.set_dpi(150)
 
     leadtime = 0
@@ -1101,11 +1124,7 @@ def sic_error_video(fc_da: object,
     logging.debug("Bounds of differences: {} - {}".format(diff_vmin, diff_vmax))
 
     sic_cmap = mpl.cm.get_cmap("Blues_r", 20)
-    contour_kwargs = dict(
-        vmin=0,
-        vmax=1,
-        cmap=sic_cmap
-    )
+    contour_kwargs = dict(vmin=0, vmax=1, cmap=sic_cmap)
 
     diff_cmap = mpl.cm.get_cmap("RdBu_r", 20)
     im1 = maps[0].imshow(fc_plot, **contour_kwargs)
@@ -1115,20 +1134,24 @@ def sic_error_video(fc_da: object,
                          vmax=diff_vmax,
                          cmap=diff_cmap)
 
-    tic = maps[0].set_title("IceNet "
-                            f"{pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}")
-    tio = maps[1].set_title("OSISAF Obs "
-                            f"{pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}")
+    tic = maps[0].set_title(
+        "IceNet "
+        f"{pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}"
+    )
+    tio = maps[1].set_title(
+        "OSISAF Obs "
+        f"{pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}"
+    )
     maps[2].set_title("Diff")
 
     p0 = maps[0].get_position().get_points().flatten()
     p1 = maps[1].get_position().get_points().flatten()
     p2 = maps[2].get_position().get_points().flatten()
 
-    ax_cbar = fig.add_axes([p0[0]-0.05, 0.04, p1[2]-p0[0], 0.02])
+    ax_cbar = fig.add_axes([p0[0] - 0.05, 0.04, p1[2] - p0[0], 0.02])
     plt.colorbar(im1, orientation='horizontal', cax=ax_cbar)
 
-    ax_cbar1 = fig.add_axes([p2[0]+0.05, 0.04, p2[2]-p2[0], 0.02])
+    ax_cbar1 = fig.add_axes([p2[0] + 0.05, 0.04, p2[2] - p2[0], 0.02])
     plt.colorbar(im3, orientation='horizontal', cax=ax_cbar1)
 
     for m_ax in maps[0:3]:
@@ -1149,9 +1172,11 @@ def sic_error_video(fc_da: object,
         diff_plot = diff.isel(time=date).to_numpy()
 
         tic.set_text("IceNet {}".format(
-            pd.to_datetime(fc_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
+            pd.to_datetime(
+                fc_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
         tio.set_text("OSISAF Obs {}".format(
-            pd.to_datetime(obs_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
+            pd.to_datetime(
+                obs_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
 
         im1.set_data(fc_plot)
         im2.set_data(obs_plot)
@@ -1169,9 +1194,7 @@ def sic_error_video(fc_da: object,
     output_path = os.path.join("plot", "sic_error.mp4") \
         if not output_path else output_path
     logging.info(f"Saving to {output_path}")
-    animation.save(output_path,
-                   fps=10,
-                   extra_args=['-vcodec', 'libx264'])
+    animation.save(output_path, fps=10, extra_args=['-vcodec', 'libx264'])
     return animation
 
 
@@ -1179,25 +1202,16 @@ def sic_error_local_header_data(da: xr.DataArray):
     n_probe = len(da.probe)
     return {
         "probe array index": {
-            i_probe: (
-                f"{da.xi.values[i_probe]},"
-                f"{da.yi.values[i_probe]}"
-            )
-            for i_probe in range(n_probe)
+            i_probe: (f"{da.xi.values[i_probe]},"
+                      f"{da.yi.values[i_probe]}") for i_probe in range(n_probe)
         },
         "probe location (EASE)": {
-            i_probe: (
-                f"{da.xc.values[i_probe]},"
-                f"{da.yc.values[i_probe]}"
-            )
-            for i_probe in range(n_probe)
+            i_probe: (f"{da.xc.values[i_probe]},"
+                      f"{da.yc.values[i_probe]}") for i_probe in range(n_probe)
         },
         "probe location (lat, lon)": {
-            i_probe: (
-                f"{da.lat.values[i_probe]},"
-                f"{da.lon.values[i_probe]}"
-            )
-            for i_probe in range(n_probe)
+            i_probe: (f"{da.lat.values[i_probe]},"
+                      f"{da.lon.values[i_probe]}") for i_probe in range(n_probe)
         },
         "obs_kind": {
             0: "forecast",
@@ -1208,8 +1222,7 @@ def sic_error_local_header_data(da: xr.DataArray):
     }
 
 
-def sic_error_local_write_fig(combined_da: xr.DataArray,
-                              output_prefix: str):
+def sic_error_local_write_fig(combined_da: xr.DataArray, output_prefix: str):
     """A helper function for `sic_error_local_plots`: plot error and
     forecast/observation data.
 
@@ -1246,10 +1259,8 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
             fig, ax = plt.subplots()
             all_figs.append(fig)
 
-            ax.set_title(
-                f"Sea ice concentration at location {i_probe + 1}\n"
-                f"{lat:.3f}° {lat_h}, {lon:.3f}° {lon_h}"
-            )
+            ax.set_title(f"Sea ice concentration at location {i_probe + 1}\n"
+                         f"{lat:.3f}° {lat_h}, {lon:.3f}° {lon_h}")
 
             ax.set_xlabel("Date")
             ax.set_ylabel("SIC (%)")
@@ -1268,8 +1279,7 @@ def sic_error_local_write_fig(combined_da: xr.DataArray,
 
             ax2.set_title(
                 f"Sea ice concentration error at location {i_probe + 1}\n"
-                f"{lat:.3f}° {lat_h}, {lon:.3f}° {lon_h}"
-            )
+                f"{lat:.3f}° {lat_h}, {lon:.3f}° {lon_h}")
 
             ax2.set_xlabel("Date")
             ax2.set_ylabel("SIC error (%)")
@@ -1287,30 +1297,26 @@ def sic_error_local_plots(fc_da: object,
                           obs_da: object,
                           output_path: object,
                           as_command: bool = False):
-
     """
     :param fc_da: a DataArray with dims ('time', 'probe')
     :param obs_da: a DataArray with dims ('time', 'probe')
     """
 
     # convert SIC to percentages (ranging from 0% to 100%) rather than a fraction
-    fc_da = fc_da*100
-    obs_da = obs_da*100
-    err_da = (fc_da-obs_da)
-    combined_da = xr.concat(
-        [fc_da, obs_da, err_da],
-        dim="obs_kind", coords="minimal"
-    )
+    fc_da = fc_da * 100
+    obs_da = obs_da * 100
+    err_da = (fc_da - obs_da)
+    combined_da = xr.concat([fc_da, obs_da, err_da],
+                            dim="obs_kind",
+                            coords="minimal")
 
     # convert to a dataframe for csv output
     df = (
-        combined_da
-        .to_dataframe(name="SIC")
+        combined_da.to_dataframe(name="SIC")
         # drop unneeded coords (lat, lon, xc, yc)
         .loc[:, "SIC"]
         # Convert mult-indices
-        .unstack(2).unstack(0)
-    )
+        .unstack(2).unstack(0))
 
     if output_path is None:
         output_path = "sic_error_local.csv"
@@ -1343,7 +1349,6 @@ def sic_error_local_plots(fc_da: object,
 
 
 class ForecastPlotArgParser(argparse.ArgumentParser):
-
     """An ArgumentParser specialised to support forecast plot arguments
 
     Additional argument enabled by allow_ecmwf() etc.
@@ -1353,9 +1358,7 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
     :param forecast_date: allows this positional argument to be disabled
     """
 
-    def __init__(self, *args,
-                 forecast_date: bool = True,
-                 **kwargs):
+    def __init__(self, *args, forecast_date: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.add_argument("hemisphere", choices=("north", "south"))
@@ -1365,11 +1368,15 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
 
         self.add_argument("-o", "--output-path", type=str, default=None)
         self.add_argument("-v", "--verbose", action="store_true", default=False)
-        self.add_argument("-r", "--region", default=None, type=region_arg,
+        self.add_argument("-r",
+                          "--region",
+                          default=None,
+                          type=region_arg,
                           help="Region specified x1, y1, x2, y2")
 
     def allow_ecmwf(self):
-        self.add_argument("-b", "--bias-correct",
+        self.add_argument("-b",
+                          "--bias-correct",
                           help="Bias correct SEAS forecast array",
                           action="store_true",
                           default=False)
@@ -1385,11 +1392,12 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
         return self
 
     def allow_sie(self):
-        self.add_argument("-ga",
-                          "--grid-area",
-                          help="The length of the sides of the grid used (in km)",
-                          type=int,
-                          default=25)
+        self.add_argument(
+            "-ga",
+            "--grid-area",
+            help="The length of the sides of the grid used (in km)",
+            type=int,
+            default=25)
         return self
 
     def allow_metrics(self):
@@ -1398,17 +1406,22 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           help="Which metrics to compute and plot",
                           type=str,
                           default="mae,mse,rmse")
-        self.add_argument("-s",
-                          "--separate",
-                          help="Whether or not to produce separate plots for each metric",
-                          action="store_true",
-                          default=False)
+        self.add_argument(
+            "-s",
+            "--separate",
+            help="Whether or not to produce separate plots for each metric",
+            action="store_true",
+            default=False)
         return self
 
     def allow_probes(self):
         self.add_argument(
-            "-p", "--probe", action="append", dest="probes",
-            type=location_arg, metavar="LOCATION",
+            "-p",
+            "--probe",
+            action="append",
+            dest="probes",
+            type=location_arg,
+            metavar="LOCATION",
             help="Sample at LOCATION",
         )
         return self
@@ -1416,10 +1429,12 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
     def parse_args(self, *args, **kwargs):
         args = super().parse_args(*args, **kwargs)
 
-        logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+        logging.basicConfig(
+            level=logging.DEBUG if args.verbose else logging.INFO)
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
         return args
+
 
 ##
 # CLI endpoints
@@ -1430,23 +1445,18 @@ def binary_accuracy():
     """
     Produces plot of the binary classification accuracy of forecasts.
     """
-    ap = (
-        ForecastPlotArgParser()
-        .allow_ecmwf()
-        .allow_threshold()
-    )
+    ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold())
     args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
 
-    fc = get_forecast_ds(args.forecast_file,
-                         args.forecast_date)
-    obs = get_obs_da(args.hemisphere,
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=1),
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=int(fc.leadtime.max())))
+    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+    obs = get_obs_da(
+        args.hemisphere,
+        pd.to_datetime(args.forecast_date) + timedelta(days=1),
+        pd.to_datetime(args.forecast_date) +
+        timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
     if args.ecmwf:
@@ -1478,24 +1488,18 @@ def sie_error():
     """
     Produces plot of the sea ice extent (SIE) error of forecasts.
     """
-    ap = (
-        ForecastPlotArgParser()
-        .allow_ecmwf()
-        .allow_threshold()
-        .allow_sie()
-    )
+    ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold().allow_sie())
     args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
 
-    fc = get_forecast_ds(args.forecast_file,
-                         args.forecast_date)
-    obs = get_obs_da(args.hemisphere,
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=1),
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=int(fc.leadtime.max())))
+    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+    obs = get_obs_da(
+        args.hemisphere,
+        pd.to_datetime(args.forecast_date) + timedelta(days=1),
+        pd.to_datetime(args.forecast_date) +
+        timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
     if args.ecmwf:
@@ -1530,24 +1534,32 @@ def plot_forecast():
     :return:
     """
     ap = ForecastPlotArgParser()
-    ap.add_argument("-l", "--leadtimes",
+    ap.add_argument("-l",
+                    "--leadtimes",
                     help="Leadtimes to output, multiple as CSV, range as n..n",
-                    type=lambda s: [int(i) for i in
-                                    list(s.split(",") if "," in s else
-                                         range(int(s.split("..")[0]),
-                                               int(s.split("..")[1]) + 1) if ".." in s else
-                                         [s])])
-    ap.add_argument("-c", "--no-coastlines",
+                    type=lambda s: [
+                        int(i) for i in list(
+                            s.split(",")
+                            if "," in s else range(int(s.split("..")[0]),
+                                                   int(s.split("..")[1]) + 1)
+                            if ".." in s else [s])
+                    ])
+    ap.add_argument("-c",
+                    "--no-coastlines",
                     help="Turn off cartopy integration",
-                    action="store_true", default=False)
-    ap.add_argument("-f", "--format",
+                    action="store_true",
+                    default=False)
+    ap.add_argument("-f",
+                    "--format",
                     help="Format to output in",
                     choices=("mp4", "png", "svg", "tiff"),
                     default="png")
-    ap.add_argument("-n", "--cmap-name",
+    ap.add_argument("-n",
+                    "--cmap-name",
                     help="Color map name if not wanting to use default",
                     default=None)
-    ap.add_argument("-s", "--stddev",
+    ap.add_argument("-s",
+                    "--stddev",
                     help="Plot the standard deviation from the ensemble",
                     action="store_true",
                     default=False)
@@ -1564,8 +1576,8 @@ def plot_forecast():
         logging.warning("No directory at: {}".format(output_path))
         os.makedirs(output_path)
     elif os.path.isfile(output_path):
-        raise RuntimeError("{} should be a directory and not existent...".
-                           format(output_path))
+        raise RuntimeError(
+            "{} should be a directory and not existent...".format(output_path))
 
     forecast_name = "{}.{}".format(
         os.path.splitext(os.path.basename(args.forecast_file))[0],
@@ -1598,31 +1610,32 @@ def plot_forecast():
         if "forecast_date" not in pred_da:
             forecast_dates = [
                 pd.Timestamp(args.forecast_date) + dt.timedelta(lt)
-                for lt in args.leadtimes]
-            pred_da = pred_da.assign_coords(
-                forecast_date=("leadtime", forecast_dates))
+                for lt in args.leadtimes
+            ]
+            pred_da = pred_da.assign_coords(forecast_date=("leadtime",
+                                                           forecast_dates))
 
         pred_da = pred_da.drop("time").drop("leadtime").\
             rename(leadtime="time", forecast_date="time").set_index(time="time")
 
-        anim_args = dict(
-            figsize=5
-        )
+        anim_args = dict(figsize=5)
         if not args.no_coastlines:
             logging.warning("Coastlines will not work with the current "
                             "implementation of xarray_to_video")
 
-        output_filename = os.path.join(output_path, "{}.{}.{}{}".format(
-            forecast_name,
-            args.forecast_date.strftime("%Y%m%d"),
-            "" if not args.stddev else "stddev.",
-            args.format
-        ))
-        xarray_to_video(pred_da, fps=1, cmap=cmap,
-                        imshow_kwargs=dict(vmin=0., vmax=vmax)
-                        if not args.stddev else None,
-                        video_path=output_filename,
-                        **anim_args)
+        output_filename = os.path.join(
+            output_path,
+            "{}.{}.{}{}".format(forecast_name,
+                                args.forecast_date.strftime("%Y%m%d"),
+                                "" if not args.stddev else "stddev.",
+                                args.format))
+        xarray_to_video(
+            pred_da,
+            fps=1,
+            cmap=cmap,
+            imshow_kwargs=dict(vmin=0., vmax=vmax) if not args.stddev else None,
+            video_path=output_filename,
+            **anim_args)
     else:
         for leadtime in leadtimes:
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
@@ -1640,7 +1653,10 @@ def plot_forecast():
 
             bound_args.update(cmap=cmap)
 
-            im = show_img(ax, pred_da, **bound_args, vmax=vmax,
+            im = show_img(ax,
+                          pred_da,
+                          **bound_args,
+                          vmax=vmax,
                           do_coastlines=not args.no_coastlines)
 
             plt.colorbar(im, ax=ax)
@@ -1648,13 +1664,12 @@ def plot_forecast():
             ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
                                                        plot_date.month,
                                                        plot_date.day))
-            output_filename = os.path.join(output_path, "{}.{}.{}{}".format(
-                forecast_name,
-                (args.forecast_date + dt.timedelta(
-                    days=leadtime)).strftime("%Y%m%d"),
-                "" if not args.stddev else "stddev.",
-                args.format
-            ))
+            output_filename = os.path.join(
+                output_path, "{}.{}.{}{}".format(
+                    forecast_name,
+                    (args.forecast_date +
+                     dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
+                    "" if not args.stddev else "stddev.", args.format))
 
             logging.info("Saving to {}".format(output_filename))
             plt.savefig(output_filename)
@@ -1678,23 +1693,18 @@ def metric_plots():
     """
     Produces plot of requested metrics for forecasts.
     """
-    ap = (
-        ForecastPlotArgParser()
-        .allow_ecmwf()
-        .allow_metrics()
-    )
+    ap = (ForecastPlotArgParser().allow_ecmwf().allow_metrics())
     args = ap.parse_args()
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
 
-    fc = get_forecast_ds(args.forecast_file,
-                         args.forecast_date)
-    obs = get_obs_da(args.hemisphere,
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=1),
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=int(fc.leadtime.max())))
+    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+    obs = get_obs_da(
+        args.hemisphere,
+        pd.to_datetime(args.forecast_date) + timedelta(days=1),
+        pd.to_datetime(args.forecast_date) +
+        timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
     metrics = parse_metrics_arg(args.metrics)
@@ -1729,12 +1739,8 @@ def leadtime_avg_plots():
     """
     Produces plot of leadtime averaged metrics for forecasts.
     """
-    ap = (
-        ForecastPlotArgParser(forecast_date=False)
-        .allow_ecmwf()
-        .allow_threshold()
-        .allow_sie()
-    )
+    ap = (ForecastPlotArgParser(
+        forecast_date=False).allow_ecmwf().allow_threshold().allow_sie())
     ap.add_argument("-m",
                     "--metric",
                     help="Which metric to compute and plot",
@@ -1759,11 +1765,12 @@ def leadtime_avg_plots():
                     help="What multiple of the standard deviation to plot",
                     type=float,
                     default=1.0)
-    ap.add_argument("-td",
-                    "--target_date_average",
-                    help="Averages metric over target date instead of init date",
-                    action="store_true",
-                    default=False)
+    ap.add_argument(
+        "-td",
+        "--target_date_average",
+        help="Averages metric over target date instead of init date",
+        action="store_true",
+        default=False)
     args = ap.parse_args()
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -1795,13 +1802,12 @@ def sic_error():
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
 
-    fc = get_forecast_ds(args.forecast_file,
-                         args.forecast_date)
-    obs = get_obs_da(args.hemisphere,
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=1),
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=int(fc.leadtime.max())))
+    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+    obs = get_obs_da(
+        args.hemisphere,
+        pd.to_datetime(args.forecast_date) + timedelta(days=1),
+        pd.to_datetime(args.forecast_date) +
+        timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
     if args.region:
@@ -1818,24 +1824,17 @@ def sic_error_local():
     Entry point for the icenet_plot_sic_error_local command
     """
 
-    ap = (
-        ForecastPlotArgParser()
-        .allow_probes()
-    )
+    ap = (ForecastPlotArgParser().allow_probes())
     args = ap.parse_args()
 
-    fc = get_forecast_ds(args.forecast_file,
-                         args.forecast_date)
-    obs = get_obs_da(args.hemisphere,
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=1),
-                     pd.to_datetime(args.forecast_date) +
-                     timedelta(days=int(fc.leadtime.max())))
+    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
+    obs = get_obs_da(
+        args.hemisphere,
+        pd.to_datetime(args.forecast_date) + timedelta(days=1),
+        pd.to_datetime(args.forecast_date) +
+        timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
     fc, obs = process_probes(args.probes, [fc, obs])
 
-    sic_error_local_plots(fc,
-                          obs,
-                          args.output_path,
-                          as_command=True)
+    sic_error_local_plots(fc, obs, args.output_path, as_command=True)

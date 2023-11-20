@@ -3,7 +3,6 @@
 from importlib_metadata import entry_points
 import pytest
 
-
 icenet_entry_points = [
     ep for ep in entry_points(group="console_scripts")
     if ep.module.startswith('icenet')

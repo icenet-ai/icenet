@@ -30,34 +30,33 @@ except ModuleNotFoundError:
     pass
 
 
-def train_model(
-    run_name: object,
-    dataset: object,
-    callback_objects: list = [],
-    checkpoint_monitor: str = 'val_rmse',
-    checkpoint_mode: str = 'min',
-    dataset_ratio: float = 1.0,
-    early_stopping_patience: int = 30,
-    epochs: int = 2,
-    filter_size: float = 3,
-    learning_rate: float = 1e-4,
-    lr_10e_decay_fac: float = 1.0,
-    lr_decay_start: float = 10,
-    lr_decay_end: float = 30,
-    max_queue_size: int = 3,
-    model_func: object = models.unet_batchnorm,
-    n_filters_factor: float = 2,
-    network_folder: object = None,
-    network_save: bool = True,
-    pickup_weights: bool = False,
-    pre_load_network: bool = False,
-    pre_load_path: object = None,
-    seed: int = 42,
-    strategy: object = tf.distribute.get_strategy(),
-    training_verbosity: int = 1,
-    workers: int = 5,
-    use_multiprocessing: bool = True,
-    use_tensorboard: bool = True) -> object:
+def train_model(run_name: object,
+                dataset: object,
+                callback_objects: list = [],
+                checkpoint_monitor: str = 'val_rmse',
+                checkpoint_mode: str = 'min',
+                dataset_ratio: float = 1.0,
+                early_stopping_patience: int = 30,
+                epochs: int = 2,
+                filter_size: float = 3,
+                learning_rate: float = 1e-4,
+                lr_10e_decay_fac: float = 1.0,
+                lr_decay_start: float = 10,
+                lr_decay_end: float = 30,
+                max_queue_size: int = 3,
+                model_func: object = models.unet_batchnorm,
+                n_filters_factor: float = 2,
+                network_folder: object = None,
+                network_save: bool = True,
+                pickup_weights: bool = False,
+                pre_load_network: bool = False,
+                pre_load_path: object = None,
+                seed: int = 42,
+                strategy: object = tf.distribute.get_strategy(),
+                training_verbosity: int = 1,
+                workers: int = 5,
+                use_multiprocessing: bool = True,
+                use_tensorboard: bool = True) -> object:
     """
 
     :param run_name:
@@ -105,14 +104,12 @@ def train_model(
         logging.info("Creating network folder: {}".format(network_folder))
         os.makedirs(network_folder, exist_ok=True)
 
-    weights_path = os.path.join(network_folder,
-                                "{}.network_{}.{}.h5".format(run_name,
-                                                             dataset.identifier,
-                                                             seed))
-    model_path = os.path.join(network_folder,
-                              "{}.model_{}.{}".format(run_name,
-                                                      dataset.identifier,
-                                                      seed))
+    weights_path = os.path.join(
+        network_folder, "{}.network_{}.{}.h5".format(run_name,
+                                                     dataset.identifier, seed))
+    model_path = os.path.join(
+        network_folder, "{}.model_{}.{}".format(run_name, dataset.identifier,
+                                                seed))
 
     history_path = os.path.join(network_folder,
                                 "{}_{}_history.json".format(run_name, seed))
@@ -122,23 +119,19 @@ def train_model(
 
     # Checkpoint the model weights when a validation metric is improved
     callbacks_list.append(
-        ModelCheckpoint(
-            filepath=weights_path,
-            monitor=checkpoint_monitor,
-            verbose=1,
-            mode=checkpoint_mode,
-            save_best_only=True
-        ))
+        ModelCheckpoint(filepath=weights_path,
+                        monitor=checkpoint_monitor,
+                        verbose=1,
+                        mode=checkpoint_mode,
+                        save_best_only=True))
 
     # Abort training when validation performance stops improving
     callbacks_list.append(
-        EarlyStopping(
-            monitor=checkpoint_monitor,
-            mode=checkpoint_mode,
-            verbose=1,
-            patience=early_stopping_patience,
-            baseline=prev_best
-        ))
+        EarlyStopping(monitor=checkpoint_monitor,
+                      mode=checkpoint_mode,
+                      verbose=1,
+                      patience=early_stopping_patience,
+                      baseline=prev_best))
 
     callbacks_list.append(
         LearningRateScheduler(
@@ -151,8 +144,8 @@ def train_model(
     if use_tensorboard:
         logging.info("Adding tensorboard callback")
         log_dir = "logs/" + dt.datetime.now().strftime("%d-%m-%y-%H%M%S")
-        callbacks_list.append(tf.keras.callbacks.TensorBoard(log_dir=log_dir,
-                                                             histogram_freq=1))
+        callbacks_list.append(
+            tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1))
 
     ############################################################################
     #                              TRAINING MODEL
@@ -182,8 +175,8 @@ def train_model(
         logging.info("Loading network weights from {}".format(pre_load_path))
         network.load_weights(pre_load_path)
     elif pickup_weights and os.path.exists(weights_path):
-        logging.warning("Automagically loading network weights from {}".
-                        format(weights_path))
+        logging.warning("Automagically loading network weights from {}".format(
+            weights_path))
         network.load_weights(weights_path)
 
     network.summary()
@@ -200,8 +193,7 @@ def train_model(
         max_queue_size=max_queue_size,
         # not useful for tf.data usage according to docs, but useful in dev
         workers=workers,
-        use_multiprocessing=use_multiprocessing
-    )
+        use_multiprocessing=use_multiprocessing)
 
     if network_save:
         logging.info("Saving network to: {}".format(weights_path))
@@ -243,17 +235,17 @@ def evaluate_model(model_path: object,
                         "than test set")
 
     lead_times = list(range(1, dataset.n_forecast_days + 1))
-    logging.info("Metric creation for lead time of {} days".
-                 format(len(lead_times)))
+    logging.info("Metric creation for lead time of {} days".format(
+        len(lead_times)))
     metric_names = ["binacc", "mae", "rmse"]
     metrics_classes = [
         metrics.WeightedBinaryAccuracy,
         metrics.WeightedMAE,
         metrics.WeightedRMSE,
     ]
-    metrics_list = [cls(leadtime_idx=lt - 1)
-                    for lt in lead_times
-                    for cls in metrics_classes]
+    metrics_list = [
+        cls(leadtime_idx=lt - 1) for lt in lead_times for cls in metrics_classes
+    ]
 
     network.compile(weighted_metrics=metrics_list)
 
@@ -292,40 +284,60 @@ def get_args():
     ap.add_argument("-b", "--batch-size", type=int, default=4)
     ap.add_argument("-ca", "--checkpoint-mode", default="min", type=str)
     ap.add_argument("-cm", "--checkpoint-monitor", default="val_rmse", type=str)
-    ap.add_argument("-ds", "--additional-dataset",
-                    dest="additional", nargs="*", default=[])
+    ap.add_argument("-ds",
+                    "--additional-dataset",
+                    dest="additional",
+                    nargs="*",
+                    default=[])
     ap.add_argument("-e", "--epochs", type=int, default=4)
     ap.add_argument("-f", "--filter-size", type=int, default=3)
     ap.add_argument("--early-stopping", type=int, default=50)
-    ap.add_argument("-m", "--multiprocessing",
-                    action="store_true", default=False)
+    ap.add_argument("-m",
+                    "--multiprocessing",
+                    action="store_true",
+                    default=False)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
     ap.add_argument("-p", "--preload", type=str)
-    ap.add_argument("-pw", "--pickup-weights",
-                    action="store_true", default=False)
+    ap.add_argument("-pw",
+                    "--pickup-weights",
+                    action="store_true",
+                    default=False)
     ap.add_argument("-qs", "--max-queue-size", default=10, type=int)
     ap.add_argument("-r", "--ratio", default=1.0, type=float)
-    ap.add_argument("-s", "--strategy", default="default",
+    ap.add_argument("-s",
+                    "--strategy",
+                    default="default",
                     choices=("default", "mirrored", "central"))
-    ap.add_argument("--shuffle-train", default=False,
-                    action="store_true", help="Shuffle the training set")
+    ap.add_argument("--shuffle-train",
+                    default=False,
+                    action="store_true",
+                    help="Shuffle the training set")
     ap.add_argument("--gpus", default=None)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-w", "--workers", type=int, default=4)
 
     # WandB additional arguments
     ap.add_argument("-nw", "--no-wandb", default=False, action="store_true")
-    ap.add_argument("-wo", "--wandb-offline", default=False, action="store_true")
-    ap.add_argument("-wp", "--wandb-project",
-                    default=os.environ.get("ICENET_ENVIRONMENT"), type=str)
-    ap.add_argument("-wu", "--wandb-user",
-                    default=os.environ.get("USER"), type=str)
+    ap.add_argument("-wo",
+                    "--wandb-offline",
+                    default=False,
+                    action="store_true")
+    ap.add_argument("-wp",
+                    "--wandb-project",
+                    default=os.environ.get("ICENET_ENVIRONMENT"),
+                    type=str)
+    ap.add_argument("-wu",
+                    "--wandb-user",
+                    default=os.environ.get("USER"),
+                    type=str)
 
     ap.add_argument("--lr", default=1e-4, type=float)
-    ap.add_argument("--lr_10e_decay_fac", default=1.0, type=float,
+    ap.add_argument("--lr_10e_decay_fac",
+                    default=1.0,
+                    type=float,
                     help="Factor by which LR is multiplied by every 10 epochs "
-                         "using exponential decay. E.g. 1 -> no decay (default)"
-                         ", 0.5 -> halve every 10 epochs.")
+                    "using exponential decay. E.g. 1 -> no decay (default)"
+                    ", 0.5 -> halve every 10 epochs.")
     ap.add_argument('--lr_decay_start', default=10, type=int)
     ap.add_argument('--lr_decay_end', default=30, type=int)
 
@@ -335,8 +347,9 @@ def get_args():
 def main():
     args = get_args()
 
-    logging.warning("Setting seed for best attempt at determinism, value {}".
-                    format(args.seed))
+    logging.warning(
+        "Setting seed for best attempt at determinism, value {}".format(
+            args.seed))
     # determinism is not guaranteed across different versions of TensorFlow.
     # determinism is not guaranteed across different hardware.
     os.environ['PYTHONHASHSEED'] = str(args.seed)
@@ -355,12 +368,11 @@ def main():
                                 shuffling=args.shuffle_train)
     else:
         dataset = MergedIceNetDataSet([
-            "dataset_config.{}.json".format(el) for el in [
-                args.dataset, *args.additional
-            ]
+            "dataset_config.{}.json".format(el)
+            for el in [args.dataset, *args.additional]
         ],
-            batch_size=args.batch_size,
-            shuffling=args.shuffle_train)
+                                      batch_size=args.batch_size,
+                                      shuffling=args.shuffle_train)
 
     strategy = tf.distribute.MirroredStrategy() \
         if args.strategy == "mirrored" \
@@ -380,11 +392,11 @@ def main():
         run = wandb.init(
             project=args.wandb_project,
             name="{}.{}".format(args.run_name, args.seed),
-            notes="{}: run at {}{}".format(args.run_name,
-                                           dt.datetime.now().strftime("%D %T"),
-                                           "" if
-                                           not args.preload is not None else
-                                           " preload {}".format(args.preload)),
+            notes="{}: run at {}{}".format(
+                args.run_name,
+                dt.datetime.now().strftime("%D %T"),
+                "" if not args.preload is not None else " preload {}".format(
+                    args.preload)),
             entity=args.wandb_user,
             config=dict(
                 seed=args.seed,
@@ -397,8 +409,8 @@ def main():
                 batch_size=args.batch_size,
             ),
             settings=wandb.Settings(
-            #    start_method="fork",
-            #    _disable_stats=True,
+                #    start_method="fork",
+                #    _disable_stats=True,
             ),
             allow_val_change=True,
             mode='offline' if args.wandb_offline else 'online',
@@ -453,10 +465,12 @@ def main():
 
     if using_wandb:
         logging.info("Updating wandb run with evaluation metrics")
-        metric_vals = [[results[f'{name}{lt}']
-                        for lt in leads] for name in metric_names]
+        metric_vals = [
+            [results[f'{name}{lt}'] for lt in leads] for name in metric_names
+        ]
         table_data = list(zip(leads, *metric_vals))
-        table = wandb.Table(data=table_data, columns=['leadtime', *metric_names])
+        table = wandb.Table(data=table_data,
+                            columns=['leadtime', *metric_names])
 
         # Log each metric vs. leadtime as a plot to wandb
         for name in metric_names:
