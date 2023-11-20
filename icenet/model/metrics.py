@@ -311,4 +311,3 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
         :return:
         """
         return 100 * super().result()
-

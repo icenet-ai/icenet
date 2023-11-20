@@ -372,5 +372,3 @@ def data_cli():
                     logging.info("Produced {}".format(res))
             except Exception as e:
                 logging.error(e)
-
-

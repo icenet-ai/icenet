@@ -82,4 +82,3 @@ def upload():
         if args.date and not args.leave:
             logging.info("Removing {}".format(tmpdir))
             shutil.rmtree(tmpdir)
-

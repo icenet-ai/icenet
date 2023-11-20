@@ -647,4 +647,3 @@ class ClimateDownloader(Downloader):
     @property
     def var_names(self):
         return self._var_names
-

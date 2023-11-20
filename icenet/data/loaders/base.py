@@ -343,5 +343,3 @@ class IceNetBaseDataLoader(Generator):
     @property
     def workers(self):
         return self._workers
-
-

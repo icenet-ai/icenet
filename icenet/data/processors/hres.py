@@ -41,4 +41,3 @@ def main():
         lag_days=args.lag,
     )
     hres.process()
-

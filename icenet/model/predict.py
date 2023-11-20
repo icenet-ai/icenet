@@ -211,4 +211,3 @@ def main():
                      seed=args.seed,
                      start_dates=dates,
                      test_set=args.testset)
-

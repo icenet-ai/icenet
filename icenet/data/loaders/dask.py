@@ -507,6 +507,3 @@ def generate_sample(forecast_date: object,
         v1 += channels[var_name]
 
     return x, y, sample_weights
-
-
-
