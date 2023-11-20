@@ -43,7 +43,7 @@ class CMIP6Downloader(ClimateDownloader):
     "EC-Earth3", "r14i1p1f1", "gr"
 
     """
-    
+
     TABLE_MAP = {
         'siconca': 'SIday',
         'tas': 'day',

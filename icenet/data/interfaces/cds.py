@@ -129,7 +129,7 @@ class ERA5Downloader(ClimateDownloader):
         try:
             logging.info("Downloading data for {}...".format(var))
             logging.debug("Result: {}".format(result))
-                
+
             location = result[0]['location']
             res = requests.get(location, stream=True)
 
@@ -246,7 +246,7 @@ class ERA5Downloader(ClimateDownloader):
         """
         (datafile_path, datafile_name) = os.path.split(datafile)
         var_name = datafile_path.split(os.sep)[self._var_name_idx]
-        
+
         if var_name == 'tos':
             # Overwrite maksed values with zeros
             logging.debug("ERA5 regrid postprocess: {}".format(var_name))

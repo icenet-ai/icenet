@@ -189,7 +189,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             north=False,
             south=False
         )
-        
+
         for path in paths:
             if os.path.exists(path):
                 logging.info("Loading configuration {}".format(path))

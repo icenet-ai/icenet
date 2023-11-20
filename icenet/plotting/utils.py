@@ -97,11 +97,11 @@ def get_seas_forecast_init_dates(hemisphere: str,
 
     :param hemisphere: string, typically either 'north' or 'south'
     :param source_path: path where north and south SEAS forecasts are stored
-    
+
     :return: list of dates
     """
     # list the files in the path where SEAS forecasts are stored
-    filenames = os.listdir(os.path.join(source_path, 
+    filenames = os.listdir(os.path.join(source_path,
                                         hemisphere,
                                         "siconca"))
     # obtain the dates from files with YYYYMMDD.nc format
@@ -215,7 +215,7 @@ Coordinates:
         pd.to_datetime(max(seas_da.time.values)).strftime("%Y-%m-%d"),
         len(seas_da.time)
     ))
-    
+
     return seas_da
 
 

@@ -130,7 +130,7 @@ class Downloader(DataProducer):
 
 class Generator(DataProducer):
     """
-    
+
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -146,13 +146,13 @@ class Generator(DataProducer):
 
 class Processor(DataProducer):
     """
-    
-    :param identifier: 
-    :param source_data: 
-    :param *args: 
-    :param file_filters: 
-    :param test_dates: 
-    :param train_dates: 
+
+    :param identifier:
+    :param source_data:
+    :param *args:
+    :param file_filters:
+    :param test_dates:
+    :param train_dates:
     :param val_dates:
     """
     def __init__(self,

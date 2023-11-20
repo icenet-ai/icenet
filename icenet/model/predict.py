@@ -99,7 +99,7 @@ def predict_forecast(
         missing = set(start_dates).difference(test_dates)
         if len(missing) > 0:
             raise RuntimeError("{} are not in the test set".
-                               format(", ".join([str(pd.to_datetime(el).date()) 
+                               format(", ".join([str(pd.to_datetime(el).date())
                                                  for el in missing])))
 
         data_iter = test_inputs.as_numpy_iterator()

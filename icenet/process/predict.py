@@ -261,8 +261,8 @@ def create_cf_output():
             #  comply with CF
             standard_name_vocabulary="CF Standard Name Table v27",
             summary="""
-            This is an output of sea ice concentration predictions from the 
-            IceNet run in an ensemble, with postprocessing to determine 
+            This is an output of sea ice concentration predictions from the
+            IceNet run in an ensemble, with postprocessing to determine
             the mean and standard deviation across the runs.
             """,
             # Use ISO 8601:2004 duration format, preferably the extended format

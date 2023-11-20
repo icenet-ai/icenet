@@ -25,25 +25,25 @@ class IceNetPreProcessor(Processor):
     :param name:
     :param train_dates:
     :param val_dates:
-    :param test_dates: 
+    :param test_dates:
     :param *args:
-    :param data_shape: 
+    :param data_shape:
     :param dtype:
-    :param exclude_vars: 
+    :param exclude_vars:
     :param file_filters:
     :param identifier:
-    :param linear_trends: 
-    :param linear_trend_days: 
+    :param linear_trends:
+    :param linear_trend_days:
     :param meta_vars:
     :param missing_dates:
     :param minmax:
-    :param no_normalise: 
+    :param no_normalise:
     :param path:
     :param parallel_opens:
     :param ref_procdir:
     :param source_data:
     :param update_key:
-    :param update_loader: 
+    :param update_loader:
     """
 
     DATE_FORMAT = "%Y_%m_%d"

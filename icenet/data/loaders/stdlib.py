@@ -3,7 +3,7 @@ from icenet.data.loaders.base import IceNetBaseDataLoader
 """
 Python Standard Library implementations for icenet data loading
 
-Still WIP to re-introduce alternate implementations that might work better in 
+Still WIP to re-introduce alternate implementations that might work better in
 certain deployments
 
 """

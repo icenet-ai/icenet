@@ -16,8 +16,8 @@ from icenet.utils import setup_logging
 def date_arg(string: str) -> object:
     """
 
-    :param string: 
-    :return: 
+    :param string:
+    :return:
     """
     date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
     return dt.date(*[int(s) for s in date_match.groups()])
@@ -26,8 +26,8 @@ def date_arg(string: str) -> object:
 def dates_arg(string: str) -> object:
     """
 
-    :param string: 
-    :return: 
+    :param string:
+    :return:
     """
     if string == "none":
         return []
@@ -48,7 +48,7 @@ def csv_arg(string: str) -> list:
     """
     csv_items = []
     string = re.sub(r'^\'(.*)\'$', r'\1', string)
-    
+
     for el in string.split(","):
         if len(el) == 0:
             csv_items.append(None)
@@ -119,7 +119,7 @@ def download_args(choices: object = None,
 
     if workers:
         ap.add_argument("-w", "--workers", default=8, type=int)
-    
+
     ap.add_argument("-po", "--parallel-opens",
                     default=False, action="store_true",
                     help="Allow xarray mfdataset to work with parallel opens")

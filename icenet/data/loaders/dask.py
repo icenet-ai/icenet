@@ -22,7 +22,7 @@ from icenet.data.sic.mask import Masks
 """
 Dask implementations for icenet data loading
 
-Still WIP to re-introduce alternate implementations that might work better in 
+Still WIP to re-introduce alternate implementations that might work better in
 certain deployments
 
 """
@@ -266,7 +266,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
             [v for k, v in var_files.items()
              if k.endswith("linear_trend")]
         trend_ds = None
-        
+
         if len(trend_files) > 0:
             trend_ds = xr.open_mfdataset(
                 trend_files,
@@ -420,8 +420,8 @@ def generate_sample(forecast_date: object,
 
     y = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
-    
-    
+
+
     if not prediction:
         try:
             sample_output = var_ds.siconca_abs.sel(time=forecast_dts)

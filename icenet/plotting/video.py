@@ -235,7 +235,7 @@ def recurse_data_folders(base_path: object,
              and (re.match(r'^\d{4}\.nc$', f)
                   or
                   re.search(r'(abs|anom|linear_trend)\.nc$', f))])
-        
+
         logging.debug("Files found: {}".format(", ".join(files)))
         if not len(files):
             return None

@@ -166,7 +166,7 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
         self._leadtime_idx = leadtime_idx
 
         super().__init__(name=name, **kwargs)
-    
+
     def update_state(self,
                      y_true: object,
                      y_pred: object,
