@@ -76,15 +76,15 @@ Ready to contribute? Here's how to set up `icenet` for local development.
 
    Now you can make your changes locally.
 
-5. Install development packages
+5. Install development packages::
 
     $ pip install -r requirements.txt
 
-6. Set up pre-commit hooks to run automatically. This will run through linting checks, formatting, and pytest. It will by format new code using yapf and prevent code commit that does not pass linting or testing checks until fixed.
+6. Set up pre-commit hooks to run automatically. This will run through linting checks, formatting, and pytest. It will format new code using yapf and prevent code committing that does not pass linting or testing checks until fixed::
 
     $ pre-commit install
 
-7. Run through tox (currently omitted from pre-commit hook) to test other Python versions (Optionally, can replace with tox-conda, and run same command):
+7. Run through tox (currently omitted from pre-commit hook) to test other Python versions (Optionally, can replace with tox-conda, and run same command)::
 
     $ tox
 
@@ -95,6 +95,8 @@ Ready to contribute? Here's how to set up `icenet` for local development.
     $ git add .
     $ git commit -m "Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
+
+   Note: When committing, if pre-commit is installed, there might be formatting changes made by yapf and the commit prevented. In this case, add the file(s) modified by the formatter to the staging area and commit again.
 
 9.  Submit a pull request through the GitHub website.
 
