@@ -322,7 +322,7 @@ class SICDownloader(Downloader):
 
         cache = {}
         osi430b_start = dt.date(2016, 1, 1)
-        osi430a_start = dt.date(2018, 11, 18)
+        osi430a_start = dt.date(2021, 1, 1)
 
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
 
