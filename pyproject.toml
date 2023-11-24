@@ -112,3 +112,9 @@ docs = [
 "Homepage" = "https://icenet.ai/"
 "Source" = "https://github.com/icenet-ai/icenet"
 "Issue tracker" = "https://github.com/icenet-ai/icenet/issues"
+
+[tool.pytest.ini_options]
+addopts = "-ra --ignore=setup.py"
+testpaths = [
+    "icenet",
+]
