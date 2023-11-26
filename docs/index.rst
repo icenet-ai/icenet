@@ -9,6 +9,7 @@ Welcome to IceNet's documentation!
    installation
    usage
    modules
+   api
    contributing
    authors
    history

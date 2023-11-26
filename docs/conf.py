@@ -33,7 +33,11 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    'myst_parser']
+    'myst_parser',
+    # 'sphinx_pyreverse',
+    # 'sphinxcontrib.mermaid'
+    # 'sphinxcontrib.plantuml',
+    ]
 
 # Standardising on
 napoleon_numpy_docstring = True
@@ -165,4 +169,6 @@ texinfo_documents = [
 ]
 
 
+sphinx_pyreverse_output = "png"
 
+# mermaid_output_format = "svg"
