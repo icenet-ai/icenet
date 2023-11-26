@@ -9,7 +9,7 @@ Welcome to IceNet's documentation!
    installation
    usage
    modules
-   api
+   uml
    contributing
    authors
    history

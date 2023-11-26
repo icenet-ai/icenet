@@ -34,9 +34,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
     'myst_parser',
-    # 'sphinx_pyreverse',
-    # 'sphinxcontrib.mermaid'
-    # 'sphinxcontrib.plantuml',
+    'sphinxcontrib.kroki'
     ]
 
 # Standardising on

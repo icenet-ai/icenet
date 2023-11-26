@@ -1,6 +1,5 @@
 jinja2
 Sphinx
 myst_parser
-sphinx-pyreverse
-sphinxcontrib-mermaid
-sphinx-plantuml
+pylint
+sphinxcontrib-kroki

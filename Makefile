@@ -69,6 +69,7 @@ coverage: ## check code coverage quickly with the default Python
 docs: ## generate Sphinx HTML documentation, including API docs
 	rm -f docs/icenet.rst
 	rm -f docs/modules.rst
+	pyreverse --output puml --output-directory docs/ --project icenet icenet --colorized
 	sphinx-apidoc -o docs/ icenet
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
