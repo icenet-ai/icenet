@@ -55,6 +55,14 @@ classifiers = [
 
 [project.scripts]
 icenet_data_masks = "icenet.data.sic.mask:main"
+icenet_data_cmip = "icenet.data.interfaces.esgf:main"
+icenet_data_era5 = "icenet.data.interfaces.cds:main"
+icenet_data_oras5 = "icenet.data.interfaces.cmems:main"
+icenet_data_hres = "icenet.data.interfaces.mars:hres_main"
+icenet_data_seas = "icenet.data.interfaces.mars:seas_main"
+icenet_data_sic = "icenet.data.sic.osisaf:main"
+icenet_data_reproc_monthly = "icenet.data.interfaces.utils:reprocess_main"
+icenet_data_add_time_dim = "icenet.data.interfaces.utils:add_time_dim_main"
 icenet_process_cmip = "icenet.data.processors.cmip:main"
 icenet_process_era5 = "icenet.data.processors.era5:main"
 icenet_process_oras5 = "icenet.data.processors.oras5:main"
