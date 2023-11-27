@@ -1,0 +1,121 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "icenet"
+dynamic = ["version", "readme"]
+requires-python = ">=3.8"
+description = "Library for operational IceNet forecasting"
+license = { file = "LICENSE" }
+authors = [{name = "British Antarctic Survey / Alan Turing Institute"}]
+maintainers = [
+  { email = "jambyr@bas.ac.uk" }
+]
+dependencies = [
+  "azure-storage-blob",
+  "cartopy",
+  "cdsapi",
+  "cfgrib",
+  "dask",
+  "distributed",
+  "download-toolbox@git+https://github.com/antarctica/download-toolbox#egg=main",
+  "eccodes",
+  "ecmwf-api-client",
+  "h5py",
+  "ibicus",
+  "matplotlib",
+  "motuclient",
+  "netcdf4",
+  "plotly",
+  "pip",
+  "pydap",
+  "rioxarray",
+  "scitools-iris",
+  "seaborn",
+  "setuptools",
+  "tensorboard",
+  "tensorflow",
+  "tensorflow-probability",
+  "wheel",
+  "xarray[io]"
+]
+classifiers = [
+    "Development Status :: 3",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[project.scripts]
+icenet_data_masks = "icenet.data.sic.mask:main"
+icenet_process_cmip = "icenet.data.processors.cmip:main"
+icenet_process_era5 = "icenet.data.processors.era5:main"
+icenet_process_oras5 = "icenet.data.processors.oras5:main"
+icenet_process_hres = "icenet.data.processors.hres:main"
+icenet_process_sic = "icenet.data.processors.osi:main"
+icenet_process_metadata = "icenet.data.processors.meta:main"
+icenet_process_condense = "icenet.data.processors.utils:condense_main"
+icenet_dataset_check = "icenet.data.dataset:check_dataset"
+icenet_dataset_create = "icenet.data.loader:create"
+icenet_train = "icenet.model.train:main"
+icenet_predict = "icenet.model.predict:main"
+icenet_upload_azure = "icenet.process.azure:upload"
+icenet_upload_local = "icenet.process.local:upload"
+icenet_plot_record = "icenet.plotting.data:plot_tfrecord"
+icenet_plot_forecast = "icenet.plotting.forecast:plot_forecast"
+icenet_plot_input = "icenet.plotting.data:plot_sample_cli"
+icenet_plot_sic_error = "icenet.plotting.forecast:sic_error"
+icenet_plot_sic_error_local = "icenet.plotting.forecast:sic_error_local"
+icenet_plot_bin_accuracy = "icenet.plotting.forecast:binary_accuracy"
+icenet_plot_sie_error = "icenet.plotting.forecast:sie_error"
+icenet_plot_metrics = "icenet.plotting.forecast:metric_plots"
+icenet_plot_leadtime_avg = "icenet.plotting.forecast:leadtime_avg_plots"
+icenet_video_data = "icenet.plotting.video:data_cli"
+icenet_output = "icenet.process.predict:create_cf_output"
+icenet_output_geotiff = "icenet.process.forecasts:create_geotiff_output"
+icenet_output_broadcast = "icenet.process.forecasts:broadcast_main"
+icenet_output_reproject = "icenet.process.forecasts:reproject_main"
+icenet_result_threshold = "icenet.results.threshold:threshold_main"
+
+[tool.setuptools]
+py-modules = ["icenet"]
+
+[tool.setuptools.dynamic]
+version = {attr = "icenet.__version__"}
+readme = {file = ["README.md"]}
+
+[project.optional-dependencies]
+dev = [
+  "watchdog",
+  "flake8",
+  "tox",
+  "coverage",
+  "twine",
+  "pytest",
+  "black",
+  "build",
+  "importlib_metadata"
+]
+docs = [
+  "jinja2",
+  "Sphinx"
+]
+
+[project.urls]
+"Homepage" = "https://icenet.ai/"
+"Source" = "https://github.com/icenet-ai/icenet"
+"Issue tracker" = "https://github.com/icenet-ai/icenet/issues"
+
+[tool.pytest.ini_options]
+addopts = "-ra --ignore=setup.py"
+testpaths = [
+    "icenet",
+]

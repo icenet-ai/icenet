@@ -1,9 +1,0 @@
-watchdog
-flake8
-tox
-coverage
-twine
-pytest
-black
-build
-importlib_metadata
