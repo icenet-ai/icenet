@@ -11,14 +11,18 @@ def get_decoder(shape: object,
                 forecasts: object,
                 num_vars: int = 1,
                 dtype: str = "float32") -> object:
-    """
+    """Returns a decoder function used for parsing and decoding data from tfrecord protocol buffer.
 
-    :param shape:
-    :param channels:
-    :param forecasts:
-    :param num_vars:
-    :param dtype:
-    :return:
+    Args:
+        shape: The shape of the input data.
+        channels: The number of channels in the input data.
+        forecasts: The number of days to forecast in prediction
+        num_vars (optional): The number of variables in the input data. Defaults to 1.
+        dtype (optional): The data type of the input data. Defaults to "float32".
+
+    Returns:
+        A function that can be used to parse and decode data. It takes in a protocol buffer
+            (tfrecord) as input and returns the parsed and decoded data.
     """
     xf = tf.io.FixedLenFeature(
         [*shape, channels], getattr(tf, dtype))
@@ -44,10 +48,19 @@ def get_decoder(shape: object,
 # TODO: define a decent interface and sort the inheritance architecture out, as
 #  this will facilitate the new datasets in #35
 class SplittingMixin:
-    """
+    """Read train, val, test datasets from tfrecord protocol buffer files.
 
-    """
+    Split and shuffle data if specified as well.
 
+    Example:
+        This mixin is not to be used directly, but to give an idea of its use:
+
+        # Initialise SplittingMixin
+        split_dataset = SplittingMixin()
+
+        # Add file paths to the train, validation, and test datasets
+        split_dataset.add_records(base_path="./network_datasets/notebook_data/", hemi="south")
+    """
     _batch_size: int
     _dtype: object
     _num_channels: int
@@ -59,11 +72,18 @@ class SplittingMixin:
     test_fns = []
     val_fns = []
 
-    def add_records(self, base_path: str, hemi: str):
-        """
+    def add_records(self, base_path: str, hemi: str) -> None:
+        """Add list of paths to train, val, test *.tfrecord(s) to relevant instance attributes.
 
-        :param base_path:
-        :param hemi:
+        Add sorted list of file paths to train, validation, and test datasets in SplittingMixin.
+
+        Args:
+            base_path (str): The base path where the datasets are located.
+            hemi (str): The hemisphere the datasets correspond to.
+
+        Returns:
+            None. Updates `self.train_fns`, `self.val_fns`, `self.test_fns` with list
+                of *.tfrecord files.
         """
         train_path = os.path.join(base_path, hemi, "train")
         val_path = os.path.join(base_path, hemi, "val")
@@ -77,10 +97,22 @@ class SplittingMixin:
         self.test_fns += sorted(glob.glob("{}/*.tfrecord".format(test_path)))
 
     def get_split_datasets(self, ratio: object = None):
-        """
+        """Retrieves train, val, and test datasets from corresponding attributes of SplittingMixin.
 
-        :param ratio:
-        :return:
+        Retrieves the train, validation, and test datasets from the file paths stored in the
+            `train_fns`, `val_fns`, and `test_fns` attributes of SplittingMixin.
+
+        Args:
+            ratio (optional): A float representing the truncated list of datasets to be used.
+                If not specified, all datasets will be used.
+                Defaults to None.
+
+        Returns:
+            tuple: A tuple containing the train, validation, and test datasets.
+
+        Raises:
+            RuntimeError: If no files have been found in the train, validation, and test datasets.
+            RuntimeError: If the ratio is greater than 1.
         """
         if not (len(self.train_fns) + len(self.val_fns) + len(self.test_fns)):
             raise RuntimeError("No files have been found, abandoning. This is "
@@ -91,6 +123,7 @@ class SplittingMixin:
         logging.info("Datasets: {} train, {} val and {} test filenames".format(
             len(self.train_fns), len(self.val_fns), len(self.test_fns)))
 
+        # If ratio is specified, truncate file paths for train, val, test using the ratio.
         if ratio:
             if ratio > 1.0:
                 raise RuntimeError("Ratio cannot be more than 1")
@@ -111,6 +144,7 @@ class SplittingMixin:
             logging.info("Reduced: {} train, {} val and {} test filenames".format(
                 len(self.train_fns), len(self.val_fns), len(self.test_fns)))
 
+        # Loads from files as bytes exactly as written. Must parse and decode it.
         train_ds, val_ds, test_ds = \
             tf.data.TFRecordDataset(self.train_fns,
                                     num_parallel_reads=self.batch_size), \
@@ -135,6 +169,8 @@ class SplittingMixin:
             train_ds = train_ds.shuffle(
                 min(int(len(self.train_fns) * self.batch_size), 366))
 
+        # Since TFRecordDataset does not parse or decode the dataset from bytes,
+        # use custom decoder function with map to do so.
         train_ds = train_ds.\
             map(decoder, num_parallel_calls=self.batch_size).\
             batch(self.batch_size)
@@ -152,7 +188,14 @@ class SplittingMixin:
             test_ds.prefetch(tf.data.AUTOTUNE)
 
     def check_dataset(self,
-                      split: str = "train"):
+                      split: str = "train") -> None:
+        """Check the dataset for NaN, log debugging info regarding dataset shape and bounds.
+
+        Also logs a warning if any NaN are found.
+
+        Args:
+            split: The split of the dataset to check. Default is "train".
+        """
         logging.debug("Checking dataset {}".format(split))
 
         decoder = get_decoder(self.shape,
@@ -207,25 +250,69 @@ class SplittingMixin:
             # We don't except any non-tensorflow errors to prevent progression
 
     @property
-    def batch_size(self):
+    def batch_size(self) -> int:
+        """Get dataset's batch size.
+
+        Set in subclass, not in SplittingMixin.
+
+        Returns:
+            self._batch_size: Batch size set for dataset.
+        """
         return self._batch_size
 
     @property
-    def dtype(self):
+    def dtype(self) -> str:
+        """Get dataset's data type.
+
+        Set in subclass, not in SplittingMixin.
+
+        Returns:
+            self._dtype: Data type of dataset.
+        """
         return self._dtype
 
     @property
-    def n_forecast_days(self):
+    def n_forecast_days(self) -> int:
+        """Get number of days to forecast in prediction.
+
+        Set in subclass, not in SplittingMixin.
+
+        Returns:
+            self._n_forecast_days: Number of days to forecast.
+        """
         return self._n_forecast_days
 
     @property
-    def num_channels(self):
+    def num_channels(self) -> int:
+        """Get number of channels in dataset.
+
+        Corresponds to number of variables.
+        Set in subclass, not in SplittingMixin.
+
+        Returns:
+            self._num_channels: Number of channels in dataset.
+        """
         return self._num_channels
 
     @property
-    def shape(self):
+    def shape(self) -> object:
+        """Get shape of dataset.
+
+        Set in subclass, not in SplittingMixin.
+
+        Returns:
+            self._shape: Tuple/List of dataset shape.
+        """
         return self._shape
 
     @property
-    def shuffling(self):
+    def shuffling(self) -> bool:
+        """Get flag for whether training dataset(s) are marked to be shuffled.
+
+        Set in subclass, not in SplittingMixin.
+
+        Returns:
+            self._shuffling: A flag if training dataset(s) marked to
+                be shuffled.
+        """
         return self._shuffling
