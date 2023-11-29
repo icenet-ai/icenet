@@ -128,14 +128,14 @@ class "IceNetDataLoader" as icenet.data.loaders.stdlib.IceNetDataLoader #99DDFF 
 }
 class "IceNetDataLoaderFactory" as icenet.data.loaders.IceNetDataLoaderFactory #99DDFF {
   loader_map
-  add_data_loader(loader_name: str, loader_impl: object)
-  create_data_loader(loader_name)
+  add_data_loader(loader_name: str, loader_impl: object) -> None
+  create_data_loader(loader_name) -> object
 }
 class "IceNetDataSet" as icenet.data.dataset.IceNetDataSet #99DDFF {
   channels
   counts
   loader_config
-  get_data_loader(n_forecast_days, generate_workers)
+  get_data_loader(n_forecast_days, generate_workers) -> object
 }
 class "<color:red>IceNetDataWarning</color>" as icenet.data.loaders.utils.IceNetDataWarning #99DDFF {
 }
@@ -199,9 +199,9 @@ class "Processor" as icenet.data.producers.Processor #99DDFF {
   lead_time
   processed_files
   source_data
-  init_source_data(lag_days: object)
+  init_source_data(lag_days: object) -> None
   {abstract}process()
-  save_processed_file(var_name: str, name: str, data: object)
+  save_processed_file(var_name: str, name: str, data: object) -> str
 }
 class "SEASDownloader" as icenet.data.interfaces.mars.SEASDownloader #99DDFF {
   MARS_TEMPLATE : str
@@ -221,8 +221,8 @@ class "SplittingMixin" as icenet.data.datasets.utils.SplittingMixin #99DDFF {
   test_fns : list
   train_fns : list
   val_fns : list
-  add_records(base_path: str, hemi: str)
-  check_dataset(split: str)
+  add_records(base_path: str, hemi: str) -> None
+  check_dataset(split: str) -> None
   get_split_datasets(ratio: object)
 }
 class "TemperatureScale" as icenet.model.models.TemperatureScale #44BB99 {
@@ -280,4 +280,5 @@ icenet.data.sic.mask.Masks --|> icenet.data.producers.Generator
 icenet.data.sic.osisaf.SICDownloader --|> icenet.data.producers.Downloader
 icenet.data.sic.mask.Masks --* icenet.data.interfaces.downloader.ClimateDownloader : _masks
 icenet.data.sic.mask.Masks --* icenet.data.sic.osisaf.SICDownloader : _masks
+icenet.utils.Hemisphere --* icenet.data.producers.DataCollection : _hemisphere
 @enduml
