@@ -55,10 +55,10 @@ class SplittingMixin:
         This mixin is not to be used directly, but to give an idea of its use:
 
         # Initialise SplittingMixin
-        split_dataset = SplittingMixin()
+        >>> split_dataset = SplittingMixin()
 
         # Add file paths to the train, validation, and test datasets
-        split_dataset.add_records(base_path="./network_datasets/notebook_data/", hemi="south")
+        >>> split_dataset.add_records(base_path="./network_datasets/notebook_data/", hemi="south")
     """
     _batch_size: int
     _dtype: object
