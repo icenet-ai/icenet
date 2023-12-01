@@ -24,12 +24,11 @@ def get_decoder(shape: object,
         A function that can be used to parse and decode data. It takes in a protocol buffer
             (tfrecord) as input and returns the parsed and decoded data.
     """
-    xf = tf.io.FixedLenFeature(
-        [*shape, channels], getattr(tf, dtype))
-    yf = tf.io.FixedLenFeature(
-        [*shape, forecasts, num_vars], getattr(tf, dtype))
-    sf = tf.io.FixedLenFeature(
-        [*shape, forecasts, num_vars], getattr(tf, dtype))
+    xf = tf.io.FixedLenFeature([*shape, channels], getattr(tf, dtype))
+    yf = tf.io.FixedLenFeature([*shape, forecasts, num_vars],
+                               getattr(tf, dtype))
+    sf = tf.io.FixedLenFeature([*shape, forecasts, num_vars],
+                               getattr(tf, dtype))
 
     @tf.function
     def decode_item(proto):
@@ -141,8 +140,9 @@ class SplittingMixin:
             if test_idx > 0:
                 self.test_fns = self.test_fns[:test_idx]
 
-            logging.info("Reduced: {} train, {} val and {} test filenames".format(
-                len(self.train_fns), len(self.val_fns), len(self.test_fns)))
+            logging.info(
+                "Reduced: {} train, {} val and {} test filenames".format(
+                    len(self.train_fns), len(self.val_fns), len(self.test_fns)))
 
         # Loads from files as bytes exactly as written. Must parse and decode it.
         train_ds, val_ds, test_ds = \
@@ -187,8 +187,7 @@ class SplittingMixin:
             val_ds.prefetch(tf.data.AUTOTUNE), \
             test_ds.prefetch(tf.data.AUTOTUNE)
 
-    def check_dataset(self,
-                      split: str = "train") -> None:
+    def check_dataset(self, split: str = "train") -> None:
         """Check the dataset for NaN, log debugging info regarding dataset shape and bounds.
 
         Also logs a warning if any NaN are found.
@@ -214,12 +213,9 @@ class SplittingMixin:
                     y = y.numpy()
                     sw = sw.numpy()
 
-                    logging.debug("Got record {}:{} with x {} y {} sw {}".
-                                  format(df,
-                                         i,
-                                         x.shape,
-                                         y.shape,
-                                         sw.shape))
+                    logging.debug(
+                        "Got record {}:{} with x {} y {} sw {}".format(
+                            df, i, x.shape, y.shape, sw.shape))
 
                     input_nans = np.isnan(x).sum()
                     output_nans = np.isnan(y[sw > 0.]).sum()
@@ -230,19 +226,19 @@ class SplittingMixin:
                     sw_min = np.min(x)
                     sw_max = np.max(x)
 
-                    logging.debug("Bounds: Input {}:{} Output {}:{} SW {}:{}".
-                                  format(input_min, input_max,
-                                         output_min, output_max,
-                                         sw_min, sw_max))
+                    logging.debug(
+                        "Bounds: Input {}:{} Output {}:{} SW {}:{}".format(
+                            input_min, input_max, output_min, output_max,
+                            sw_min, sw_max))
 
                     if input_nans > 0:
-                        logging.warning("Input NaNs detected in {}:{}".
-                                        format(df, i))
+                        logging.warning("Input NaNs detected in {}:{}".format(
+                            df, i))
 
                     if output_nans > 0:
-                        logging.warning("Output NaNs detected in {}:{}, not "
-                                        "accounted for by sample weighting".
-                                        format(df, i))
+                        logging.warning(
+                            "Output NaNs detected in {}:{}, not "
+                            "accounted for by sample weighting".format(df, i))
             except tf.errors.DataLossError as e:
                 logging.warning("{}: data loss error {}".format(df, e.message))
             except tf.errors.OpError as e:

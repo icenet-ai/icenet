@@ -12,7 +12,6 @@ import xarray as xr
 from icenet.data.cli import download_args
 from icenet.data.interfaces.downloader import ClimateDownloader
 from icenet.data.interfaces.utils import batch_requested_dates
-
 """
 
 """
@@ -31,16 +30,16 @@ class HRESDownloader(ClimateDownloader):
     # https://confluence.ecmwf.int/pages/viewpage.action?pageId=85402030
     # https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation#ERA5:datadocumentation-Dateandtimespecification
     HRES_PARAMS = {
-        "siconca":      (31, "siconc"),  # sea_ice_area_fraction
-        "tos":          (34, "sst"),    # sea surface temperature (actually
-                                        # sst?)
-        "zg":           (129, "z"),     # geopotential
-        "ta":           (130, "t"),     # air_temperature (t)
-        "hus":          (133, "q"),     # specific_humidity
-        "psl":          (134, "sp"),    # surface_pressure
-        "uas":          (165, "u10"),   # 10m_u_component_of_wind
-        "vas":          (166, "v10"),   # 10m_v_component_of_wind
-        "tas":          (167, "t2m"),   # 2m_temperature (t2m)
+        "siconca": (31, "siconc"),  # sea_ice_area_fraction
+        "tos": (34, "sst"),  # sea surface temperature (actually
+        # sst?)
+        "zg": (129, "z"),  # geopotential
+        "ta": (130, "t"),  # air_temperature (t)
+        "hus": (133, "q"),  # specific_humidity
+        "psl": (134, "sp"),  # surface_pressure
+        "uas": (165, "u10"),  # 10m_u_component_of_wind
+        "vas": (166, "v10"),  # 10m_v_component_of_wind
+        "tas": (167, "t2m"),  # 2m_temperature (t2m)
         # https://confluence.ecmwf.int/display/CKB/ERA5%3A+data+documentation#ERA5:datadocumentation-Meanrates/fluxesandaccumulations
         # https://apps.ecmwf.int/codes/grib/param-db/?id=175
         # https://confluence.ecmwf.int/pages/viewpage.action?pageId=197702790
@@ -50,8 +49,8 @@ class HRESDownloader(ClimateDownloader):
         # Table 3 for surface and single levels), except they are expressed as
         # temporal means, over the same processing periods, and so have units
         # of "per second".
-        "rlds":         (175, "strd"),
-        "rsds":         (169, "ssrd"),
+        "rlds": (175, "strd"),
+        "rsds": (169, "ssrd"),
 
         # plev  129.128 / 130.128 / 133.128
         # sfc   31.128 / 34.128 / 134.128 /
@@ -83,19 +82,12 @@ retrieve,
   format=netcdf
     """
 
-    def __init__(self,
-                 *args,
-                 identifier: str = "mars.hres",
-                 **kwargs):
-        super().__init__(*args,
-                         identifier=identifier,
-                         **kwargs)
+    def __init__(self, *args, identifier: str = "mars.hres", **kwargs):
+        super().__init__(*args, identifier=identifier, **kwargs)
 
         self._server = ecmwfapi.ECMWFService("mars")
 
-    def _single_download(self,
-                         var_names: object,
-                         pressures: object,
+    def _single_download(self, var_names: object, pressures: object,
                          req_dates: object):
         """
 
@@ -124,8 +116,7 @@ retrieve,
                 req_batch = req_batch[:-1]
 
             request_target = os.path.join(
-                self.base_path,
-                self.hemisphere_str[0],
+                self.base_path, self.hemisphere_str[0],
                 "{}.{}.nc".format(levtype, request_month))
 
             os.makedirs(os.path.dirname(request_target), exist_ok=True)
@@ -134,12 +125,12 @@ retrieve,
                 area="/".join([str(s) for s in self.hemisphere_loc]),
                 date="/".join([el.strftime("%Y%m%d") for el in req_batch]),
                 levtype=levtype,
-                levlist="levelist={},\n  ".format(pressures) if pressures else "",
-                params="/".join(
-                    ["{}.{}".format(
-                        self.params[v][0],
-                        self.param_table)
-                     for v in var_names]),
+                levlist="levelist={},\n  ".format(pressures)
+                if pressures else "",
+                params="/".join([
+                    "{}.{}".format(self.params[v][0], self.param_table)
+                    for v in var_names
+                ]),
                 target=request_target,
                 # We are only allowed date prior to -24 hours ago, dynamically
                 # retrieve if date is today
@@ -165,13 +156,13 @@ retrieve,
         ds = xr.open_mfdataset(downloads)
         ds = ds.resample(time='1D', keep_attrs=True).mean(keep_attrs=True)
 
-        for var_name, pressure in product(var_names, pressures.split('/')
-                                          if pressures else [None]):
+        for var_name, pressure in product(
+                var_names,
+                pressures.split('/') if pressures else [None]):
             var = var_name if not pressure else \
                 "{}{}".format(var_name, pressure)
 
-            da = getattr(ds,
-                         self.params[var_name][1])
+            da = getattr(ds, self.params[var_name][1])
 
             if pressure:
                 da = da.sel(level=int(pressure))
@@ -193,12 +184,17 @@ retrieve,
         logging.info("Building request(s), downloading and daily averaging "
                      "from {} API".format(self.identifier.upper()))
 
-        sfc_vars = [var for idx, var in enumerate(self.var_names)
-                    if not self.levels[idx]]
-        level_vars = [var for idx, var in enumerate(self.var_names)
-                      if self.levels[idx]]
-        levels = "/".join([str(s) for s in sorted(set(
-            [p for ps in self.levels if ps for p in ps]))])
+        sfc_vars = [
+            var for idx, var in enumerate(self.var_names)
+            if not self.levels[idx]
+        ]
+        level_vars = [
+            var for idx, var in enumerate(self.var_names) if self.levels[idx]
+        ]
+        levels = "/".join([
+            str(s)
+            for s in sorted(set([p for ps in self.levels if ps for p in ps]))
+        ])
 
         # req_dates = self.filter_dates_on_data()
 
@@ -213,12 +209,10 @@ retrieve,
             if len(level_vars) > 0:
                 self._single_download(level_vars, levels, req_batch)
 
-        logging.info("{} daily files downloaded".
-                     format(len(self._files_downloaded)))
+        logging.info("{} daily files downloaded".format(
+            len(self._files_downloaded)))
 
-    def additional_regrid_processing(self,
-                                     datafile: str,
-                                     cube_ease: object):
+    def additional_regrid_processing(self, datafile: str, cube_ease: object):
         """
 
         :param datafile:
@@ -289,9 +283,7 @@ retrieve,
     grid=0.25/0.25,
     area={area}"""
 
-    def _single_download(self,
-                         var_names: object,
-                         pressures: object,
+    def _single_download(self, var_names: object, pressures: object,
                          req_dates: object):
         """
 
@@ -313,8 +305,7 @@ retrieve,
             logging.info("Downloading daily file {}".format(request_day))
 
             request_target = os.path.join(
-                self.base_path,
-                self.hemisphere_str[0],
+                self.base_path, self.hemisphere_str[0],
                 "{}.{}.nc".format(levtype, request_day))
             os.makedirs(os.path.dirname(request_target), exist_ok=True)
 
@@ -322,12 +313,12 @@ retrieve,
                 area="/".join([str(s) for s in self.hemisphere_loc]),
                 date=req_date.strftime("%Y-%m-%d"),
                 levtype=levtype,
-                levlist="levelist={},\n  ".format(pressures) if pressures else "",
-                params="/".join(
-                    ["{}.{}".format(
-                        self.params[v][0],
-                        self.param_table)
-                     for v in var_names]),
+                levlist="levelist={},\n  ".format(pressures)
+                if pressures else "",
+                params="/".join([
+                    "{}.{}".format(self.params[v][0], self.param_table)
+                    for v in var_names
+                ]),
                 target=request_target,
             )
 
@@ -351,8 +342,9 @@ retrieve,
             ds = xr.open_dataset(download_filename)
             ds = ds.mean("number")
 
-            for var_name, pressure in product(var_names, pressures.split('/')
-                                              if pressures else [None]):
+            for var_name, pressure in product(
+                    var_names,
+                    pressures.split('/') if pressures else [None]):
                 var = var_name if not pressure else \
                     "{}{}".format(var_name, pressure)
 
@@ -371,9 +363,7 @@ retrieve,
                     logging.info("Removing {}".format(downloaded_file))
                     os.unlink(downloaded_file)
 
-    def save_temporal_files(self, var, da,
-                            date_format=None,
-                            freq=None):
+    def save_temporal_files(self, var, da, date_format=None, freq=None):
         """
 
         :param var:
@@ -409,22 +399,21 @@ def main(identifier, extra_kwargs=None):
     instance = cls(
         identifier="mars.{}".format(identifier.lower()),
         var_names=args.vars,
-        dates=[pd.to_datetime(date).date() for date in
-               pd.date_range(args.start_date, args.end_date, freq="D")],
+        dates=[
+            pd.to_datetime(date).date()
+            for date in pd.date_range(args.start_date, args.end_date, freq="D")
+        ],
         delete_tempfiles=args.delete,
         levels=args.levels,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",
-        **extra_kwargs
-    )
+        **extra_kwargs)
     instance.download()
     instance.regrid()
 
 
 def seas_main():
-    main("SEAS", dict(
-        group_dates_by="day",
-    ))
+    main("SEAS", dict(group_dates_by="day",))
 
 
 def hres_main():

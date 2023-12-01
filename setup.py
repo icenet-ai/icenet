@@ -17,9 +17,8 @@ setup(
     author=icenet.__author__,
     author_email=icenet.__email__,
     description="Library for operational IceNet forecasting",
-    long_description="""{}\n---\n""".
-                     format(get_content("README.md"),
-                            get_content("HISTORY.rst")),
+    long_description="""{}\n---\n""".format(get_content("README.md"),
+                                            get_content("HISTORY.rst")),
     long_description_content_type="text/markdown",
     url="https://github.com/icenet-ai",
     packages=find_packages(),

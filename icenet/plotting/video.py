@@ -19,8 +19,7 @@ from icenet.utils import setup_logging
 
 
 # TODO: This can be a plotting or analysis util function elsewhere
-def get_dataarray_from_files(files: object,
-                             numpy: bool = False) -> object:
+def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
     """
 
     :param files:
@@ -47,8 +46,8 @@ def get_dataarray_from_files(files: object,
 
             # TODO: error handling
             date_match = re.search(r"(\d{4})_(\d{1,2})_(\d{1,2})", nom)
-            dates.append(pd.to_datetime(
-                dt.date(*[int(s) for s in date_match.groups()])))
+            dates.append(
+                pd.to_datetime(dt.date(*[int(s) for s in date_match.groups()])))
 
         # FIXME: naive implementations abound
         path_comps = os.path.dirname(files[0]).split(os.sep)
@@ -69,23 +68,23 @@ def get_dataarray_from_files(files: object,
     return da
 
 
-def xarray_to_video(da: object,
-                    fps: int,
-                    video_path: object = None,
-                    mask: object = None,
-                    mask_type: str = 'contour',
-                    clim: object = None,
-                    crop: object = None,
-                    data_type: str = 'abs',
-                    video_dates: object = None,
-                    cmap: object = "viridis",
-                    figsize: int = 12,
-                    dpi: int = 150,
-                    imshow_kwargs: dict = None,
-                    ax_init: object = None,
-                    ax_extra: callable = None,
-                    ) -> object:
-
+def xarray_to_video(
+    da: object,
+    fps: int,
+    video_path: object = None,
+    mask: object = None,
+    mask_type: str = 'contour',
+    clim: object = None,
+    crop: object = None,
+    data_type: str = 'abs',
+    video_dates: object = None,
+    cmap: object = "viridis",
+    figsize: int = 12,
+    dpi: int = 150,
+    imshow_kwargs: dict = None,
+    ax_init: object = None,
+    ax_extra: callable = None,
+) -> object:
     """
     Generate video of an xarray.DataArray. Optionally input a list of
     `video_dates` to show, otherwise the full set of time coordiantes
@@ -138,8 +137,9 @@ def xarray_to_video(da: object,
                 n_max = -n_min
 
     if video_dates is None:
-        video_dates = [pd.Timestamp(date).to_pydatetime()
-                       for date in da.time.values]
+        video_dates = [
+            pd.Timestamp(date).to_pydatetime() for date in da.time.values
+        ]
 
     if crop is not None:
         a = crop[0][0]
@@ -179,9 +179,10 @@ def xarray_to_video(da: object,
                       zorder=1,
                       **imshow_kwargs if imshow_kwargs is not None else {})
 
-    image_title = ax.set_title("{:04d}/{:02d}/{:02d}".
-                               format(date.year, date.month, date.day),
-                               fontsize="medium", zorder=2)
+    image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
+        date.year, date.month, date.day),
+                               fontsize="medium",
+                               zorder=2)
 
     try:
         divider = make_axes_locatable(ax)
@@ -193,10 +194,7 @@ def xarray_to_video(da: object,
     logging.info("Animating")
 
     # Investigated blitting, but it causes a few problems with masks/titles.
-    animation = FuncAnimation(fig,
-                              update,
-                              video_dates,
-                              interval=1000/fps)
+    animation = FuncAnimation(fig, update, video_dates, interval=1000 / fps)
 
     plt.close()
 
@@ -204,9 +202,7 @@ def xarray_to_video(da: object,
         logging.info("Not saving plot, will return animation")
     else:
         logging.info("Saving plot to {}".format(video_path))
-        animation.save(video_path,
-                       fps=fps,
-                       extra_args=['-vcodec', 'libx264'])
+        animation.save(video_path, fps=fps, extra_args=['-vcodec', 'libx264'])
     return animation
 
 
@@ -229,13 +225,14 @@ def recurse_data_folders(base_path: object,
         # TODO: should ideally use scandir for performance
         # TODO: naive hardcoded filtering of files
         logging.debug("CHILDREN: {} or LOOKUPS: {}".format(children, lookups))
-        files = sorted(
-            [os.path.join(base_path, f) for f in os.listdir(base_path)
-             if os.path.splitext(f)[1] == ".{}".format(filetype)
-             and (re.match(r'^\d{4}\.nc$', f)
-                  or
-                  re.search(r'(abs|anom|linear_trend)\.nc$', f))])
-        
+        files = sorted([
+            os.path.join(base_path, f)
+            for f in os.listdir(base_path)
+            if os.path.splitext(f)[1] == ".{}".format(filetype) and
+            (re.match(r'^\d{4}\.nc$', f) or
+             re.search(r'(abs|anom|linear_trend)\.nc$', f))
+        ])
+
         logging.debug("Files found: {}".format(", ".join(files)))
         if not len(files):
             return None
@@ -250,22 +247,17 @@ def recurse_data_folders(base_path: object,
             if not len(lookups) or \
                     (len(lookups) and subdir in [str(s) for s in lookups]):
                 subdir_files = recurse_data_folders(
-                    new_path,
-                    children[0]
-                    if children is not None and len(children) > 0 else None,
-                    children[1:]
+                    new_path, children[0] if children is not None and
+                    len(children) > 0 else None, children[1:]
                     if children is not None and len(children) > 1 else None,
-                    filetype
-                )
+                    filetype)
                 if subdir_files:
                     files.append(subdir_files)
 
     return files
 
 
-def video_process(files: object,
-                  numpy: object,
-                  output_dir: object,
+def video_process(files: object, numpy: object, output_dir: object,
                   fps: int) -> object:
     """
 
@@ -302,7 +294,10 @@ def cli_args():
 
     args.add_argument("-f", "--fps", default=15, type=int)
     args.add_argument("-n", "--numpy", action="store_true", default=False)
-    args.add_argument("-o", "--output-dir", dest="output_dir", type=str,
+    args.add_argument("-o",
+                      "--output-dir",
+                      dest="output_dir",
+                      type=str,
                       default="plot")
     args.add_argument("-p", "--path", default="data", type=str)
     args.add_argument("-w", "--workers", default=8, type=int)
@@ -310,8 +305,10 @@ def cli_args():
     args.add_argument("-v", "--verbose", action="store_true", default=False)
 
     args.add_argument("data", type=lambda s: s.split(","))
-    args.add_argument("hemisphere", default=[],
-                      choices=["north", "south"], nargs="?")
+    args.add_argument("hemisphere",
+                      default=[],
+                      choices=["north", "south"],
+                      nargs="?")
 
     args.add_argument("--vars", default=[], type=lambda s: s.split(","))
     args.add_argument("--years", default=[], type=lambda s: s.split(","))
@@ -329,24 +326,23 @@ def data_cli():
     logging.info("Looking into {}".format(args.path))
 
     path_children = [hemis, args.vars]
-    video_batches = recurse_data_folders(args.path,
-                                         args.data,
-                                         path_children,
-                                         filetype="nc"
-                                         if not args.numpy else "npy")
+    video_batches = recurse_data_folders(
+        args.path,
+        args.data,
+        path_children,
+        filetype="nc" if not args.numpy else "npy")
     logging.debug("Batches: {}".format(video_batches))
 
     video_batches = [
-        v_el for h_list in video_batches
-        for v_list in h_list
-        for v_el in v_list
+        v_el for h_list in video_batches for v_list in h_list for v_el in v_list
     ]
 
     if len(args.years) > 0:
         new_batches = []
         for batch in video_batches:
-            batch = [el for el in batch
-                     if os.path.basename(el)[0:4] in args.years]
+            batch = [
+                el for el in batch if os.path.basename(el)[0:4] in args.years
+            ]
             if len(batch):
                 new_batches.append(batch)
             video_batches = new_batches
@@ -358,11 +354,9 @@ def data_cli():
         futures = []
 
         for batch in video_batches:
-            futures.append(executor.submit(video_process,
-                                           batch,
-                                           args.numpy,
-                                           args.output_dir,
-                                           args.fps))
+            futures.append(
+                executor.submit(video_process, batch, args.numpy,
+                                args.output_dir, args.fps))
 
         for future in as_completed(futures):
             try:
@@ -372,5 +366,3 @@ def data_cli():
                     logging.info("Produced {}".format(res))
             except Exception as e:
                 logging.error(e)
-
-

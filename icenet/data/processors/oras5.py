@@ -33,7 +33,5 @@ def main():
         south=args.hemisphere == "south",
         update_key=args.update_key,
     )
-    oras5.init_source_data(
-        lag_days=args.lag,
-    )
+    oras5.init_source_data(lag_days=args.lag,)
     oras5.process()

@@ -76,22 +76,29 @@ Ready to contribute? Here's how to set up `icenet` for local development.
 
    Now you can make your changes locally.
 
-5. When you're done making changes, check that your changes pass flake8 and the
-   tests, including testing other Python versions with tox::
+5. Install development packages::
 
-    $ flake8 icenet tests
-    $ python setup.py test or pytest
+    $ pip install -r requirements.txt
+
+6. Set up pre-commit hooks to run automatically. This will run through linting checks, formatting, and pytest. It will format new code using yapf and prevent code committing that does not pass linting or testing checks until fixed::
+
+    $ pre-commit install
+
+7. Run through tox (currently omitted from pre-commit hook) to test other Python versions (Optionally, can replace with tox-conda, and run same command)::
+
     $ tox
 
-   To get flake8 and tox, just pip install them into your virtualenv.
+   To get tox, just pip install them into your virtualenv (or tox-conda for conda environment).
 
-6. Commit your changes and push your branch to GitHub::
+8. Commit your changes and push your branch to GitHub::
 
     $ git add .
     $ git commit -m "Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
 
-7. Submit a pull request through the GitHub website.
+   Note: When committing, if pre-commit is installed, there might be formatting changes made by yapf and the commit prevented. In this case, add the file(s) modified by the formatter to the staging area and commit again.
+
+9.  Submit a pull request through the GitHub website.
 
 Pull Request Guidelines
 -----------------------

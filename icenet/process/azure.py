@@ -60,8 +60,7 @@ def upload():
 
             if len(ds.time) < 1:
                 raise ValueError("No elements in {} for {}".format(
-                    args.filename, args.date
-                ))
+                    args.filename, args.date))
 
             filename = destination_filename(tmpdir, args.filename, args.date)
             ds.to_netcdf(filename)
@@ -76,10 +75,10 @@ def upload():
             container_client = \
                 ContainerClient.\
                 from_connection_string(url, container_name=args.container)
-            container_client.upload_blob(
-                os.path.basename(filename), data, overwrite=args.overwrite)
+            container_client.upload_blob(os.path.basename(filename),
+                                         data,
+                                         overwrite=args.overwrite)
     finally:
         if args.date and not args.leave:
             logging.info("Removing {}".format(tmpdir))
             shutil.rmtree(tmpdir)
-

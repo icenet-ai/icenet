@@ -23,8 +23,8 @@ def threshold_exceeds(da: object,
     logging.info("Checking thresholds for forecast(s)")
 
     if dimensions:
-        logging.debug("Selecting within given dimensions: {}".
-                      format(dimensions))
+        logging.debug(
+            "Selecting within given dimensions: {}".format(dimensions))
         da = da.sel(**dimensions)
 
     thresh_arr = da > sic_thresh
@@ -62,5 +62,6 @@ def threshold_main():
             np.save(fh, threshold_map)
         logging.info("Saved to {}".format(args.output_file))
     else:
-        logging.info("No output file provided: {} cells breached threshold".
-                     format(len(threshold_map)))
+        logging.info(
+            "No output file provided: {} cells breached threshold".format(
+                len(threshold_map)))

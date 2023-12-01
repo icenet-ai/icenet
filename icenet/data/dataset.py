@@ -9,7 +9,6 @@ from icenet.data.datasets.utils import SplittingMixin
 from icenet.data.loader import IceNetDataLoaderFactory
 from icenet.data.producers import DataCollection
 from icenet.utils import setup_logging
-
 """
 
 
@@ -20,6 +19,7 @@ tf-data-vs-keras-utils-sequence-performance
 
 
 class IceNetDataSet(SplittingMixin, DataCollection):
+
     def __init__(self,
                  configuration_path: str,
                  *args,
@@ -97,7 +97,9 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         else:
             raise OSError("{} not found".format(path))
 
-    def get_data_loader(self, n_forecast_days = None, generate_workers = None) -> object:
+    def get_data_loader(self,
+                        n_forecast_days=None,
+                        generate_workers=None) -> object:
         """Create an instance of the IceNetDataLoader class.
 
         Args:
@@ -114,22 +116,18 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         if generate_workers is None:
             generate_workers = self._config["generate_workers"]
         loader = IceNetDataLoaderFactory().create_data_loader(
-            "dask", # This will load the `DaskMultiWorkerLoader` class.
+            "dask",  # This will load the `DaskMultiWorkerLoader` class.
             self.loader_config,
             self.identifier,
             self._config["var_lag"],
             n_forecast_days=n_forecast_days,
             generate_workers=generate_workers,
-            dataset_config_path=os.path.dirname(
-                self._configuration_path),
-            loss_weight_days=self._config[
-                "loss_weight_days"],
+            dataset_config_path=os.path.dirname(self._configuration_path),
+            loss_weight_days=self._config["loss_weight_days"],
             north=self.north,
-            output_batch_size=self._config[
-                "output_batch_size"],
+            output_batch_size=self._config["output_batch_size"],
             south=self.south,
-            var_lag_override=self._config[
-                "var_lag_override"],
+            var_lag_override=self._config["var_lag_override"],
         )
         return loader
 
@@ -184,8 +182,8 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             if type(configuration_paths) != list else configuration_paths
         self._load_configurations(configuration_paths)
 
-        identifier = ".".join([loader.identifier
-                               for loader in self._config["loaders"]])
+        identifier = ".".join(
+            [loader.identifier for loader in self._config["loaders"]])
 
         super().__init__(*args,
                          identifier=identifier,
@@ -219,13 +217,11 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
         :param paths:
         """
-        self._config = dict(
-            loader_paths=[],
-            loaders=[],
-            north=False,
-            south=False
-        )
-        
+        self._config = dict(loader_paths=[],
+                            loaders=[],
+                            north=False,
+                            south=False)
+
         for path in paths:
             if os.path.exists(path):
                 logging.info("Loading configuration {}".format(path))
@@ -267,11 +263,14 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             self._config["counts"] = other["counts"].copy()
         else:
             for dataset, count in other["counts"].items():
-                logging.info("Merging {} samples from {}".format(count, dataset))
+                logging.info("Merging {} samples from {}".format(
+                    count, dataset))
                 self._config["counts"][dataset] += count
 
-        general_attrs = ["channels", "dtype", "n_forecast_days",
-                         "num_channels", "output_batch_size", "shape"]
+        general_attrs = [
+            "channels", "dtype", "n_forecast_days", "num_channels",
+            "output_batch_size", "shape"
+        ]
 
         for attr in general_attrs:
             if attr not in self._config:
@@ -295,8 +294,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         )
         return self._config["loader"][0]
 
-    def check_dataset(self,
-                      split: str = "train"):
+    def check_dataset(self, split: str = "train"):
         """
 
         :param split:
@@ -330,16 +328,17 @@ def get_args() -> object:
     """
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset")
-    ap.add_argument("-s", "--split",
-                    choices=["train", "val", "test"], default="train")
+    ap.add_argument("-s",
+                    "--split",
+                    choices=["train", "val", "test"],
+                    default="train")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     args = ap.parse_args()
     return args
 
 
 def check_dataset() -> None:
-    """Check the dataset for a specific split.
-    """
+    """Check the dataset for a specific split."""
     args = get_args()
     ds = IceNetDataSet(args.dataset)
     ds.check_dataset(args.split)

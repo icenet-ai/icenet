@@ -11,7 +11,6 @@ from icenet.data.cli import download_args
 from icenet.data.producers import Generator
 from icenet.utils import run_command
 from icenet.data.sic.utils import SIC_HEMI_STR
-
 """Sea Ice Masks
 
 """
@@ -32,7 +31,8 @@ class Masks(Generator):
         dt.date(2015, 12, 1),
     )
 
-    def __init__(self, *args,
+    def __init__(self,
+                 *args,
                  polarhole_dates: object = POLARHOLE_DATES,
                  polarhole_radii: object = POLARHOLE_RADII,
                  data_shape: object = (432, 432),
@@ -65,24 +65,25 @@ class Masks(Generator):
         variables
         """
 
-        params_path = os.path.join(
-            self.get_data_var_folder("masks"),
-            "masks.params"
-        )
+        params_path = os.path.join(self.get_data_var_folder("masks"),
+                                   "masks.params")
 
         if not os.path.exists(params_path):
             with open(params_path, "w") as fh:
                 for i, polarhole in enumerate(self._polarhole_radii):
-                    fh.write("{}\n".format(
-                        ",".join([str(polarhole),
-                                  self._polarhole_dates[i].strftime("%Y%m%d")]
-                                 )))
+                    fh.write("{}\n".format(",".join([
+                        str(polarhole),
+                        self._polarhole_dates[i].strftime("%Y%m%d")
+                    ])))
         else:
-            lines = [el.strip().split(",")
-                     for el in open(params_path, "r").readlines()]
+            lines = [
+                el.strip().split(",")
+                for el in open(params_path, "r").readlines()
+            ]
             radii, dates = zip(*lines)
-            self._polarhole_dates = [dt.datetime.strptime(el, "%Y%m%d").date()
-                                     for el in dates]
+            self._polarhole_dates = [
+                dt.datetime.strptime(el, "%Y%m%d").date() for el in dates
+            ]
             self._polarhole_radii = [int(r) for r in radii]
 
     def generate(self,
@@ -125,11 +126,12 @@ class Masks(Generator):
             month_path = os.path.join(month_folder, filename_osi450)
 
             if not os.path.exists(month_path):
-                run_command(retrieve_cmd_template_osi450.format(
-                    siconca_folder, year, month, filename_osi450))
+                run_command(
+                    retrieve_cmd_template_osi450.format(siconca_folder, year,
+                                                        month, filename_osi450))
             else:
-                logging.info("siconca {} already exists".
-                             format(filename_osi450))
+                logging.info(
+                    "siconca {} already exists".format(filename_osi450))
 
             with xr.open_dataset(month_path) as ds:
                 status_flag = ds['status_flag']
@@ -140,17 +142,17 @@ class Masks(Generator):
                     reshape(*self._shape, 8)
 
                 # Mask out: land, lake, and 'outside max climatology' (open sea)
-                max_extent_mask = np.sum(
-                    binary[:, :, [7, 6, 0]], axis=2).reshape(*self._shape) >= 1
+                max_extent_mask = np.sum(binary[:, :, [7, 6, 0]],
+                                         axis=2).reshape(*self._shape) >= 1
                 max_extent_mask = ~max_extent_mask
 
                 # FIXME: Remove Caspian and Black seas - should we do this sh?
                 if self.north:
                     max_extent_mask[325:386, 317:380] = False
 
-            mask_path = os.path.join(self.get_data_var_folder("masks"),
-                                     "active_grid_cell_mask_{:02d}.npy".
-                                     format(month))
+            mask_path = os.path.join(
+                self.get_data_var_folder("masks"),
+                "active_grid_cell_mask_{:02d}.npy".format(month))
             logging.info("Saving {}".format(mask_path))
 
             np.save(mask_path, max_extent_mask)
@@ -186,28 +188,27 @@ class Masks(Generator):
                 polarhole = np.full(self._shape, False)
                 polarhole[squaresum < radius**2] = True
 
-                polarhole_path = os.path.join(self.get_data_var_folder("masks"),
-                                              "polarhole{}_mask.npy".
-                                              format(i+1))
+                polarhole_path = os.path.join(
+                    self.get_data_var_folder("masks"),
+                    "polarhole{}_mask.npy".format(i + 1))
                 logging.info("Saving polarhole {}".format(polarhole_path))
                 np.save(polarhole_path, polarhole)
 
-    def get_active_cell_mask(self,
-                             month: object) -> object:
+    def get_active_cell_mask(self, month: object) -> object:
         """Check if a mask file exists for input month, and raise an error if it does not.
 
         Args:
             month: Month index representing the month for which the mask file is being checked.
 
         Returns:
-            Active cell mask boolean(s) for corresponding month and pre-defined self._region.
+            Active cell mask boolean(s) for corresponding month and pre-defined `self._region`.
 
         Raises:
             RuntimeError: If the mask file for the input month does not exist.
         """
-        mask_path = os.path.join(self.get_data_var_folder("masks"),
-                                 "active_grid_cell_mask_{:02d}.npy".
-                                 format(month))
+        mask_path = os.path.join(
+            self.get_data_var_folder("masks"),
+            "active_grid_cell_mask_{:02d}.npy".format(month))
 
         if not os.path.exists(mask_path):
             raise RuntimeError("Active cell masks have not been generated, "
@@ -217,8 +218,7 @@ class Masks(Generator):
         # logging.debug("Loading active cell mask {}".format(mask_path))
         return np.load(mask_path)[self._region]
 
-    def get_active_cell_da(self,
-                           src_da: object) -> object:
+    def get_active_cell_da(self, src_da: object) -> object:
         """Generate an xarray.DataArray object containing the active cell masks
          for each timestamp in a given source DataArray.
 
@@ -231,15 +231,16 @@ class Masks(Generator):
                 in source DataArray.
         """
         return xr.DataArray(
-            [self.get_active_cell_mask(pd.to_datetime(date).month)
-             for date in src_da.time.values],
+            [
+                self.get_active_cell_mask(pd.to_datetime(date).month)
+                for date in src_da.time.values
+            ],
             dims=('time', 'yc', 'xc'),
             coords={
                 'time': src_da.time.values,
                 'yc': src_da.yc.values,
                 'xc': src_da.xc.values,
-            }
-        )
+            })
 
     def get_land_mask(self,
                       land_mask_filename: str = LAND_MASK_FILENAME) -> object:
@@ -248,7 +249,7 @@ class Masks(Generator):
 
         Args:
             land_mask_filename (optional): Land mask output filename.
-                Defaults to Masks.LAND_MASK_FILENAME.
+                Defaults to `Masks.LAND_MASK_FILENAME`.
 
         Returns:
             An numpy array of land mask flag(s) for corresponding month and
@@ -265,8 +266,7 @@ class Masks(Generator):
         # logging.debug("Loading land mask {}".format(mask_path))
         return np.load(mask_path)[self._region]
 
-    def get_polarhole_mask(self,
-                           date: object) -> object:
+    def get_polarhole_mask(self, date: object) -> object:
         """Get mask of polar hole region.
 
         TODO:
@@ -278,9 +278,9 @@ class Masks(Generator):
 
         for i, r in enumerate(self._polarhole_radii):
             if date <= self._polarhole_dates[i]:
-                polarhole_path = os.path.join(self.get_data_var_folder("masks"),
-                                              "polarhole{}_mask.npy".
-                                              format(i + 1))
+                polarhole_path = os.path.join(
+                    self.get_data_var_folder("masks"),
+                    "polarhole{}_mask.npy".format(i + 1))
                 # logging.debug("Loading polarhole {}".format(polarhole_path))
                 return np.load(polarhole_path)[self._region]
         return None
@@ -308,15 +308,13 @@ class Masks(Generator):
         return self
 
     def reset_region(self):
-        """Resets the mask region and logs a message indicating that the whole mask will be returned.
-        """
+        """Resets the mask region and logs a message indicating that the whole mask will be returned."""
         logging.info("Mask region reset, whole mask will be returned")
         self._region = (slice(None, None), slice(None, None))
 
 
 def main():
-    """Entry point of Masks class - used to create executable that calls it.
-    """
+    """Entry point of Masks class - used to create executable that calls it."""
     args = download_args(dates=False, var_specs=False)
 
     north = args.hemisphere == "north"

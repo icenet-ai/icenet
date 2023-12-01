@@ -1,6 +1,5 @@
 from icenet.data.cli import process_args, process_date_args
 from icenet.data.process import IceNetPreProcessor
-
 """
 
 """
@@ -37,7 +36,5 @@ def main():
         south=args.hemisphere == "south",
         update_key=args.update_key,
     )
-    era5.init_source_data(
-        lag_days=args.lag,
-    )
+    era5.init_source_data(lag_days=args.lag,)
     era5.process()

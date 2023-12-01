@@ -14,8 +14,7 @@ class IceNetDataLoaderFactory:
     """
 
     def __init__(self):
-        """Initialises the IceNetDataLoaderFactory instance and sets up the initial loader map.
-        """
+        """Initialises the IceNetDataLoaderFactory instance and sets up the initial loader map."""
         self._loader_map = dict(
             dask=icenet.data.loaders.dask.DaskMultiWorkerLoader,
             dask_shared=icenet.data.loaders.dask.DaskMultiSharingWorkerLoader,
@@ -41,9 +40,12 @@ class IceNetDataLoaderFactory:
             if IceNetBaseDataLoader in inspect.getmro(loader_impl):
                 self._loader_map[loader_name] = loader_impl
             else:
-                raise RuntimeError("{} is not descended from IceNetBaseDataLoader".format(loader_impl.__name__))
+                raise RuntimeError("{} is not descended from "
+                                   "IceNetBaseDataLoader".format(
+                                       loader_impl.__name__))
         else:
-            raise RuntimeError("Cannot add {} as already in loader map".format(loader_name))
+            raise RuntimeError(
+                "Cannot add {} as already in loader map".format(loader_name))
 
     def create_data_loader(self, loader_name, *args, **kwargs) -> object:
         """Creates an instance of a loader based on specified name from the `_loader_map` dict attribute.

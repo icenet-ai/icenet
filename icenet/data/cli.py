@@ -7,7 +7,6 @@ import re
 import pandas as pd
 
 from icenet.utils import setup_logging
-
 """
 
 """
@@ -16,8 +15,8 @@ from icenet.utils import setup_logging
 def date_arg(string: str) -> object:
     """
 
-    :param string: 
-    :return: 
+    :param string:
+    :return:
     """
     date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
     return dt.date(*[int(s) for s in date_match.groups()])
@@ -26,8 +25,8 @@ def date_arg(string: str) -> object:
 def dates_arg(string: str) -> object:
     """
 
-    :param string: 
-    :return: 
+    :param string:
+    :return:
     """
     if string == "none":
         return []
@@ -35,8 +34,8 @@ def dates_arg(string: str) -> object:
     date_match = re.findall(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
 
     if len(date_match) < 1:
-        raise argparse.ArgumentError("No dates found for supplied argument {}".
-                                     format(string))
+        raise argparse.ArgumentError(
+            "No dates found for supplied argument {}".format(string))
     return [dt.date(*[int(s) for s in date_tuple]) for date_tuple in date_match]
 
 
@@ -48,7 +47,7 @@ def csv_arg(string: str) -> list:
     """
     csv_items = []
     string = re.sub(r'^\'(.*)\'$', r'\1', string)
-    
+
     for el in string.split(","):
         if len(el) == 0:
             csv_items.append(None)
@@ -119,13 +118,18 @@ def download_args(choices: object = None,
 
     if workers:
         ap.add_argument("-w", "--workers", default=8, type=int)
-    
-    ap.add_argument("-po", "--parallel-opens",
-                    default=False, action="store_true",
+
+    ap.add_argument("-po",
+                    "--parallel-opens",
+                    default=False,
+                    action="store_true",
                     help="Allow xarray mfdataset to work with parallel opens")
 
-    ap.add_argument("-d", "--dont-delete", dest="delete",
-                    action="store_false", default=True)
+    ap.add_argument("-d",
+                    "--dont-delete",
+                    dest="delete",
+                    action="store_false",
+                    default=True)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     if var_specs:
@@ -133,12 +137,13 @@ def download_args(choices: object = None,
                         help="Comma separated list of vars",
                         type=csv_arg,
                         default=[])
-        ap.add_argument("--levels",
-                        help="Comma separated list of pressures/depths as needed, "
-                             "use zero length string if None (e.g. ',,500,,,') and "
-                             "pipes for multiple per var (e.g. ',,250|500,,'",
-                        type=csv_of_csv_arg,
-                        default=[])
+        ap.add_argument(
+            "--levels",
+            help="Comma separated list of pressures/depths as needed, "
+            "use zero length string if None (e.g. ',,500,,,') and "
+            "pipes for multiple per var (e.g. ',,250|500,,'",
+            type=csv_of_csv_arg,
+            default=[])
 
     for arg in extra_args:
         ap.add_argument(*arg[0], **arg[1])
@@ -167,8 +172,10 @@ def process_args(dates: bool = True,
 
     ap.add_argument("-l", "--lag", type=int, default=2)
     ap.add_argument("-f", "--forecast", type=int, default=93)
-    ap.add_argument("-po", "--parallel-opens",
-                    default=False, action="store_true",
+    ap.add_argument("-po",
+                    "--parallel-opens",
+                    default=False,
+                    action="store_true",
                     help="Allow xarray mfdataset to work with parallel opens")
 
     ap.add_argument("--abs",
@@ -192,16 +199,20 @@ def process_args(dates: bool = True,
         ap.add_argument(*arg[0], **arg[1])
 
     if ref_option:
-        ap.add_argument("-r", "--ref",
+        ap.add_argument("-r",
+                        "--ref",
                         help="Reference loader for normalisations etc",
-                        default=None, type=str)
+                        default=None,
+                        type=str)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
-    ap.add_argument("-u", "--update-key",
-                    default=None,
-                    help="Add update key to processor to avoid overwriting default"
-                         "entries in the loader configuration",
-                    type=str)
+    ap.add_argument(
+        "-u",
+        "--update-key",
+        default=None,
+        help="Add update key to processor to avoid overwriting default"
+        "entries in the loader configuration",
+        type=str)
 
     args = ap.parse_args()
     return args
@@ -212,18 +223,37 @@ def add_date_args(arg_parser: object):
 
     :param arg_parser:
     """
-    arg_parser.add_argument("-ns", "--train_start",
-                            type=dates_arg, required=False, default=[])
-    arg_parser.add_argument("-ne", "--train_end",
-                            type=dates_arg, required=False, default=[])
-    arg_parser.add_argument("-vs", "--val_start",
-                            type=dates_arg, required=False, default=[])
-    arg_parser.add_argument("-ve", "--val_end",
-                            type=dates_arg, required=False, default=[])
-    arg_parser.add_argument("-ts", "--test-start",
-                            type=dates_arg, required=False, default=[])
-    arg_parser.add_argument("-te", "--test-end", dest="test_end",
-                            type=dates_arg, required=False, default=[])
+    arg_parser.add_argument("-ns",
+                            "--train_start",
+                            type=dates_arg,
+                            required=False,
+                            default=[])
+    arg_parser.add_argument("-ne",
+                            "--train_end",
+                            type=dates_arg,
+                            required=False,
+                            default=[])
+    arg_parser.add_argument("-vs",
+                            "--val_start",
+                            type=dates_arg,
+                            required=False,
+                            default=[])
+    arg_parser.add_argument("-ve",
+                            "--val_end",
+                            type=dates_arg,
+                            required=False,
+                            default=[])
+    arg_parser.add_argument("-ts",
+                            "--test-start",
+                            type=dates_arg,
+                            required=False,
+                            default=[])
+    arg_parser.add_argument("-te",
+                            "--test-end",
+                            dest="test_end",
+                            type=dates_arg,
+                            required=False,
+                            default=[])
 
 
 def process_date_args(args: object) -> dict:
@@ -240,11 +270,11 @@ def process_date_args(args: object) -> dict:
         for i, period_start in \
                 enumerate(getattr(args, "{}_start".format(dataset))):
             period_end = getattr(args, "{}_end".format(dataset))[i]
-            dataset_dates += [pd.to_datetime(date).date() for date in
-                              pd.date_range(period_start,
-                                            period_end, freq="D")]
-        logging.info("Got {} dates for {}".format(len(dataset_dates),
-                                                  dataset))
+            dataset_dates += [
+                pd.to_datetime(date).date()
+                for date in pd.date_range(period_start, period_end, freq="D")
+            ]
+        logging.info("Got {} dates for {}".format(len(dataset_dates), dataset))
 
         dates[dataset] = sorted(list(dataset_dates))
     return dates
