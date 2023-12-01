@@ -16,8 +16,7 @@ from icenet.utils import setup_logging
 from icenet.plotting.utils import broadcast_forecast, get_forecast_ds
 
 
-def reproject_output(forecast_file: object,
-                     proj_file: object,
+def reproject_output(forecast_file: object, proj_file: object,
                      save_file: object) -> object:
     """
 
@@ -34,8 +33,7 @@ def reproject_output(forecast_file: object,
     forecast_cube.coord('projection_y_coordinate').convert_units('meters')
     forecast_cube.coord('projection_x_coordinate').convert_units('meters')
 
-    logging.info("Attempting to reproject and save to {}".
-                 format(save_file))
+    logging.info("Attempting to reproject and save to {}".format(save_file))
     latlon_cube = forecast_cube.regrid(gp, iris.analysis.Linear())
     iris.save(latlon_cube, save_file)
 
@@ -59,9 +57,7 @@ def broadcast_main():
 
     """
     args = broadcast_args()
-    broadcast_forecast(args.start_date,
-                       args.end_date,
-                       args.datafiles,
+    broadcast_forecast(args.start_date, args.end_date, args.datafiles,
                        args.target)
 
 
@@ -93,7 +89,8 @@ def geotiff_args() -> argparse.Namespace:
     """
     ap = argparse.ArgumentParser()
     ap.add_argument("-o", "--output-path", default=".")
-    ap.add_argument("-s", "--stddev",
+    ap.add_argument("-s",
+                    "--stddev",
                     help="Plot the standard deviation from the ensemble",
                     action="store_true",
                     default=False)
@@ -102,11 +99,13 @@ def geotiff_args() -> argparse.Namespace:
     ap.add_argument("forecast_date")
     ap.add_argument("leadtimes",
                     help="Leadtimes to output, multiple as CSV, range as n..n",
-                    type=lambda s: [int(i) for i in
-                                    list(s.split(",") if "," in s else
-                                         range(int(s.split("..")[0]),
-                                               int(s.split("..")[1]) + 1) if ".." in s else
-                                         [s])])
+                    type=lambda s: [
+                        int(i) for i in list(
+                            s.split(",")
+                            if "," in s else range(int(s.split("..")[0]),
+                                                   int(s.split("..")[1]) + 1)
+                            if ".." in s else [s])
+                    ])
 
     args = ap.parse_args()
     return args
@@ -119,12 +118,13 @@ def create_geotiff_output():
     args = geotiff_args()
 
     if not os.path.isdir(args.output_path):
-        logging.warning("No directory at: {}, creating".
-                        format(args.output_path))
+        logging.warning("No directory at: {}, creating".format(
+            args.output_path))
         os.makedirs(args.output_path)
     elif os.path.isfile(args.output_path):
-        raise RuntimeError("{} should be a directory and not existent...".
-                           format(args.output_path))
+        raise RuntimeError(
+            "{} should be a directory and not existent...".format(
+                args.output_path))
 
     ds = get_forecast_ds(args.forecast_file,
                          args.forecast_date,
@@ -158,19 +158,19 @@ def create_geotiff_output():
         os.path.splitext(os.path.basename(args.forecast_file))[0],
         args.forecast_date)
 
-    logging.info("Selecting and outputting files from {} for {}".
-                 format(args.forecast_file, args.forecast_date))
+    logging.info("Selecting and outputting files from {} for {}".format(
+        args.forecast_file, args.forecast_date))
 
     for leadtime in leadtimes:
         pred_da = ds.sel(leadtime=leadtime)
 
-        output_filename = os.path.join(args.output_path, "{}.{}.{}tiff".format(
-            forecast_name,
-            (pd.to_datetime(args.forecast_date) + dt.timedelta(
-                days=leadtime)).strftime("%Y-%m-%d"),
-            "" if not args.stddev else "stddev."
-        ))
+        output_filename = os.path.join(
+            args.output_path, "{}.{}.{}tiff".format(
+                forecast_name,
+                (pd.to_datetime(args.forecast_date) +
+                 dt.timedelta(days=leadtime)).strftime("%Y-%m-%d"),
+                "" if not args.stddev else "stddev."))
 
-        logging.debug("Outputting leadtime {} to {}".
-                      format(leadtime, output_filename))
+        logging.debug("Outputting leadtime {} to {}".format(
+            leadtime, output_filename))
         pred_da.rio.to_raster(output_filename)

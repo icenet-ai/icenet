@@ -15,8 +15,7 @@ def date_arg(string: str) -> object:
         return dt.date(*[int(s) for s in d_match])
 
 
-def destination_filename(destination: object,
-                         filename: str,
+def destination_filename(destination: object, filename: str,
                          date: object) -> object:
     """
 
@@ -25,11 +24,9 @@ def destination_filename(destination: object,
     :param date:
     :return:
     """
-    return os.path.join(destination,
-                        "{}.{}{}".format(
-                            os.path.splitext(
-                                os.path.basename(filename))[0],
-                            date.strftime("%Y-%m-%d"),
-                            os.path.splitext(
-                                os.path.basename(filename))[1],
-                        ))
+    return os.path.join(
+        destination, "{}.{}{}".format(
+            os.path.splitext(os.path.basename(filename))[0],
+            date.strftime("%Y-%m-%d"),
+            os.path.splitext(os.path.basename(filename))[1],
+        ))

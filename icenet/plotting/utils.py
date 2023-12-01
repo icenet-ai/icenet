@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-
 from ibicus.debias import LinearScaling
 
 
@@ -33,8 +32,8 @@ def broadcast_forecast(start_date: object,
         "Only one of datafiles and dataset can be set"
 
     if datafiles:
-        logging.info("Using {} to generate forecast through {} to {}".
-                     format(", ".join(datafiles), start_date, end_date))
+        logging.info("Using {} to generate forecast through {} to {}".format(
+            ", ".join(datafiles), start_date, end_date))
         dataset = xr.open_mfdataset(datafiles, engine="netcdf4")
 
     dates = pd.date_range(start_date, end_date)
@@ -46,8 +45,8 @@ def broadcast_forecast(start_date: object,
         while dataset.time.values[i + 1] < dates[0]:
             i += 1
 
-    logging.info("Starting index will be {} for {} - {}".
-                 format(i, dates[0], dates[-1]))
+    logging.info("Starting index will be {} for {} - {}".format(
+        i, dates[0], dates[-1]))
     dt_arr = []
 
     for d in dates:
@@ -66,10 +65,9 @@ def broadcast_forecast(start_date: object,
                         i += 1
                         continue
 
-                logging.debug("Selecting date {} and lead {}".
-                              format(pd.to_datetime(
-                                     dataset.time.values[i]).strftime("%D"),
-                                     d_lead))
+                logging.debug("Selecting date {} and lead {}".format(
+                    pd.to_datetime(dataset.time.values[i]).strftime("%D"),
+                    d_lead))
 
                 arr = dataset.sel(time=dataset.time.values[i],
                                   leadtime=d_lead).\
@@ -90,31 +88,31 @@ def broadcast_forecast(start_date: object,
     return target_ds
 
 
-def get_seas_forecast_init_dates(hemisphere: str,
-                                 source_path: object = os.path.join(".", "data", "mars.seas")) -> object:
+def get_seas_forecast_init_dates(
+    hemisphere: str,
+    source_path: object = os.path.join(".", "data", "mars.seas")
+) -> object:
     """
     Obtains list of dates for which we have SEAS forecasts we have.
 
     :param hemisphere: string, typically either 'north' or 'south'
     :param source_path: path where north and south SEAS forecasts are stored
-    
+
     :return: list of dates
     """
     # list the files in the path where SEAS forecasts are stored
-    filenames = os.listdir(os.path.join(source_path, 
-                                        hemisphere,
-                                        "siconca"))
+    filenames = os.listdir(os.path.join(source_path, hemisphere, "siconca"))
     # obtain the dates from files with YYYYMMDD.nc format
-    return pd.to_datetime([x.split('.')[0]
-                           for x in filenames
-                           if re.search(r'^\d{8}\.nc$', x)])
+    return pd.to_datetime(
+        [x.split('.')[0] for x in filenames if re.search(r'^\d{8}\.nc$', x)])
 
 
-def get_seas_forecast_da(hemisphere: str,
-                         date: str,
-                         bias_correct: bool = True,
-                         source_path: object = os.path.join(".", "data", "mars.seas"),
-                         ) -> tuple:
+def get_seas_forecast_da(
+        hemisphere: str,
+        date: str,
+        bias_correct: bool = True,
+        source_path: object = os.path.join(".", "data", "mars.seas"),
+) -> tuple:
     """
     Atmospheric model Ensemble 15-day forecast (Set III - ENS)
 
@@ -130,9 +128,7 @@ Coordinates:
     """
 
     seas_file = os.path.join(
-        source_path,
-        hemisphere,
-        "siconca",
+        source_path, hemisphere, "siconca",
         "{}.nc".format(date.replace(day=1).strftime("%Y%m%d")))
 
     if os.path.exists(seas_file):
@@ -143,22 +139,18 @@ Coordinates:
 
     if bias_correct:
         # Let's have some maximum, though it's quite high
-        (start_date, end_date) = (
-            date - dt.timedelta(days=10 * 365),
-            date + dt.timedelta(days=10 * 365)
-        )
+        (start_date, end_date) = (date - dt.timedelta(days=10 * 365),
+                                  date + dt.timedelta(days=10 * 365))
         obs_da = get_obs_da(hemisphere, start_date, end_date)
-        seas_hist_files = dict(sorted({os.path.abspath(el):
-                                       dt.datetime.strptime(
-                                       os.path.basename(el)[0:8], "%Y%m%d")
-                                      for el in
-                                      glob.glob(os.path.join(source_path,
-                                                             hemisphere,
-                                                             "siconca",
-                                                             "*.nc"))
-                                      if re.search(r'^\d{8}\.nc$',
-                                                   os.path.basename(el))
-                                      and el != seas_file}.items()))
+        seas_hist_files = dict(
+            sorted({
+                os.path.abspath(el):
+                    dt.datetime.strptime(os.path.basename(el)[0:8], "%Y%m%d")
+                for el in glob.glob(
+                    os.path.join(source_path, hemisphere, "siconca", "*.nc"))
+                if re.search(r'^\d{8}\.nc$', os.path.basename(el)) and
+                el != seas_file
+            }.items()))
 
         def strip_overlapping_time(ds):
             data_file = os.path.abspath(ds.encoding["source"])
@@ -166,8 +158,8 @@ Coordinates:
             try:
                 idx = list(seas_hist_files.keys()).index(data_file)
             except ValueError:
-                logging.exception("\n{} not in \n\n{}".format(data_file,
-                                                              seas_hist_files))
+                logging.exception("\n{} not in \n\n{}".format(
+                    data_file, seas_hist_files))
                 return None
 
             if idx < len(seas_hist_files) - 1:
@@ -187,17 +179,16 @@ Coordinates:
                                  reasonable_physical_range=[0., 1.])
 
         logging.info("Debiaser input ranges: obs {:.2f} - {:.2f}, "
-                     "hist {:.2f} - {:.2f}, fut {:.2f} - {:.2f}".
-                     format(float(obs_da.min()), float(obs_da.max()),
-                            float(hist_da.min()), float(hist_da.max()),
-                            float(seas_da.min()), float(seas_da.max())))
+                     "hist {:.2f} - {:.2f}, fut {:.2f} - {:.2f}".format(
+                         float(obs_da.min()), float(obs_da.max()),
+                         float(hist_da.min()), float(hist_da.max()),
+                         float(seas_da.min()), float(seas_da.max())))
 
-        seas_array = debiaser.apply(obs_da.values,
-                                    hist_da.values,
+        seas_array = debiaser.apply(obs_da.values, hist_da.values,
                                     seas_da.values)
         seas_da.values = seas_array
-        logging.info("Debiaser output range: {:.2f} - {:.2f}".
-                     format(float(seas_da.min()), float(seas_da.max())))
+        logging.info("Debiaser output range: {:.2f} - {:.2f}".format(
+            float(seas_da.min()), float(seas_da.max())))
 
     logging.info("Returning SEAS data from {} from {}".format(seas_file, date))
 
@@ -206,23 +197,21 @@ Coordinates:
     date_location = list(seas_da.time.values).index(pd.Timestamp(date))
     if date_location > 0:
         logging.warning("SEAS forecast started {} day before the requested "
-                        "date {}, make sure you account for this!".
-                        format(date_location, date))
+                        "date {}, make sure you account for this!".format(
+                            date_location, date))
 
     seas_da = seas_da.sel(time=slice(date, None))
     logging.debug("SEAS data range: {} - {}, {} dates".format(
         pd.to_datetime(min(seas_da.time.values)).strftime("%Y-%m-%d"),
         pd.to_datetime(max(seas_da.time.values)).strftime("%Y-%m-%d"),
-        len(seas_da.time)
-    ))
-    
+        len(seas_da.time)))
+
     return seas_da
 
 
 def get_forecast_ds(forecast_file: object,
                     forecast_date: str,
-                    stddev: bool = False
-                    ) -> object:
+                    stddev: bool = False) -> object:
     """
 
     :param forecast_file: a path to a .nc file
@@ -236,15 +225,12 @@ def get_forecast_ds(forecast_file: object,
     get_key = "sic_mean" if not stddev else "sic_stddev"
 
     forecast_ds = getattr(
-        forecast_ds.sel(time=slice(forecast_date, forecast_date)),
-        get_key)
+        forecast_ds.sel(time=slice(forecast_date, forecast_date)), get_key)
 
     return forecast_ds
 
 
-def filter_ds_by_obs(ds: object,
-                     obs_da: object,
-                     forecast_date: str) -> object:
+def filter_ds_by_obs(ds: object, obs_da: object, forecast_date: str) -> object:
     """
 
     :param ds:
@@ -253,10 +239,9 @@ def filter_ds_by_obs(ds: object,
     :return:
     """
     forecast_date = pd.to_datetime(forecast_date)
-    (start_date, end_date) = (
-            forecast_date + dt.timedelta(days=int(ds.leadtime.min())),
-            forecast_date + dt.timedelta(days=int(ds.leadtime.max()))
-    )
+    (start_date,
+     end_date) = (forecast_date + dt.timedelta(days=int(ds.leadtime.min())),
+                  forecast_date + dt.timedelta(days=int(ds.leadtime.max())))
 
     if len(obs_da.time) < len(ds.leadtime):
         if len(obs_da.time) < 1:
@@ -266,14 +251,11 @@ def filter_ds_by_obs(ds: object,
 
         logging.warning("Observational data not available for full range of "
                         "forecast lead times: {}-{} vs {}-{}".format(
-                         obs_da.time.to_series()[0].strftime("%D"),
-                         obs_da.time.to_series()[-1].strftime("%D"),
-                         start_date.strftime("%D"),
-                         end_date.strftime("%D")))
-        (start_date, end_date) = (
-            obs_da.time.to_series()[0],
-            obs_da.time.to_series()[-1]
-        )
+                            obs_da.time.to_series()[0].strftime("%D"),
+                            obs_da.time.to_series()[-1].strftime("%D"),
+                            start_date.strftime("%D"), end_date.strftime("%D")))
+        (start_date, end_date) = (obs_da.time.to_series()[0],
+                                  obs_da.time.to_series()[-1])
 
     # We broadcast to get a nicely compatible dataset for plotting
     return broadcast_forecast(start_date=start_date,
@@ -281,12 +263,12 @@ def filter_ds_by_obs(ds: object,
                               dataset=ds)
 
 
-def get_obs_da(hemisphere: str,
-               start_date: str,
-               end_date: str,
-               obs_source: object =
-               os.path.join(".", "data", "osisaf"),
-               ) -> object:
+def get_obs_da(
+        hemisphere: str,
+        start_date: str,
+        end_date: str,
+        obs_source: object = os.path.join(".", "data", "osisaf"),
+) -> object:
     """
 
     :param hemisphere: string, typically either 'north' or 'south'
@@ -296,14 +278,15 @@ def get_obs_da(hemisphere: str,
     :return:
     """
     obs_years = pd.Series(pd.date_range(start_date, end_date)).dt.year.unique()
-    obs_dfs = [el for yr in obs_years for el in
-               glob.glob(os.path.join(obs_source,
-                                      hemisphere,
-                                      "siconca", "{}.nc".format(yr)))]
+    obs_dfs = [
+        el for yr in obs_years for el in glob.glob(
+            os.path.join(obs_source, hemisphere, "siconca", "{}.nc".format(yr)))
+    ]
 
     if len(obs_dfs) < len(obs_years):
-        logging.warning("Cannot find all obs source files for {} - {} in {}".
-                        format(start_date, end_date, obs_source))
+        logging.warning(
+            "Cannot find all obs source files for {} - {} in {}".format(
+                start_date, end_date, obs_source))
 
     logging.info("Got files: {}".format(obs_dfs))
     obs_ds = xr.open_mfdataset(obs_dfs)
@@ -312,10 +295,7 @@ def get_obs_da(hemisphere: str,
     return obs_ds.ice_conc
 
 
-def calculate_extents(x1: int,
-                      x2: int,
-                      y1: int,
-                      y2: int):
+def calculate_extents(x1: int, x2: int, y1: int, y2: int):
     """
 
     :param x1:
@@ -442,8 +422,7 @@ def process_probes(probes, data) -> tuple:
     return data
 
 
-def process_regions(region: tuple,
-                    data: tuple) -> tuple:
+def process_regions(region: tuple, data: tuple) -> tuple:
     """
 
     :param region:

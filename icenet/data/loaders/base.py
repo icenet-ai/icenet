@@ -10,7 +10,6 @@ import numpy as np
 
 from icenet.data.process import IceNetPreProcessor
 from icenet.data.producers import Generator
-
 """
 
 """
@@ -47,10 +46,7 @@ class IceNetBaseDataLoader(Generator):
                  pickup: bool = False,
                  var_lag_override: object = None,
                  **kwargs):
-        super().__init__(*args,
-                         identifier=identifier,
-                         path=path,
-                         **kwargs)
+        super().__init__(*args, identifier=identifier, path=path, **kwargs)
 
         self._channels = dict()
         self._channel_files = dict()
@@ -81,7 +77,8 @@ class IceNetBaseDataLoader(Generator):
 
         self._missing_dates = [
             dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
-            for s in self._config["missing_dates"]]
+            for s in self._config["missing_dates"]
+        ]
 
     def write_dataset_config_only(self):
         """
@@ -95,14 +92,15 @@ class IceNetBaseDataLoader(Generator):
         # FIXME: cloned mechanism from generate() - do we need to treat these as
         #  sets that might have missing data for fringe cases?
         for dataset in splits:
-            forecast_dates = sorted(list(set(
-                [dt.datetime.strptime(s,
-                 IceNetPreProcessor.DATE_FORMAT).date()
-                 for identity in
-                 self._config["sources"].keys()
-                 for s in
-                 self._config["sources"][identity]
-                 ["dates"][dataset]])))
+            forecast_dates = sorted(
+                list(
+                    set([
+                        dt.datetime.strptime(
+                            s, IceNetPreProcessor.DATE_FORMAT).date()
+                        for identity in self._config["sources"].keys()
+                        for s in self._config["sources"][identity]["dates"]
+                        [dataset]
+                    ])))
 
             logging.info("{} {} dates in total, NOT generating cache "
                          "data.".format(len(forecast_dates), dataset))
@@ -111,9 +109,7 @@ class IceNetBaseDataLoader(Generator):
         self._write_dataset_config(counts, network_dataset=False)
 
     @abstractmethod
-    def generate_sample(self,
-                        date: object,
-                        prediction: bool = False):
+    def generate_sample(self, date: object, prediction: bool = False):
         """
 
         :param date:
@@ -142,16 +138,12 @@ class IceNetBaseDataLoader(Generator):
             if var_name not in var_files:
                 var_files[var_name] = var_file
             elif var_file != var_files[var_name]:
-                raise RuntimeError("Differing files? {} {} vs {}".
-                                   format(var_name,
-                                          var_file,
-                                          var_files[var_name]))
+                raise RuntimeError("Differing files? {} {} vs {}".format(
+                    var_name, var_file, var_files[var_name]))
 
         return var_files
 
-    def _add_channel_files(self,
-                           var_name: str,
-                           filelist: object):
+    def _add_channel_files(self, var_name: str, filelist: object):
         """
 
         :param var_name:
@@ -173,51 +165,48 @@ class IceNetBaseDataLoader(Generator):
         """
         # As of Python 3.7 dict guarantees the order of keys based on
         # original insertion order, which is great for this method
-        lag_vars = [(identity, var, data_format)
-                    for data_format in ("abs", "anom")
-                    for identity in
-                    sorted(self._config["sources"].keys())
-                    for var in
-                    sorted(self._config["sources"][identity][data_format])]
+        lag_vars = [
+            (identity, var, data_format)
+            for data_format in ("abs", "anom")
+            for identity in sorted(self._config["sources"].keys())
+            for var in sorted(self._config["sources"][identity][data_format])
+        ]
 
         for identity, var_name, data_format in lag_vars:
             var_prefix = "{}_{}".format(var_name, data_format)
-            var_lag = (self._var_lag
-                       if var_name not in self._var_lag_override
+            var_lag = (self._var_lag if var_name not in self._var_lag_override
                        else self._var_lag_override[var_name])
 
             self._channels[var_prefix] = int(var_lag)
-            self._add_channel_files(
-                var_prefix,
-                [el for el in
-                 self._config["sources"][identity]["var_files"][var_name]
-                 if var_prefix in os.path.split(el)[1]])
+            self._add_channel_files(var_prefix, [
+                el for el in self._config["sources"][identity]["var_files"]
+                [var_name] if var_prefix in os.path.split(el)[1]
+            ])
 
         trend_names = [(identity, var,
                         self._config["sources"][identity]["linear_trend_steps"])
-                       for identity in
-                       sorted(self._config["sources"].keys())
-                       for var in
-                       sorted(
-                           self._config["sources"][identity]["linear_trends"])]
+                       for identity in sorted(self._config["sources"].keys())
+                       for var in sorted(self._config["sources"][identity]
+                                         ["linear_trends"])]
 
         for identity, var_name, trend_steps in trend_names:
             var_prefix = "{}_linear_trend".format(var_name)
 
             self._channels[var_prefix] = len(trend_steps)
             self._trend_steps[var_prefix] = trend_steps
-            filelist = [el for el in
-                        self._config["sources"][identity]["var_files"][var_name]
-                        if "linear_trend" in os.path.split(el)[1]]
+            filelist = [
+                el for el in self._config["sources"][identity]["var_files"]
+                [var_name] if "linear_trend" in os.path.split(el)[1]
+            ]
 
             self._add_channel_files(var_prefix, filelist)
 
         # Metadata input variables that don't span time
-        meta_names = [(identity, var)
-                      for identity in
-                      sorted(self._config["sources"].keys())
-                      for var in
-                      sorted(self._config["sources"][identity]["meta"])]
+        meta_names = [
+            (identity, var)
+            for identity in sorted(self._config["sources"].keys())
+            for var in sorted(self._config["sources"][identity]["meta"])
+        ]
 
         for identity, var_name in meta_names:
             self._meta_channels.append(var_name)
@@ -226,8 +215,9 @@ class IceNetBaseDataLoader(Generator):
                 var_name,
                 self._config["sources"][identity]["var_files"][var_name])
 
-        logging.debug("Channel quantities deduced:\n{}\n\nTotal channels: {}".
-                      format(pformat(self._channels), self.num_channels))
+        logging.debug(
+            "Channel quantities deduced:\n{}\n\nTotal channels: {}".format(
+                pformat(self._channels), self.num_channels))
 
     def _get_var_file(self, var_name: str):
         """
@@ -240,8 +230,9 @@ class IceNetBaseDataLoader(Generator):
         files = self._channel_files[var_name]
 
         if len(self._channel_files[var_name]) > 1:
-            logging.warning("Multiple files found for {}, only returning {}".
-                            format(filename, files[0]))
+            logging.warning(
+                "Multiple files found for {}, only returning {}".format(
+                    filename, files[0]))
         elif not len(files):
             logging.warning("No files in channel list for {}".format(filename))
             return None
@@ -271,6 +262,7 @@ class IceNetBaseDataLoader(Generator):
         :param network_dataset:
         :return:
         """
+
         # TODO: move to utils for this and process
         def _serialize(x):
             if x is dt.date:
@@ -278,40 +270,41 @@ class IceNetBaseDataLoader(Generator):
             return str(x)
 
         configuration = {
-            "identifier":       self.identifier,
-            "implementation":   self.__class__.__name__,
+            "identifier": self.identifier,
+            "implementation": self.__class__.__name__,
             # This is only for convenience ;)
-            "channels":         [
+            "channels": [
                 "{}_{}".format(channel, i)
-                for channel, s in
-                self._channels.items()
-                for i in range(1, s + 1)],
-            "counts":           counts,
-            "dtype":            self._dtype.__name__,
-            "loader_config":    os.path.abspath(self._configuration_path),
-            "missing_dates":    [date.strftime(
-                IceNetPreProcessor.DATE_FORMAT) for date in
-                self._missing_dates],
-            "n_forecast_days":  self._n_forecast_days,
-            "north":            self.north,
-            "num_channels":     self.num_channels,
+                for channel, s in self._channels.items()
+                for i in range(1, s + 1)
+            ],
+            "counts": counts,
+            "dtype": self._dtype.__name__,
+            "loader_config": os.path.abspath(self._configuration_path),
+            "missing_dates": [
+                date.strftime(IceNetPreProcessor.DATE_FORMAT)
+                for date in self._missing_dates
+            ],
+            "n_forecast_days": self._n_forecast_days,
+            "north": self.north,
+            "num_channels": self.num_channels,
             # FIXME: this naming is inconsistent, sort it out!!! ;)
-            "shape":            list(self._shape),
-            "south":            self.south,
+            "shape": list(self._shape),
+            "south": self.south,
 
             # For recreating this dataloader
             # "dataset_config_path = ".",
-            "dataset_path":     self._path if network_dataset else False,
+            "dataset_path": self._path if network_dataset else False,
             "generate_workers": self.workers,
             "loss_weight_days": self._loss_weight_days,
             "output_batch_size": self._output_batch_size,
-            "var_lag":          self._var_lag,
+            "var_lag": self._var_lag,
             "var_lag_override": self._var_lag_override,
         }
 
-        output_path = os.path.join(self._dataset_config_path,
-                                   "dataset_config.{}.json".format(
-                                       self.identifier))
+        output_path = os.path.join(
+            self._dataset_config_path,
+            "dataset_config.{}.json".format(self.identifier))
 
         logging.info("Writing configuration to {}".format(output_path))
 
@@ -320,9 +313,11 @@ class IceNetBaseDataLoader(Generator):
 
     @property
     def channel_names(self):
-        return ["{}_{}".format(nom, idx) if idx_qty > 1 else nom
-                for nom, idx_qty in self._channels.items()
-                for idx in range(1, idx_qty + 1)]
+        return [
+            "{}_{}".format(nom, idx) if idx_qty > 1 else nom
+            for nom, idx_qty in self._channels.items()
+            for idx in range(1, idx_qty + 1)
+        ]
 
     @property
     def config(self):
@@ -343,5 +338,3 @@ class IceNetBaseDataLoader(Generator):
     @property
     def workers(self):
         return self._workers
-
-

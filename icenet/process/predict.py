@@ -59,9 +59,7 @@ def get_refcube(north: bool = True, south: bool = False) -> object:
     return cube
 
 
-def get_prediction_data(root: object,
-                        name: object,
-                        date: object) -> tuple:
+def get_prediction_data(root: object, name: object, date: object) -> tuple:
     """
 
     :param root:
@@ -71,11 +69,7 @@ def get_prediction_data(root: object,
     """
     logging.info("Post-processing {}".format(date))
 
-    glob_str = os.path.join(root,
-                            "results",
-                            "predict",
-                            name,
-                            "*",
+    glob_str = os.path.join(root, "results", "predict", name, "*",
                             date.strftime("%Y_%m_%d.npy"))
 
     np_files = glob.glob(glob_str)
@@ -87,11 +81,11 @@ def get_prediction_data(root: object,
     data = np.array(data)
     ens_members = data.shape[0]
 
-    logging.debug("Data read from disk: {} from: {}".format(data.shape, np_files))
+    logging.debug("Data read from disk: {} from: {}".format(
+        data.shape, np_files))
 
-    return np.stack(
-        [data.mean(axis=0), data.std(axis=0)],
-        axis=-1).squeeze(), ens_members
+    return np.stack([data.mean(axis=0), data.std(axis=0)],
+                    axis=-1).squeeze(), ens_members
 
 
 def date_arg(string: str) -> object:
@@ -117,12 +111,20 @@ def get_args():
 
     ap.add_argument("-m", "--mask", default=False, action="store_true")
 
-    ap.add_argument("--nan", help="Apply nans, not zeroes, to land mask",
-                    default=False, action="store_true")
-    ap.add_argument("--no-agcm", help="No active grid cell masking",
-                    default=True, action="store_false", dest="agcm")
-    ap.add_argument("--no-land", help="No land while masking",
-                    default=True, action="store_false", dest="land")
+    ap.add_argument("--nan",
+                    help="Apply nans, not zeroes, to land mask",
+                    default=False,
+                    action="store_true")
+    ap.add_argument("--no-agcm",
+                    help="No active grid cell masking",
+                    default=True,
+                    action="store_false",
+                    dest="agcm")
+    ap.add_argument("--no-land",
+                    help="No land while masking",
+                    default=True,
+                    action="store_false",
+                    dest="land")
 
     ap.add_argument("-o", "--output-dir", default=".")
     ap.add_argument("-r", "--root", type=str, default=".")
@@ -145,11 +147,15 @@ def create_cf_output():
     ref_sic = xr.open_dataset(get_refsic(ds.north, ds.south))
     ref_cube = get_refcube(ds.north, ds.south)
 
-    dates = [dt.date(*[int(v) for v in s.split("-")])
-             for s in args.datefile.read().split()]
+    dates = [
+        dt.date(*[int(v)
+                  for v in s.split("-")])
+        for s in args.datefile.read().split()
+    ]
     args.datefile.close()
 
-    arr, ens_members = zip(*[get_prediction_data(args.root, args.name, date) for date in dates])
+    arr, ens_members = zip(
+        *[get_prediction_data(args.root, args.name, date) for date in dates])
     ens_members = list(ens_members)
     arr = np.array(arr)
 
@@ -166,11 +172,14 @@ def create_cf_output():
 
             for idx, forecast_date in enumerate(dates):
                 for lead_idx in np.arange(0, arr.shape[3], 1):
-                    lead_dt = forecast_date + dt.timedelta(days=int(lead_idx) + 1)
-                    logging.debug("Active grid cell mask start {} forecast date {}".
-                                  format(forecast_date, lead_dt))
+                    lead_dt = forecast_date + dt.timedelta(days=int(lead_idx) +
+                                                           1)
+                    logging.debug(
+                        "Active grid cell mask start {} forecast date {}".
+                        format(forecast_date, lead_dt))
 
-                    grid_cell_mask = mask_gen.get_active_cell_mask(lead_dt.month)
+                    grid_cell_mask = mask_gen.get_active_cell_mask(
+                        lead_dt.month)
                     sic_mean[idx, ~grid_cell_mask, lead_idx] = 0
                     sic_stddev[idx, ~grid_cell_mask, lead_idx] = 0
 
@@ -190,11 +199,11 @@ def create_cf_output():
                 sic_mean[mask] = 0
                 sic_stddev[mask] = 0
 
-    lists_of_fcast_dates = [
-        [pd.Timestamp(date + dt.timedelta(days=int(lead_idx)))
-         for lead_idx in np.arange(1, arr.shape[3] + 1, 1)]
-        for date in dates
+    lists_of_fcast_dates = [[
+        pd.Timestamp(date + dt.timedelta(days=int(lead_idx)))
+        for lead_idx in np.arange(1, arr.shape[3] + 1, 1)
     ]
+                            for date in dates]
 
     xarr = xr.Dataset(
         data_vars=dict(
@@ -232,12 +241,12 @@ def create_cf_output():
             history="{} - creation".format(dt.datetime.now()),
             id="IceNet {}".format(icenet_version),
             institution="British Antarctic Survey",
-            keywords="""'Earth Science > Cryosphere > Sea Ice > Sea Ice Concentration
+            keywords=
+            """'Earth Science > Cryosphere > Sea Ice > Sea Ice Concentration
             Earth Science > Oceans > Sea Ice > Sea Ice Concentration
             Earth Science > Climate Indicators > Cryospheric Indicators > Sea Ice
             Geographic Region > {} Hemisphere""".format(
-                "Northern" if ds.north else "Southern"
-            ),
+                "Northern" if ds.north else "Southern"),
             # TODO: check we're valid
             keywords_vocabulary="GCMD Science Keywords",
             # TODO: Double check this is good with PDC
@@ -261,19 +270,22 @@ def create_cf_output():
             #  comply with CF
             standard_name_vocabulary="CF Standard Name Table v27",
             summary="""
-            This is an output of sea ice concentration predictions from the 
-            IceNet run in an ensemble, with postprocessing to determine 
+            This is an output of sea ice concentration predictions from the
+            IceNet run in an ensemble, with postprocessing to determine
             the mean and standard deviation across the runs.
             """,
             # Use ISO 8601:2004 duration format, preferably the extended format
             # as recommended in the Attribute Content Guidance section.
-            time_coverage_start=min(set([item for row in lists_of_fcast_dates for item in row])).isoformat(),
-            time_coverage_end=max(set([item for row in lists_of_fcast_dates for item in row])).isoformat(),
+            time_coverage_start=min(
+                set([item for row in lists_of_fcast_dates for item in row
+                    ])).isoformat(),
+            time_coverage_end=max(
+                set([item for row in lists_of_fcast_dates for item in row
+                    ])).isoformat(),
             time_coverage_duration="P1D",
             time_coverage_resolution="P1D",
             title="Sea Ice Concentration Prediction",
-        )
-    )
+        ))
 
     xarr.time.attrs = dict(
         long_name=ref_cube.coord("time").long_name,
@@ -315,7 +327,7 @@ def create_cf_output():
 
     xarr.sic_mean.attrs = dict(
         long_name="mean sea ice area fraction across ensemble runs of icenet "
-                  "model",
+        "model",
         standard_name="sea_ice_area_fraction",
         short_name="sic",
         valid_min=0,
@@ -326,7 +338,8 @@ def create_cf_output():
     )
 
     xarr.sic_stddev.attrs = dict(
-        long_name="total uncertainty (one standard deviation) of concentration of sea ice",
+        long_name=
+        "total uncertainty (one standard deviation) of concentration of sea ice",
         standard_name="sea_ice_area_fraction standard_error",
         valid_min=0,
         valid_max=1,
