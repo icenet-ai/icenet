@@ -13,12 +13,12 @@ from icenet.utils import Hemisphere, HemisphereMixin
 
 
 class DataCollection(HemisphereMixin, metaclass=ABCMeta):
-    """
+    """An Abstract base class with common interface for data collection classes.
 
-    :param identifier:
-    :param north:
-    :param south:
-    :param path:
+    Attributes:
+        _identifier: The identifier of the data collection.
+        _path: The base path of the data collection.
+        _hemisphere: The hemisphere(s) of the data collection.
     """
 
     @abstractmethod
@@ -28,39 +28,76 @@ class DataCollection(HemisphereMixin, metaclass=ABCMeta):
                  north: bool = True,
                  south: bool = False,
                  path: str = os.path.join(".", "data"),
-                 **kwargs):
-        self._identifier = identifier
-        self._path = os.path.join(path, identifier)
-        self._hemisphere = (Hemisphere.NORTH if north else Hemisphere.NONE) | \
+                 **kwargs) -> None:
+        """Initialises DataCollection class.
+
+        Args:
+            identifier: An identifier/label for the data collection.
+                Defaults to None.
+            north (optional): A flag indicating if the data collection is in the northern hemisphere.
+                Defaults to True.
+            south (optional): A flag indicating if the data collection is in the southern hemisphere.
+                Defaults to False.
+            path (optional): The base path of the data collection.
+                Defaults to `./data`.
+
+        Raises:
+            AssertionError: Raised if identifier is not specified, or no hemispheres are selected.
+        """
+        self._identifier: object = identifier
+        self._path: str = os.path.join(path, identifier)
+        self._hemisphere: Hemisphere = (Hemisphere.NORTH if north else Hemisphere.NONE) | \
                            (Hemisphere.SOUTH if south else Hemisphere.NONE)
 
         assert self._identifier, "No identifier supplied"
         assert self._hemisphere != Hemisphere.NONE, "No hemispheres selected"
 
     @property
-    def base_path(self):
+    def base_path(self) -> str:
+        """Get the base path of the data collection.
+
+        Returns:
+            The base path of the data collection.
+        """
         return self._path
 
     @base_path.setter
-    def base_path(self, path):
+    def base_path(self, path: str) -> None:
         self._path = path
 
     @property
-    def identifier(self):
+    def identifier(self) -> object:
+        """Get the identifier (label) for this data collection.
+
+        Returns:
+            The identifier/label of the data collection.
+        """
         return self._identifier
 
 
 class DataProducer(DataCollection):
-    """
-    :param dry:
-    :param overwrite:
+    """Manages the creation and organisation of data files.
+
+    Attributes:
+        dry: Flag specifying whether the data producer should be in dry run mode or not.
+        overwrite: Flag specifying whether existing files should be overwritten or not.
     """
 
     def __init__(self,
                  *args,
                  dry: bool = False,
                  overwrite: bool = False,
-                 **kwargs):
+                 **kwargs) -> None:
+        """Initialises the DataProducer instance.
+
+        Creates the base path of the data collection if it does not exist.
+
+        Args:
+            dry (optional): Flag specifying whether the data producer should be in dry run mode or not.
+                Defaults to False
+            overwrite (optional): Flag specifying whether existing files should be overwritten or not.
+                Defaults to False
+        """
         super(DataProducer, self).__init__(*args, **kwargs)
 
         self.dry = dry
@@ -85,13 +122,19 @@ class DataProducer(DataCollection):
                             append: object = None,
                             hemisphere: object = None,
                             missing_error: bool = False) -> str:
-        """
+        """Returns the path for a specific data variable.
 
-        :param var:
-        :param append:
-        :param hemisphere:
-        :param missing_error:
-        :return:
+        Appends additional folders to the path if specified in the `append` parameter.
+
+        Args:
+            var: The data variable.
+            append (optional): Additional folders to append to the path. Defaults to None.
+            hemisphere (optional): The hemisphere. Defaults to None.
+            missing_error (optional): Flag to specify if missing directories should be treated as an error.
+                Defaults to False.
+
+        Returns:
+            str: The path for the specific data variable.
         """
         if not append:
             append = []
@@ -115,49 +158,45 @@ class DataProducer(DataCollection):
 
 
 class Downloader(DataProducer):
-    """
-
-    """
+    """Abstract base class for a downloader."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     @abstractmethod
     def download(self):
-        """Abstract download method for this downloader
-
-        """
+        """Abstract download method for this downloader: Must be implemented by subclasses."""
         raise NotImplementedError("{}.download is abstract".format(
             __class__.__name__))
 
 
 class Generator(DataProducer):
-    """
-
-    """
+    """Abstract base class for a generator."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     @abstractmethod
     def generate(self):
-        """
+        """Abstract generate method for this generator: Must be implemented by subclasses."""
 
-        """
         raise NotImplementedError("{}.generate is abstract".format(
             __class__.__name__))
 
 
 class Processor(DataProducer):
-    """
+    """An abstract base class for data processing classes.
 
-    :param identifier:
-    :param source_data:
-    :param *args:
-    :param file_filters:
-    :param test_dates:
-    :param train_dates:
-    :param val_dates:
+    Provides methods for initialising source data, processing the data, and
+        saving the processed data to standard netCDF files.
+
+    Attributes:
+        _file_filters: List of file filters to exclude certain files during data processing.
+        _lead_time: Forecast/lead time used in the data processing.
+        source_data: Path to the source data directory.
+        _var_files: Dictionary storing variable files organised by variable name.
+        _processed_files: Dictionary storing the processed files organised by variable name.
+        _dates: Named tuple that stores the dates used for training, validation, and testing.
     """
 
     def __init__(self,
@@ -169,7 +208,22 @@ class Processor(DataProducer):
                  test_dates: object = (),
                  train_dates: object = (),
                  val_dates: object = (),
-                 **kwargs):
+                 **kwargs) -> None:
+        """Initialise Processor class.
+
+        Args:
+            identifier: The identifier for the processor.
+            source_data: The source data directory.
+            *args: Additional positional arguments.
+            file_filters (optional): List of file filters to exclude certain files
+                during data processing. Defaults to ().
+            lead_time (optional): The forecast/lead time used in the data processing.
+                Defaults to 93.
+            test_dates (optional): Dates used for testing. Defaults to ().
+            train_dates (optional): Dates used for training. Defaults to ().
+            val_dates (optional): Dates used for validation. Defaults to ().
+            **kargs: Additional keyword arguments.
+        """
         super().__init__(*args, identifier=identifier, **kwargs)
 
         self._file_filters = list(file_filters)
@@ -179,16 +233,27 @@ class Processor(DataProducer):
         self._var_files = dict()
         self._processed_files = dict()
 
-        # TODO: better as a mixin?
+        # TODO: better as a mixin? or maybe a Python data class instead?
         Dates = collections.namedtuple("Dates", ["train", "val", "test"])
         self._dates = Dates(train=list(train_dates),
                             val=list(val_dates),
                             test=list(test_dates))
 
-    def init_source_data(self, lag_days: object = None):
-        """
+    def init_source_data(self, lag_days: object = None) -> None:
+        """Initialises source data by globbing the files and organising based on date.
+        Adds previous n days of `lag_days` if not already in `self._dates`
+            if lag_days>0.
+        Adds next n days of `self._lead_time` if not already in `self._dates`
+            if `self._lead_time`>0.
 
-        :param lag_days:
+        Args:
+            lag_days: The number of lag days to include in the data processing.
+
+        Returns:
+            None. The method updates the `_var_files` attribute of the `Processor` object.
+
+        Raises:
+            OSError: If the source data directory does not exist.
         """
 
         if not os.path.exists(self.source_data):
@@ -295,21 +360,23 @@ class Processor(DataProducer):
 
     @abstractmethod
     def process(self):
-        """
-
-        """
+        """Abstract method defining data processing: Must be implemented by subclasses."""
         raise NotImplementedError("{}.process is abstract".format(
             __class__.__name__))
 
     def save_processed_file(self, var_name: str, name: str, data: object,
-                            **kwargs):
-        """
+                            **kwargs) -> str:
+        """Save processed data to netCDF file.
 
-        :param var_name:
-        :param name:
-        :param data:
-        :param kwargs:
-        :return:
+        Args:
+            var_name: The name of the variable.
+            name: The name of the file.
+            data: The data to be saved.
+            **kwargs: Additional keyword arguments to be passed to the
+                `get_data_var_folder` method.
+
+        Returns:
+            The path of the saved netCDF file.
         """
         file_path = os.path.join(self.get_data_var_folder(var_name, **kwargs),
                                  name)
@@ -327,17 +394,39 @@ class Processor(DataProducer):
         return file_path
 
     @property
-    def dates(self):
+    def dates(self) -> object:
+        """Get the dates used for training, validation, and testing in this class.
+
+        Returns:
+            A named collections.tuple containing the dates used for training,
+                validation, and testing accessible as attributes.
+                E.g: self._dates.train, self._dates.val, self._dates.test.
+        """
         return self._dates
 
     @property
-    def lead_time(self):
+    def lead_time(self) -> int:
+        """Get the lead time used in the data processing.
+
+        Returns:
+            The lead time used in the data processing.
+        """
         return self._lead_time
 
     @property
-    def processed_files(self):
+    def processed_files(self) -> dict:
+        """Get dictionary of processed files.
+
+        Returns:
+            Dict with the processed files organized by variable name.
+        """
         return self._processed_files
 
     @property
-    def source_data(self):
+    def source_data(self) -> str:
+        """Get the source data directory.
+
+        Returns:
+            The source data directory as a string.
+        """
         return self._source_data

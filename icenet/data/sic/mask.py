@@ -17,12 +17,9 @@ from icenet.data.sic.utils import SIC_HEMI_STR
 
 
 class Masks(Generator):
-    """
+    """Masking of regions to include/omit in dataset.
 
-    :param polarhole_dates:
-    :param polarhole_radii:
-    :param data_shape:
-    :param dtype:
+    TODO: Add example usage.
     """
 
     LAND_MASK_FILENAME = "land_mask.npy"
@@ -41,6 +38,14 @@ class Masks(Generator):
                  data_shape: object = (432, 432),
                  dtype: object = np.float32,
                  **kwargs):
+        """Initialises Masks across specified hemispheres.
+
+        Args:
+            polarhole_dates: Dates for polar hole (missing data) in data.
+            polarhole_radii: Radii of polar hole.
+            data_shape: Shape of input dataset.
+            dtype: Store mask as this type.
+        """
         super().__init__(*args, identifier="masks", **kwargs)
 
         self._polarhole_dates = polarhole_dates
@@ -52,9 +57,14 @@ class Masks(Generator):
         self.init_params()
 
     def init_params(self):
+        """Initialises the parameters of the Masks class.
+
+        This method will create a `masks.params` file if it does not exist.
+        And, stores the polar_radii and polar_dates instance variables into it.
+        If it already exists, it will read and store the values to the instance
+        variables
         """
 
-        """
         params_path = os.path.join(self.get_data_var_folder("masks"),
                                    "masks.params")
 
@@ -81,12 +91,17 @@ class Masks(Generator):
                  save_land_mask: bool = True,
                  save_polarhole_masks: bool = True,
                  remove_temp_files: bool = False):
-        """Generate a set of data masks
+        """Generate a set of data masks.
 
-        :param year:
-        :param save_land_mask:
-        :param save_polarhole_masks:
-        :param remove_temp_files:
+        Args:
+            year (optional): Which year to use for generate masks from.
+                Defaults to 2000.
+            save_land_mask (optional): Whether to output land mask.
+                Defaults to True.
+            save_polarhole_masks (optional):  Whether to output polar hole masks.
+                Defaults to True.
+            remove_temp_files (optional): Whether to remove temporary directory.
+                Defaults to False.
         """
         siconca_folder = self.get_data_var_folder("siconca")
 
@@ -180,10 +195,16 @@ class Masks(Generator):
                 np.save(polarhole_path, polarhole)
 
     def get_active_cell_mask(self, month: object) -> object:
-        """
+        """Check if a mask file exists for input month, and raise an error if it does not.
 
-        :param month:
-        :return:
+        Args:
+            month: Month index representing the month for which the mask file is being checked.
+
+        Returns:
+            Active cell mask boolean(s) for corresponding month and pre-defined `self._region`.
+
+        Raises:
+            RuntimeError: If the mask file for the input month does not exist.
         """
         mask_path = os.path.join(
             self.get_data_var_folder("masks"),
@@ -198,11 +219,17 @@ class Masks(Generator):
         return np.load(mask_path)[self._region]
 
     def get_active_cell_da(self, src_da: object) -> object:
-        """
+        """Generate an xarray.DataArray object containing the active cell masks
+         for each timestamp in a given source DataArray.
 
-        :param src_da:
-        """
+        Args:
+            src_da: Source xarray.DataArray object containing time, xc, yc
+                coordinates.
 
+        Returns:
+            An xarray.DataArray containing active cell masks for each time
+                in source DataArray.
+        """
         return xr.DataArray(
             [
                 self.get_active_cell_mask(pd.to_datetime(date).month)
@@ -217,10 +244,16 @@ class Masks(Generator):
 
     def get_land_mask(self,
                       land_mask_filename: str = LAND_MASK_FILENAME) -> object:
-        """
+        """Generate an xarray.DataArray object containing the active cell masks
+         for each timestamp in a given source DataArray.
 
-        :param land_mask_filename:
-        :return:
+        Args:
+            land_mask_filename (optional): Land mask output filename.
+                Defaults to `Masks.LAND_MASK_FILENAME`.
+
+        Returns:
+            An numpy array of land mask flag(s) for corresponding month and
+                pre-defined `self._region`.
         """
         mask_path = os.path.join(self.get_data_var_folder("masks"),
                                  land_mask_filename)
@@ -234,10 +267,11 @@ class Masks(Generator):
         return np.load(mask_path)[self._region]
 
     def get_polarhole_mask(self, date: object) -> object:
-        """
+        """Get mask of polar hole region.
 
-        :param date:
-        :return:
+        TODO:
+            Explain date literals as class instance for POLARHOLE_DATES
+            and POLARHOLE_RADII
         """
         if self.south:
             return None
@@ -252,32 +286,35 @@ class Masks(Generator):
         return None
 
     def get_blank_mask(self) -> object:
-        """
+        """Returns an empty mask.
 
-        :return:
+        Returns:
+            A numpy array of flags set to false for pre-defined `self._region`
+                of shape `self._shape` (the `data_shape` instance initialisation
+                value).
         """
         return np.full(self._shape, False)[self._region]
 
     def __getitem__(self, item):
-        """
+        """Sets slice of region wanted for masking, and allows method chaining.
 
         This might be a semantically dodgy thing to do, but it works for the mo
 
-        :param item:
+        Args:
+            item: Index/slice to extract.
         """
         logging.info("Mask region set to: {}".format(item))
         self._region = item
         return self
 
     def reset_region(self):
-        """
-
-        """
+        """Resets the mask region and logs a message indicating that the whole mask will be returned."""
         logging.info("Mask region reset, whole mask will be returned")
         self._region = (slice(None, None), slice(None, None))
 
 
 def main():
+    """Entry point of Masks class - used to create executable that calls it."""
     args = download_args(dates=False, var_specs=False)
 
     north = args.hemisphere == "north"

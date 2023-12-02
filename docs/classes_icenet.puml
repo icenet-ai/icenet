@@ -1,0 +1,284 @@
+@startuml classes_icenet
+set namespaceSeparator none
+class "BatchwiseModelCheckpoint" as icenet.model.callbacks.BatchwiseModelCheckpoint #44BB99 {
+  best
+  mode : object
+  model_path : object
+  monitor : object
+  sample_at_zero : object
+  save_frequency : object
+  on_train_batch_end(batch: object, logs: object)
+}
+class "CMIP6Downloader" as icenet.data.interfaces.esgf.CMIP6Downloader #99DDFF {
+  ESGF_NODES : tuple
+  GRID_MAP : dict
+  TABLE_MAP : dict
+  additional_regrid_processing(datafile: str, cube_ease: object)
+  convert_cube(cube: object) -> object
+}
+class "ClimateDownloader" as icenet.data.interfaces.downloader.ClimateDownloader #99DDFF {
+  dates
+  delete
+  download_method
+  group_dates_by
+  levels
+  pregrid_prefix
+  sic_ease_cube
+  var_names
+  {abstract}additional_regrid_processing(datafile: str, cube_ease: object)
+  convert_cube(cube: object)
+  download()
+  get_req_filenames(var_folder: str, req_date: object, date_format: str)
+  postprocess(var, download_path)
+  regrid(files: object, rotate_wind: bool)
+  rotate_wind_data(apply_to: object, manual_files: object)
+  save_temporal_files(var, da, date_format, freq)
+}
+class "ConstructLeadtimeAccuracy" as icenet.model.metrics.ConstructLeadtimeAccuracy #44BB99 {
+  single_forecast_leadtime_idx : Optional[object]
+  use_all_forecast_months : bool
+  from_config(config: object)
+  get_config()
+  result()
+  update_state(y_true: object, y_pred: object, sample_weight: object)
+}
+class "DaskBaseDataLoader" as icenet.data.loaders.dask.DaskBaseDataLoader #99DDFF {
+  {abstract}client_generate(client: object, dates_override: object, pickup: bool)
+  generate()
+}
+class "DaskMultiSharingWorkerLoader" as icenet.data.loaders.dask.DaskMultiSharingWorkerLoader #99DDFF {
+  {abstract}client_generate(client: object, dates_override: object, pickup: bool)
+  {abstract}generate_sample(date: object, prediction: bool)
+}
+class "DaskMultiWorkerLoader" as icenet.data.loaders.dask.DaskMultiWorkerLoader #99DDFF {
+  client_generate(client: object, dates_override: object, pickup: bool)
+  generate_sample(date: object, prediction: bool)
+}
+class "DaskWrapper" as icenet.data.sic.osisaf.DaskWrapper #99DDFF {
+  dask_process()
+}
+class "DataCollection" as icenet.data.producers.DataCollection #99DDFF {
+  base_path
+  identifier
+}
+class "DataProducer" as icenet.data.producers.DataProducer #99DDFF {
+  dry : bool
+  overwrite : bool
+  get_data_var_folder(var: str, append: object, hemisphere: object, missing_error: bool) -> str
+}
+class "Downloader" as icenet.data.producers.Downloader #99DDFF {
+  {abstract}download()
+}
+class "ERA5Downloader" as icenet.data.interfaces.cds.ERA5Downloader #99DDFF {
+  CDI_MAP : dict
+  client : Client
+  download_method
+  additional_regrid_processing(datafile: str, cube_ease: object)
+  postprocess(var: str, download_path: object)
+}
+class "ForecastPlotArgParser" as icenet.plotting.forecast.ForecastPlotArgParser #BBCC33 {
+  allow_ecmwf()
+  allow_metrics()
+  allow_probes()
+  allow_sie()
+  allow_threshold()
+  parse_args()
+}
+class "Generator" as icenet.data.producers.Generator #99DDFF {
+  {abstract}generate()
+}
+class "HRESDownloader" as icenet.data.interfaces.mars.HRESDownloader #99DDFF {
+  HRES_PARAMS : dict
+  MARS_TEMPLATE : str
+  PARAM_TABLE : int
+  mars_template
+  param_table
+  params
+  additional_regrid_processing(datafile: str, cube_ease: object)
+  download()
+}
+class "Hemisphere" as icenet.utils.Hemisphere #77AADD {
+  name
+}
+class "HemisphereMixin" as icenet.utils.HemisphereMixin #77AADD {
+  both
+  hemisphere
+  hemisphere_loc
+  hemisphere_str
+  north
+  south
+}
+class "IceNetBaseDataLoader" as icenet.data.loaders.base.IceNetBaseDataLoader #99DDFF {
+  channel_names
+  config
+  dates_override
+  num_channels
+  pickup
+  workers
+  {abstract}generate_sample(date: object, prediction: bool)
+  get_sample_files() -> object
+  write_dataset_config_only()
+}
+class "IceNetCMIPPreProcessor" as icenet.data.processors.cmip.IceNetCMIPPreProcessor #99DDFF {
+  pre_normalisation(var_name: str, da: object)
+}
+class "IceNetDataLoader" as icenet.data.loaders.stdlib.IceNetDataLoader #99DDFF {
+  {abstract}generate()
+  {abstract}generate_sample(date: object, prediction: bool)
+}
+class "IceNetDataLoaderFactory" as icenet.data.loaders.IceNetDataLoaderFactory #99DDFF {
+  loader_map
+  add_data_loader(loader_name: str, loader_impl: object) -> None
+  create_data_loader(loader_name) -> object
+}
+class "IceNetDataSet" as icenet.data.dataset.IceNetDataSet #99DDFF {
+  channels
+  counts
+  loader_config
+  get_data_loader(n_forecast_days: object, generate_workers: object) -> object
+}
+class "<color:red>IceNetDataWarning</color>" as icenet.data.loaders.utils.IceNetDataWarning #99DDFF {
+}
+class "IceNetERA5PreProcessor" as icenet.data.processors.era5.IceNetERA5PreProcessor #99DDFF {
+}
+class "IceNetHRESPreProcessor" as icenet.data.processors.hres.IceNetHRESPreProcessor #99DDFF {
+}
+class "IceNetMetaPreProcessor" as icenet.data.processors.meta.IceNetMetaPreProcessor #99DDFF {
+  {abstract}init_source_data(lag_days: object, lead_days: object)
+  process()
+}
+class "IceNetORAS5PreProcessor" as icenet.data.processors.oras5.IceNetORAS5PreProcessor #99DDFF {
+}
+class "IceNetOSIPreProcessor" as icenet.data.processors.osi.IceNetOSIPreProcessor #99DDFF {
+  missing_dates : list
+  pre_normalisation(var_name: str, da: object)
+}
+class "IceNetPreProcessor" as icenet.data.process.IceNetPreProcessor #99DDFF {
+  DATE_FORMAT : str
+  missing_dates
+  mean_and_std(array: object)
+  post_normalisation(var_name: str, da: object)
+  pre_normalisation(var_name: str, da: object)
+  process()
+  update_loader_config()
+}
+class "IceNetPreTrainingEvaluator" as icenet.model.callbacks.IceNetPreTrainingEvaluator #44BB99 {
+  sample_at_zero : bool
+  val_dataloader
+  validation_frequency
+  on_train_batch_end(batch: object, logs: object)
+}
+class "Masks" as icenet.data.sic.mask.Masks #99DDFF {
+  LAND_MASK_FILENAME : str
+  POLARHOLE_DATES : tuple
+  POLARHOLE_RADII : tuple
+  generate(year: int, save_land_mask: bool, save_polarhole_masks: bool, remove_temp_files: bool)
+  get_active_cell_da(src_da: object) -> object
+  get_active_cell_mask(month: object) -> object
+  get_blank_mask() -> object
+  get_land_mask(land_mask_filename: str) -> object
+  get_polarhole_mask(date: object) -> object
+  init_params()
+  reset_region()
+}
+class "MergedIceNetDataSet" as icenet.data.dataset.MergedIceNetDataSet #99DDFF {
+  channels
+  counts
+  {abstract}check_dataset(split: str)
+  get_data_loader()
+}
+class "ORAS5Downloader" as icenet.data.interfaces.cmems.ORAS5Downloader #99DDFF {
+  ENDPOINTS : dict
+  VAR_MAP : dict
+  download_method
+  additional_regrid_processing(datafile: object, cube_ease: object) -> object
+  postprocess(var: str, download_path: object)
+}
+class "Processor" as icenet.data.producers.Processor #99DDFF {
+  dates
+  lead_time
+  processed_files
+  source_data
+  init_source_data(lag_days: object) -> None
+  {abstract}process()
+  save_processed_file(var_name: str, name: str, data: object) -> str
+}
+class "SEASDownloader" as icenet.data.interfaces.mars.SEASDownloader #99DDFF {
+  MARS_TEMPLATE : str
+  save_temporal_files(var, da, date_format, freq)
+}
+class "SICDownloader" as icenet.data.sic.osisaf.SICDownloader #99DDFF {
+  download()
+  missing_dates()
+}
+class "SplittingMixin" as icenet.data.datasets.utils.SplittingMixin #99DDFF {
+  batch_size
+  dtype
+  n_forecast_days
+  num_channels
+  shape
+  shuffling
+  test_fns : list
+  train_fns : list
+  val_fns : list
+  add_records(base_path: str, hemi: str) -> None
+  check_dataset(split: str) -> None
+  get_split_datasets(ratio: object)
+}
+class "TemperatureScale" as icenet.model.models.TemperatureScale #44BB99 {
+  temp
+  call(inputs: object)
+  get_config()
+}
+class "WeightedBinaryAccuracy" as icenet.model.metrics.WeightedBinaryAccuracy #44BB99 {
+  get_config()
+  result()
+  update_state(y_true: object, y_pred: object, sample_weight: object)
+}
+class "WeightedMAE" as icenet.model.metrics.WeightedMAE #44BB99 {
+  result()
+  update_state(y_true: object, y_pred: object, sample_weight: object)
+}
+class "WeightedMSE" as icenet.model.metrics.WeightedMSE #44BB99 {
+  result()
+  update_state(y_true: object, y_pred: object, sample_weight: object)
+}
+class "WeightedMSE" as icenet.model.losses.WeightedMSE #44BB99 {
+}
+class "WeightedRMSE" as icenet.model.metrics.WeightedRMSE #44BB99 {
+  result()
+  update_state(y_true: object, y_pred: object, sample_weight: object)
+}
+icenet.data.dataset.IceNetDataSet --|> icenet.data.datasets.utils.SplittingMixin
+icenet.data.dataset.IceNetDataSet --|> icenet.data.producers.DataCollection
+icenet.data.dataset.MergedIceNetDataSet --|> icenet.data.datasets.utils.SplittingMixin
+icenet.data.dataset.MergedIceNetDataSet --|> icenet.data.producers.DataCollection
+icenet.data.interfaces.cds.ERA5Downloader --|> icenet.data.interfaces.downloader.ClimateDownloader
+icenet.data.interfaces.cmems.ORAS5Downloader --|> icenet.data.interfaces.downloader.ClimateDownloader
+icenet.data.interfaces.downloader.ClimateDownloader --|> icenet.data.producers.Downloader
+icenet.data.interfaces.esgf.CMIP6Downloader --|> icenet.data.interfaces.downloader.ClimateDownloader
+icenet.data.interfaces.mars.HRESDownloader --|> icenet.data.interfaces.downloader.ClimateDownloader
+icenet.data.interfaces.mars.SEASDownloader --|> icenet.data.interfaces.mars.HRESDownloader
+icenet.data.loaders.base.IceNetBaseDataLoader --|> icenet.data.producers.Generator
+icenet.data.loaders.dask.DaskBaseDataLoader --|> icenet.data.loaders.base.IceNetBaseDataLoader
+icenet.data.loaders.dask.DaskMultiSharingWorkerLoader --|> icenet.data.loaders.dask.DaskBaseDataLoader
+icenet.data.loaders.dask.DaskMultiWorkerLoader --|> icenet.data.loaders.dask.DaskBaseDataLoader
+icenet.data.loaders.stdlib.IceNetDataLoader --|> icenet.data.loaders.base.IceNetBaseDataLoader
+icenet.data.process.IceNetPreProcessor --|> icenet.data.producers.Processor
+icenet.data.processors.cmip.IceNetCMIPPreProcessor --|> icenet.data.process.IceNetPreProcessor
+icenet.data.processors.era5.IceNetERA5PreProcessor --|> icenet.data.process.IceNetPreProcessor
+icenet.data.processors.hres.IceNetHRESPreProcessor --|> icenet.data.process.IceNetPreProcessor
+icenet.data.processors.meta.IceNetMetaPreProcessor --|> icenet.data.process.IceNetPreProcessor
+icenet.data.processors.oras5.IceNetORAS5PreProcessor --|> icenet.data.process.IceNetPreProcessor
+icenet.data.processors.osi.IceNetOSIPreProcessor --|> icenet.data.process.IceNetPreProcessor
+icenet.data.producers.DataCollection --|> icenet.utils.HemisphereMixin
+icenet.data.producers.DataProducer --|> icenet.data.producers.DataCollection
+icenet.data.producers.Downloader --|> icenet.data.producers.DataProducer
+icenet.data.producers.Generator --|> icenet.data.producers.DataProducer
+icenet.data.producers.Processor --|> icenet.data.producers.DataProducer
+icenet.data.sic.mask.Masks --|> icenet.data.producers.Generator
+icenet.data.sic.osisaf.SICDownloader --|> icenet.data.producers.Downloader
+icenet.data.sic.mask.Masks --* icenet.data.interfaces.downloader.ClimateDownloader : _masks
+icenet.data.sic.mask.Masks --* icenet.data.sic.osisaf.SICDownloader : _masks
+icenet.utils.Hemisphere --* icenet.data.producers.DataCollection : _hemisphere
+@enduml
