@@ -19,6 +19,24 @@ tf-data-vs-keras-utils-sequence-performance
 
 
 class IceNetDataSet(SplittingMixin, DataCollection):
+    """Initialises and configures a dataset.
+
+    It loads a JSON configuration file, updates the `_config` attribute with the
+    result, creates a data loader, and methods to access the dataset.
+
+    Attributes:
+        _config: A dict used to store configuration loaded from JSON file.
+        _configuration_path: The path to the JSON configuration file.
+        _batch_size: The batch size for the data loader.
+        _counts: A dict with number of elements in train, val, test.
+        _dtype: The type of the dataset.
+        _loader_config: The path to the data loader configuration file.
+        _generate_workers: An integer representing number of workers for parallel processing with Dask.
+        _n_forecast_days: An integer representing number of days to forecast for.
+        _num_channels: An integer representing number of channels (input variables) in the dataset.
+        _shape: The shape of the dataset.
+        _shuffling: A flag indicating whether to shuffle the data or not.
+    """
 
     def __init__(self,
                  configuration_path: str,
@@ -98,15 +116,16 @@ class IceNetDataSet(SplittingMixin, DataCollection):
             raise OSError("{} not found".format(path))
 
     def get_data_loader(self,
-                        n_forecast_days=None,
-                        generate_workers=None) -> object:
+                        n_forecast_days: object = None,
+                        generate_workers: object = None) -> object:
         """Create an instance of the IceNetDataLoader class.
 
         Args:
             n_forecast_days (optional): The number of forecast days to be used by the data loader.
                 If not provided, defaults to the value specified in the configuration file.
-            generate_workers (optional): A flag indicating whether to generate workers for parallel processing.
-                If not provided, defaults to the value specified in the configuration file.
+            generate_workers (optional): An integer representing number of workers to use for
+                parallel processing with Dask. If not provided, defaults to the value specified in
+                the configuration file.
 
         Returns:
             An instance of the DaskMultiWorkerLoader class configured with the specified parameters.
