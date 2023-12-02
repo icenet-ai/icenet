@@ -135,7 +135,7 @@ class "IceNetDataSet" as icenet.data.dataset.IceNetDataSet #99DDFF {
   channels
   counts
   loader_config
-  get_data_loader(n_forecast_days, generate_workers) -> object
+  get_data_loader(n_forecast_days: object, generate_workers: object) -> object
 }
 class "<color:red>IceNetDataWarning</color>" as icenet.data.loaders.utils.IceNetDataWarning #99DDFF {
 }
