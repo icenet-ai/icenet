@@ -32,61 +32,38 @@ class HemisphereMixin:
 
     @property
     def hemisphere(self) -> int:
-        """Get the bitmask value representing the hemisphere.
-
-        Returns:
-            The bitmask value representing the hemisphere.
-        """
+        """The bitmask value representing the hemisphere."""
         return self._hemisphere
 
     @property
     def hemisphere_str(self) -> list:
-        """Get a list of strings representing the selected hemispheres.
-
-        Returns:
-            A list of strings representing the hemisphere.
-        """
+        """A list of strings representing the selected hemispheres."""
         return ["north"] if self.north else \
                ["south"] if self.south else \
                ["north", "south"]
 
     @property
     def hemisphere_loc(self) -> list:
-        """Get a list of latitude and longitude extent representing the hemisphere's location.
-
-        Returns:
-            A list of latitude and longitude extent representing the hemisphere's location.
-            [north lat, west lon, south lat, east lon]
-        """
+        """Get a list of latitude and longitude extent representing the hemisphere's location."""
+        # A list of latitude and longitude extent representing the hemisphere's location.
+        # [north lat, west lon, south lat, east lon]
         return [90, -180, 0, 180] if self.north else \
                [0, -180, -90, 180] if self.south else \
                [90, -180, -90, 180]
 
     @property
     def north(self) -> bool:
-        """Get flag if `_hemisphere` is north.
-
-        Returns:
-            True if the hemisphere is north, False otherwise.
-        """
+        """A flag indicating if `_hemisphere` is north. True if the hemisphere is north, False otherwise."""
         return (self._hemisphere & Hemisphere.NORTH) == Hemisphere.NORTH
 
     @property
     def south(self) -> bool:
-        """Check flag if `_hemisphere` is south.
-
-        Returns:
-            True if the hemisphere is south, False otherwise.
-        """
+        """A flag indicating if `_hemisphere` is south. True if the hemisphere is south, False otherwise."""
         return (self._hemisphere & Hemisphere.SOUTH) == Hemisphere.SOUTH
 
     @property
     def both(self) -> int:
-        """Get the bitmask value representing both hemispheres.
-
-        Returns:
-            The bitmask value representing both hemispheres.
-        """
+        """The bitmask value representing both hemispheres."""
         return self._hemisphere & Hemisphere.BOTH
 
 

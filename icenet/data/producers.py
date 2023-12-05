@@ -54,11 +54,7 @@ class DataCollection(HemisphereMixin, metaclass=ABCMeta):
 
     @property
     def base_path(self) -> str:
-        """Get the base path of the data collection.
-
-        Returns:
-            The base path of the data collection.
-        """
+        """The base path of the data collection."""
         return self._path
 
     @base_path.setter
@@ -67,11 +63,7 @@ class DataCollection(HemisphereMixin, metaclass=ABCMeta):
 
     @property
     def identifier(self) -> object:
-        """Get the identifier (label) for this data collection.
-
-        Returns:
-            The identifier/label of the data collection.
-        """
+        """The identifier (label) for this data collection."""
         return self._identifier
 
 
@@ -395,38 +387,20 @@ class Processor(DataProducer):
 
     @property
     def dates(self) -> object:
-        """Get the dates used for training, validation, and testing in this class.
-
-        Returns:
-            A named collections.tuple containing the dates used for training,
-                validation, and testing accessible as attributes.
-                E.g: self._dates.train, self._dates.val, self._dates.test.
-        """
+        """The dates used for training, validation, and testing in this class as a named collections.tuple."""
         return self._dates
 
     @property
     def lead_time(self) -> int:
-        """Get the lead time used in the data processing.
-
-        Returns:
-            The lead time used in the data processing.
-        """
+        """The lead time used in the data processing."""
         return self._lead_time
 
     @property
     def processed_files(self) -> dict:
-        """Get dictionary of processed files.
-
-        Returns:
-            Dict with the processed files organized by variable name.
-        """
+        """A dict with the processed files organised by variable name."""
         return self._processed_files
 
     @property
     def source_data(self) -> str:
-        """Get the source data directory.
-
-        Returns:
-            The source data directory as a string.
-        """
+        """The source data directory as a string."""
         return self._source_data
