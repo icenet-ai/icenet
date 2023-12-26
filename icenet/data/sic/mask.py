@@ -141,6 +141,7 @@ class Masks(Generator):
                 binary = np.unpackbits(status_flag, axis=1).\
                     reshape(*self._shape, 8)
 
+                #TODO: Add source/explanation for these magic numbers (index slicing nos.).
                 # Mask out: land, lake, and 'outside max climatology' (open sea)
                 max_extent_mask = np.sum(binary[:, :, [7, 6, 0]],
                                          axis=2).reshape(*self._shape) >= 1
@@ -148,6 +149,7 @@ class Masks(Generator):
 
                 # FIXME: Remove Caspian and Black seas - should we do this sh?
                 if self.north:
+                    # TODO: Add source/explanation for these indices.
                     max_extent_mask[325:386, 317:380] = False
 
             mask_path = os.path.join(
@@ -195,7 +197,9 @@ class Masks(Generator):
                 np.save(polarhole_path, polarhole)
 
     def get_active_cell_mask(self, month: object) -> object:
-        """Check if a mask file exists for input month, and raise an error if it does not.
+        """Loads an active grid cell mask from numpy file.
+
+        Also, checks if a mask file exists for input month, and raises an error if it does not.
 
         Args:
             month: Month index representing the month for which the mask file is being checked.

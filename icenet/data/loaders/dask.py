@@ -27,22 +27,37 @@ certain deployments
 
 
 class DaskBaseDataLoader(IceNetBaseDataLoader):
+    """A subclass of IceNetBaseDataLoader that provides functionality for loading data using Dask.
+
+    Attributes:
+        _dashboard_port: The port number for the Dask dashboard.
+        _timeout: The timeout value for Dask communication.
+        _tmp_dir: The temporary directory for Dask.
+    """
 
     def __init__(self,
                  *args,
                  dask_port: int = 8888,
                  dask_timeouts: int = 60,
                  dask_tmp_dir: object = "/tmp",
-                 **kwargs):
+                 **kwargs) -> None:
+        """Initialises the DaskBaseDataLoader object with the specified port, timeouts, and temp directory.
+
+        Args:
+            dask_port: The port number for the Dask dashboard. Defaults to 8888.
+            dask_timeouts: The timeout value for Dask communication. Defaults to 60.
+            dask_tmp_dir: The temporary directory for Dask. Defaults to `/tmp`.
+        """
         super().__init__(*args, **kwargs)
 
         self._dashboard_port = dask_port
         self._timeout = dask_timeouts
         self._tmp_dir = dask_tmp_dir
 
-    def generate(self):
+    def generate(self) -> None:
         """
-
+        Generates data using Dask client by setting up a Dask cluster and client,
+        and calling client_generate method.
         """
         dashboard = "localhost:{}".format(self._dashboard_port)
 
@@ -68,12 +83,17 @@ class DaskBaseDataLoader(IceNetBaseDataLoader):
     def client_generate(self,
                         client: object,
                         dates_override: object = None,
-                        pickup: bool = False):
-        """
+                        pickup: bool = False) -> None:
+        """Generates data using the Dask client. This method needs to be implemented in subclasses.
 
-        :param client:
-        :param dates_override:
-        :param pickup:
+        Args:
+            client: The Dask client.
+            dates_override (optional): A dict with keys `train`, `val`, `test`, each with a list of
+                continuous dates for that purpose. Defaults to None.
+            pickup (optional): TODO. Defaults to False.
+
+        Raises:
+            NotImplementedError: If generate is called without being implemented as a subclass of DaskBaseDataLoader.
         """
         raise NotImplementedError("generate called on non-implementation")
 
@@ -108,7 +128,7 @@ class DaskMultiSharingWorkerLoader(DaskBaseDataLoader):
 
 class DaskMultiWorkerLoader(DaskBaseDataLoader):
 
-    def __init__(self, *args, futures_per_worker: int = 2, **kwargs):
+    def __init__(self, *args, futures_per_worker: int = 2, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         masks = Masks(north=self.north, south=self.south)
