@@ -247,68 +247,30 @@ class SplittingMixin:
 
     @property
     def batch_size(self) -> int:
-        """Get dataset's batch size.
-
-        Set in subclass, not in SplittingMixin.
-
-        Returns:
-            self._batch_size: Batch size set for dataset.
-        """
+        """The dataset's batch size."""
         return self._batch_size
 
     @property
     def dtype(self) -> str:
-        """Get dataset's data type.
-
-        Set in subclass, not in SplittingMixin.
-
-        Returns:
-            self._dtype: Data type of dataset.
-        """
+        """The dataset's data type."""
         return self._dtype
 
     @property
     def n_forecast_days(self) -> int:
-        """Get number of days to forecast in prediction.
-
-        Set in subclass, not in SplittingMixin.
-
-        Returns:
-            self._n_forecast_days: Number of days to forecast.
-        """
+        """The number of days to forecast in prediction."""
         return self._n_forecast_days
 
     @property
     def num_channels(self) -> int:
-        """Get number of channels in dataset.
-
-        Corresponds to number of variables.
-        Set in subclass, not in SplittingMixin.
-
-        Returns:
-            self._num_channels: Number of channels in dataset.
-        """
+        """The number of channels in dataset."""
         return self._num_channels
 
     @property
     def shape(self) -> object:
-        """Get shape of dataset.
-
-        Set in subclass, not in SplittingMixin.
-
-        Returns:
-            self._shape: Tuple/List of dataset shape.
-        """
+        """The shape of dataset."""
         return self._shape
 
     @property
     def shuffling(self) -> bool:
-        """Get flag for whether training dataset(s) are marked to be shuffled.
-
-        Set in subclass, not in SplittingMixin.
-
-        Returns:
-            self._shuffling: A flag if training dataset(s) marked to
-                be shuffled.
-        """
+        """A flag for whether training dataset(s) are marked to be shuffled."""
         return self._shuffling

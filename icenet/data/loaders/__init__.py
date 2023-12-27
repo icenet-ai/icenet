@@ -65,9 +65,5 @@ class IceNetDataLoaderFactory:
 
     @property
     def loader_map(self) -> dict:
-        """Get the loader map dictionary.
-
-        Returns:
-            The loader map.
-        """
+        """The loader map dictionary."""
         return self._loader_map

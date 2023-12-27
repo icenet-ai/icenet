@@ -32,7 +32,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         _dtype: The type of the dataset.
         _loader_config: The path to the data loader configuration file.
         _generate_workers: An integer representing number of workers for parallel processing with Dask.
-        _n_forecast_days: An integer representing number of days to forecast for.
+        _n_forecast_days: An integer representing number of days to predict for.
         _num_channels: An integer representing number of channels (input variables) in the dataset.
         _shape: The shape of the dataset.
         _shuffling: A flag indicating whether to shuffle the data or not.
@@ -152,31 +152,18 @@ class IceNetDataSet(SplittingMixin, DataCollection):
 
     @property
     def loader_config(self) -> str:
-        """Get path to the JSON loader configuration file stored in the dataset config file.
-
-        E.g. `/path/to/loader.{identifier}.json`
-
-        Returns:
-            Path to the loader config file from the dataset config file.
-        """
+        """The path to the JSON loader configuration file stored in the dataset config file."""
+        # E.g. `/path/to/loader.{identifier}.json`
         return self._loader_config
 
     @property
     def channels(self) -> list:
-        """Get the list of channels (variable names) specified in the dataset config file.
-
-        Returns:
-            List of channels (variable names) in the dataset config file.
-        """
+        """The list of channels (variable names) specified in the dataset config file."""
         return self._config["channels"]
 
     @property
     def counts(self) -> dict:
-        """Get a dict of no. of items in train, val, test.
-
-        Returns:
-            Dict with number of elements in train, val, test in the config file.
-        """
+        """A dict with number of elements in train, val, test in the config file."""
         return self._config["counts"]
 
 

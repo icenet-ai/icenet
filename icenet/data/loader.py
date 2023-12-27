@@ -13,10 +13,14 @@ from icenet.utils import setup_logging
 
 
 @setup_logging
-def create_get_args():
-    """
+def create_get_args() -> object:
+    """Converts input data creation argument strings to objects, and assigns them as attributes to the namespace.
 
-    :return:
+    The args added in this function relate to the dataloader creation process.
+
+    Returns:
+        An argparse.ArgumentParser object with all arguments added via `add_argument` accessible
+            as object attributes.
     """
     implementations = list(IceNetDataLoaderFactory().loader_map)
 
