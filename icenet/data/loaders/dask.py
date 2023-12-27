@@ -223,7 +223,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                 np.average(exec_times)))
         self._write_dataset_config(counts)
 
-    def generate_sample(self, date: object, prediction: bool = False):
+    def generate_sample(self, date: object, prediction: bool = False, parallel=True):
         """
 
         :param date:
@@ -234,7 +234,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         ds_kwargs = dict(
             chunks=dict(time=1, yc=self._shape[0], xc=self._shape[1]),
             drop_variables=["month", "plev", "level", "realization"],
-            parallel=True,
+            parallel=parallel,
         )
         var_files = self.get_sample_files()
 
@@ -242,6 +242,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
             v for k, v in var_files.items()
             if k not in self._meta_channels and not k.endswith("linear_trend")
         ], **ds_kwargs)
+
         var_ds = var_ds.transpose("yc", "xc", "time")
 
         trend_files = \
