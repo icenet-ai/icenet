@@ -67,11 +67,11 @@ def unet_batchnorm(input_shape: object,
     inputs = Input(shape=input_shape)
 
     start_out_channels = 64
-    reduced_channels = int(start_out_channels*n_filters_factor)
-    channels = {}
-    for pow in range(4):
-        value = reduced_channels*2**pow
-        channels[start_out_channels*2**pow] = value
+    reduced_channels = int(start_out_channels * n_filters_factor)
+    channels = {
+        start_out_channels * 2**pow: reduced_channels * 2**pow
+        for pow in range(4)
+    }
 
     conv1 = Conv2D(channels[64],
                    filter_size,
