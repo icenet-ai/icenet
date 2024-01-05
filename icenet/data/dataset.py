@@ -3,12 +3,19 @@ import json
 import logging
 import os
 
+import dask
 import numpy as np
+import pandas as pd
 
 from icenet.data.datasets.utils import SplittingMixin
 from icenet.data.loader import IceNetDataLoaderFactory
 from icenet.data.producers import DataCollection
 from icenet.utils import setup_logging
+
+try:
+    from torch.utils.data import Dataset
+except ImportError:
+    logging.info("PyTorch import failed - not mandatory if not using PyTorch")
 """
 
 
@@ -315,6 +322,43 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
     @property
     def counts(self):
         return self._config["counts"]
+
+
+class IceNetDataSetPyTorch(IceNetDataSet, Dataset):
+
+    def __init__(
+        self,
+        configuration_path: str,
+        mode: str,
+        batch_size: int = 1,
+        shuffling: bool = False,
+    ):
+        super().__init__(configuration_path=configuration_path,
+                         batch_size=batch_size,
+                         shuffling=shuffling)
+        self._dl = self.get_data_loader()
+
+        # check mode option
+        if mode not in ["train", "val", "test"]:
+            raise ValueError("mode must be either 'train', 'val', 'test'")
+        self._mode = mode
+
+        self._dates = self._dl._config["sources"]["osisaf"]["dates"][self._mode]
+
+    def __len__(self):
+        return self._counts[self._mode]
+
+    def __getitem__(self, idx):
+        with dask.config.set(scheduler="synchronous"):
+            sample = self._dl.generate_sample(
+                date=pd.Timestamp(self._dates[idx].replace('_', '-')),
+                parallel=False,
+            )
+        return sample
+
+    @property
+    def dates(self):
+        return self._dates
 
 
 @setup_logging
