@@ -14,7 +14,7 @@ from icenet.utils import setup_logging
 
 try:
     from torch.utils.data import Dataset
-except ImportError:
+except ModuleNotFoundError:
     logging.info("PyTorch import failed - not mandatory if not using PyTorch")
 """
 
