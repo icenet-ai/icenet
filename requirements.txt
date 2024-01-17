@@ -19,7 +19,7 @@ scitools-iris
 seaborn
 setuptools
 tensorboard
-tensorflow
+tensorflow[and-cuda]
 tensorflow-probability
 wheel
 xarray[io]
