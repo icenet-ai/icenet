@@ -502,8 +502,19 @@ class SICDownloader(Downloader):
                                     "for {}".format(date_str))
                     continue
 
-                with open(temp_path, "wb") as fh:
-                    ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
+                # Check if remote file size is too small, if so, render date invalid
+                # and continue.
+                file_size = ftp.size(ftp_files[0])
+
+                # Check remote file size in bytes
+                if file_size < 100:
+                    logging.warning(
+                        f"Date {el} is in invalid list, as file size too small")
+                    self._invalid_dates.append(el)
+                    continue
+                else:
+                    with open(temp_path, "wb") as fh:
+                        ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
 
                 logging.debug("Downloaded {}".format(temp_path))
                 data_files.append(temp_path)
