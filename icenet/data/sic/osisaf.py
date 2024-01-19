@@ -1,4 +1,5 @@
 import copy
+import csv
 import fnmatch
 import ftplib
 import logging
@@ -381,6 +382,20 @@ class SICDownloader(Downloader):
             for month in np.arange(1, 12 + 1)
         }
 
+        # Load dates that previously had a file size of zero.
+        # To recheck they haven't been fixed since last download.
+        zero_dates_path = os.path.join(self.get_data_var_folder("siconca"),
+                                       "zero_size_days.csv")
+
+        self._zero_dates_path = zero_dates_path
+        self._zero_dates = []
+        if os.path.exists(zero_dates_path):
+            with open(zero_dates_path, "r") as fh:
+                self._zero_dates = [
+                    pd.to_datetime("-".join(date)).date()
+                    for date in csv.reader(fh)
+                ]
+
     def download(self):
         """
 
@@ -414,6 +429,10 @@ class SICDownloader(Downloader):
             exclude_dates = [
                 pd.to_datetime(date).date() for date in extant_ds.time.values
             ]
+
+            # Do not exclude dates that previously had a file size of 0
+            exclude_dates = set(exclude_dates).difference(self._zero_dates)
+
             logging.info("Excluding {} dates already existing from {} dates "
                          "requested.".format(len(exclude_dates), len(dt_arr)))
 
@@ -504,11 +523,37 @@ class SICDownloader(Downloader):
                                     "for {}".format(date_str))
                     continue
 
-                with open(temp_path, "wb") as fh:
-                    ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
+                # Check if remote file size is too small, if so, render date invalid
+                # and continue.
+                file_size = ftp.size(ftp_files[0])
+
+                # Check remote file size in bytes
+                if file_size < 100:
+                    logging.warning(
+                        f"Date {el} is in invalid list, as file size too small")
+                    self._zero_dates.append(el)
+                    self._invalid_dates.append(el)
+                    continue
+                else:
+                    # Removing missing date file if it was created for a file with zero size before
+                    if el in self._zero_dates:
+                        self._zero_dates.remove(el)
+                        fpath = os.path.join(
+                            self.get_data_var_folder(
+                                "siconca",
+                                append=[str(pd.to_datetime(el).year)]),
+                            "missing.{}.nc".format(date_str))
+                        if os.path.exists(fpath):
+                            os.unlink(fpath)
+
+                    with open(temp_path, "wb") as fh:
+                        ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
 
                 logging.debug("Downloaded {}".format(temp_path))
                 data_files.append(temp_path)
+
+        self._zero_dates = set(self._zero_dates)
+        self.zero_dates()
 
         if ftp:
             ftp.quit()
@@ -586,6 +631,19 @@ class SICDownloader(Downloader):
         if self._delete:
             for fpath in data_files:
                 os.unlink(fpath)
+
+    def zero_dates(self):
+        """
+        Write out any dates that have zero file size on the ftp server to csv
+        """
+        if not self._zero_dates and os.path.exists(self._zero_dates_path):
+            os.unlink(self._zero_dates_path)
+        elif self._zero_dates:
+            logging.info(f"Processing {len(self._zero_dates)} zero dates")
+            with open(self._zero_dates_path, "w") as fh:
+                for date in self._zero_dates:
+                    # FIXME: slightly unusual format for Ymd dates
+                    fh.write(date.strftime("%Y,%m,%d\n"))
 
     def missing_dates(self):
         """
