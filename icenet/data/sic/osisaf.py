@@ -411,7 +411,9 @@ class SICDownloader(Downloader):
 
         if len(extant_paths) > 0:
             extant_ds = xr.open_mfdataset(extant_paths)
-            exclude_dates = pd.to_datetime(extant_ds.time.values)
+            exclude_dates = [
+                pd.to_datetime(date).date() for date in extant_ds.time.values
+            ]
             logging.info("Excluding {} dates already existing from {} dates "
                          "requested.".format(len(exclude_dates), len(dt_arr)))
 
