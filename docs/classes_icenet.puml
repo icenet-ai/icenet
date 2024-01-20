@@ -43,8 +43,8 @@ class "ConstructLeadtimeAccuracy" as icenet.model.metrics.ConstructLeadtimeAccur
   update_state(y_true: object, y_pred: object, sample_weight: object)
 }
 class "DaskBaseDataLoader" as icenet.data.loaders.dask.DaskBaseDataLoader #99DDFF {
-  {abstract}client_generate(client: object, dates_override: object, pickup: bool)
-  generate()
+  {abstract}client_generate(client: object, dates_override: object, pickup: bool) -> None
+  generate() -> None
 }
 class "DaskMultiSharingWorkerLoader" as icenet.data.loaders.dask.DaskMultiSharingWorkerLoader #99DDFF {
   {abstract}client_generate(client: object, dates_override: object, pickup: bool)
@@ -52,7 +52,7 @@ class "DaskMultiSharingWorkerLoader" as icenet.data.loaders.dask.DaskMultiSharin
 }
 class "DaskMultiWorkerLoader" as icenet.data.loaders.dask.DaskMultiWorkerLoader #99DDFF {
   client_generate(client: object, dates_override: object, pickup: bool)
-  generate_sample(date: object, prediction: bool)
+  generate_sample(date: object, prediction: bool, parallel)
 }
 class "DaskWrapper" as icenet.data.sic.osisaf.DaskWrapper #99DDFF {
   dask_process()
@@ -210,6 +210,7 @@ class "SEASDownloader" as icenet.data.interfaces.mars.SEASDownloader #99DDFF {
 class "SICDownloader" as icenet.data.sic.osisaf.SICDownloader #99DDFF {
   download()
   missing_dates()
+  zero_dates()
 }
 class "SplittingMixin" as icenet.data.datasets.utils.SplittingMixin #99DDFF {
   batch_size
@@ -239,11 +240,11 @@ class "WeightedMAE" as icenet.model.metrics.WeightedMAE #44BB99 {
   result()
   update_state(y_true: object, y_pred: object, sample_weight: object)
 }
+class "WeightedMSE" as icenet.model.losses.WeightedMSE #44BB99 {
+}
 class "WeightedMSE" as icenet.model.metrics.WeightedMSE #44BB99 {
   result()
   update_state(y_true: object, y_pred: object, sample_weight: object)
-}
-class "WeightedMSE" as icenet.model.losses.WeightedMSE #44BB99 {
 }
 class "WeightedRMSE" as icenet.model.metrics.WeightedRMSE #44BB99 {
   result()
