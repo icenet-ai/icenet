@@ -78,7 +78,7 @@ Ready to contribute? Here's how to set up `icenet` for local development.
 
 5. Install development packages::
 
-    $ pip install -r requirements.txt
+    $ pip install -r requirements.txt -r requirements_dev.txt
 
 6. Set up pre-commit hooks to run automatically. This will run through linting checks, formatting, and pytest. It will format new code using yapf and prevent code committing that does not pass linting or testing checks until fixed::
 
