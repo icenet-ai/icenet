@@ -7,8 +7,7 @@ class WeightedMSE(tf.keras.losses.MeanSquaredError):
     :param name:
     """
 
-    def __init__(self,
-                 name: str = 'mse', **kwargs):
+    def __init__(self, name: str = 'mse', **kwargs):
         super().__init__(name=name, **kwargs)
 
     def __call__(self,
@@ -29,4 +28,6 @@ class WeightedMSE(tf.keras.losses.MeanSquaredError):
         # if sample_weight is not None:
         #    sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
-        return super().__call__(100*y_true, 100*y_pred, sample_weight=sample_weight)
+        return super().__call__(100 * y_true,
+                                100 * y_pred,
+                                sample_weight=sample_weight)

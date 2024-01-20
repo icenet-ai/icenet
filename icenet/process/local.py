@@ -34,8 +34,8 @@ def upload():
     logging.info("Local upload facility")
 
     if not os.path.isdir(args.destination):
-        raise RuntimeError("Destination {} does not exist".
-                           format(args.destination))
+        raise RuntimeError("Destination {} does not exist".format(
+            args.destination))
 
     if args.date:
         ds = xr.open_dataset(args.filename)
@@ -43,11 +43,9 @@ def upload():
 
         if len(ds.time) < 1:
             raise ValueError("No elements in {} for {}".format(
-                args.filename, args.date
-            ))
+                args.filename, args.date))
 
-        filename = destination_filename(args.destination,
-                                        args.filename,
+        filename = destination_filename(args.destination, args.filename,
                                         args.date)
         ds.to_netcdf(filename)
         ds.close()

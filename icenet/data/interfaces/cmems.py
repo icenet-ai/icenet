@@ -10,7 +10,6 @@ import xarray as xr
 from icenet.data.cli import download_args
 from icenet.data.interfaces.downloader import ClimateDownloader
 from icenet.utils import run_command
-
 """
 DATASET: global-reanalysis-phy-001-031-grepv2-daily
 FTP ENDPOINT: ftp://my.cmems-du.eu/Core/GLOBAL_REANALYSIS_PHY_001_031/global-reanalysis-phy-001-031-grepv2-daily/1993/01/
@@ -28,18 +27,19 @@ class ORAS5Downloader(ClimateDownloader):
     """
     ENDPOINTS = {
         # TODO: See #49 - not yet used
-        "cas":  "https://cmems-cas.cls.fr/cas/login",
-        "dap":  "https://my.cmems-du.eu/thredds/dodsC/{dataset}",
+        "cas": "https://cmems-cas.cls.fr/cas/login",
+        "dap": "https://my.cmems-du.eu/thredds/dodsC/{dataset}",
         "motu": "https://my.cmems-du.eu/motu-web/Motu",
     }
 
     VAR_MAP = {
-        "thetao": "thetao_oras",    # sea_water_potential_temperature
-        "so": "so_oras",            # sea_water_salinity
-        "uo": "uo_oras",            # eastward_sea_water_velocity
-        "vo": "vo_oras",            # northward_sea_water_velocity
-        "zos": "zos_oras",          # sea_surface_height_above_geoid
-        "mlotst": "mlotst_oras",    # ocean_mixed_layer_thickness_defined_by_sigma_theta
+        "thetao": "thetao_oras",  # sea_water_potential_temperature
+        "so": "so_oras",  # sea_water_salinity
+        "uo": "uo_oras",  # eastward_sea_water_velocity
+        "vo": "vo_oras",  # northward_sea_water_velocity
+        "zos": "zos_oras",  # sea_surface_height_above_geoid
+        "mlotst":
+            "mlotst_oras",  # ocean_mixed_layer_thickness_defined_by_sigma_theta
     }
 
     def __init__(self,
@@ -73,9 +73,7 @@ class ORAS5Downloader(ClimateDownloader):
 
         self.download_method = self._single_motu_download
 
-    def postprocess(self,
-                    var: str,
-                    download_path: object):
+    def postprocess(self, var: str, download_path: object):
         """
 
         :param var:
@@ -88,10 +86,7 @@ class ORAS5Downloader(ClimateDownloader):
         da = da.mean("depth").compute()
         da.to_netcdf(download_path)
 
-    def _single_motu_download(self,
-                              var: str,
-                              level: object,
-                              req_dates: int,
+    def _single_motu_download(self, var: str, level: object, req_dates: int,
                               download_path: object):
         """Implements a single download from ... server
         :param var:
@@ -142,8 +137,9 @@ class ORAS5Downloader(ClimateDownloader):
             if ret.returncode != 0 or not os.path.exists(download_path):
                 attempts += 1
                 if attempts > self._max_failures:
-                    logging.error("Couldn't download {} between {} and {}".
-                                  format(var, req_dates[0], req_dates[-1]))
+                    logging.error(
+                        "Couldn't download {} between {} and {}".format(
+                            var, req_dates[0], req_dates[-1]))
                     break
                 time.sleep(30)
             else:
@@ -151,12 +147,11 @@ class ORAS5Downloader(ClimateDownloader):
 
         if success:
             dur = time.time() - tic
-            logging.debug("Done in {}m:{:.0f}s. ".format(np.floor(dur / 60),
-                                                         dur % 60))
+            logging.debug("Done in {}m:{:.0f}s. ".format(
+                np.floor(dur / 60), dur % 60))
         return success
 
-    def additional_regrid_processing(self,
-                                     datafile: object,
+    def additional_regrid_processing(self, datafile: object,
                                      cube_ease: object) -> object:
         """
 
@@ -169,18 +164,24 @@ class ORAS5Downloader(ClimateDownloader):
 
 
 def main():
-    args = download_args(workers=True, extra_args=(
-        (("-n", "--do-not-download"),
-         dict(dest="download", action="store_false", default=True)),
-        (("-p", "--do-not-postprocess"),
-         dict(dest="postprocess", action="store_false", default=True))))
+    args = download_args(workers=True,
+                         extra_args=((("-n", "--do-not-download"),
+                                      dict(dest="download",
+                                           action="store_false",
+                                           default=True)),
+                                     (("-p", "--do-not-postprocess"),
+                                      dict(dest="postprocess",
+                                           action="store_false",
+                                           default=True))))
 
     logging.info("ORAS5 Data Downloading")
     oras5 = ORAS5Downloader(
         var_names=args.vars,
         # TODO: currently hardcoded
-        dates=[pd.to_datetime(date).date() for date in
-               pd.date_range(args.start_date, args.end_date, freq="D")],
+        dates=[
+            pd.to_datetime(date).date()
+            for date in pd.date_range(args.start_date, args.end_date, freq="D")
+        ],
         delete_tempfiles=args.delete,
         download=args.delete,
         levels=[None for _ in args.vars],
@@ -191,4 +192,3 @@ def main():
     )
     oras5.download()
     oras5.regrid()
-

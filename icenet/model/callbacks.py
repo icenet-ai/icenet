@@ -36,9 +36,7 @@ class IceNetPreTrainingEvaluator(tf.keras.callbacks.Callback):
         self.val_dataloader = val_dataloader
         self.sample_at_zero = sample_at_zero
 
-    def on_train_batch_end(self,
-                           batch: object,
-                           logs: object = None):
+    def on_train_batch_end(self, batch: object, logs: object = None):
         """
 
         :param batch:
@@ -89,9 +87,7 @@ class BatchwiseModelCheckpoint(tf.keras.callbacks.Callback):
             elif self.mode == 'min':
                 self.best = np.Inf
 
-    def on_train_batch_end(self,
-                           batch: object,
-                           logs: object = None):
+    def on_train_batch_end(self, batch: object, logs: object = None):
         """
 
         :param batch:
@@ -110,11 +106,9 @@ class BatchwiseModelCheckpoint(tf.keras.callbacks.Callback):
 
             if save:
                 tf.print('\n{} improved from {:.3f} to {:.3f}. '
-                         'Saving model to {}.\n'.
-                         format(self.monitor,
-                                self.best,
-                                logs[self.monitor],
-                                self.model_path))
+                         'Saving model to {}.\n'.format(self.monitor, self.best,
+                                                        logs[self.monitor],
+                                                        self.model_path))
 
                 self.best = logs[self.monitor]
 

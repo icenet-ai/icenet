@@ -12,14 +12,12 @@ from icenet.data.producers import DataProducer
 
 from scipy import interpolate
 from scipy.spatial.qhull import QhullError
-
 """
 
 """
 
 
-def sic_interpolate(da: object,
-                    masks: object) -> object:
+def sic_interpolate(da: object, masks: object) -> object:
     """
 
     :param da:
@@ -27,8 +25,7 @@ def sic_interpolate(da: object,
     :return:
     """
     for date in da.time.values:
-        polarhole_mask = masks.get_polarhole_mask(
-            pd.to_datetime(date).date())
+        polarhole_mask = masks.get_polarhole_mask(pd.to_datetime(date).date())
 
         da_day = da.sel(time=date)
         xx, yy = np.meshgrid(np.arange(432), np.arange(432))
@@ -71,12 +68,16 @@ def sic_interpolate(da: object,
                 nan_neighbour_arr[-1, :] = False
 
             if np.sum(nan_neighbour_arr) == 1:
-                res = np.where(np.array(nan_neighbour_arr) == True)
-                logging.warning("Not enough nans for interpolation, extending {}".format(res))
+                res = np.where(
+                    np.array(nan_neighbour_arr) == True)  # noqa: E712
+                logging.warning(
+                    "Not enough nans for interpolation, extending {}".format(
+                        res))
                 x_idx, y_idx = res[0][0], res[1][0]
-                nan_neighbour_arr[x_idx-1:x_idx+2, y_idx] = True
-                nan_neighbour_arr[x_idx, y_idx-1:y_idx+2] = True
-                logging.debug(np.where(np.array(nan_neighbour_arr) == True))
+                nan_neighbour_arr[x_idx - 1:x_idx + 2, y_idx] = True
+                nan_neighbour_arr[x_idx, y_idx - 1:y_idx + 2] = True
+                logging.debug(
+                    np.where(np.array(nan_neighbour_arr) == True))  # noqa: E712
 
             # Perform bilinear interpolation
             x_valid = xx[nan_neighbour_arr]
@@ -97,7 +98,8 @@ def sic_interpolate(da: object,
                     logging.warning("No valid values to interpolate with on "
                                     "{}".format(date))
             except QhullError:
-                logging.exception("Geometrical degeneracy from QHull, interpolation failed")
+                logging.exception(
+                    "Geometrical degeneracy from QHull, interpolation failed")
 
     return da
 
@@ -115,9 +117,7 @@ def condense_main():
     condense_data(args.identifier, args.hemisphere, args.variable)
 
 
-def condense_data(identifier: str,
-                  hemisphere: str,
-                  variable: str):
+def condense_data(identifier: str, hemisphere: str, variable: str):
     """Takes existing daily files and creates yearly files
 
     Previous early versions of the pipeline were storing files day by day, which
@@ -142,19 +142,22 @@ def condense_data(identifier: str,
     dfs = glob.glob(os.path.join(data_path, "**", "*.nc"))
 
     def year_batch(filenames):
-        df_years = set([os.path.split(os.path.dirname(f_year))[-1]
-                        for f_year in filenames])
+        df_years = set([
+            os.path.split(os.path.dirname(f_year))[-1] for f_year in filenames
+        ])
 
         for year_el in df_years:
-            year_dfs = [el for el in filenames
-                        if os.path.split(os.path.dirname(el))[-1] == year_el
-                        and not os.path.split(el)[1].startswith("latlon")]
+            year_dfs = [
+                el for el in filenames
+                if os.path.split(os.path.dirname(el))[-1] == year_el and
+                not os.path.split(el)[1].startswith("latlon")
+            ]
             logging.debug("{} has {} files".format(year_el, len(year_dfs)))
             yield year_el, year_dfs
 
     if len(dfs):
-        logging.debug("Got {} files, collecting to {}...".format(len(dfs),
-                                                                 data_path))
+        logging.debug("Got {} files, collecting to {}...".format(
+            len(dfs), data_path))
 
         for year, year_files in year_batch(dfs):
             year_path = os.path.join(data_path, "{}.nc".format(year))
@@ -164,8 +167,8 @@ def condense_data(identifier: str,
                 ds = xr.open_mfdataset(year_files, parallel=True)
                 years, datasets = zip(*ds.groupby("time.year"))
                 if len(years) > 1:
-                    raise RuntimeError("Too many years in one file {}".
-                                       format(years))
+                    raise RuntimeError(
+                        "Too many years in one file {}".format(years))
                 logging.info("Saving to {}".format(year_path))
                 xr.save_mfdataset(datasets, [year_path])
     else:

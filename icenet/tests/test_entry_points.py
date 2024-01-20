@@ -3,10 +3,9 @@
 from importlib_metadata import entry_points
 import pytest
 
-
 icenet_entry_points = [
     ep for ep in entry_points(group="console_scripts")
-    if ep.module.startswith('icenet')
+    if ep.module.startswith("icenet")
 ]
 
 
@@ -15,7 +14,7 @@ def test_have_entry_points():
     tests passing vacuously if these are moved)
     """
     assert len(icenet_entry_points) > 0
-    
+
 
 @pytest.mark.parametrize("entry_point", icenet_entry_points)
 def test_entry_point_exists(entry_point):

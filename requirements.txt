@@ -6,7 +6,7 @@ dask
 distributed
 eccodes
 ecmwf-api-client
-h5py==2.10.0
+h5py>2.10
 ibicus
 matplotlib
 motuclient

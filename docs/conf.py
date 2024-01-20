@@ -32,7 +32,10 @@ import icenet
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode']
+    'sphinx.ext.viewcode',
+    'myst_parser',
+    'sphinxcontrib.kroki'
+    ]
 
 # Standardising on
 napoleon_numpy_docstring = True
@@ -162,6 +165,3 @@ texinfo_documents = [
      'One line description of project.',
      'Miscellaneous'),
 ]
-
-
-

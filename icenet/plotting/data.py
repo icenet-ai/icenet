@@ -14,7 +14,6 @@ from icenet.data.cli import date_arg
 from icenet.data.dataset import IceNetDataSet
 from icenet.utils import setup_logging
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -42,8 +41,7 @@ def plot_tfrecord():
     config = json.load(args.configuration)
     args.configuration.close()
 
-    decoder = get_decoder(tuple(config['shape']),
-                          config['num_channels'],
+    decoder = get_decoder(tuple(config['shape']), config['num_channels'],
                           config['n_forecast_days'])
 
     ds = ds.map(decoder).batch(1)
@@ -59,12 +57,13 @@ def plot_tfrecord():
 
     output_dir = os.path.join(args.output, "plot_set")
     os.makedirs(output_dir, exist_ok=True)
-    subprocess.run("rm -v {}/{}.*.png".format(
-        output_dir, config["identifier"]), shell=True)
+    subprocess.run("rm -v {}/{}.*.png".format(output_dir, config["identifier"]),
+                   shell=True)
 
     for i, channel in enumerate(config['channels']):
-        output_path = os.path.join(output_dir, "{}.{:03d}_{}.png".
-                                   format(config["identifier"], i, channel))
+        output_path = os.path.join(
+            output_dir, "{}.{:03d}_{}.png".format(config["identifier"], i,
+                                                  channel))
         logging.info("Producing {}".format(output_path))
 
         fig, ax = plt.subplots()
@@ -73,8 +72,8 @@ def plot_tfrecord():
         plt.close()
 
     for i in range(config['n_forecast_days']):
-        output_path = os.path.join(output_dir, "{}.y.{:03d}.png".
-                                   format(config["identifier"], i + 1))
+        output_path = os.path.join(
+            output_dir, "{}.y.{:03d}.png".format(config["identifier"], i + 1))
         y_out = y[0, ..., i, 0]
 
         logging.info("Producing {}".format(output_path))
@@ -99,7 +98,10 @@ def get_sample_get_args():
     ap.add_argument("date", type=date_arg)
     ap.add_argument("output_path", type=str, default="test.png")
 
-    ap.add_argument("-c", "--cols", type=int, default=8,
+    ap.add_argument("-c",
+                    "--cols",
+                    type=int,
+                    default=8,
                     help="Plotting data over this number of columns")
 
     data_type = ap.add_mutually_exclusive_group(required=False)
@@ -129,22 +131,24 @@ def plot_sample_cli():
 
     if args.weights:
         channel_data = net_weight.squeeze()
-        channel_labels = ["weights{}".format(i)
-                          for i in range(channel_data.shape[-1])]
-        logging.info("Plotting {} weights from sample".
-                     format(len(channel_labels)))
+        channel_labels = [
+            "weights{}".format(i) for i in range(channel_data.shape[-1])
+        ]
+        logging.info("Plotting {} weights from sample".format(
+            len(channel_labels)))
     elif args.outputs:
         channel_data = net_output.squeeze()
-        channel_labels = ["outputs{}".format(i)
-                          for i in range(channel_data.shape[-1])]
-        logging.info("Plotting {} outputs from sample".
-                     format(len(channel_labels)))
+        channel_labels = [
+            "outputs{}".format(i) for i in range(channel_data.shape[-1])
+        ]
+        logging.info("Plotting {} outputs from sample".format(
+            len(channel_labels)))
     else:
         logging.info("Plotting inputs from sample")
         channel_data = net_input
         channel_labels = dl.channel_names
-        logging.info("Plotting {} inputs from sample".
-                     format(len(channel_labels)))
+        logging.info("Plotting {} inputs from sample".format(
+            len(channel_labels)))
 
     plot_channel_data(channel_data,
                       channel_labels,
@@ -169,10 +173,11 @@ def plot_channel_data(data: object,
     num_rows = int(len(var_names) / cols) + \
         ceil(len(var_names) / cols - int(len(var_names) / cols))
 
-    logging.debug("Plot Rows {} Cols {} Channels {}".
-                  format(num_rows, cols, len(var_names)))
+    logging.debug("Plot Rows {} Cols {} Channels {}".format(
+        num_rows, cols, len(var_names)))
     fig = plt.figure(figsize=(cols * square_size, num_rows * square_size),
-                     layout="tight", dpi=150)
+                     layout="tight",
+                     dpi=150)
 
     for i, var in enumerate(var_names):
         ax1 = fig.add_subplot(num_rows, cols, i + 1)

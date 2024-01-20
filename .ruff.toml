@@ -1,0 +1,6 @@
+line-length = 120
+
+[lint]
+select = ["E", "F"]
+ignore = ["E721"]
+exclude = ["setup.py"]

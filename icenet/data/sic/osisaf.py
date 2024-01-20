@@ -1,4 +1,5 @@
 import copy
+import csv
 import fnmatch
 import ftplib
 import logging
@@ -18,54 +19,89 @@ from icenet.data.producers import Downloader
 from icenet.data.sic.mask import Masks
 from icenet.utils import Hemisphere, run_command
 from icenet.data.sic.utils import SIC_HEMI_STR
-
 """
 
 """
 
 invalid_sic_days = {
     Hemisphere.NORTH: [
-        *[d.date() for d in
-          pd.date_range(dt.date(1979, 5, 21), dt.date(1979, 6, 4))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1979, 6, 10), dt.date(1979, 6, 26))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1979, 5, 21), dt.date(1979, 6, 4))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1979, 6, 10), dt.date(1979, 6, 26))
+        ],
         dt.date(1979, 7, 1),
-        *[d.date() for d in
-          pd.date_range(dt.date(1979, 7, 24), dt.date(1979, 7, 28))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1980, 1, 4), dt.date(1980, 1, 10))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1980, 2, 27), dt.date(1980, 3, 4))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1980, 3, 16), dt.date(1980, 3, 22))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1980, 4, 9), dt.date(1980, 4, 15))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1981, 2, 27), dt.date(1981, 3, 5))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1984, 8, 12), dt.date(1984, 8, 24))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1979, 7, 24), dt.date(1979, 7, 28))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1980, 1, 4), dt.date(1980, 1, 10))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1980, 2, 27), dt.date(1980, 3, 4))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1980, 3, 16), dt.date(1980, 3, 22))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1980, 4, 9), dt.date(1980, 4, 15))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1981, 2, 27), dt.date(1981, 3, 5))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1984, 8, 12), dt.date(1984, 8, 24))
+        ],
         dt.date(1984, 9, 14),
-        *[d.date() for d in
-          pd.date_range(dt.date(1985, 9, 22), dt.date(1985, 9, 28))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1986, 3, 29), dt.date(1986, 7, 1))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1987, 1, 3), dt.date(1987, 1, 19))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1987, 1, 29), dt.date(1987, 2, 2))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1985, 9, 22), dt.date(1985, 9, 28))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1986, 3, 29), dt.date(1986, 7, 1))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1987, 1, 3), dt.date(1987, 1, 19))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1987, 1, 29), dt.date(1987, 2, 2))
+        ],
         dt.date(1987, 2, 23),
-        *[d.date() for d in
-          pd.date_range(dt.date(1987, 2, 26), dt.date(1987, 3, 2))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1987, 2, 26), dt.date(1987, 3, 2))
+        ],
         dt.date(1987, 3, 13),
-        *[d.date() for d in
-          pd.date_range(dt.date(1987, 3, 22), dt.date(1987, 3, 26))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1987, 4, 3), dt.date(1987, 4, 17))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1987, 12, 1), dt.date(1988, 1, 12))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1987, 3, 22), dt.date(1987, 3, 26))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1987, 4, 3), dt.date(1987, 4, 17))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1987, 12, 1), dt.date(1988, 1, 12))
+        ],
         dt.date(1989, 1, 3),
-        *[d.date() for d in
-          pd.date_range(dt.date(1990, 12, 21), dt.date(1990, 12, 26))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1990, 12, 21), dt.date(1990, 12, 26))
+        ],
         dt.date(1979, 5, 28),
         dt.date(1979, 5, 30),
         dt.date(1979, 6, 1),
@@ -106,59 +142,97 @@ invalid_sic_days = {
         dt.date(1979, 2, 5),
         dt.date(1979, 2, 25),
         dt.date(1979, 3, 23),
-        *[d.date() for d in
-          pd.date_range(dt.date(1979, 3, 26), dt.date(1979, 3, 30))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1979, 3, 26), dt.date(1979, 3, 30))
+        ],
         dt.date(1979, 4, 12),
         dt.date(1979, 5, 16),
-        *[d.date() for d in
-          pd.date_range(dt.date(1979, 5, 21), dt.date(1979, 5, 27))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1979, 7, 10), dt.date(1979, 7, 18))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1979, 5, 21), dt.date(1979, 5, 27))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1979, 7, 10), dt.date(1979, 7, 18))
+        ],
         dt.date(1979, 8, 10),
         dt.date(1979, 9, 3),
-        *[d.date() for d in
-          pd.date_range(dt.date(1980, 1, 4), dt.date(1980, 1, 10))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1980, 1, 4), dt.date(1980, 1, 10))
+        ],
         dt.date(1980, 2, 16),
-        *[d.date() for d in
-          pd.date_range(dt.date(1980, 2, 27), dt.date(1980, 3, 4))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1980, 3, 14), dt.date(1980, 3, 22))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1980, 2, 27), dt.date(1980, 3, 4))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1980, 3, 14), dt.date(1980, 3, 22))
+        ],
         dt.date(1980, 3, 31),
-        *[d.date() for d in
-          pd.date_range(dt.date(1980, 4, 9), dt.date(1980, 4, 15))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1980, 4, 9), dt.date(1980, 4, 15))
+        ],
         dt.date(1980, 4, 22),
-        *[d.date() for d in
-          pd.date_range(dt.date(1981, 2, 27), dt.date(1981, 3, 5))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1981, 2, 27), dt.date(1981, 3, 5))
+        ],
         dt.date(1981, 6, 10),
-        *[d.date() for d in
-          pd.date_range(dt.date(1981, 8, 3), dt.date(1982, 8, 9))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1981, 8, 3), dt.date(1982, 8, 9))
+        ],
         dt.date(1982, 8, 6),
-        *[d.date() for d in
-          pd.date_range(dt.date(1983, 7, 7), dt.date(1983, 7, 11))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1983, 7, 7), dt.date(1983, 7, 11))
+        ],
         dt.date(1983, 7, 22),
         dt.date(1984, 6, 12),
-        *[d.date() for d in
-          pd.date_range(dt.date(1984, 8, 12), dt.date(1984, 8, 24))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1984, 9, 13), dt.date(1984, 9, 17))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1984, 10, 3), dt.date(1984, 10, 9))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1984, 11, 18), dt.date(1984, 11, 22))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1984, 8, 12), dt.date(1984, 8, 24))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1984, 9, 13), dt.date(1984, 9, 17))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1984, 10, 3), dt.date(1984, 10, 9))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1984, 11, 18), dt.date(1984, 11, 22))
+        ],
         dt.date(1985, 7, 23),
-        *[d.date() for d in
-          pd.date_range(dt.date(1985, 9, 22), dt.date(1985, 9, 28))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1986, 3, 29), dt.date(1986, 11, 2))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1987, 1, 3), dt.date(1987, 1, 15))],
-        *[d.date() for d in
-          pd.date_range(dt.date(1987, 12, 1), dt.date(1988, 1, 12))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1985, 9, 22), dt.date(1985, 9, 28))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1986, 3, 29), dt.date(1986, 11, 2))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1987, 1, 3), dt.date(1987, 1, 15))
+        ],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1987, 12, 1), dt.date(1988, 1, 12))
+        ],
         dt.date(1990, 8, 14),
         dt.date(1990, 8, 15),
         dt.date(1990, 8, 24),
-        *[d.date() for d in
-          pd.date_range(dt.date(1990, 12, 22), dt.date(1990, 12, 26))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1990, 12, 22), dt.date(1990, 12, 26))
+        ],
         dt.date(1979, 2, 5),
         dt.date(1979, 2, 25),
         dt.date(1979, 3, 23),
@@ -190,8 +264,10 @@ invalid_sic_days = {
         dt.date(1984, 11, 19),
         dt.date(1984, 11, 21),
         dt.date(1985, 7, 23),
-        *[d.date() for d in
-          pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 1))],
+        *[
+            d.date()
+            for d in pd.date_range(dt.date(1986, 7, 2), dt.date(1986, 11, 1))
+        ],
         dt.date(1990, 8, 14),
         dt.date(1990, 8, 15),
         dt.date(1990, 8, 24),
@@ -199,9 +275,11 @@ invalid_sic_days = {
     ]
 }
 
-var_remove_list = ['time_bnds', 'raw_ice_conc_values', 'total_standard_error',
-                   'smearing_standard_error', 'algorithm_standard_error',
-                   'status_flag', 'Lambert_Azimuthal_Grid']
+var_remove_list = [
+    'time_bnds', 'raw_ice_conc_values', 'total_standard_error',
+    'smearing_standard_error', 'algorithm_standard_error', 'status_flag',
+    'Lambert_Azimuthal_Grid'
+]
 
 
 # This is adapted from the data/loaders implementations
@@ -225,10 +303,7 @@ class DaskWrapper:
         self._tmp_dir = dask_tmp_dir
         self._workers = workers
 
-    def dask_process(self,
-                     *args,
-                     method: callable,
-                     **kwargs):
+    def dask_process(self, *args, method: callable, **kwargs):
         """
 
         :param method:
@@ -236,9 +311,9 @@ class DaskWrapper:
         dashboard = "localhost:{}".format(self._dashboard_port)
 
         with dask.config.set({
-            "temporary_directory": self._tmp_dir,
-            "distributed.comm.timeouts.connect": self._timeout,
-            "distributed.comm.timeouts.tcp": self._timeout,
+                "temporary_directory": self._tmp_dir,
+                "distributed.comm.timeouts.connect": self._timeout,
+                "distributed.comm.timeouts.tcp": self._timeout,
         }):
             cluster = LocalCluster(
                 dashboard_address=dashboard,
@@ -275,6 +350,7 @@ class SICDownloader(Downloader):
     :param download:
     :param dtype:
     """
+
     def __init__(self,
                  *args,
                  additional_invalid_dates: object = (),
@@ -303,8 +379,22 @@ class SICDownloader(Downloader):
 
         self._mask_dict = {
             month: self._masks.get_active_cell_mask(month)
-            for month in np.arange(1, 12+1)
+            for month in np.arange(1, 12 + 1)
         }
+
+        # Load dates that previously had a file size of zero.
+        # To recheck they haven't been fixed since last download.
+        zero_dates_path = os.path.join(self.get_data_var_folder("siconca"),
+                                       "zero_size_days.csv")
+
+        self._zero_dates_path = zero_dates_path
+        self._zero_dates = []
+        if os.path.exists(zero_dates_path):
+            with open(zero_dates_path, "r") as fh:
+                self._zero_dates = [
+                    pd.to_datetime("-".join(date)).date()
+                    for date in csv.reader(fh)
+                ]
 
     def download(self):
         """
@@ -315,14 +405,13 @@ class SICDownloader(Downloader):
         ftp = None
         var = "siconca"
 
-        logging.info(
-            "Not downloading SIC files, (re)processing NC files in "
-            "existence already" if not self._download else
-            "Downloading SIC datafiles to .temp intermediates...")
+        logging.info("Not downloading SIC files, (re)processing NC files in "
+                     "existence already" if not self._download else
+                     "Downloading SIC datafiles to .temp intermediates...")
 
         cache = {}
         osi430b_start = dt.date(2016, 1, 1)
-        osi430a_start = dt.date(2018, 11, 18)
+        osi430a_start = dt.date(2021, 1, 1)
 
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
 
@@ -337,7 +426,13 @@ class SICDownloader(Downloader):
 
         if len(extant_paths) > 0:
             extant_ds = xr.open_mfdataset(extant_paths)
-            exclude_dates = pd.to_datetime(extant_ds.time.values)
+            exclude_dates = [
+                pd.to_datetime(date).date() for date in extant_ds.time.values
+            ]
+
+            # Do not exclude dates that previously had a file size of 0
+            exclude_dates = set(exclude_dates).difference(self._zero_dates)
+
             logging.info("Excluding {} dates already existing from {} dates "
                          "requested.".format(len(exclude_dates), len(dt_arr)))
 
@@ -367,12 +462,11 @@ class SICDownloader(Downloader):
             if not self._download:
                 if os.path.exists(nc_path):
                     reproc_path = os.path.join(
-                        self.get_data_var_folder(var,
-                                                 append=[str(el.year)]),
+                        self.get_data_var_folder(var, append=[str(el.year)]),
                         "{}.reproc.nc".format(date_str))
 
-                    logging.debug("{} exists, becoming {}".
-                                  format(nc_path, reproc_path))
+                    logging.debug("{} exists, becoming {}".format(
+                        nc_path, reproc_path))
                     os.rename(nc_path, reproc_path)
                     data_files.append(reproc_path)
                 else:
@@ -411,26 +505,55 @@ class SICDownloader(Downloader):
 
                     cache_match = "ice_conc_{}_ease*_{:04d}{:02d}{:02d}*.nc".\
                         format(hs, el.year, el.month, el.day)
-                    ftp_files = [el for el in cache[chdir_path]
-                                 if fnmatch.fnmatch(el, cache_match)]
+                    ftp_files = [
+                        el for el in cache[chdir_path]
+                        if fnmatch.fnmatch(el, cache_match)
+                    ]
 
                     if len(ftp_files) > 1:
-                        raise ValueError("More than a single file found: {}".
-                                         format(ftp_files))
+                        raise ValueError(
+                            "More than a single file found: {}".format(
+                                ftp_files))
                     elif not len(ftp_files):
-                        logging.warning("File is not available: {}".
-                                        format(cache_match))
+                        logging.warning(
+                            "File is not available: {}".format(cache_match))
                         continue
                 except ftplib.error_perm:
                     logging.warning("FTP error, possibly missing month chdir "
                                     "for {}".format(date_str))
                     continue
 
-                with open(temp_path, "wb") as fh:
-                    ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
+                # Check if remote file size is too small, if so, render date invalid
+                # and continue.
+                file_size = ftp.size(ftp_files[0])
+
+                # Check remote file size in bytes
+                if file_size < 100:
+                    logging.warning(
+                        f"Date {el} is in invalid list, as file size too small")
+                    self._zero_dates.append(el)
+                    self._invalid_dates.append(el)
+                    continue
+                else:
+                    # Removing missing date file if it was created for a file with zero size before
+                    if el in self._zero_dates:
+                        self._zero_dates.remove(el)
+                        fpath = os.path.join(
+                            self.get_data_var_folder(
+                                "siconca",
+                                append=[str(pd.to_datetime(el).year)]),
+                            "missing.{}.nc".format(date_str))
+                        if os.path.exists(fpath):
+                            os.unlink(fpath)
+
+                    with open(temp_path, "wb") as fh:
+                        ftp.retrbinary("RETR {}".format(ftp_files[0]), fh.write)
 
                 logging.debug("Downloaded {}".format(temp_path))
                 data_files.append(temp_path)
+
+        self._zero_dates = set(self._zero_dates)
+        self.zero_dates()
 
         if ftp:
             ftp.quit()
@@ -459,13 +582,13 @@ class SICDownloader(Downloader):
                 if coord not in da.coords:
                     logging.warning("Adding {} vals to coords, as missing in "
                                     "this the combined dataset".format(coord))
-                    da.coords[coord] = self._get_missing_coordinates(var,
-                                                                     hs,
-                                                                     coord)
+                    da.coords[coord] = self._get_missing_coordinates(
+                        var, hs, coord)
 
             # In experimenting, I don't think this is actually required
             for month, mask in self._mask_dict.items():
-                da.loc[dict(time=(da['time.month'] == month))].values[:, ~mask] = 0.
+                da.loc[dict(
+                    time=(da['time.month'] == month))].values[:, ~mask] = 0.
 
             for date in da.time.values:
                 day_da = da.sel(time=slice(date, date))
@@ -487,8 +610,9 @@ class SICDownloader(Downloader):
                     var_folder, "old.{}.nc".format(getattr(req_date, "year")))
 
                 if os.path.exists(year_path):
-                    logging.info("Existing file needs concatenating: {} -> {}".
-                                 format(year_path, old_year_path))
+                    logging.info(
+                        "Existing file needs concatenating: {} -> {}".format(
+                            year_path, old_year_path))
                     os.rename(year_path, old_year_path)
                     old_da = xr.open_dataarray(old_year_path)
                     year_da = year_da.drop_sel(time=old_da.time,
@@ -508,22 +632,36 @@ class SICDownloader(Downloader):
             for fpath in data_files:
                 os.unlink(fpath)
 
+    def zero_dates(self):
+        """
+        Write out any dates that have zero file size on the ftp server to csv
+        """
+        if not self._zero_dates and os.path.exists(self._zero_dates_path):
+            os.unlink(self._zero_dates_path)
+        elif self._zero_dates:
+            logging.info(f"Processing {len(self._zero_dates)} zero dates")
+            with open(self._zero_dates_path, "w") as fh:
+                for date in self._zero_dates:
+                    # FIXME: slightly unusual format for Ymd dates
+                    fh.write(date.strftime("%Y,%m,%d\n"))
+
     def missing_dates(self):
         """
 
         :return:
         """
-        filenames = set([os.path.join(
-            self.get_data_var_folder("siconca"),
-            "{}.nc".format(el.strftime("%Y")))
-            for el in self._dates])
+        filenames = set([
+            os.path.join(self.get_data_var_folder("siconca"),
+                         "{}.nc".format(el.strftime("%Y")))
+            for el in self._dates
+        ])
         filenames = [f for f in filenames if os.path.exists(f)]
 
         logging.info("Opening for interpolation: {}".format(filenames))
         ds = xr.open_mfdataset(filenames,
                                combine="nested",
                                concat_dim="time",
-                               chunks=dict(time=self._chunk_size, ),
+                               chunks=dict(time=self._chunk_size,),
                                parallel=self._parallel_opens)
         return self._missing_dates(ds.ice_conc)
 
@@ -538,39 +676,41 @@ class SICDownloader(Downloader):
                 and pd.Timestamp(1979, 1, 1) not in da.time.values:
             da_1979_01_01 = da.sel(
                 time=[pd.Timestamp(1979, 1, 2)]).copy().assign_coords(
-                {'time': [pd.Timestamp(1979, 1, 1)]})
+                    {'time': [pd.Timestamp(1979, 1, 1)]})
             da = xr.concat([da, da_1979_01_01], dim='time')
             da = da.sortby('time')
 
         dates_obs = [pd.to_datetime(date).date() for date in da.time.values]
-        dates_all = [pd.to_datetime(date).date() for date in
-                     pd.date_range(min(self._dates), max(self._dates))]
+        dates_all = [
+            pd.to_datetime(date).date()
+            for date in pd.date_range(min(self._dates), max(self._dates))
+        ]
 
         # Weirdly, we were getting future warnings for timestamps, but unsure
         # where from
         invalid_dates = [pd.to_datetime(d).date() for d in self._invalid_dates]
-        missing_dates = [date for date in dates_all
-                         if date not in dates_obs
-                         or date in invalid_dates]
+        missing_dates = [
+            date for date in dates_all
+            if date not in dates_obs or date in invalid_dates
+        ]
 
         logging.info("Processing {} missing dates".format(len(missing_dates)))
 
-        missing_dates_path = os.path.join(
-            self.get_data_var_folder("siconca"), "missing_days.csv")
+        missing_dates_path = os.path.join(self.get_data_var_folder("siconca"),
+                                          "missing_days.csv")
 
         with open(missing_dates_path, "a") as fh:
             for date in missing_dates:
                 # FIXME: slightly unusual format for Ymd dates
                 fh.write(date.strftime("%Y,%m,%d\n"))
 
-        logging.debug("Interpolating {} missing dates".
-                      format(len(missing_dates)))
+        logging.debug("Interpolating {} missing dates".format(
+            len(missing_dates)))
 
         for date in missing_dates:
             if pd.Timestamp(date) not in da.time.values:
                 logging.info("Interpolating {}".format(date))
-                da = xr.concat([da,
-                                da.interp(time=pd.to_datetime(date))],
+                da = xr.concat([da, da.interp(time=pd.to_datetime(date))],
                                dim='time')
 
         logging.debug("Finished interpolation")
@@ -603,8 +743,8 @@ class SICDownloader(Downloader):
         :param hs:
         :param coord:
         """
-        missing_coord_file = os.path.join(
-            self.get_data_var_folder(var), "missing_coord_data.nc")
+        missing_coord_file = os.path.join(self.get_data_var_folder(var),
+                                          "missing_coord_data.nc")
 
         if not os.path.exists(missing_coord_file):
             ftp_source_path = self._ftp_osi450.format(2000, 1)
@@ -615,11 +755,13 @@ class SICDownloader(Downloader):
             filename_osi450 = \
                 "ice_conc_{}_ease2-250_cdr-v2p0_200001011200.nc".format(hs)
 
-            run_command(retrieve_cmd_template_osi450.format(
-                missing_coord_file, ftp_source_path, filename_osi450))
+            run_command(
+                retrieve_cmd_template_osi450.format(missing_coord_file,
+                                                    ftp_source_path,
+                                                    filename_osi450))
         else:
-            logging.info("Coordinate path {} already exists".
-                         format(missing_coord_file))
+            logging.info(
+                "Coordinate path {} already exists".format(missing_coord_file))
 
         ds = xr.open_dataset(missing_coord_file,
                              drop_variables=var_remove_list,
@@ -627,8 +769,9 @@ class SICDownloader(Downloader):
         try:
             coord_data = getattr(ds, coord)
         except AttributeError as e:
-            logging.exception("{} does not exist in coord reference file {}".
-                              format(coord, missing_coord_file))
+            logging.exception(
+                "{} does not exist in coord reference file {}".format(
+                    coord, missing_coord_file))
             raise RuntimeError(e)
         return coord_data
 
@@ -636,22 +779,22 @@ class SICDownloader(Downloader):
 def main():
     args = download_args(var_specs=False,
                          workers=True,
-                         extra_args=[
-                            (("-u", "--use-dask"),
-                             dict(action="store_true", default=False)),
-                            (("-c", "--sic-chunking-size"),
-                             dict(type=int, default=10)),
-                            (("-dt", "--dask-timeouts"),
-                             dict(type=int, default=120)),
-                            (("-dp", "--dask-port"),
-                             dict(type=int, default=8888))
-                         ])
+                         extra_args=[(("-u", "--use-dask"),
+                                      dict(action="store_true", default=False)),
+                                     (("-c", "--sic-chunking-size"),
+                                      dict(type=int, default=10)),
+                                     (("-dt", "--dask-timeouts"),
+                                      dict(type=int, default=120)),
+                                     (("-dp", "--dask-port"),
+                                      dict(type=int, default=8888))])
 
     logging.info("OSASIF-SIC Data Downloading")
     sic = SICDownloader(
         chunk_size=args.sic_chunking_size,
-        dates=[pd.to_datetime(date).date() for date in
-               pd.date_range(args.start_date, args.end_date, freq="D")],
+        dates=[
+            pd.to_datetime(date).date()
+            for date in pd.date_range(args.start_date, args.end_date, freq="D")
+        ],
         delete_tempfiles=args.delete,
         north=args.hemisphere == "north",
         south=args.hemisphere == "south",

@@ -68,7 +68,7 @@ Ready to contribute? Here's how to set up `icenet` for local development.
 
     $ mkvirtualenv icenet
     $ cd icenet/
-    $ python setup.py develop
+    $ pip install -e .
 
 4. Create a branch for local development::
 
@@ -76,22 +76,28 @@ Ready to contribute? Here's how to set up `icenet` for local development.
 
    Now you can make your changes locally.
 
-5. When you're done making changes, check that your changes pass flake8 and the
-   tests, including testing other Python versions with tox::
+5. Install development packages::
 
-    $ flake8 icenet tests
-    $ python setup.py test or pytest
-    $ tox
+    $ pip install -r requirements_dev.txt
 
-   To get flake8 and tox, just pip install them into your virtualenv.
+6. Set up pre-commit hooks to run automatically. This will run through linting checks, formatting, and pytest. It will format new code using yapf and prevent code committing that does not pass linting or testing checks until fixed::
 
-6. Commit your changes and push your branch to GitHub::
+    $ pre-commit install
+
+7. When you're done making changes, check that your changes pass flake8 and the tests::
+
+    $ make lint
+    $ pytest
+
+8. Commit your changes and push your branch to GitHub::
 
     $ git add .
     $ git commit -m "Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
 
-7. Submit a pull request through the GitHub website.
+   Note: When committing, if pre-commit is installed, the commit might be prevented if there are problems with formatting. In this case, deal with the file(s) and commit again.
+
+9.  Submit a pull request through the GitHub website.
 
 Pull Request Guidelines
 -----------------------
@@ -112,12 +118,12 @@ TODO
 Deploying
 ---------
 
-A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed (including an entry in HISTORY.rst).
-Then run::
+A reminder for the maintainers on how to deploy::
 
-# Update icenet/__init__.py
-$ git push
-$ git push --tags
+$ make clean
+$ make lint # Ignore black moaning at present
+$ make docs
+$ make install
+$ make release
 
-Travis will then deploy to PyPI if tests pass.
+If anything looks really wrong, abandon and fix!

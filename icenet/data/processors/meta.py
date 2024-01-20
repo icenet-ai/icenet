@@ -5,7 +5,6 @@ import xarray as xr
 from icenet.data.cli import process_args
 from icenet.data.process import IceNetPreProcessor
 from icenet.data.sic.mask import Masks
-
 """
 
 """
@@ -73,11 +72,9 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
         if "land" not in self._meta_vars:
             self._meta_vars.append("land")
 
-        da = xr.DataArray(
-            data=land_map,
-            dims=["yc", "xc"],
-            attrs=dict(description="IceNet land mask metadata")
-        )
+        da = xr.DataArray(data=land_map,
+                          dims=["yc", "xc"],
+                          attrs=dict(description="IceNet land mask metadata"))
         land_path = self.save_processed_file("land", "land.nc", da)
         return land_path
 
@@ -106,11 +103,9 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
                 data=eval(var_name),
                 dims=["time"],
                 coords=dict(
-                    time=pd.date_range(start='2012-1-1', end='2012-12-31')
-                ),
+                    time=pd.date_range(start='2012-1-1', end='2012-12-31')),
                 attrs=dict(
-                    description="IceNet {} mask metadata".format(var_name))
-            )
+                    description="IceNet {} mask metadata".format(var_name)))
             paths.append(
                 self.save_processed_file(var_name, "{}.nc".format(var_name),
                                          da))
@@ -120,8 +115,6 @@ class IceNetMetaPreProcessor(IceNetPreProcessor):
 def main():
     args = process_args(dates=False, ref_option=False)
 
-    IceNetMetaPreProcessor(
-        args.name,
-        north=args.hemisphere == "north",
-        south=args.hemisphere == "south"
-    ).process()
+    IceNetMetaPreProcessor(args.name,
+                           north=args.hemisphere == "north",
+                           south=args.hemisphere == "south").process()

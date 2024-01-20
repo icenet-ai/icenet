@@ -9,7 +9,6 @@ from icenet.data.datasets.utils import SplittingMixin
 from icenet.data.loader import IceNetDataLoaderFactory
 from icenet.data.producers import DataCollection
 from icenet.utils import setup_logging
-
 """
 
 
@@ -20,11 +19,23 @@ tf-data-vs-keras-utils-sequence-performance
 
 
 class IceNetDataSet(SplittingMixin, DataCollection):
-    """
+    """Initialises and configures a dataset.
 
-    :param configuration_path:
-    :param batch_size:
-    :param path:
+    It loads a JSON configuration file, updates the `_config` attribute with the
+    result, creates a data loader, and methods to access the dataset.
+
+    Attributes:
+        _config: A dict used to store configuration loaded from JSON file.
+        _configuration_path: The path to the JSON configuration file.
+        _batch_size: The batch size for the data loader.
+        _counts: A dict with number of elements in train, val, test.
+        _dtype: The type of the dataset.
+        _loader_config: The path to the data loader configuration file.
+        _generate_workers: An integer representing number of workers for parallel processing with Dask.
+        _n_forecast_days: An integer representing number of days to predict for.
+        _num_channels: An integer representing number of channels (input variables) in the dataset.
+        _shape: The shape of the dataset.
+        _shuffling: A flag indicating whether to shuffle the data or not.
     """
 
     def __init__(self,
@@ -33,7 +44,20 @@ class IceNetDataSet(SplittingMixin, DataCollection):
                  batch_size: int = 4,
                  path: str = os.path.join(".", "network_datasets"),
                  shuffling: bool = False,
-                 **kwargs):
+                 **kwargs) -> None:
+        """Initialises an instance of the IceNetDataSet class.
+
+        Args:
+            configuration_path: The path to the JSON configuration file.
+            *args: Additional positional arguments.
+            batch_size (optional): The batch size for the data loader. Defaults to 4.
+            path (optional): The path to the directory where the processed tfrecord
+                protocol buffer files will be stored. Defaults to './network_datasets'.
+            shuffling (optional): Flag indicating whether to shuffle the data.
+                Defaults to False.
+            *args: Additional keyword arguments.
+        """
+
         self._config = dict()
         self._configuration_path = configuration_path
         self._load_configuration(configuration_path)
@@ -62,6 +86,8 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         else:
             path_attr = "dataset_path"
 
+        # Check JSON config has attribute for path to tfrecord datasets, and
+        #   that the path exists.
         if self._config[path_attr] and \
                 os.path.exists(self._config[path_attr]):
             hemi = self.hemisphere_str[0]
@@ -70,10 +96,14 @@ class IceNetDataSet(SplittingMixin, DataCollection):
             logging.warning("Running in configuration only mode, tfrecords "
                             "were not generated for this dataset")
 
-    def _load_configuration(self, path: str):
-        """
+    def _load_configuration(self, path: str) -> None:
+        """Load the JSON configuration file and update the `_config` attribute of `IceNetDataSet` class.
 
-        :param path:
+        Args:
+            path: The path to the JSON configuration file.
+
+        Raises:
+            OSError: If the specified configuration file is not found.
         """
         if os.path.exists(path):
             logging.info("Loading configuration {}".format(path))
@@ -85,45 +115,55 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         else:
             raise OSError("{} not found".format(path))
 
-    def get_data_loader(self, n_forecast_days = None, generate_workers = None):
-        """
+    def get_data_loader(self,
+                        n_forecast_days: object = None,
+                        generate_workers: object = None) -> object:
+        """Create an instance of the IceNetDataLoader class.
 
-        :return:
+        Args:
+            n_forecast_days (optional): The number of forecast days to be used by the data loader.
+                If not provided, defaults to the value specified in the configuration file.
+            generate_workers (optional): An integer representing number of workers to use for
+                parallel processing with Dask. If not provided, defaults to the value specified in
+                the configuration file.
+
+        Returns:
+            An instance of the DaskMultiWorkerLoader class configured with the specified parameters.
         """
         if n_forecast_days is None:
             n_forecast_days = self._config["n_forecast_days"]
         if generate_workers is None:
             generate_workers = self._config["generate_workers"]
         loader = IceNetDataLoaderFactory().create_data_loader(
-            "dask",
+            "dask",  # This will load the `DaskMultiWorkerLoader` class.
             self.loader_config,
             self.identifier,
             self._config["var_lag"],
             n_forecast_days=n_forecast_days,
             generate_workers=generate_workers,
-            dataset_config_path=os.path.dirname(
-                self._configuration_path),
-            loss_weight_days=self._config[
-                "loss_weight_days"],
+            dataset_config_path=os.path.dirname(self._configuration_path),
+            loss_weight_days=self._config["loss_weight_days"],
             north=self.north,
-            output_batch_size=self._config[
-                "output_batch_size"],
+            output_batch_size=self._config["output_batch_size"],
             south=self.south,
-            var_lag_override=self._config[
-                "var_lag_override"],
+            var_lag_override=self._config["var_lag_override"],
         )
         return loader
 
     @property
-    def loader_config(self):
+    def loader_config(self) -> str:
+        """The path to the JSON loader configuration file stored in the dataset config file."""
+        # E.g. `/path/to/loader.{identifier}.json`
         return self._loader_config
 
     @property
-    def channels(self):
+    def channels(self) -> list:
+        """The list of channels (variable names) specified in the dataset config file."""
         return self._config["channels"]
 
     @property
-    def counts(self):
+    def counts(self) -> dict:
+        """A dict with number of elements in train, val, test in the config file."""
         return self._config["counts"]
 
 
@@ -148,8 +188,8 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             if type(configuration_paths) != list else configuration_paths
         self._load_configurations(configuration_paths)
 
-        identifier = ".".join([loader.identifier
-                               for loader in self._config["loaders"]])
+        identifier = ".".join(
+            [loader.identifier for loader in self._config["loaders"]])
 
         super().__init__(*args,
                          identifier=identifier,
@@ -183,13 +223,11 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
         :param paths:
         """
-        self._config = dict(
-            loader_paths=[],
-            loaders=[],
-            north=False,
-            south=False
-        )
-        
+        self._config = dict(loader_paths=[],
+                            loaders=[],
+                            north=False,
+                            south=False)
+
         for path in paths:
             if os.path.exists(path):
                 logging.info("Loading configuration {}".format(path))
@@ -231,11 +269,14 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             self._config["counts"] = other["counts"].copy()
         else:
             for dataset, count in other["counts"].items():
-                logging.info("Merging {} samples from {}".format(count, dataset))
+                logging.info("Merging {} samples from {}".format(
+                    count, dataset))
                 self._config["counts"][dataset] += count
 
-        general_attrs = ["channels", "dtype", "n_forecast_days",
-                         "num_channels", "output_batch_size", "shape"]
+        general_attrs = [
+            "channels", "dtype", "n_forecast_days", "num_channels",
+            "output_batch_size", "shape"
+        ]
 
         for attr in general_attrs:
             if attr not in self._config:
@@ -259,8 +300,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         )
         return self._config["loader"][0]
 
-    def check_dataset(self,
-                      split: str = "train"):
+    def check_dataset(self, split: str = "train"):
         """
 
         :param split:
@@ -278,17 +318,33 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
 
 @setup_logging
-def get_args():
+def get_args() -> object:
+    """Parse command line arguments using the argparse module.
+
+    Returns:
+        An object containing the parsed command line arguments.
+
+    Example:
+        Assuming CLI arguments provided.
+
+        args = get_args()
+        print(args.dataset)
+        print(args.split)
+        print(args.verbose)
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("dataset")
-    ap.add_argument("-s", "--split",
-                    choices=["train", "val", "test"], default="train")
+    ap.add_argument("-s",
+                    "--split",
+                    choices=["train", "val", "test"],
+                    default="train")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     args = ap.parse_args()
     return args
 
 
-def check_dataset():
+def check_dataset() -> None:
+    """Check the dataset for a specific split."""
     args = get_args()
     ds = IceNetDataSet(args.dataset)
     ds.check_dataset(args.split)
