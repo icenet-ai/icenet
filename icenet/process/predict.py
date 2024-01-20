@@ -27,7 +27,8 @@ def get_refsic(north: bool = True, south: bool = False) -> object:
 
     str = "nh" if north else "sh"
 
-    sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'.format(str)
+    sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'.format(
+        str)
     sic_day_path = os.path.join(".", "_sicfile")
 
     if not os.path.exists(os.path.join(sic_day_path, sic_day_fname)):
@@ -148,8 +149,7 @@ def create_cf_output():
     ref_cube = get_refcube(ds.north, ds.south)
 
     dates = [
-        dt.date(*[int(v)
-                  for v in s.split("-")])
+        dt.date(*[int(v) for v in s.split("-")])
         for s in args.datefile.read().split()
     ]
     args.datefile.close()
@@ -202,8 +202,7 @@ def create_cf_output():
     lists_of_fcast_dates = [[
         pd.Timestamp(date + dt.timedelta(days=int(lead_idx)))
         for lead_idx in np.arange(1, arr.shape[3] + 1, 1)
-    ]
-                            for date in dates]
+    ] for date in dates]
 
     xarr = xr.Dataset(
         data_vars=dict(
@@ -277,11 +276,11 @@ def create_cf_output():
             # Use ISO 8601:2004 duration format, preferably the extended format
             # as recommended in the Attribute Content Guidance section.
             time_coverage_start=min(
-                set([item for row in lists_of_fcast_dates for item in row
-                    ])).isoformat(),
+                set([item for row in lists_of_fcast_dates
+                     for item in row])).isoformat(),
             time_coverage_end=max(
-                set([item for row in lists_of_fcast_dates for item in row
-                    ])).isoformat(),
+                set([item for row in lists_of_fcast_dates
+                     for item in row])).isoformat(),
             time_coverage_duration="P1D",
             time_coverage_resolution="P1D",
             title="Sea Ice Concentration Prediction",

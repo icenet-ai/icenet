@@ -201,7 +201,8 @@ class IceNetPreProcessor(Processor):
         configuration = {"sources": {}}
 
         if os.path.exists(self._update_loader):
-            logging.info("Loading configuration {}".format(self._update_loader))
+            logging.info("Loading configuration {}".format(
+                self._update_loader))
             with open(self._update_loader, "r") as fh:
                 obj = json.load(fh)
                 configuration.update(obj)
@@ -254,8 +255,9 @@ class IceNetPreProcessor(Processor):
                     clim_path = os.path.join(self._refdir, "params",
                                              "climatology.{}".format(var_name))
                 else:
-                    clim_path = os.path.join(self.get_data_var_folder("params"),
-                                             "climatology.{}".format(var_name))
+                    clim_path = os.path.join(
+                        self.get_data_var_folder("params"),
+                        "climatology.{}".format(var_name))
 
                 if not os.path.exists(clim_path):
                     logging.info("Generating climatology {}".format(clim_path))
@@ -279,11 +281,12 @@ class IceNetPreProcessor(Processor):
                     logging.warning(
                         "We don't have a full climatology ({}) "
                         "compared with data ({})".format(
-                            ",".join([str(i) for i in climatology.month.values
-                                     ]), ",".join([
-                                         str(i) for i in da.groupby(
-                                             "time.month").all().month.values
-                                     ])))
+                            ",".join(
+                                [str(i) for i in climatology.month.values]),
+                            ",".join([
+                                str(i) for i in da.groupby(
+                                    "time.month").all().month.values
+                            ])))
                     da = da - climatology.mean()
                 else:
                     da = da.groupby("time.month") - climatology
@@ -303,9 +306,10 @@ class IceNetPreProcessor(Processor):
                 ref_da = None
 
                 if self._refdir:
-                    logging.info("We have a reference {}, so will load "
-                                 "and supply abs from that for linear trend of "
-                                 "{}".format(self._refdir, var_name))
+                    logging.info(
+                        "We have a reference {}, so will load "
+                        "and supply abs from that for linear trend of "
+                        "{}".format(self._refdir, var_name))
                     ref_da = xr.open_dataarray(
                         os.path.join(self._refdir, var_name,
                                      "{}_{}.nc".format(var_name, var_suffix)))
@@ -389,7 +393,8 @@ class IceNetPreProcessor(Processor):
             #  transferring
             logging.warning("Data selection failed, likely not daily sampled "
                             "data so will give that a try")
-            da = da.resample(time="1D").mean().sel(time=da_dates).sortby("time")
+            da = da.resample(time="1D").mean().sel(
+                time=da_dates).sortby("time")
         logging.info("Filtered to {} units long based on configuration "
                      "requirements".format(len(da.time)))
 
@@ -412,8 +417,8 @@ class IceNetPreProcessor(Processor):
         mean = np.nanmean(array)
         std = np.nanstd(array)
 
-        logging.info("Mean: {:.3f}, std: {:.3f}".format(mean.item(),
-                                                        std.item()))
+        logging.info("Mean: {:.3f}, std: {:.3f}".format(
+            mean.item(), std.item()))
 
         return mean, std
 
@@ -446,7 +451,8 @@ class IceNetPreProcessor(Processor):
             logging.debug(
                 "Loading norm-average mean-std from {}".format(mean_path))
             mean, std = tuple([
-                self._dtype(el) for el in open(mean_path, "r").read().split(",")
+                self._dtype(el)
+                for el in open(mean_path, "r").read().split(",")
             ])
         elif self._dates.train:
             logging.debug("Generating norm-average mean-std from {} training "

@@ -127,8 +127,8 @@ class Masks(Generator):
 
             if not os.path.exists(month_path):
                 run_command(
-                    retrieve_cmd_template_osi450.format(siconca_folder, year,
-                                                        month, filename_osi450))
+                    retrieve_cmd_template_osi450.format(
+                        siconca_folder, year, month, filename_osi450))
             else:
                 logging.info(
                     "siconca {} already exists".format(filename_osi450))
@@ -141,7 +141,7 @@ class Masks(Generator):
                 binary = np.unpackbits(status_flag, axis=1).\
                     reshape(*self._shape, 8)
 
-                #TODO: Add source/explanation for these magic numbers (index slicing nos.).
+                # TODO: Add source/explanation for these magic numbers (index slicing nos.).
                 # Mask out: land, lake, and 'outside max climatology' (open sea)
                 max_extent_mask = np.sum(binary[:, :, [7, 6, 0]],
                                          axis=2).reshape(*self._shape) >= 1
