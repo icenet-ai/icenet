@@ -1,12 +1,3 @@
-[bdist_wheel]
-universal = 1
-
-[isort]
-profile=black
-line_length = 120
-atomic = True
-# lines_after_imports = 1
-
 [flake8]
 exclude = docs
 
@@ -21,3 +12,11 @@ addopts = --doctest-modules
 # This includes the license file(s) in the wheel.
 # https://wheel.readthedocs.io/en/stable/user_guide.html#including-license-files-in-the-generated-wheel-file
 license_files = LICENSE
+extend-ignore =
+    W291,
+    W293,
+    E501,
+    W391,
+    E712,
+    E266,
+    E251,
