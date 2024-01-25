@@ -10,7 +10,7 @@ import xarray as xr
 from icenet.data.cli import download_args
 from icenet.data.producers import Generator
 from icenet.utils import run_command
-from icenet.data.sic.utils import SIC_HEMI_STR
+from download_toolbox.utils import SIC_HEMI_STR
 """Sea Ice Masks
 
 """
