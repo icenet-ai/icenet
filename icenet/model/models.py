@@ -243,7 +243,8 @@ def linear_trend_forecast(
     da: object,
     mask: object,
     missing_dates: object = (),
-    shape: object = (432, 432)) -> object:
+    shape: object = (432, 432)
+) -> object:
     """
 
     :param usable_selector:

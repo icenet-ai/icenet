@@ -17,14 +17,15 @@ repos:
   #     - id: isort
   #       args: ["--filter-files"]
 
-  # yapf - Formatting
-  - repo: https://github.com/google/yapf
-    rev: v0.40.2
-    hooks:
-      - id: yapf
-        name: "yapf"
-        args: ["--in-place", "--parallel"]
-        exclude: "docs/"
+  # yapf - is doing my head in with making modifications, so removing as it make non-pep8
+  # compliant changes
+  #- repo: https://github.com/google/yapf
+  #  rev: v0.40.2
+  #  hooks:
+  #    - id: yapf
+  #      name: "yapf"
+  #      args: ["--in-place", "--parallel"]
+  #      exclude: "docs/"
 
   # ruff - Linting
   - repo: https://github.com/astral-sh/ruff-pre-commit

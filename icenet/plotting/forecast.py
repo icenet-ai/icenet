@@ -495,8 +495,8 @@ def compute_metric_as_dataframe(metric: object, masks: object,
     target_dayofyear = target_date.dt.dayofyear
     # obtain day of year using same method above to avoid any leap-year issues
     target_dayofyear = pd.Series([
-        59 if d.strftime("%m-%d") == "02-29" else d.replace(year=2001).dayofyear
-        for d in target_date
+        59 if d.strftime("%m-%d") == "02-29" else d.replace(
+            year=2001).dayofyear for d in target_date
     ])
     target_month = target_date.dt.month
     return pd.concat([
@@ -623,7 +623,8 @@ def compute_metrics_leadtime_avg(metric: str,
         except OSError:
             # don't break if not successful, still return dataframe
             logging.info(
-                "Save not successful! Make sure the data_path directory exists")
+                "Save not successful! Make sure the data_path directory exists"
+            )
 
     return fc_metric_df.reset_index(drop=True)
 
@@ -739,7 +740,7 @@ def standard_deviation_heatmap(metric: str,
         # compute standard deviation of metric
         fc_std_metric = metrics_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
             reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
-                sort_values(groupby_col, ascending=True)
+            sort_values(groupby_col, ascending=True)
     n_forecast_days = fc_std_metric.shape[1]
 
     # set ylabel (if average_over == "all"), or legend label (otherwise)
@@ -977,14 +978,14 @@ def plot_metrics_leadtime_avg(metric: str,
         # compute metric by first grouping the dataframe by groupby_col and leadtime
         fc_avg_metric = fc_metric_df.groupby([groupby_col, "leadtime"]).mean(metric).\
             reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
-                sort_values(groupby_col, ascending=True)
+            sort_values(groupby_col, ascending=True)
         n_forecast_days = fc_avg_metric.shape[1]
 
         if seas_metric_df is not None:
             # compute the difference in leadtime average to SEAS forecast
             seas_avg_metric = seas_metric_df.groupby([groupby_col, "leadtime"]).mean(metric).\
                 reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
-                    sort_values(groupby_col, ascending=True)
+                sort_values(groupby_col, ascending=True)
             heatmap_df_diff = fc_avg_metric - seas_avg_metric
             max = np.nanmax(np.abs(heatmap_df_diff.values))
 
@@ -1058,10 +1059,10 @@ def plot_metrics_leadtime_avg(metric: str,
             # compute the standard deviation of the metric for both the forecast and SEAS5
             fc_std_metric = fc_metric_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
                 reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
-                    sort_values(groupby_col, ascending=True)
+                sort_values(groupby_col, ascending=True)
             seas_std_metric = seas_metric_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
                 reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
-                    sort_values(groupby_col, ascending=True)
+                sort_values(groupby_col, ascending=True)
             # compute the maximum standard deviation to obtain a common scale
             vmax = np.nanmax([
                 np.nanmax(fc_std_metric.values),
@@ -1118,10 +1119,13 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
     obs_plot = obs_da.isel(time=leadtime).to_numpy()
     diff_plot = diff.isel(time=leadtime).to_numpy()
 
-    upper_bound = np.max([np.abs(np.min(diff_plot)), np.abs(np.max(diff_plot))])
+    upper_bound = np.max(
+        [np.abs(np.min(diff_plot)),
+         np.abs(np.max(diff_plot))])
     diff_vmin = -upper_bound
     diff_vmax = upper_bound
-    logging.debug("Bounds of differences: {} - {}".format(diff_vmin, diff_vmax))
+    logging.debug("Bounds of differences: {} - {}".format(
+        diff_vmin, diff_vmax))
 
     sic_cmap = mpl.cm.get_cmap("Blues_r", 20)
     contour_kwargs = dict(vmin=0, vmax=1, cmap=sic_cmap)
@@ -1203,15 +1207,18 @@ def sic_error_local_header_data(da: xr.DataArray):
     return {
         "probe array index": {
             i_probe: (f"{da.xi.values[i_probe]},"
-                      f"{da.yi.values[i_probe]}") for i_probe in range(n_probe)
+                      f"{da.yi.values[i_probe]}")
+            for i_probe in range(n_probe)
         },
         "probe location (EASE)": {
             i_probe: (f"{da.xc.values[i_probe]},"
-                      f"{da.yc.values[i_probe]}") for i_probe in range(n_probe)
+                      f"{da.yc.values[i_probe]}")
+            for i_probe in range(n_probe)
         },
         "probe location (lat, lon)": {
             i_probe: (f"{da.lat.values[i_probe]},"
-                      f"{da.lon.values[i_probe]}") for i_probe in range(n_probe)
+                      f"{da.lon.values[i_probe]}")
+            for i_probe in range(n_probe)
         },
         "obs_kind": {
             0: "forecast",
@@ -1267,7 +1274,8 @@ def sic_error_local_write_fig(combined_da: xr.DataArray, output_prefix: str):
 
             # dims: (obs_kind, time, probe)
             ax.plot(plot_series.loc[OBS_KIND_FC, :, i_probe], label="IceNet")
-            ax.plot(plot_series.loc[OBS_KIND_OBS, :, i_probe], label="Observed")
+            ax.plot(plot_series.loc[OBS_KIND_OBS, :, i_probe],
+                    label="Observed")
             ax.legend()
 
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
@@ -1367,7 +1375,10 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
             self.add_argument("forecast_date", type=date_arg)
 
         self.add_argument("-o", "--output-path", type=str, default=None)
-        self.add_argument("-v", "--verbose", action="store_true", default=False)
+        self.add_argument("-v",
+                          "--verbose",
+                          action="store_true",
+                          default=False)
         self.add_argument("-r",
                           "--region",
                           default=None,
@@ -1629,13 +1640,13 @@ def plot_forecast():
                                 args.forecast_date.strftime("%Y%m%d"),
                                 "" if not args.stddev else "stddev.",
                                 args.format))
-        xarray_to_video(
-            pred_da,
-            fps=1,
-            cmap=cmap,
-            imshow_kwargs=dict(vmin=0., vmax=vmax) if not args.stddev else None,
-            video_path=output_filename,
-            **anim_args)
+        xarray_to_video(pred_da,
+                        fps=1,
+                        cmap=cmap,
+                        imshow_kwargs=dict(vmin=0., vmax=vmax)
+                        if not args.stddev else None,
+                        video_path=output_filename,
+                        **anim_args)
     else:
         for leadtime in leadtimes:
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)

@@ -47,7 +47,7 @@ class DataCollection(HemisphereMixin, metaclass=ABCMeta):
         self._identifier: object = identifier
         self._path: str = os.path.join(path, identifier)
         self._hemisphere: Hemisphere = (Hemisphere.NORTH if north else Hemisphere.NONE) | \
-                           (Hemisphere.SOUTH if south else Hemisphere.NONE)
+                                       (Hemisphere.SOUTH if south else Hemisphere.NONE)
 
         assert self._identifier, "No identifier supplied"
         assert self._hemisphere != Hemisphere.NONE, "No hemispheres selected"
@@ -307,7 +307,8 @@ class Processor(DataProducer):
             ]
             dt_series = pd.Series(dfs, index=data_dates)
 
-            logging.debug("Create structure of {} files".format(len(dt_series)))
+            logging.debug("Create structure of {} files".format(
+                len(dt_series)))
 
             # Ensure we're ordered, it has repercussions for xarray
             for date in sorted(dates):
@@ -344,11 +345,12 @@ class Processor(DataProducer):
         # TODO: allow option to ditch dates from train/val/test for missing
         #  var files
         self._var_files = {
-            var: var_files[var] for var in sorted(var_files.keys())
+            var: var_files[var]
+            for var in sorted(var_files.keys())
         }
         for var in self._var_files.keys():
-            logging.info("Got {} files for {}".format(len(self._var_files[var]),
-                                                      var))
+            logging.info("Got {} files for {}".format(
+                len(self._var_files[var]), var))
 
     @abstractmethod
     def process(self):

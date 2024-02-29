@@ -243,7 +243,10 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                 np.average(exec_times)))
         self._write_dataset_config(counts)
 
-    def generate_sample(self, date: object, prediction: bool = False, parallel=True):
+    def generate_sample(self,
+                        date: object,
+                        prediction: bool = False,
+                        parallel=True):
         """
 
         :param date:
@@ -416,8 +419,7 @@ def generate_sample(forecast_date: object,
     for leadtime_idx in range(n_forecast_days):
         forecast_day = forecast_date + dt.timedelta(days=leadtime_idx)
 
-        if any([forecast_day == missing_date for missing_date in missing_dates
-               ]):
+        if any([forecast_day == missing_date for missing_date in missing_dates]):
             sample_weight = da.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'

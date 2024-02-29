@@ -244,7 +244,8 @@ def evaluate_model(model_path: object,
         metrics.WeightedRMSE,
     ]
     metrics_list = [
-        cls(leadtime_idx=lt - 1) for lt in lead_times for cls in metrics_classes
+        cls(leadtime_idx=lt - 1) for lt in lead_times
+        for cls in metrics_classes
     ]
 
     network.compile(weighted_metrics=metrics_list)
@@ -283,7 +284,10 @@ def get_args():
 
     ap.add_argument("-b", "--batch-size", type=int, default=4)
     ap.add_argument("-ca", "--checkpoint-mode", default="min", type=str)
-    ap.add_argument("-cm", "--checkpoint-monitor", default="val_rmse", type=str)
+    ap.add_argument("-cm",
+                    "--checkpoint-monitor",
+                    default="val_rmse",
+                    type=str)
     ap.add_argument("-ds",
                     "--additional-dataset",
                     dest="additional",
@@ -394,9 +398,8 @@ def main():
             name="{}.{}".format(args.run_name, args.seed),
             notes="{}: run at {}{}".format(
                 args.run_name,
-                dt.datetime.now().strftime("%D %T"),
-                "" if not args.preload is not None else " preload {}".format(
-                    args.preload)),
+                dt.datetime.now().strftime("%D %T"), "" if args.preload is None
+                else " preload {}".format(args.preload)),
             entity=args.wandb_user,
             config=dict(
                 seed=args.seed,
@@ -465,9 +468,8 @@ def main():
 
     if using_wandb:
         logging.info("Updating wandb run with evaluation metrics")
-        metric_vals = [
-            [results[f'{name}{lt}'] for lt in leads] for name in metric_names
-        ]
+        metric_vals = [[results[f'{name}{lt}'] for lt in leads]
+                       for name in metric_names]
         table_data = list(zip(leads, *metric_vals))
         table = wandb.Table(data=table_data,
                             columns=['leadtime', *metric_names])

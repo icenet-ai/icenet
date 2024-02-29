@@ -2,13 +2,14 @@
 History
 =======
 
-0.2.* (2022-11-22)
+0.2.* (2022-2024)
 ------------------
 
 * First releases to PyPI
 * Still under development but usable codebase for training and prediction
 * Use alongside icenet-pipeline and icenet-notebooks
-* Proper releases will follow >=0.2.1, otherwise alpha versioned for the mo
+* Alpha only, beta releases will follow 0.2
+* 0.2 is maintained for the sake of adoption, with 0.3 to be a beta version
 
 0.1.* (2021-2022)
 -----------------

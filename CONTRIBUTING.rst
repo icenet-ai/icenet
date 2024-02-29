@@ -68,7 +68,7 @@ Ready to contribute? Here's how to set up `icenet` for local development.
 
     $ mkvirtualenv icenet
     $ cd icenet/
-    $ python setup.py develop
+    $ pip install -e .
 
 4. Create a branch for local development::
 
@@ -78,17 +78,16 @@ Ready to contribute? Here's how to set up `icenet` for local development.
 
 5. Install development packages::
 
-    $ pip install -r requirements.txt
+    $ pip install -r requirements_dev.txt
 
 6. Set up pre-commit hooks to run automatically. This will run through linting checks, formatting, and pytest. It will format new code using yapf and prevent code committing that does not pass linting or testing checks until fixed::
 
     $ pre-commit install
 
-7. Run through tox (currently omitted from pre-commit hook) to test other Python versions (Optionally, can replace with tox-conda, and run same command)::
+7. When you're done making changes, check that your changes pass flake8 and the tests::
 
-    $ tox
-
-   To get tox, just pip install them into your virtualenv (or tox-conda for conda environment).
+    $ make lint
+    $ pytest
 
 8. Commit your changes and push your branch to GitHub::
 
@@ -96,7 +95,7 @@ Ready to contribute? Here's how to set up `icenet` for local development.
     $ git commit -m "Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
 
-   Note: When committing, if pre-commit is installed, there might be formatting changes made by yapf and the commit prevented. In this case, add the file(s) modified by the formatter to the staging area and commit again.
+   Note: When committing, if pre-commit is installed, the commit might be prevented if there are problems with formatting. In this case, deal with the file(s) and commit again.
 
 9.  Submit a pull request through the GitHub website.
 
@@ -119,12 +118,12 @@ TODO
 Deploying
 ---------
 
-A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed (including an entry in HISTORY.rst).
-Then run::
+A reminder for the maintainers on how to deploy::
 
-# Update icenet/__init__.py
-$ git push
-$ git push --tags
+$ make clean
+$ make lint # Ignore black moaning at present
+$ make docs
+$ make install
+$ make release
 
-Travis will then deploy to PyPI if tests pass.
+If anything looks really wrong, abandon and fix!
