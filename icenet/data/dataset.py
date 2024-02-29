@@ -370,9 +370,9 @@ try:
         def dates(self):
             return self._dates
 except ModuleNotFoundError:
-    logging.warn("PyTorch module not found - not mandatory if not using PyTorch")
+    logging.warning("PyTorch module not found - not mandatory if not using PyTorch")
 except ImportError:
-    logging.warn("PyTorch import failed - not mandatory if not using PyTorch")
+    logging.warning("PyTorch import failed - not mandatory if not using PyTorch")
 
 
 @setup_logging
