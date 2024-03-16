@@ -38,7 +38,7 @@ dependencies = [
   "tensorflow",
   "tensorflow-probability",
   "wheel",
-  "xarray[io]"
+  "xarray[io]<2013.1.0"
 ]
 classifiers = [
     "Development Status :: 3",
