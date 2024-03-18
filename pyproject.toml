@@ -27,6 +27,7 @@ dependencies = [
   "matplotlib",
   "motuclient",
   "netcdf4",
+  "pandas<2",
   "plotly",
   "pip",
   "pydap",
@@ -38,7 +39,7 @@ dependencies = [
   "tensorflow",
   "tensorflow-probability",
   "wheel",
-  "xarray[io]<2013.1.0"
+  "xarray[io]<2013.2.0"
 ]
 classifiers = [
     "Development Status :: 3",
