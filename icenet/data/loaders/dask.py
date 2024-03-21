@@ -66,15 +66,14 @@ class DaskBaseDataLoader(IceNetBaseDataLoader):
                 "distributed.comm.timeouts.connect": self._timeout,
                 "distributed.comm.timeouts.tcp": self._timeout,
         }):
-            cluster = LocalCluster(
+            with LocalCluster(
                 dashboard_address=dashboard,
                 n_workers=self.workers,
                 threads_per_worker=1,
                 scheduler_port=0,
-            )
-            logging.info("Dashboard at {}".format(dashboard))
+            ) as cluster, Client(cluster) as client:
+                logging.info("Dashboard at {}".format(dashboard))
 
-            with Client(cluster) as client:
                 logging.info("Using dask client {}".format(client))
                 self.client_generate(client,
                                      dates_override=self.dates_override,
