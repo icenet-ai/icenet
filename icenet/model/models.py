@@ -52,7 +52,8 @@ def unet_batchnorm(input_shape: object,
                    learning_rate: float = 1e-4,
                    filter_size: float = 3,
                    n_filters_factor: float = 1,
-                   n_forecast_days: int = 1) -> object:
+                   n_forecast_days: int = 1,
+                   legacy_rounding: bool = False) -> object:
     """
 
     :param input_shape:
@@ -62,14 +63,21 @@ def unet_batchnorm(input_shape: object,
     :param filter_size:
     :param n_filters_factor:
     :param n_forecast_days:
+    :param legacy_rounding: Ensures filter number calculations are int()'d at the end of calculations
     :return:
     """
     inputs = Input(shape=input_shape)
 
     start_out_channels = 64
-    reduced_channels = int(start_out_channels * n_filters_factor)
+    reduced_channels = start_out_channels * n_filters_factor
+
+    if not legacy_rounding:
+        # We're assuming to just strip off any partial channels, rather than round
+        reduced_channels = int(reduced_channels)
+
     channels = {
-        start_out_channels * 2**pow: reduced_channels * 2**pow
+        start_out_channels * 2 ** pow:
+            reduced_channels * 2 ** pow if not legacy_rounding else int(reduced_channels * 2 ** pow)
         for pow in range(4)
     }
 

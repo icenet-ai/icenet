@@ -22,6 +22,7 @@ def predict_forecast(
     dataset_config: object,
     network_name: object,
     dataset_name: object = None,
+    legacy_rounding: bool = False,
     model_func: callable = models.unet_batchnorm,
     n_filters_factor: float = 1 / 8,
     network_folder: object = None,
@@ -36,6 +37,7 @@ def predict_forecast(
     :param dataset_config:
     :param network_name:
     :param dataset_name:
+    :param legacy_rounding:
     :param model_func:
     :param n_filters_factor:
     :param network_folder:
@@ -61,6 +63,7 @@ def predict_forecast(
     logging.info("Loading model from {}...".format(network_path))
 
     network = model_func((*ds.shape, dl.num_channels), [], [],
+                         legacy_rounding=legacy_rounding,
                          n_filters_factor=n_filters_factor,
                          n_forecast_days=ds.n_forecast_days)
     network.load_weights(network_path)
@@ -116,9 +119,9 @@ def predict_forecast(
             run_prediction(network=network,
                            date=test_dates[idx],
                            output_folder=output_folder,
-                           data_sample=(x[arr_idx, ...], y[arr_idx,
-                                                           ...], sw[arr_idx,
-                                                                    ...]),
+                           data_sample=(x[arr_idx, ...],
+                                        y[arr_idx, ...],
+                                        sw[arr_idx, ...]),
                            save_args=save_args)
 
 
@@ -173,6 +176,8 @@ def get_args():
                     type=str,
                     default=None)
     ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
+    ap.add_argument("-l", "--legacy-rounding", action="store_true",
+                    default=False, help="Ensure filter number rounding occurs last in channel number calculations")
     ap.add_argument("-t", "--testset", action="store_true", default=False)
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-s", "--save_args", action="store_true", default=False)
@@ -202,6 +207,7 @@ def main():
         #  do we need to retain the train SD name in the
         #  network?
         dataset_name=args.ident if args.ident else args.dataset,
+        legacy_rounding=args.legacy_rounding,
         n_filters_factor=args.n_filters_factor,
         output_folder=output_folder,
         save_args=args.save_args,
