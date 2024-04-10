@@ -20,7 +20,7 @@ scitools-iris
 seaborn
 setuptools
 tensorboard
-tensorflow
+tensorflow<2.16
 tensorflow-probability
 wheel
 xarray[io]<2023.2.0
