@@ -117,59 +117,62 @@ class Masks(Generator):
         # of the year 2000 (chosen arbitrarily as the mask is fixed within
         # month)
         for month in range(1, 13):
-            # Download the data if not already downloaded
-            filename_osi450 = filename_template_osi450.format(
-                SIC_HEMI_STR[self.hemisphere_str[0]], year, month)
-
-            month_str = '{:02d}'.format(month)
-            month_folder = os.path.join(siconca_folder, str(year), month_str)
-            month_path = os.path.join(month_folder, filename_osi450)
-
-            if not os.path.exists(month_path):
-                run_command(
-                    retrieve_cmd_template_osi450.format(
-                        siconca_folder, year, month, filename_osi450))
-            else:
-                logging.info(
-                    "siconca {} already exists".format(filename_osi450))
-
-            with xr.open_dataset(month_path) as ds:
-                status_flag = ds['status_flag']
-                status_flag = np.array(status_flag.data).astype(np.uint8)
-                status_flag = status_flag.reshape(*self._shape)
-
-                binary = np.unpackbits(status_flag, axis=1).\
-                    reshape(*self._shape, 8)
-
-                # TODO: Add source/explanation for these magic numbers (index slicing nos.).
-                # Mask out: land, lake, and 'outside max climatology' (open sea)
-                max_extent_mask = np.sum(binary[:, :, [7, 6, 0]],
-                                         axis=2).reshape(*self._shape) >= 1
-                max_extent_mask = ~max_extent_mask
-
-                # FIXME: Remove Caspian and Black seas - should we do this sh?
-                if self.north:
-                    # TODO: Add source/explanation for these indices.
-                    max_extent_mask[325:386, 317:380] = False
-
             mask_path = os.path.join(
                 self.get_data_var_folder("masks"),
                 "active_grid_cell_mask_{:02d}.npy".format(month))
-            logging.info("Saving {}".format(mask_path))
+            if not os.path.exists(mask_path):
+                # Download the data if not already downloaded
+                filename_osi450 = filename_template_osi450.format(
+                    SIC_HEMI_STR[self.hemisphere_str[0]], year, month)
 
-            np.save(mask_path, max_extent_mask)
+                month_str = '{:02d}'.format(month)
+                month_folder = os.path.join(siconca_folder, str(year), month_str)
+                month_path = os.path.join(month_folder, filename_osi450)
 
-            land_mask_path = os.path.join(self.get_data_var_folder("masks"),
-                                          Masks.LAND_MASK_FILENAME)
+                if not os.path.exists(month_path):
+                    run_command(
+                        retrieve_cmd_template_osi450.format(
+                            siconca_folder, year, month, filename_osi450))
+                else:
+                    logging.info(
+                        "siconca {} already exists".format(filename_osi450))
 
-            if save_land_mask and \
-                    not os.path.exists(land_mask_path) \
-                    and month == 1:
-                land_mask = np.sum(binary[:, :, [7, 6]], axis=2).\
-                                reshape(*self._shape) >= 1
+                with xr.open_dataset(month_path) as ds:
+                    status_flag = ds['status_flag']
+                    status_flag = np.array(status_flag.data).astype(np.uint8)
+                    status_flag = status_flag.reshape(*self._shape)
 
-                logging.info("Saving {}".format(land_mask_path))
-                np.save(land_mask_path, land_mask)
+                    binary = np.unpackbits(status_flag, axis=1).\
+                        reshape(*self._shape, 8)
+
+                    # TODO: Add source/explanation for these magic numbers (index slicing nos.).
+                    # Mask out: land, lake, and 'outside max climatology' (open sea)
+                    max_extent_mask = np.sum(binary[:, :, [7, 6, 0]],
+                                             axis=2).reshape(*self._shape) >= 1
+                    max_extent_mask = ~max_extent_mask
+
+                    # FIXME: Remove Caspian and Black seas - should we do this sh?
+                    if self.north:
+                        # TODO: Add source/explanation for these indices.
+                        max_extent_mask[325:386, 317:380] = False
+
+                logging.info("Saving {}".format(mask_path))
+
+                np.save(mask_path, max_extent_mask)
+
+                land_mask_path = os.path.join(self.get_data_var_folder("masks"),
+                                              Masks.LAND_MASK_FILENAME)
+
+                if save_land_mask and \
+                        not os.path.exists(land_mask_path) \
+                        and month == 1:
+                    land_mask = np.sum(binary[:, :, [7, 6]], axis=2).\
+                                    reshape(*self._shape) >= 1
+
+                    logging.info("Saving {}".format(land_mask_path))
+                    np.save(land_mask_path, land_mask)
+            else:
+                logging.info("Skipping {}, already exists".format(mask_path))
 
         # Delete the data/siconca/2000 folder holding the temporary daily files
         if remove_temp_files:
