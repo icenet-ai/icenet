@@ -19,9 +19,9 @@ pytorch_available = False
 try:
     from torch.utils.data import Dataset
 except ModuleNotFoundError:
-    logger.warning("PyTorch not found - not required if not using PyTorch")
+    print("PyTorch not found - not required if not using PyTorch")
 except ImportError:
-    logger.warning("PyTorch import failed - not required if not using PyTorch")
+    print("PyTorch import failed - not required if not using PyTorch")
 
 """
 
