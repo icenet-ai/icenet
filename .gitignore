@@ -101,6 +101,9 @@ ENV/
 # mypy
 .mypy_cache/
 
+# VIM swap files
+*.swp
+
 # IDE settings
 .vscode/
 .idea/

@@ -12,6 +12,17 @@ from icenet.data.loader import IceNetDataLoaderFactory
 from icenet.data.producers import DataCollection
 from icenet.utils import setup_logging
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
+
+pytorch_available = False
+try:
+    from torch.utils.data import Dataset
+except ModuleNotFoundError:
+    print("PyTorch not found - not required if not using PyTorch")
+except ImportError:
+    print("PyTorch import failed - not required if not using PyTorch")
+
 """
 
 
@@ -320,8 +331,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         return self._config["counts"]
 
 
-try:
-    from torch.utils.data import Dataset
+if pytorch_available:
     class IceNetDataSetPyTorch(IceNetDataSet, Dataset):
         """Initialises and configures a PyTorch dataset.
         """
@@ -369,11 +379,6 @@ try:
         @property
         def dates(self):
             return self._dates
-except ModuleNotFoundError:
-    logging.warning("PyTorch module not found - not mandatory if not using PyTorch")
-except ImportError:
-    logging.warning("PyTorch import failed - not mandatory if not using PyTorch")
-
 
 @setup_logging
 def get_args() -> object:
