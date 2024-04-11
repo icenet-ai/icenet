@@ -36,7 +36,7 @@ conda install -c conda-forge eccodes
 pip install icenet
 
 # To install newer versions of tensorflow (tensorflow>=2.14) with CUDA deps directly via pip:
-pip install tensorflow[and-cuda]<2.16
+pip install "tensorflow[and-cuda]<2.16"
 ```
 
 Please consult the [tensorflow docs](https://www.tensorflow.org/install/pip) for up-to-date info.
