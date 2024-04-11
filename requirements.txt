@@ -10,7 +10,8 @@ h5py>2.10
 ibicus
 matplotlib
 motuclient
-netcdf4
+netcdf4<1.6.1
+pandas<2
 plotly
 pip
 pydap
@@ -19,7 +20,7 @@ scitools-iris
 seaborn
 setuptools
 tensorboard
-tensorflow
+tensorflow<2.16
 tensorflow-probability
 wheel
-xarray[io]
+xarray[io]<2023.2.0
