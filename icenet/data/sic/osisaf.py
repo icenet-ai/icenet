@@ -696,43 +696,44 @@ class SICDownloader(Downloader):
 
         logging.info("Processing {} missing dates".format(len(missing_dates)))
 
-        missing_dates_path = os.path.join(self.get_data_var_folder("siconca"),
-                                          "missing_days.csv")
+        if missing_dates:
+            missing_dates_path = os.path.join(self.get_data_var_folder("siconca"),
+                                              "missing_days.csv")
 
-        with open(missing_dates_path, "a") as fh:
+            with open(missing_dates_path, "a") as fh:
+                for date in missing_dates:
+                    # FIXME: slightly unusual format for Ymd dates
+                    fh.write(date.strftime("%Y,%m,%d\n"))
+
+            logging.debug("Interpolating {} missing dates".format(
+                len(missing_dates)))
+
             for date in missing_dates:
-                # FIXME: slightly unusual format for Ymd dates
-                fh.write(date.strftime("%Y,%m,%d\n"))
+                if pd.Timestamp(date) not in da.time.values:
+                    logging.info("Interpolating {}".format(date))
+                    da = xr.concat([da, da.interp(time=pd.to_datetime(date))],
+                                   dim='time')
 
-        logging.debug("Interpolating {} missing dates".format(
-            len(missing_dates)))
+            logging.debug("Finished interpolation")
 
-        for date in missing_dates:
-            if pd.Timestamp(date) not in da.time.values:
-                logging.info("Interpolating {}".format(date))
-                da = xr.concat([da, da.interp(time=pd.to_datetime(date))],
-                               dim='time')
+            da = da.sortby('time')
+            da.data = np.array(da.data, dtype=self._dtype)
 
-        logging.debug("Finished interpolation")
+            for date in missing_dates:
+                date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
+                fpath = os.path.join(
+                    self.get_data_var_folder(
+                        "siconca", append=[str(pd.to_datetime(date).year)]),
+                    "missing.{}.nc".format(date_str))
 
-        da = da.sortby('time')
-        da.data = np.array(da.data, dtype=self._dtype)
+                if not os.path.exists(fpath):
+                    day_da = da.sel(time=slice(date, date))
+                    mask = self._mask_dict[pd.to_datetime(date).month]
 
-        for date in missing_dates:
-            date_str = pd.to_datetime(date).strftime("%Y_%m_%d")
-            fpath = os.path.join(
-                self.get_data_var_folder(
-                    "siconca", append=[str(pd.to_datetime(date).year)]),
-                "missing.{}.nc".format(date_str))
+                    day_da.data[0][~mask] = 0.
 
-            if not os.path.exists(fpath):
-                day_da = da.sel(time=slice(date, date))
-                mask = self._mask_dict[pd.to_datetime(date).month]
-
-                day_da.data[0][~mask] = 0.
-
-                logging.info("Writing missing date file {}".format(fpath))
-                day_da.to_netcdf(fpath)
+                    logging.info("Writing missing date file {}".format(fpath))
+                    day_da.to_netcdf(fpath)
 
         return da
 
