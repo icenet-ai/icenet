@@ -10,7 +10,7 @@ h5py>2.10
 ibicus
 matplotlib
 motuclient
-netcdf4
+netcdf4<1.6.1
 pandas<2
 plotly
 pip
