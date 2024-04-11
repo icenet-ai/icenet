@@ -97,7 +97,7 @@ setup(
             "icenet.results.threshold:threshold_main"
         ],
         },
-    python_requires='>=3.8, <4',
+    python_requires='>=3.8, <3.12',
     install_requires=get_content("requirements.txt"),
     include_package_data=True,
     extras_require={
