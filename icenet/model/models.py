@@ -51,6 +51,7 @@ def unet_batchnorm(input_shape: object,
                    metrics: object,
                    learning_rate: float = 1e-4,
                    custom_optimizer: object = None,
+                   experimental_run_tf_function: bool = True,
                    filter_size: float = 3,
                    n_filters_factor: float = 1,
                    n_forecast_days: int = 1,
@@ -62,6 +63,7 @@ def unet_batchnorm(input_shape: object,
     :param metrics:
     :param learning_rate:
     :param custom_optimizer:
+    :param experimental_run_tf_function:
     :param filter_size:
     :param n_filters_factor:
     :param n_forecast_days:
@@ -243,7 +245,8 @@ def unet_batchnorm(input_shape: object,
     model.compile(optimizer=Adam(learning_rate=learning_rate)
                   if custom_optimizer is None else custom_optimizer,
                   loss=loss,
-                  weighted_metrics=metrics)
+                  weighted_metrics=metrics,
+                  experimental_run_tf_function=experimental_run_tf_function)
 
     return model
 
