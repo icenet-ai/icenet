@@ -25,8 +25,8 @@ class WeightedMSE(tf.keras.losses.MeanSquaredError):
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
 
-        # if sample_weight is not None:
-        #    sample_weight = tf.expand_dims(sample_weight, axis=-1)
+        y_true = tf.where(tf.math.is_nan(y_true), tf.zeros_like(y_true), y_true)
+        y_pred = tf.where(tf.math.is_nan(y_pred), tf.zeros_like(y_pred), y_pred)
 
         return super().__call__(100 * y_true,
                                 100 * y_pred,
