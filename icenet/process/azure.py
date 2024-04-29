@@ -7,8 +7,8 @@ import tempfile
 
 import xarray as xr
 
-from icenet.process.utils import date_arg, destination_filename
-from icenet.utils import setup_logging
+from icenet.process.utils import destination_filename
+from icenet.cli import date_arg, setup_logging
 
 from azure.storage.blob import ContainerClient
 

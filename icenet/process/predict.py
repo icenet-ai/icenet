@@ -3,7 +3,6 @@ import datetime as dt
 import glob
 import logging
 import os
-import re
 
 import iris
 import numpy as np
@@ -13,7 +12,8 @@ import xarray as xr
 from icenet import __version__ as icenet_version
 from icenet.data.dataset import IceNetDataSet
 from icenet.data.sic.mask import Masks
-from icenet.utils import run_command, setup_logging
+from icenet.cli import setup_logging
+from icenet.utils import run_command
 
 
 def get_refsic(north: bool = True, south: bool = False) -> object:
@@ -87,16 +87,6 @@ def get_prediction_data(root: object, name: object, date: object) -> tuple:
 
     return np.stack([data.mean(axis=0), data.std(axis=0)],
                     axis=-1).squeeze(), ens_members
-
-
-def date_arg(string: str) -> object:
-    """
-
-    :param string:
-    :return:
-    """
-    date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
-    return dt.date(*[int(s) for s in date_match.groups()])
 
 
 @setup_logging

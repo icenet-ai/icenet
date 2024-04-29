@@ -1,9 +1,7 @@
-import argparse
 import datetime as dt
 import json
 import logging
 import os
-import random
 import time
 
 import numpy as np
@@ -15,7 +13,7 @@ from tensorflow.keras.callbacks import \
 from tensorflow.keras.models import load_model, save_model
 
 from icenet.data.dataset import IceNetDataSet, MergedIceNetDataSet
-from icenet.model.cli import get_args
+from icenet.model.cli import train_args
 import icenet.model.losses as losses
 import icenet.model.metrics as metrics
 from icenet.model.utils import attempt_seed_setup, make_exp_decay_lr_schedule
@@ -264,7 +262,7 @@ def evaluate_model(model_path: object,
 
 
 def main():
-    args = get_args()
+    args = train_args()
     attempt_seed_setup(args.seed)
 
     # TODO: this should come from a factory in the future - not the only place
@@ -293,6 +291,7 @@ def main():
     using_wandb = False
     run = None
 
+    # TODO: this can and probably should be a decorator
     if not args.no_wandb:
         from icenet.model.handlers.wandb import init_wandb, finalise_wandb
         run, callback = init_wandb(args)

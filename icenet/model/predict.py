@@ -1,8 +1,6 @@
-import argparse
 import datetime as dt
 import logging
 import os
-import re
 
 import numpy as np
 import pandas as pd
@@ -12,7 +10,8 @@ import icenet.model.models as models
 
 from icenet.data.loader import save_sample
 from icenet.data.dataset import IceNetDataSet
-from icenet.utils import setup_logging
+from icenet.model.cli import predict_args
+
 """
 
 """
@@ -146,47 +145,8 @@ def run_prediction(network, date, output_folder, data_sample, save_args):
     return output_path
 
 
-def date_arg(string: str) -> object:
-    """
-
-    :param string:
-    :return:
-    """
-    date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
-    return dt.date(*[int(s) for s in date_match.groups()])
-
-
-@setup_logging
-def get_args():
-    """
-
-    :return:
-    """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("dataset")
-    ap.add_argument("network_name")
-    ap.add_argument("output_name")
-    ap.add_argument("seed", type=int, default=42)
-    ap.add_argument("datefile", type=argparse.FileType("r"))
-
-    ap.add_argument("-i",
-                    "--train-identifier",
-                    dest="ident",
-                    help="Train dataset identifier",
-                    type=str,
-                    default=None)
-    ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
-    ap.add_argument("-l", "--legacy-rounding", action="store_true",
-                    default=False, help="Ensure filter number rounding occurs last in channel number calculations")
-    ap.add_argument("-t", "--testset", action="store_true", default=False)
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
-    ap.add_argument("-s", "--save_args", action="store_true", default=False)
-
-    return ap.parse_args()
-
-
 def main():
-    args = get_args()
+    args = predict_args()
 
     dataset_config = \
         os.path.join(".", "dataset_config.{}.json".format(args.dataset))

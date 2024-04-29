@@ -10,9 +10,8 @@ import tensorflow as tf
 from math import ceil
 
 from icenet.data.datasets.utils import get_decoder
-from icenet.data.cli import date_arg
 from icenet.data.dataset import IceNetDataSet
-from icenet.utils import setup_logging
+from icenet.cli import date_arg, setup_logging
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable

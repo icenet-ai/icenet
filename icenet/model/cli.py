@@ -1,10 +1,11 @@
 import argparse
 import os
 
-from icenet.utils import setup_logging
+from icenet.cli import setup_logging
+
 
 @setup_logging
-def get_args():
+def train_args():
     """
 
     :return:
@@ -81,5 +82,35 @@ def get_args():
                     ", 0.5 -> halve every 10 epochs.")
     ap.add_argument('--lr_decay_start', default=10, type=int)
     ap.add_argument('--lr_decay_end', default=30, type=int)
+
+    return ap.parse_args()
+
+
+
+@setup_logging
+def predict_args():
+    """
+
+    :return:
+    """
+    ap = argparse.ArgumentParser()
+    ap.add_argument("dataset")
+    ap.add_argument("network_name")
+    ap.add_argument("output_name")
+    ap.add_argument("seed", type=int, default=42)
+    ap.add_argument("datefile", type=argparse.FileType("r"))
+
+    ap.add_argument("-i",
+                    "--train-identifier",
+                    dest="ident",
+                    help="Train dataset identifier",
+                    type=str,
+                    default=None)
+    ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
+    ap.add_argument("-l", "--legacy-rounding", action="store_true",
+                    default=False, help="Ensure filter number rounding occurs last in channel number calculations")
+    ap.add_argument("-t", "--testset", action="store_true", default=False)
+    ap.add_argument("-v", "--verbose", action="store_true", default=False)
+    ap.add_argument("-s", "--save_args", action="store_true", default=False)
 
     return ap.parse_args()

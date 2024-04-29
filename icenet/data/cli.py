@@ -6,20 +6,10 @@ import re
 
 import pandas as pd
 
-from icenet.utils import setup_logging
+from icenet.cli import date_arg, setup_logging
 """
 
 """
-
-
-def date_arg(string: str) -> object:
-    """
-
-    :param string:
-    :return:
-    """
-    date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
-    return dt.date(*[int(s) for s in date_match.groups()])
 
 
 def dates_arg(string: str) -> object:
