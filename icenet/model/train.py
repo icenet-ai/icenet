@@ -15,19 +15,11 @@ from tensorflow.keras.callbacks import \
 from tensorflow.keras.models import load_model, save_model
 
 from icenet.data.dataset import IceNetDataSet, MergedIceNetDataSet
+from icenet.model.cli import get_args
 import icenet.model.losses as losses
 import icenet.model.metrics as metrics
-from icenet.model.utils import make_exp_decay_lr_schedule
+from icenet.model.utils import attempt_seed_setup, make_exp_decay_lr_schedule
 import icenet.model.models as models
-from icenet.utils import setup_logging
-
-wandb_available = False
-try:
-    import wandb
-    import wandb.keras
-    wandb_available = True
-except ModuleNotFoundError:
-    pass
 
 
 def train_model(run_name: object,
@@ -271,98 +263,9 @@ def evaluate_model(model_path: object,
     return results, metric_names, lead_times
 
 
-@setup_logging
-def get_args():
-    """
-
-    :return:
-    """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("dataset", type=str)
-    ap.add_argument("run_name", type=str)
-    ap.add_argument("seed", type=int)
-
-    ap.add_argument("-b", "--batch-size", type=int, default=4)
-    ap.add_argument("-ca", "--checkpoint-mode", default="min", type=str)
-    ap.add_argument("-cm",
-                    "--checkpoint-monitor",
-                    default="val_rmse",
-                    type=str)
-    ap.add_argument("-ds",
-                    "--additional-dataset",
-                    dest="additional",
-                    nargs="*",
-                    default=[])
-    ap.add_argument("-e", "--epochs", type=int, default=4)
-    ap.add_argument("-f", "--filter-size", type=int, default=3)
-    ap.add_argument("--early-stopping", type=int, default=50)
-    ap.add_argument("-m",
-                    "--multiprocessing",
-                    action="store_true",
-                    default=False)
-    ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
-    ap.add_argument("-p", "--preload", type=str)
-    ap.add_argument("-pw",
-                    "--pickup-weights",
-                    action="store_true",
-                    default=False)
-    ap.add_argument("-qs", "--max-queue-size", default=10, type=int)
-    ap.add_argument("-r", "--ratio", default=1.0, type=float)
-    ap.add_argument("-s",
-                    "--strategy",
-                    default="default",
-                    choices=("default", "mirrored", "central"))
-    ap.add_argument("--shuffle-train",
-                    default=False,
-                    action="store_true",
-                    help="Shuffle the training set")
-    ap.add_argument("--gpus", default=None)
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
-    ap.add_argument("-w", "--workers", type=int, default=4)
-
-    # WandB additional arguments
-    ap.add_argument("-nw", "--no-wandb", default=False, action="store_true")
-    ap.add_argument("-wo",
-                    "--wandb-offline",
-                    default=False,
-                    action="store_true")
-    ap.add_argument("-wp",
-                    "--wandb-project",
-                    default=os.environ.get("ICENET_ENVIRONMENT"),
-                    type=str)
-    ap.add_argument("-wu",
-                    "--wandb-user",
-                    default=os.environ.get("USER"),
-                    type=str)
-
-    ap.add_argument("--lr", default=1e-4, type=float)
-    ap.add_argument("--lr_10e_decay_fac",
-                    default=1.0,
-                    type=float,
-                    help="Factor by which LR is multiplied by every 10 epochs "
-                    "using exponential decay. E.g. 1 -> no decay (default)"
-                    ", 0.5 -> halve every 10 epochs.")
-    ap.add_argument('--lr_decay_start', default=10, type=int)
-    ap.add_argument('--lr_decay_end', default=30, type=int)
-
-    return ap.parse_args()
-
-
 def main():
     args = get_args()
-
-    logging.warning(
-        "Setting seed for best attempt at determinism, value {}".format(
-            args.seed))
-    # determinism is not guaranteed across different versions of TensorFlow.
-    # determinism is not guaranteed across different hardware.
-    os.environ['PYTHONHASHSEED'] = str(args.seed)
-    # numpy.random.default_rng ignores this, WARNING!
-    np.random.seed(args.seed)
-    random.seed(args.seed)
-    tf.random.set_seed(args.seed)
-    tf.keras.utils.set_random_seed(args.seed)
-    # See #8: tf.config.experimental.enable_op_determinism()
+    attempt_seed_setup(args.seed)
 
     # TODO: this should come from a factory in the future - not the only place
     #  that merged datasets are going to be available
@@ -390,48 +293,13 @@ def main():
     using_wandb = False
     run = None
 
-    if not args.no_wandb and wandb_available:
-        logging.warning("Initialising WANDB for this run at user request")
+    if not args.no_wandb:
+        from icenet.model.handlers.wandb import init_wandb, finalise_wandb
+        run, callback = init_wandb(args)
 
-        run = wandb.init(
-            project=args.wandb_project,
-            name="{}.{}".format(args.run_name, args.seed),
-            notes="{}: run at {}{}".format(
-                args.run_name,
-                dt.datetime.now().strftime("%D %T"), "" if args.preload is None
-                else " preload {}".format(args.preload)),
-            entity=args.wandb_user,
-            config=dict(
-                seed=args.seed,
-                learning_rate=args.lr,
-                filter_size=args.filter_size,
-                n_filters_factor=args.n_filters_factor,
-                lr_10e_decay_fac=args.lr_10e_decay_fac,
-                lr_decay_start=args.lr_decay_start,
-                lr_decay_end=args.lr_decay_end,
-                batch_size=args.batch_size,
-            ),
-            settings=wandb.Settings(
-                #    start_method="fork",
-                #    _disable_stats=True,
-            ),
-            allow_val_change=True,
-            mode='offline' if args.wandb_offline else 'online',
-            group=args.run_name,
-        )
-        using_wandb = True
-
-        # Log training metrics to wandb each epoch
-        logging.info("Adding wandb callback")
-        callback_objects.append(
-            wandb.keras.WandbCallback(
-                monitor=args.checkpoint_monitor,
-                mode=args.checkpoint_mode,
-                save_model=False,
-                save_graph=False,
-            ))
-    elif not wandb_available:
-        logging.warning("WandB is not available, we will never use it")
+        if callback is not None:
+            callback_objects.append(callback)
+            using_wandb = True
 
     weights_path, model_path = \
         train_model(args.run_name,
@@ -467,15 +335,5 @@ def main():
                        workers=args.workers)
 
     if using_wandb:
-        logging.info("Updating wandb run with evaluation metrics")
-        metric_vals = [[results[f'{name}{lt}'] for lt in leads]
-                       for name in metric_names]
-        table_data = list(zip(leads, *metric_vals))
-        table = wandb.Table(data=table_data,
-                            columns=['leadtime', *metric_names])
+        finalise_wandb(run, results, metric_names, leads)
 
-        # Log each metric vs. leadtime as a plot to wandb
-        for name in metric_names:
-            logging.debug("WandB logging {}".format(name))
-            run.log(
-                {f'{name}_plot': wandb.plot.line(table, x='leadtime', y=name)})

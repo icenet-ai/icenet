@@ -1,6 +1,25 @@
 import logging
+import os
+import random
+
 import numpy as np
 import matplotlib.pyplot as plt
+import tensorflow as tf
+
+
+def attempt_seed_setup(seed):
+    logging.warning(
+        "Setting seed for best attempt at determinism, value {}".format(seed))
+    # determinism is not guaranteed across different versions of TensorFlow.
+    # determinism is not guaranteed across different hardware.
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    # numpy.random.default_rng ignores this, WARNING!
+    np.random.seed(seed)
+    random.seed(seed)
+    tf.random.set_seed(seed)
+    tf.keras.utils.set_random_seed(seed)
+    # See #8: tf.config.experimental.enable_op_determinism()
+
 
 ################################################################################
 # LEARNING RATE
