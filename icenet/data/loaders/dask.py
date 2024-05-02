@@ -460,7 +460,7 @@ def generate_sample(forecast_date: object,
         else:
             channel_ds = var_ds
             channel_dates = [
-                pd.Timestamp(forecast_date - dt.timedelta(days=n))
+                pd.Timestamp(forecast_date - dt.timedelta(days=n+1))
                 for n in range(num_channels)
             ]
 
