@@ -193,8 +193,8 @@ class WeightedMAE(tf.keras.metrics.MeanAbsoluteError):
         if sample_weight is not None and sample_weight.shape[-1] != 1:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
-        y_true = tf.where(tf.math.is_nan(y_true), tf.zeros_like(y_true), y_true)
-        y_pred = tf.where(tf.math.is_nan(y_pred), tf.zeros_like(y_pred), y_pred)
+        #y_true = tf.where(tf.math.is_nan(y_true), tf.zeros_like(y_true), y_true)
+        #y_pred = tf.where(tf.math.is_nan(y_pred), tf.zeros_like(y_pred), y_pred)
         return super().update_state(y_true, y_pred, sample_weight=sample_weight)
 
     def result(self):
@@ -249,8 +249,8 @@ class WeightedRMSE(tf.keras.metrics.RootMeanSquaredError):
         if sample_weight is not None and sample_weight.shape[-1] != 1:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
-        y_true = tf.where(tf.math.is_nan(y_true), tf.zeros_like(y_true), y_true)
-        y_pred = tf.where(tf.math.is_nan(y_pred), tf.zeros_like(y_pred), y_pred)
+        #y_true = tf.where(tf.math.is_nan(y_true), tf.zeros_like(y_true), y_true)
+        #y_pred = tf.where(tf.math.is_nan(y_pred), tf.zeros_like(y_pred), y_pred)
         return super().update_state(y_true, y_pred, sample_weight=sample_weight)
 
     def result(self):
@@ -304,8 +304,8 @@ class WeightedMSE(tf.keras.metrics.MeanSquaredError):
         if sample_weight is not None and sample_weight.shape[-1] != 1:
             sample_weight = tf.expand_dims(sample_weight, axis=-1)
 
-        y_true = tf.where(tf.math.is_nan(y_true), tf.zeros_like(y_true), y_true)
-        y_pred = tf.where(tf.math.is_nan(y_pred), tf.zeros_like(y_pred), y_pred)
+        #y_true = tf.where(tf.math.is_nan(y_true), tf.zeros_like(y_true), y_true)
+        #y_pred = tf.where(tf.math.is_nan(y_pred), tf.zeros_like(y_pred), y_pred)
         return super().update_state(y_true, y_pred, sample_weight=sample_weight)
 
     def result(self):

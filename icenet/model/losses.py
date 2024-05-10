@@ -24,9 +24,11 @@ class WeightedMSE(tf.keras.losses.MeanSquaredError):
         # TF automatically reduces along final dimension - include dummy axis
         y_true = tf.expand_dims(y_true, axis=-1)
         y_pred = tf.expand_dims(y_pred, axis=-1)
+        #tf.print(y_true.shape, y_pred.shape)#, sample_weight.shape)
+        #tf.print(type(y_true), type(y_pred))#, type(sample_weight))
 
-        y_true = tf.where(tf.math.is_nan(y_true), tf.zeros_like(y_true), y_true)
-        y_pred = tf.where(tf.math.is_nan(y_pred), tf.zeros_like(y_pred), y_pred)
+        #y_true = tf.where(sample_weight == 0., tf.zeros_like(y_true), y_true)
+        #y_pred = tf.where(sample_weight == 0., tf.zeros_like(y_pred), y_pred)
 
         return super().__call__(100 * y_true,
                                 100 * y_pred,
