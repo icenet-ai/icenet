@@ -7,20 +7,6 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 
 
-def attempt_seed_setup(seed):
-    logging.warning(
-        "Setting seed for best attempt at determinism, value {}".format(seed))
-    # determinism is not guaranteed across different versions of TensorFlow.
-    # determinism is not guaranteed across different hardware.
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    # numpy.random.default_rng ignores this, WARNING!
-    np.random.seed(seed)
-    random.seed(seed)
-    tf.random.set_seed(seed)
-    tf.keras.utils.set_random_seed(seed)
-    # See #8: tf.config.experimental.enable_op_determinism()
-
-
 ################################################################################
 # LEARNING RATE
 ################################################################################
@@ -145,3 +131,38 @@ def arr_to_ice_edge_rgba_arr(arr: object, thresh: object, land_mask: object,
     ice_edge_rgba_arr[:, :, :3] = rgb
 
     return ice_edge_rgba_arr
+
+
+### Potentially redundant implementations
+
+
+@tf.keras.utils.register_keras_serializable()
+class TemperatureScale(tf.keras.layers.Layer):
+    """Temperature scaling layer
+
+    Implements the temperature scaling layer for probability calibration,
+    as introduced in Guo 2017 (http://proceedings.mlr.press/v70/guo17a.html).
+    """
+
+    def __init__(self, **kwargs):
+        super(TemperatureScale, self).__init__(**kwargs)
+        self.temp = tf.Variable(initial_value=1.0,
+                                trainable=False,
+                                dtype=tf.float32,
+                                name='temp')
+
+    def call(self, inputs: object, **kwargs):
+        """ Divide the input logits by the T value.
+
+        :param **kwargs:
+        :param inputs:
+        :return:
+        """
+        return tf.divide(inputs, self.temp)
+
+    def get_config(self):
+        """ For saving and loading networks with this custom layer.
+
+        :return:
+        """
+        return {'temp': self.temp.numpy()}

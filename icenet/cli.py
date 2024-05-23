@@ -18,7 +18,6 @@ def setup_logging(func,
         logging.basicConfig(
             level=level,
             format=log_format,
-            datefmt="%d-%m-%y %T",
         )
 
         # TODO: better way of handling these on a case by case basis
