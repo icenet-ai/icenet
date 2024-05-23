@@ -96,6 +96,7 @@ class TensorflowNetwork(BaseNetwork):
         if save:
             logging.info("Saving network to: {}".format(self._weights_path))
             network.save_weights(self._weights_path)
+            logging.info("Saving model to: {}".format(self.model_path))
             save_model(network, self.model_path)
 
             with open(history_path, 'w') as fh:
@@ -145,19 +146,22 @@ class TensorflowNetwork(BaseNetwork):
 class HorovodNetwork(TensorflowNetwork):
     def __init__(self,
                  *args,
-                 device_type="XPU",
+                 device_type: str = None,
                  **kwargs):
         super().__init__(*args, **kwargs)
+
         import horovod.tensorflow.keras as hvd
         hvd.init()
 
-        gpus = tf.config.list_physical_devices(device_type)
-        logging.info("{} count is {}".format(device_type, len(gpus)))
+        if device_type in ("XPU", "GPU"):
+            devices = tf.config.list_physical_devices(device_type)
+            logging.info("{} count is {}".format(device_type, len(devices)))
 
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        if gpus:
-            tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'XPU')
+            for dev in devices:
+                tf.config.experimental.set_memory_growth(dev, True)
+
+            if devices:
+                tf.config.experimental.set_visible_devices(devices[hvd.local_rank()], device_type)
 
         self.add_callback(
             hvd.callbacks.BroadcastGlobalVariablesCallback(0)
@@ -166,12 +170,9 @@ class HorovodNetwork(TensorflowNetwork):
 
     def train(self,
               epochs: int,
-              learning_rate: float,
-              loss: object,
-              metrics: object,
               model_creator: callable,
               train_dataset: object,
-              model_creator_args: dict = None,
+              model_creator_kwargs: dict = None,
               save: bool = True,
               validation_dataset: object = None):
 
@@ -180,7 +181,7 @@ class HorovodNetwork(TensorflowNetwork):
                                         self.run_name, self.seed))
 
         # TODO: this is totally assuming the structure of model_creator :(
-        network = model_creator(**model_creator_args,
+        network = model_creator(**model_creator_kwargs,
                                 custom_optimizer=self._horovod.DistributedOptimizer(Adam(learning_rate)),
                                 experimental_run_tf_function=False)
 

@@ -96,8 +96,22 @@ def get_datasets(args):
 
 def horovod_main():
     args = TrainingArgParser().add_unet().add_horovod().add_wandb().parse_args()
-    dataset = get_datasets()
-    network = HorovodNetwork()
+    dataset = get_datasets(args)
+    network = HorovodNetwork(dataset,
+                             args.run_name,
+                             checkpoint_mode=args.checkpoint_mode,
+                             checkpoint_monitor=args.checkpoint_monitor,
+                             device_type=args.device_type,
+                             early_stopping_patience=args.early_stopping,
+                             data_queue_size=args.max_queue_size,
+                             lr_decay=(
+                                 args.lr_10e_decay_fac,
+                                 args.lr_decay_start,
+                                 args.lr_decay_end,
+                             ),
+                             pre_load_path=args.preload,
+                             seed=args.seed,
+                             verbose=args.verbose)
     execute_tf_training(args, dataset, network)
 
 

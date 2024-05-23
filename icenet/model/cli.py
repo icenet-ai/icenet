@@ -71,13 +71,9 @@ class TrainingArgParser(argparse.ArgumentParser):
         return self
 
     def add_horovod(self):
-        self.add_argument("-hv",
-                          "--horovod",
-                          default=False,
-                          action="store_true")
         self.add_argument("--device-type",
                           default=None,
-                          help="Choose a device type for distribution, if using")
+                          help="Choose a device type to detect, if using")
         return self
 
     def add_wandb(self):
