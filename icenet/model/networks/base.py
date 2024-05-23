@@ -28,7 +28,7 @@ class BaseNetwork:
                                                     dataset.identifier,
                                                     seed))
 
-        self._callbacks = list() if callbacks_default is None else self.get_callbacks()
+        self._callbacks = list() if callbacks_default is None else callbacks_default
         self._callbacks += callbacks_additional if callbacks_additional is not None else []
         self._dataset = dataset
         self._run_name = run_name
@@ -47,10 +47,8 @@ class BaseNetwork:
         random.seed(self._seed)
 
     def add_callback(self, callback):
+        logging.debug("Adding callback {}".format(callback))
         self._callbacks.append(callback)
-
-    def get_callbacks(self):
-        return list()
 
     @abstractmethod
     def train(self,

@@ -8,6 +8,7 @@ from icenet.model.utils import make_exp_decay_lr_schedule
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import horovod.tensorflow.keras as hvd
 
 from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
@@ -150,10 +151,8 @@ class HorovodNetwork(TensorflowNetwork):
                  **kwargs):
         super().__init__(*args, **kwargs)
 
-        import horovod.tensorflow.keras as hvd
-        hvd.init()
-
         if device_type in ("XPU", "GPU"):
+            logging.debug("Setting up {} devices".format(device_type))
             devices = tf.config.list_physical_devices(device_type)
             logging.info("{} count is {}".format(device_type, len(devices)))
 
@@ -166,7 +165,6 @@ class HorovodNetwork(TensorflowNetwork):
         self.add_callback(
             hvd.callbacks.BroadcastGlobalVariablesCallback(0)
         )
-        self._horovod = hvd
 
     def train(self,
               epochs: int,
@@ -181,25 +179,29 @@ class HorovodNetwork(TensorflowNetwork):
                                         self.run_name, self.seed))
 
         # TODO: this is totally assuming the structure of model_creator :(
+        logging.debug("Calling {} to create our model".format(model_creator))
         network = model_creator(**model_creator_kwargs,
-                                custom_optimizer=self._horovod.DistributedOptimizer(Adam(learning_rate)),
+                                custom_optimizer=hvd.DistributedOptimizer(Adam(model_creator_kwargs["learning_rate"])),
                                 experimental_run_tf_function=False)
-
+        logging.debug("Created model for rank {}".format(hvd.rank()))
+        
         if self._pre_load_path and os.path.exists(self._pre_load_path):
             logging.warning("Automagically loading network weights from {}".format(
                 self._pre_load_path))
             network.load_weights(self._pre_load_path)
 
-        network.summary()
+        if model_creator_kwargs["horovod"].rank() == 0:
+            network.summary()
 
+        logging.debug("Calling training loop")
         model_history = network.fit(
             train_dataset,
             epochs=epochs,
-            verbose=1 if self._horovod.rank() == 0 and self._verbose else 0,
+            verbose=1 if hvd.rank() == 0 and self._verbose else 0,
             callbacks=self.callbacks,
             validation_data=validation_dataset,
             max_queue_size=self._data_queue_size,
-            steps_per_epoch=self.dataset.counts["train"] // (self.dataset.batch_size * self._horovod.size()),
+            steps_per_epoch=self.dataset.counts["train"] // (self.dataset.batch_size * hvd.size()),
         )
 
         if save:
@@ -222,7 +224,7 @@ def unet_batchnorm(input_shape: object,
                    filter_size: float = 3,
                    n_filters_factor: float = 1,
                    n_forecast_days: int = 1,
-                   legacy_rounding: bool = False) -> object:
+                   legacy_rounding: bool = True) -> object:
     """
 
     :param input_shape:
