@@ -4,7 +4,6 @@ import time
 
 import tensorflow as tf
 import horovod.tensorflow.keras as hvd
-hvd.init()
 
 from icenet.data.dataset import IceNetDataSet, MergedIceNetDataSet
 from icenet.model.cli import TrainingArgParser
@@ -98,6 +97,7 @@ def get_datasets(args):
 
 def horovod_main():
     args = TrainingArgParser().add_unet().add_horovod().add_wandb().parse_args()
+    hvd.init()
 
     if args.device_type in ("XPU", "GPU"):
         logging.debug("Setting up {} devices".format(args.device_type))
@@ -115,7 +115,6 @@ def horovod_main():
                              args.run_name,
                              checkpoint_mode=args.checkpoint_mode,
                              checkpoint_monitor=args.checkpoint_monitor,
-                             device_type=args.device_type,
                              early_stopping_patience=args.early_stopping,
                              data_queue_size=args.max_queue_size,
                              lr_decay=(

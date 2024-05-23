@@ -90,6 +90,7 @@ class TensorflowNetwork(BaseNetwork):
             verbose=self._verbose,
             callbacks=self.callbacks,
             validation_data=validation_dataset,
+            # TODO: pretty sure this is redundant for non-keras.utils.Sequence, legacy inclusion!
             max_queue_size=self._data_queue_size,
         )
 
@@ -174,7 +175,7 @@ class HorovodNetwork(TensorflowNetwork):
                 self._pre_load_path))
             network.load_weights(self._pre_load_path)
 
-        if model_creator_kwargs["horovod"].rank() == 0:
+        if hvd.local_rank() == 0:
             network.summary()
 
         logging.debug("Calling training loop")
