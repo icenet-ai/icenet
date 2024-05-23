@@ -98,6 +98,18 @@ def get_datasets(args):
 
 def horovod_main():
     args = TrainingArgParser().add_unet().add_horovod().add_wandb().parse_args()
+
+    if args.device_type in ("XPU", "GPU"):
+        logging.debug("Setting up {} devices".format(args.device_type))
+        devices = tf.config.list_physical_devices(args.device_type)
+        logging.info("{} count is {}".format(args.device_type, len(devices)))
+
+        for dev in devices:
+            tf.config.experimental.set_memory_growth(dev, True)
+
+        if devices:
+            tf.config.experimental.set_visible_devices(devices[hvd.local_rank()], args.device_type)
+
     dataset = get_datasets(args)
     network = HorovodNetwork(dataset,
                              args.run_name,
@@ -114,6 +126,10 @@ def horovod_main():
                              pre_load_path=args.preload,
                              seed=args.seed,
                              verbose=args.verbose)
+    network.add_callback(
+        hvd.callbacks.BroadcastGlobalVariablesCallback(0)
+    )
+
     execute_tf_training(args, dataset, network)
 
 

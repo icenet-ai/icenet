@@ -8,7 +8,6 @@ from icenet.model.utils import make_exp_decay_lr_schedule
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import horovod.tensorflow.keras as hvd
 
 from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
@@ -145,27 +144,6 @@ class TensorflowNetwork(BaseNetwork):
 
 
 class HorovodNetwork(TensorflowNetwork):
-    def __init__(self,
-                 *args,
-                 device_type: str = None,
-                 **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if device_type in ("XPU", "GPU"):
-            logging.debug("Setting up {} devices".format(device_type))
-            devices = tf.config.list_physical_devices(device_type)
-            logging.info("{} count is {}".format(device_type, len(devices)))
-
-            for dev in devices:
-                tf.config.experimental.set_memory_growth(dev, True)
-
-            if devices:
-                tf.config.experimental.set_visible_devices(devices[hvd.local_rank()], device_type)
-
-        self.add_callback(
-            hvd.callbacks.BroadcastGlobalVariablesCallback(0)
-        )
-
     def train(self,
               epochs: int,
               model_creator: callable,
@@ -178,7 +156,13 @@ class HorovodNetwork(TensorflowNetwork):
                                     "{}_{}_history.json".format(
                                         self.run_name, self.seed))
 
-        # TODO: this is totally assuming the structure of model_creator :(
+        import horovod.tensorflow.keras as hvd
+
+        if hvd.is_initialized():
+            logging.info("Horovod is initialized when we call train, with {} members".format(hvd.size()))
+        else:
+            raise RuntimeError("Horovod is not initialized")
+
         logging.debug("Calling {} to create our model".format(model_creator))
         network = model_creator(**model_creator_kwargs,
                                 custom_optimizer=hvd.DistributedOptimizer(Adam(model_creator_kwargs["learning_rate"])),
