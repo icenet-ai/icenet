@@ -4,7 +4,6 @@ import logging
 wandb_available = False
 try:
     import wandb
-    import wandb.keras
     wandb_available = True
 except ModuleNotFoundError:
     pass
