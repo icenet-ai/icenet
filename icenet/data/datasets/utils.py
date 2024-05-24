@@ -241,7 +241,7 @@ class SplittingMixin:
 
                     if sw_nans > 0:
                         logging.warning(
-                            "SW NaNs detected in {}:{}, not accounted for by sample weighting".format(df, i))
+                            "SW NaNs detected in {}:{}".format(df, i))
             except tf.errors.DataLossError as e:
                 logging.warning("{}: data loss error {}".format(df, e.message))
             except tf.errors.OpError as e:
