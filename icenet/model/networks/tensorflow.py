@@ -103,10 +103,11 @@ class TensorflowNetwork(BaseNetwork):
             with open(history_path, 'w') as fh:
                 pd.DataFrame(model_history.history).to_json(fh)
 
-    def get_callbacks(self):
+    def get_default_callbacks(self):
         callbacks_list = list()
 
         if self._checkpoint_monitor is not None:
+            logging.info("Adding ModelCheckpoint callback")
             callbacks_list.append(
                 ModelCheckpoint(filepath=self._weights_path,
                                 monitor=self._checkpoint_monitor,
@@ -115,6 +116,7 @@ class TensorflowNetwork(BaseNetwork):
                                 save_best_only=True))
 
             if self._early_stopping_patience > 0:
+                logging.info("Adding EarlyStopping callback")
                 callbacks_list.append(
                     EarlyStopping(monitor=self._checkpoint_monitor,
                                   mode=self._checkpoint_mode,
@@ -123,6 +125,7 @@ class TensorflowNetwork(BaseNetwork):
                                   baseline=None))
 
         if self._lr_decay[0] > 0:
+            logging.info("ADding LearningRateScheduler callback")
             lr_decay = -0.1 * np.log(self._lr_decay[0])
 
             callbacks_list.append(
@@ -180,11 +183,11 @@ class HorovodNetwork(TensorflowNetwork):
 
         logging.debug("Calling training loop")
         model_history = network.fit(
-            train_dataset,
+            train_dataset.repeat(),
             epochs=epochs,
             verbose=1 if hvd.rank() == 0 and self._verbose else 0,
             callbacks=self.callbacks,
-            validation_data=validation_dataset,
+            validation_data=validation_dataset.repeat(),
             max_queue_size=self._data_queue_size,
             steps_per_epoch=self.dataset.counts["train"] // (self.dataset.batch_size * hvd.size()),
         )

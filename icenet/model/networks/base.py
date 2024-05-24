@@ -9,8 +9,8 @@ from abc import abstractmethod
 
 class BaseNetwork:
     def __init__(self,
-                 dataset: object,
                  run_name: object,
+                 dataset: object,
                  callbacks_additional: list = None,
                  callbacks_default: list = None,
                  network_folder: object = None,
@@ -25,10 +25,10 @@ class BaseNetwork:
 
         self._model_path = os.path.join(
             self._network_folder, "{}.model_{}.{}".format(run_name,
-                                                    dataset.identifier,
-                                                    seed))
+                                                          dataset.identifier,
+                                                          seed))
 
-        self._callbacks = list() if callbacks_default is None else callbacks_default
+        self._callbacks = self.get_default_callbacks() if callbacks_default is None else callbacks_default
         self._callbacks += callbacks_additional if callbacks_additional is not None else []
         self._dataset = dataset
         self._run_name = run_name
@@ -50,9 +50,11 @@ class BaseNetwork:
         logging.debug("Adding callback {}".format(callback))
         self._callbacks.append(callback)
 
+    def get_default_callbacks(self):
+        return list()
+
     @abstractmethod
     def train(self,
-              dataset: object,
               epochs: int,
               model_creator: callable,
               train_dataset: object,

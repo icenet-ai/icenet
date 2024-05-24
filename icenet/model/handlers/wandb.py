@@ -11,6 +11,16 @@ except ModuleNotFoundError:
 
 def init_wandb(cli_args):
     if wandb_available:
+        if cli_args.horovod:
+            try:
+                import horovod.tensorflow.keras as hvd
+            except ModuleNotFoundError:
+                raise RuntimeError("We're running horovod jobs without the module, eh?")
+
+            if hvd.rank() > 0:
+                logging.info("Not initialising wandb for rank {}".format(hvd.rank()))
+                return
+
         logging.warning("Initialising WANDB for this run at user request")
 
         run = wandb.init(

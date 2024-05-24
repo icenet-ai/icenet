@@ -71,6 +71,10 @@ class TrainingArgParser(argparse.ArgumentParser):
         return self
 
     def add_horovod(self):
+        self.add_argument("--no-horovod",
+                          dest="horovod",
+                          default=True,
+                          action="store_false")
         self.add_argument("--device-type",
                           default=None,
                           help="Choose a device type to detect, if using")

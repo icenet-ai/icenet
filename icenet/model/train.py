@@ -3,7 +3,11 @@ import logging
 import time
 
 import tensorflow as tf
-import horovod.tensorflow.keras as hvd
+
+try:
+    import horovod.tensorflow.keras as hvd
+except ModuleNotFoundError:
+    pass
 
 from icenet.data.dataset import IceNetDataSet, MergedIceNetDataSet
 from icenet.model.cli import TrainingArgParser
