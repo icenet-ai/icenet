@@ -30,25 +30,26 @@ class TensorflowNetwork(BaseNetwork):
                  tensorboard_logdir: str = None,
                  verbose: bool = False,
                  **kwargs):
-        super().__init__(*args, **kwargs)
-
         self._checkpoint_mode = checkpoint_mode
         self._checkpoint_monitor = checkpoint_monitor
-        self._data_queue_size = data_queue_size
         self._early_stopping_patience = early_stopping_patience
         self._lr_decay = lr_decay
         self._tensorboard_logdir = tensorboard_logdir
-        self._strategy = strategy
-        self._verbose = verbose
+
+        self._weights_path = os.path.join(
+            self.network_folder, "{}.network_{}.{}.h5".format(
+                self.run_name, self.dataset.identifier, self.seed))
+
+        super().__init__(*args, **kwargs)
 
         if pre_load_path is not None and not os.path.exists(pre_load_path):
             raise RuntimeError("{} is not available, so you cannot preload the "
                                "network with it!".format(pre_load_path))
         self._pre_load_path = pre_load_path
 
-        self._weights_path = os.path.join(
-            self.network_folder, "{}.network_{}.{}.h5".format(
-                self.run_name, self.dataset.identifier, self.seed))
+        self._data_queue_size = data_queue_size
+        self._strategy = strategy
+        self._verbose = verbose
 
     def _attempt_seed_setup(self):
         super()._attempt_seed_setup()
@@ -148,9 +149,6 @@ class TensorflowNetwork(BaseNetwork):
 
 
 class HorovodNetwork(TensorflowNetwork):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def train(self,
               epochs: int,
               model_creator: callable,
