@@ -36,11 +36,11 @@ class TensorflowNetwork(BaseNetwork):
         self._lr_decay = lr_decay
         self._tensorboard_logdir = tensorboard_logdir
 
+        super().__init__(*args, **kwargs)
+
         self._weights_path = os.path.join(
             self.network_folder, "{}.network_{}.{}.h5".format(
                 self.run_name, self.dataset.identifier, self.seed))
-
-        super().__init__(*args, **kwargs)
 
         if pre_load_path is not None and not os.path.exists(pre_load_path):
             raise RuntimeError("{} is not available, so you cannot preload the "
@@ -109,8 +109,11 @@ class TensorflowNetwork(BaseNetwork):
 
         if self._checkpoint_monitor is not None:
             logging.info("Adding ModelCheckpoint callback")
+            checkpoint_filestr = str(
+                os.path.join(self.network_folder,
+                             "checkpoint.{}.network_{}.{}.{}.h5".format(self.run_name, self.dataset.identifier, self.seed, "{epoch:03d}")))
             callbacks_list.append(
-                ModelCheckpoint(filepath=self._weights_path,
+                ModelCheckpoint(filepath=checkpoint_filestr,
                                 monitor=self._checkpoint_monitor,
                                 verbose=1,
                                 mode=self._checkpoint_mode,

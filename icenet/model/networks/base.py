@@ -28,11 +28,12 @@ class BaseNetwork:
                                                           dataset.identifier,
                                                           seed))
 
-        self._callbacks = self.get_default_callbacks() if callbacks_default is None else callbacks_default
-        self._callbacks += callbacks_additional if callbacks_additional is not None else []
         self._dataset = dataset
         self._run_name = run_name
         self._seed = seed
+
+        self._callbacks = self.get_default_callbacks() if callbacks_default is None else callbacks_default
+        self._callbacks += callbacks_additional if callbacks_additional is not None else []
 
         self._attempt_seed_setup()
 
