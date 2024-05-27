@@ -19,7 +19,7 @@ def init_wandb(cli_args):
 
             if hvd.rank() > 0:
                 logging.info("Not initialising wandb for rank {}".format(hvd.rank()))
-                return
+                return None, None
 
         logging.warning("Initialising WANDB for this run at user request")
 
