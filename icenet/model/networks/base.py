@@ -9,8 +9,8 @@ from abc import abstractmethod
 
 class BaseNetwork:
     def __init__(self,
-                 run_name: object,
                  dataset: object,
+                 run_name: object,
                  callbacks_additional: list = None,
                  callbacks_default: list = None,
                  network_folder: object = None,
