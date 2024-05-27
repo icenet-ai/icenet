@@ -148,6 +148,9 @@ class TensorflowNetwork(BaseNetwork):
 
 
 class HorovodNetwork(TensorflowNetwork):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     def train(self,
               epochs: int,
               model_creator: callable,
