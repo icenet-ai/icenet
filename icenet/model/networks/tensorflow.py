@@ -197,13 +197,20 @@ class HorovodNetwork(TensorflowNetwork):
             validation_steps=self.dataset.counts["val"] // (self.dataset.batch_size * hvd.size()),
         )
 
-        if save:
+        if save and hvd.rank() == 0:
             logging.info("Saving network to: {}".format(self._weights_path))
             network.save_weights(self._weights_path)
             save_model(network, self.model_path)
 
             with open(history_path, 'w') as fh:
                 pd.DataFrame(model_history.history).to_json(fh)
+
+    def get_default_callbacks(self):
+        import horovod.tensorflow.keras as hvd
+
+        if hvd.rank() == 0:
+            return super().get_default_callbacks()
+        return []
 
 
 ### Network architectures:
