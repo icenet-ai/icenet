@@ -129,7 +129,9 @@ def horovod_main():
         hvd.callbacks.BroadcastGlobalVariablesCallback(0)
     )
 
-    execute_tf_training(args, dataset, network)
+    execute_tf_training(args, dataset, network,
+                        save=hvd.rank() == 0,
+                        evaluate=hvd.rank() == 0)
 
 
 def tensorflow_main():
@@ -152,7 +154,9 @@ def tensorflow_main():
     execute_tf_training(args, dataset, network)
 
 
-def execute_tf_training(args, dataset, network):
+def execute_tf_training(args, dataset, network,
+                        save=True,
+                        evaluate=True):
     # There is a better way of doing this by passing off to a dynamic factory
     # for other integrations, but for the moment I have no shame
     using_wandb = False
@@ -189,15 +193,16 @@ def execute_tf_training(args, dataset, network):
             n_filters_factor=args.n_filters_factor,
             n_forecast_days=dataset.n_forecast_days,
         ),
-        save=True,
+        save=save,
         validation_dataset=val_ds
     )
 
-    results, metric_names, leads = \
-        evaluate_model(network.model_path,
-                       dataset,
-                       dataset_ratio=args.ratio)
+    if evaluate:
+        results, metric_names, leads = \
+            evaluate_model(network.model_path,
+                           dataset,
+                           dataset_ratio=args.ratio)
 
-    if using_wandb:
-        finalise_wandb(run, results, metric_names, leads)
+        if using_wandb:
+            finalise_wandb(run, results, metric_names, leads)
 
