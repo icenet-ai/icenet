@@ -21,14 +21,12 @@ import icenet.model.metrics as metrics
 
 def evaluate_model(model_path: object,
                    dataset: object,
-                   dataset_ratio: float = 1.0,
-                   max_queue_size: int = 3):
+                   dataset_ratio: float = 1.0):
     """
 
     :param model_path:
     :param dataset:
     :param dataset_ratio:
-    :param max_queue_size:
     """
     logging.info("Running evaluation against test set")
     network = load_model(model_path, compile=False)
@@ -119,7 +117,6 @@ def horovod_main():
                              checkpoint_mode=args.checkpoint_mode,
                              checkpoint_monitor=args.checkpoint_monitor,
                              early_stopping_patience=args.early_stopping,
-                             data_queue_size=args.max_queue_size,
                              lr_decay=(
                                  args.lr_10e_decay_fac,
                                  args.lr_decay_start,
@@ -143,7 +140,6 @@ def tensorflow_main():
                                 checkpoint_mode=args.checkpoint_mode,
                                 checkpoint_monitor=args.checkpoint_monitor,
                                 early_stopping_patience=args.early_stopping,
-                                data_queue_size=args.max_queue_size,
                                 lr_decay=(
                                     args.lr_10e_decay_fac,
                                     args.lr_decay_start,
@@ -200,8 +196,7 @@ def execute_tf_training(args, dataset, network):
     results, metric_names, leads = \
         evaluate_model(network.model_path,
                        dataset,
-                       dataset_ratio=args.ratio,
-                       max_queue_size=args.max_queue_size)
+                       dataset_ratio=args.ratio)
 
     if using_wandb:
         finalise_wandb(run, results, metric_names, leads)

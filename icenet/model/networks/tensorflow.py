@@ -23,7 +23,6 @@ class TensorflowNetwork(BaseNetwork):
                  checkpoint_mode: str = "min",
                  checkpoint_monitor: str = None,
                  early_stopping_patience: int = 0,
-                 data_queue_size: int = 10,
                  lr_decay: tuple = (1.0, 0, 0),
                  pre_load_path: str = None,
                  strategy: str = None,
@@ -47,7 +46,6 @@ class TensorflowNetwork(BaseNetwork):
                                "network with it!".format(pre_load_path))
         self._pre_load_path = pre_load_path
 
-        self._data_queue_size = data_queue_size
         self._strategy = strategy
         self._verbose = verbose
 
@@ -91,8 +89,6 @@ class TensorflowNetwork(BaseNetwork):
             verbose=self._verbose,
             callbacks=self.callbacks,
             validation_data=validation_dataset,
-            # TODO: pretty sure this is redundant for non-keras.utils.Sequence, legacy inclusion!
-            max_queue_size=self._data_queue_size,
         )
 
         if save:
@@ -192,7 +188,6 @@ class HorovodNetwork(TensorflowNetwork):
             verbose=1 if hvd.rank() == 0 and self._verbose else 0,
             callbacks=self.callbacks,
             validation_data=validation_dataset.repeat(),
-            max_queue_size=self._data_queue_size,
             steps_per_epoch=self.dataset.counts["train"] // (self.dataset.batch_size * hvd.size()),
             validation_steps=self.dataset.counts["val"] // (self.dataset.batch_size * hvd.size()),
         )

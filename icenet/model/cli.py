@@ -41,7 +41,6 @@ class TrainingArgParser(argparse.ArgumentParser):
         self.add_argument("-e", "--epochs", type=int, default=4)
         self.add_argument("--early-stopping", type=int, default=50)
         self.add_argument("-p", "--preload", type=str)
-        self.add_argument("-qs", "--max-queue-size", default=10, type=int)
         self.add_argument("-r", "--ratio", default=1.0, type=float)
         self.add_argument("--shuffle-train",
                           default=False,
