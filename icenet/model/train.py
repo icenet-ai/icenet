@@ -65,8 +65,7 @@ def evaluate_model(model_path: object,
     results = network.evaluate(
         eval_data,
         return_dict=True,
-        verbose=0,
-        max_queue_size=max_queue_size
+        verbose=2
     )
 
     results_path = "{}.results.json".format(model_path)
