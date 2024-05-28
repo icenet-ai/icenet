@@ -24,7 +24,7 @@ class TensorflowNetwork(BaseNetwork):
                  checkpoint_monitor: str = None,
                  early_stopping_patience: int = 0,
                  data_queue_size: int = 10,
-                 lr_decay: tuple = (0, 0, 0),
+                 lr_decay: tuple = (1.0, 0, 0),
                  pre_load_path: str = None,
                  strategy: str = None,
                  tensorboard_logdir: str = None,
@@ -128,7 +128,7 @@ class TensorflowNetwork(BaseNetwork):
                                   patience=self._early_stopping_patience,
                                   baseline=None))
 
-        if self._lr_decay[0] > 0:
+        if self._lr_decay[0] != 1.0:
             logging.info("ADding LearningRateScheduler callback")
             lr_decay = -0.1 * np.log(self._lr_decay[0])
 
@@ -194,6 +194,7 @@ class HorovodNetwork(TensorflowNetwork):
             validation_data=validation_dataset.repeat(),
             max_queue_size=self._data_queue_size,
             steps_per_epoch=self.dataset.counts["train"] // (self.dataset.batch_size * hvd.size()),
+            validation_steps=self.dataset.counts["val"] // (self.dataset.batch_size * hvd.size()),
         )
 
         if save:
