@@ -10,19 +10,19 @@ import pandas as pd
 from icenet.data.datasets.utils import SplittingMixin
 from icenet.data.loader import IceNetDataLoaderFactory
 from icenet.data.producers import DataCollection
-from icenet.utils import setup_logging
+from icenet.utils import (
+    setup_module_logging,
+    setup_logging,
+    check_pytorch_import
+)
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
+logger = setup_module_logging(__name__)
 
-pytorch_available = False
-try:
+pytorch_available = check_pytorch_import(logger)
+
+if pytorch_available:
     from torch.utils.data import Dataset
-    pytorch_available = True
-except ModuleNotFoundError:
-    print("PyTorch not found - not required if not using PyTorch")
-except ImportError:
-    print("PyTorch import failed - not required if not using PyTorch")
+
 
 """
 
@@ -380,6 +380,7 @@ if pytorch_available:
         @property
         def dates(self):
             return self._dates
+
 
 @setup_logging
 def get_args() -> object:
