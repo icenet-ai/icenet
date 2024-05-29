@@ -18,6 +18,7 @@ logger.setLevel(logging.WARNING)
 pytorch_available = False
 try:
     from torch.utils.data import Dataset
+    pytorch_available = True
 except ModuleNotFoundError:
     print("PyTorch not found - not required if not using PyTorch")
 except ImportError:
