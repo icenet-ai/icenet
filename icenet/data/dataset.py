@@ -20,9 +20,9 @@ try:
     from torch.utils.data import Dataset
     pytorch_available = True
 except ModuleNotFoundError:
-    print("PyTorch not found - not required if not using PyTorch")
+    logger.error("PyTorch not found - not required if not using PyTorch")
 except ImportError:
-    print("PyTorch import failed - not required if not using PyTorch")
+    logger.error("PyTorch import failed - not required if not using PyTorch")
 
 """
 
