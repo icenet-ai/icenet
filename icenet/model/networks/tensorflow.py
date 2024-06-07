@@ -76,6 +76,8 @@ class TensorflowNetwork(BaseNetwork):
         with strategy.scope():
             network = model_creator(**model_creator_kwargs)
 
+        # TODO: consider using .keras format throughout
+        # TODO: need to consider pre_load / create and save functionality for checkpoint recovery
         if self._pre_load_path and os.path.exists(self._pre_load_path):
             logging.warning("Automagically loading network weights from {}".format(
                 self._pre_load_path))
