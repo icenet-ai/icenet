@@ -10,9 +10,11 @@ import xarray as xr
 from icenet.data.cli import download_args
 from icenet.data.interfaces.downloader import ClimateDownloader
 from icenet.utils import run_command
+from icenet.exceptions import CredentialsNotFoundError
 """
-DATASET: global-reanalysis-phy-001-031-grepv2-daily
-FTP ENDPOINT: ftp://my.cmems-du.eu/Core/GLOBAL_REANALYSIS_PHY_001_031/global-reanalysis-phy-001-031-grepv2-daily/1993/01/
+DATASET: cmems_mod_glo_phy-all_my_0.25deg_P1D-m
+PRODUCT ID: GLOBAL_MULTIYEAR_PHY_ENS_001_031
+DESCRIPTION: https://data.marine.copernicus.eu/product/GLOBAL_MULTIYEAR_PHY_ENS_001_031/description
 
 """
 
@@ -25,13 +27,6 @@ class ORAS5Downloader(ClimateDownloader):
     :param identifier: how to identify this dataset
     :param var_map: override the default ERA5Downloader.CDI_MAP variable map
     """
-    ENDPOINTS = {
-        # TODO: See #49 - not yet used
-        "cas": "https://cmems-cas.cls.fr/cas/login",
-        "dap": "https://my.cmems-du.eu/thredds/dodsC/{dataset}",
-        "motu": "https://my.cmems-du.eu/motu-web/Motu",
-    }
-
     VAR_MAP = {
         "thetao": "thetao_oras",  # sea_water_potential_temperature
         "so": "so_oras",  # sea_water_salinity
@@ -45,10 +40,9 @@ class ORAS5Downloader(ClimateDownloader):
     def __init__(self,
                  *args,
                  cred_file: str = os.path.expandvars("$HOME/.cmems.creds"),
-                 dataset: str = "global-reanalysis-phy-001-031-grepv2-daily",
+                 dataset: str = "cmems_mod_glo_phy-all_my_0.25deg_P1D-m",
                  identifier: str = "oras5",
                  max_failures: int = 3,
-                 service: str = "GLOBAL_REANALYSIS_PHY_001_031-TDS",
                  var_map: object = None,
                  **kwargs):
         super().__init__(*args,
@@ -56,12 +50,32 @@ class ORAS5Downloader(ClimateDownloader):
                          identifier=identifier,
                          **kwargs)
 
-        cp = configparser.ConfigParser(default_section="auth")
-        cp.read(cred_file)
-        self._creds = dict(cp["auth"])
+        env_username_var = "COPERNICUSMARINE_SERVICE_USERNAME"
+        env_password_var = "COPERNICUSMARINE_SERVICE_PASSWORD"
+        check_env_variables = set([env_username_var, env_password_var]).issubset(os.environ)
+        if os.path.exists(cred_file):
+            cp = configparser.ConfigParser(default_section="auth")
+            cp.read(cred_file)
+            self._creds = dict(cp["auth"])
+        elif check_env_variables:
+            self._creds = dict({
+                                  "username": os.environ[env_username_var],
+                                  "password": os.environ[env_password_var],
+                              })
+        else:
+            error_message = """Copernicus Marine credentials not found here: `{}`. \
+                              Please either add user details to the file, \
+                              or set environment variables \
+                              `{}` and \
+                              `{}`
+                           """.format("$HOME/.cmems.creds",
+                                      env_username_var,
+                                      env_password_var
+                                     )
+            raise CredentialsNotFoundError(" ".join(error_message.split()))
+
         self._dataset = dataset
         self._max_failures = max_failures
-        self._service = service
         self._var_map = var_map if var_map else ORAS5Downloader.VAR_MAP
 
         assert self._max_threads <= 8, "Too many request threads for ORAS5 " \
@@ -79,11 +93,20 @@ class ORAS5Downloader(ClimateDownloader):
         :param var:
         :param download_path:
         """
-        logging.info("Postprocessing {} to {}".format(var, download_path))
-        ds = xr.open_dataset(download_path)
+        logging.info(
+            "Postprocessing Copernicus Marine data for variable `{}` at {}"
+              .format(var, download_path)
+        )
+
+        temp_path = "{}.bak{}".format(*os.path.splitext(download_path))
+        logging.debug("Moving to {}".format(temp_path))
+        os.rename(download_path, temp_path)
+
+        ds = xr.open_dataset(temp_path)
 
         da = getattr(ds, self._var_map[var]).rename(var)
-        da = da.mean("depth").compute()
+        if "depth" in list(ds.coords):
+            da = da.mean("depth").compute()
         da.to_netcdf(download_path)
 
     def _single_motu_download(self, var: str, level: object, req_dates: int,
@@ -100,25 +123,24 @@ class ORAS5Downloader(ClimateDownloader):
         success = False
 
         cmd = \
-            """motuclient --quiet --motu {} \
-                    --service-id {} \
-                    --product-id {} \
-                    --longitude-min -180 \
-                    --longitude-max 179.75 \
-                    --latitude-min {} \
-                    --latitude-max {} \
-                    --date-min "{} 00:00:00" \
-                    --date-max "{} 00:00:00" \
-                    --depth-min 0.5056 \
-                    --depth-max 0.5059 \
-                    --variable {} \
-                    --out-dir {} \
-                    --out-name {} \
-                    --user {} \
-                    --pwd '{}' \
-            """.format(self.ENDPOINTS['motu'],
-                       self._service,
-                       self._dataset,
+            """copernicusmarine subset \
+                    -i {} \
+                    -x -180 \
+                    -X 179.75 \
+                    -y {} \
+                    -Y {} \
+                    -z 0.5056 \
+                    -Z 0.5059 \
+                    -t '{}T00:00:00' \
+                    -T '{}T00:00:00' \
+                    -v {} \
+                    -o {} \
+                    -f {} \
+                    --username {} \
+                    --password '{}' \
+                    --no-metadata-cache \
+                    --force-download \
+            """.format(self._dataset,
                        self.hemisphere_loc[2],
                        self.hemisphere_loc[0],
                        req_dates[0].strftime("%Y-%m-%d"),
@@ -127,14 +149,17 @@ class ORAS5Downloader(ClimateDownloader):
                        os.path.split(download_path)[0],
                        os.path.split(download_path)[1],
                        self._creds['username'],
-                       self._creds['password'])
+                       self._creds['password']
+                      )
+
+        cmd = " ".join(cmd.split())
 
         tic = time.time()
         while not success:
             logging.debug("Attempt {}".format(attempts))
 
             ret = run_command(cmd)
-            if ret.returncode != 0 or not os.path.exists(download_path):
+            if ret.returncode != 0 or not os.path.exists(download_path + ".nc"):
                 attempts += 1
                 if attempts > self._max_failures:
                     logging.error(
@@ -146,6 +171,8 @@ class ORAS5Downloader(ClimateDownloader):
                 success = True
 
         if success:
+            # Copernicus Marine toolbox outputs with ".nc" extension
+            os.rename(download_path + ".nc", download_path)
             dur = time.time() - tic
             logging.debug("Done in {}m:{:.0f}s. ".format(
                 np.floor(dur / 60), dur % 60))
