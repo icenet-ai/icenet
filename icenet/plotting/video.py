@@ -84,6 +84,7 @@ def xarray_to_video(
     imshow_kwargs: dict = None,
     ax_init: object = None,
     ax_extra: callable = None,
+    colorbar_label: str = '',
 ) -> object:
     """
     Generate video of an xarray.DataArray. Optionally input a list of
@@ -187,7 +188,10 @@ def xarray_to_video(
     try:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05, zorder=2)
-        plt.colorbar(image, cax)
+        cbar = plt.colorbar(image, cax)
+        if colorbar_label:
+            cbar.set_label(colorbar_label)
+            fig.subplots_adjust(right=0.85)
     except KeyError as ex:
         logging.warning("Could not configure locatable colorbar: {}".format(ex))
 
