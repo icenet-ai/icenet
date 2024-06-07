@@ -31,7 +31,6 @@ setup(
         "Natural Language :: English",
         "Operating System :: POSIX",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
@@ -97,7 +96,7 @@ setup(
             "icenet.results.threshold:threshold_main"
         ],
         },
-    python_requires='>=3.8, <3.12',
+    python_requires='>=3.9, <3.12',
     install_requires=get_content("requirements.txt"),
     include_package_data=True,
     extras_require={
