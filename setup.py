@@ -66,7 +66,9 @@ setup(
             "icenet_dataset_check = icenet.data.dataset:check_dataset",
             "icenet_dataset_create = icenet.data.loader:create",
 
-            "icenet_train = icenet.model.train:main",
+            "icenet_train_horovod = icenet.model.train:horovod_main",
+            "icenet_train_tensorflow = icenet.model.train:tensorflow_main",
+
             "icenet_predict = icenet.model.predict:main",
             "icenet_upload_azure = icenet.process.azure:upload",
             "icenet_upload_local = icenet.process.local:upload",

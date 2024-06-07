@@ -21,7 +21,7 @@ import dask.array as da
 import xarray as xr
 
 from icenet import __version__ as icenet_version
-from icenet.data.cli import date_arg
+from icenet.cli import date_arg
 from icenet.data.sic.mask import Masks
 from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_ds,
                                    get_obs_da, get_seas_forecast_da,

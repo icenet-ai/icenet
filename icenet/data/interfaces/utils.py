@@ -7,7 +7,7 @@ import os
 import pandas as pd
 import xarray as xr
 
-from icenet.utils import setup_logging
+from icenet.cli import setup_logging
 
 
 def batch_requested_dates(dates: object, attribute: str = "month") -> object:

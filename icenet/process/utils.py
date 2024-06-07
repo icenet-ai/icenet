@@ -1,18 +1,4 @@
-import datetime as dt
-import re
 import os
-
-
-def date_arg(string: str) -> object:
-    """
-
-    :param string:
-    :return:
-    """
-    d_match = re.search(r'^(\d+)-(\d+)-(\d+)$', string).groups()
-
-    if d_match:
-        return dt.date(*[int(s) for s in d_match])
 
 
 def destination_filename(destination: object, filename: str,

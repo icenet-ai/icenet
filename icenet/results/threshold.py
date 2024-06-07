@@ -4,8 +4,7 @@ import logging
 import numpy as np
 import xarray as xr
 
-from icenet.data.cli import date_arg
-from icenet.utils import setup_logging
+from icenet.cli import date_arg, setup_logging
 
 
 def threshold_exceeds(da: object,

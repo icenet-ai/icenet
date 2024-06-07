@@ -6,7 +6,7 @@ import numpy as np
 
 from icenet.data.loaders import IceNetDataLoaderFactory
 from icenet.data.cli import add_date_args, process_date_args
-from icenet.utils import setup_logging
+from icenet.cli import setup_logging
 """
 
 """
