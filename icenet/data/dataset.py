@@ -10,18 +10,20 @@ import pandas as pd
 from icenet.data.datasets.utils import SplittingMixin
 from icenet.data.loader import IceNetDataLoaderFactory
 from icenet.data.producers import DataCollection
-from icenet.cli import setup_logging
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
+from icenet.utils import (
+    setup_module_logging,
+    setup_logging,
+    check_pytorch_import
+)
 
-pytorch_available = False
-try:
+logger = setup_module_logging(__name__)
+
+pytorch_available = check_pytorch_import(logger)
+
+if pytorch_available:
     from torch.utils.data import Dataset
-except ModuleNotFoundError:
-    print("PyTorch not found - not required if not using PyTorch")
-except ImportError:
-    print("PyTorch import failed - not required if not using PyTorch")
+
 
 """
 
@@ -87,7 +89,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         self._counts = self._config["counts"]
         self._dtype = getattr(np, self._config["dtype"])
         self._loader_config = self._config["loader_config"]
-        self._generate_workers = self._config["generate_workers"]
+        self._generate_workers = self._config.get("generate_workers", 4)
         self._n_forecast_days = self._config["n_forecast_days"]
         self._num_channels = self._config["num_channels"]
         self._shape = tuple(self._config["shape"])
@@ -147,7 +149,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         if n_forecast_days is None:
             n_forecast_days = self._config["n_forecast_days"]
         if generate_workers is None:
-            generate_workers = self._config["generate_workers"]
+            generate_workers = self._config.get("generate_workers", 4)
         loader = IceNetDataLoaderFactory().create_data_loader(
             "dask",  # This will load the `DaskMultiWorkerLoader` class.
             self.loader_config,
@@ -379,6 +381,7 @@ if pytorch_available:
         @property
         def dates(self):
             return self._dates
+
 
 @setup_logging
 def get_args() -> object:
