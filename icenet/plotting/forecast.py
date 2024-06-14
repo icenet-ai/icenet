@@ -1127,10 +1127,10 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
     logging.debug("Bounds of differences: {} - {}".format(
         diff_vmin, diff_vmax))
 
-    sic_cmap = mpl.cm.get_cmap("Blues_r", 20)
+    sic_cmap = plt.get_cmap("Blues_r", 20)
     contour_kwargs = dict(vmin=0, vmax=1, cmap=sic_cmap)
 
-    diff_cmap = mpl.cm.get_cmap("RdBu_r", 20)
+    diff_cmap = plt.get_cmap("RdBu_r", 20)
     im1 = maps[0].imshow(fc_plot, **contour_kwargs)
     im2 = maps[1].imshow(obs_plot, **contour_kwargs)
     im3 = maps[2].imshow(diff_plot,
@@ -1599,7 +1599,7 @@ def plot_forecast():
         cmap_name = args.cmap_name
 
     logging.info("Using cmap {}".format(cmap_name))
-    cmap = cm.get_cmap(cmap_name)
+    cmap = plt.get_cmap(cmap_name)
     cmap.set_bad("dimgrey")
 
     if args.region is not None:
