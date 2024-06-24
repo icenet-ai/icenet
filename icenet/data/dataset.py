@@ -17,7 +17,9 @@ logger.setLevel(logging.WARNING)
 
 pytorch_available = False
 try:
-    from torch.utils.data import Dataset
+    import torch
+    from torch.utils.data import Dataset, IterableDataset
+    from torchdata.datapipes.iter import FileOpener
 except ModuleNotFoundError:
     print("PyTorch not found - not required if not using PyTorch")
 except ImportError:
@@ -379,6 +381,80 @@ if pytorch_available:
         @property
         def dates(self):
             return self._dates
+            
+    class IterableIceNetDataSetPyTorch(IterableDataset):
+        """
+        Initialises and configures an iterable PyTorch dataset.
+        Works with cached (tfrecord) and non-cached (config only) datasets but
+        is designed for use with cached datasets.
+        """
+        def __init__(self,
+                    configuration_path: str,
+                    mode: str,
+                    batch_size: int = 1,
+                    shuffling: bool = False,
+                    ):
+            self._ds = IceNetDataSet(configuration_path=configuration_path,
+                                    batch_size=batch_size,
+                                    shuffling=shuffling)
+            self._dl = self._ds.get_data_loader()
+            self._i = 0
+
+            # check mode option
+            if mode not in ["train", "val", "test"]:
+                raise ValueError("mode must be either 'train', 'val', 'test'")
+            self._mode = mode
+
+            self._dates = self._dl._config["sources"]["osisaf"]["dates"][self._mode]
+
+            # load from tfrecords if processed
+            self._processed = False
+            if (len(self._ds.train_fns) + len(self._ds.val_fns) + len(self._ds.test_fns)) > 0:
+                self._processed = True
+                mode_to_filenames = {"train": self._ds.train_fns, "val": self._ds.val_fns, "test": self._ds.test_fns}
+                filenames = mode_to_filenames[self._mode]
+                self._datapipe = FileOpener(filenames, mode="b", length=len(filenames))
+
+        def __len__(self):
+            return self._ds._counts[self._mode]
+
+        def __iter__(self):
+            return self
+        
+        def __next__(self):
+            """Return next sample in sequence.
+            """
+            if self._i < len(self):
+                self._i += 1
+                if self._processed:
+                    for sample in self._datapipe.load_from_tfrecord():
+                        x, y, sw = sample["x"].numpy(), sample["y"].numpy(), sample["sample_weights"].numpy()
+                        x = x.reshape(self._ds.shape + (-1,))
+                        y = y.reshape(self._ds.shape + (-1,))
+                        sw = sw.reshape(self._ds.shape + (-1,))
+                        x, y, sw = torch.from_numpy(x), torch.from_numpy(y), torch.from_numpy(sw)
+                        x = x.permute(2, 0, 1)  # put channel to first dimension for pytorch
+                        y = y.squeeze(-1).permute(2, 0, 1)  # collapse repeated dimension and put channel first
+                        sw = sw.squeeze(-1).permute(2, 0, 1)  # collapse repeated dimension and put channel first
+                        return x, y, sw
+                else:
+                    x, y, sw = self._dl.generate_sample(date=pd.Timestamp(self._dates[self._i].replace('_', '-')),
+                                                parallel=False)
+                    x, y, sw = torch.from_numpy(x), torch.from_numpy(y), torch.from_numpy(sw)
+                    x = x.permute(2, 0, 1)  # put channel to first dimension for pytorch
+                    y = y.squeeze(-1).permute(2, 0, 1)  # collapse repeated dimension and put channel first
+                    sw = sw.squeeze(-1).permute(2, 0, 1)  # collapse repeated dimension and put channel first
+                    return x, y, sw
+            else:
+                raise StopIteration()
+
+        def get_data_loader(self):
+            return self._ds.get_data_loader()
+        
+        @property
+        def dates(self):
+            return self._dates
+
 
 @setup_logging
 def get_args() -> object:
