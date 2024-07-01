@@ -7,6 +7,7 @@ import sys
 from datetime import timedelta
 
 import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import matplotlib as mpl
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
@@ -1714,11 +1715,13 @@ def plot_forecast():
                                 )
                 im = ax.pcolormesh(lon, lat, pred_da, transform=target_crs, vmin=0, vmax=1, cmap=cmap)
                 if not args.no_coastlines:
+                    # ax.add_feature(cfeature.LAND)
+                    # ax.add_feature(cfeature.COASTLINE)
                     ax.coastlines()
                 if args.gridlines:
-                    gl = ax.gridlines(crs=target_crs, draw_labels=True)
-                    gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
-                    gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
+                    gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
+                    # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
+                    # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
                 if i == 0 and args.region_reference:
                     boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
