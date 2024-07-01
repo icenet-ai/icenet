@@ -1392,7 +1392,7 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           "--region-lat-lon",
                           default=None,
                           type=region_arg,
-                          help="Region specified as lon and lat min/max: x1, y1, x2, y2")
+                          help="Region specified as lon and lat min/max: lon_min, lat_min, lon_max, lat_max")
         self.add_argument("-x",
                           "--region-reference",
                           action="store_true",
