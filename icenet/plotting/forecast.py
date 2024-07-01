@@ -6,6 +6,7 @@ import sys
 
 from datetime import timedelta
 
+import cartopy.crs as ccrs
 import matplotlib as mpl
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
@@ -27,7 +28,7 @@ from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_ds,
                                    get_obs_da, get_seas_forecast_da,
                                    get_seas_forecast_init_dates, show_img,
                                    get_plot_axes, process_probes,
-                                   process_regions)
+                                   process_regions, lat_lon_box)
 from icenet.plotting.video import xarray_to_video
 
 
@@ -1384,6 +1385,16 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           default=None,
                           type=region_arg,
                           help="Region specified x1, y1, x2, y2")
+        self.add_argument("-z",
+                          "--region-lat-lon",
+                          default=None,
+                          type=region_arg,
+                          help="Region specified as lon and lat min/max: x1, y1, x2, y2")
+        self.add_argument("-x",
+                          "--region-reference",
+                          default=None,
+                          type=region_arg,
+                          help="Enable outputting a reference image showing clipped region in world map")
 
     def allow_ecmwf(self):
         self.add_argument("-b",
@@ -1603,7 +1614,9 @@ def plot_forecast():
     cmap.set_bad("dimgrey")
 
     if args.region is not None:
-        fc = process_regions(args.region, [fc])[0]
+        fc = process_regions(args.region, [fc], method="pixel")[0]
+    elif args.region_lat_lon is not None:
+        fc = process_regions(args.region_lat_lon, [fc], method="lat_lon")[0]
 
     vmax = 1.
 
@@ -1648,7 +1661,7 @@ def plot_forecast():
                         video_path=output_filename,
                         **anim_args)
     else:
-        for leadtime in leadtimes:
+        for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
             bound_args = dict(north=args.hemisphere == "north",
                               south=args.hemisphere == "south")
@@ -1658,17 +1671,49 @@ def plot_forecast():
                                   x2=args.region[2],
                                   y1=args.region[1],
                                   y2=args.region[3])
+            elif args.region_lat_lon is not None:
+                bound_args.update(x1=args.region_lat_lon[0],
+                                  x2=args.region_lat_lon[2],
+                                  y1=args.region_lat_lon[1],
+                                  y2=args.region_lat_lon[3])
 
-            ax = get_plot_axes(**bound_args,
-                               do_coastlines=not args.no_coastlines)
 
-            bound_args.update(cmap=cmap)
+            if args.region is not None:
+                ax = get_plot_axes(**bound_args,
+                                do_coastlines=not args.no_coastlines)
 
-            im = show_img(ax,
-                          pred_da,
-                          **bound_args,
-                          vmax=vmax,
-                          do_coastlines=not args.no_coastlines)
+                bound_args.update(cmap=cmap)
+
+                im = show_img(ax,
+                            pred_da,
+                            **bound_args,
+                            vmax=vmax,
+                            do_coastlines=not args.no_coastlines)
+            elif args.region_lat_lon is not None:
+                pole = 1 if bound_args["north"] else -1
+                source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90)
+                target_crs = ccrs.PlateCarree()
+
+                lon, lat = fc.lon.values, fc.lat.values
+                transformed_coords = source_crs.transform_points(target_crs, lon, lat)
+
+                x = transformed_coords[:, :, 0]
+                y = transformed_coords[:, :, 1]
+
+                boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
+                fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
+                # ax = plt.axes(projection=target_crs)
+                ax = get_plot_axes(**bound_args,
+                                do_coastlines=not args.no_coastlines,
+                                proj=target_crs
+                                )
+                im = ax.pcolormesh(x, y, pred_da, transform=source_crs, vmin=0, vmax=1, cmap="viridis")
+                ax.plot(boxlon, boxlat, transform=ccrs.PlateCarree(), color="red")
+                extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
+                ax.set_extent(extent)
+                # ax.set_global()
+                if not args.no_coastlines:
+                    ax.coastlines()
 
             plt.colorbar(im, ax=ax)
             plot_date = args.forecast_date + dt.timedelta(leadtime)

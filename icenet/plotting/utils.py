@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from functools import cache
 from ibicus.debias import LinearScaling
 
 
@@ -323,7 +324,9 @@ def get_plot_axes(x1: int = 0,
                   y2: int = 432,
                   do_coastlines: bool = True,
                   north: bool = True,
-                  south: bool = False):
+                  south: bool = False,
+                  proj = None,
+                  ):
     """
 
     :param x1:
@@ -339,12 +342,14 @@ def get_plot_axes(x1: int = 0,
 
     fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
 
-    if do_coastlines:
+    if do_coastlines or proj is not None:
         pole = 1 if north else -1
-        proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
+        if not proj:
+            proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
         ax = fig.add_subplot(1, 1, 1, projection=proj)
-        extents = calculate_extents(x1, x2, y1, y2)
-        ax.set_extent(extents, crs=proj)
+        if not proj:
+            extents = calculate_extents(x1, x2, y1, y2)
+            ax.set_extent(extents, crs=proj)
     else:
         ax = fig.add_subplot(1, 1, 1)
 
@@ -422,11 +427,12 @@ def process_probes(probes, data) -> tuple:
     return data
 
 
-def process_regions(region: tuple, data: tuple) -> tuple:
-    """
+def process_regions(region: tuple, data: tuple, method: str = "pixel") -> tuple:
+    """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
-    :param region:
-    :param data:
+    :param region: Either image pixel bounds, or lat/lon bounds.
+    :param data: Contains the full xarray DataArray.
+    :param method: Whether providing pixel coordinates or lat/lon.
 
     :return:
     """
@@ -435,7 +441,58 @@ def process_regions(region: tuple, data: tuple) -> tuple:
     x1, y1, x2, y2 = region
     assert x2 > x1 and y2 > y1, "Region is not valid"
 
-    for idx, arr in enumerate(data):
-        if arr is not None:
-            data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
-    return data
+    if method == "pixel":
+        for idx, arr in enumerate(data):
+            if arr is not None:
+                data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
+        return data
+    elif method == "lat_lon":
+        for idx, arr in enumerate(data):
+            if arr is not None:
+                # Create condition where data is within lat/lon region
+                condition = (arr.lon >= x1) & (arr.lon <= x2) & (arr.lat >= y1) & (arr.lat <= y2)
+                print(x1, x2, y1, y2)
+
+                # Extract subset within region using where()
+                data[idx] = arr.where(condition, drop=True)
+
+        return data
+    else:
+        raise NotImplementedError
+
+
+@cache
+def lat_lon_box(lon_bounds: np.array, lat_bounds: np.array, segments: int=1):
+    """Rectangular boundary coordinates in lat/lon coordinates.
+
+    Args:
+        lon_bounds: (min, max) lon values
+        lat_bounds: (min, max) lat values
+        segments: Number of segments per edge
+
+    Returns:
+        (lats, lons) for rectangular boundary region
+    """
+
+    segments += 1
+    rectangular_sides = 4
+
+    lats = np.empty((segments*rectangular_sides))
+    lons = np.empty((segments*rectangular_sides))
+
+    bounds = [
+        [0, 0],
+        [-1, 0],
+        [-1, -1],
+        [0, -1],
+    ]
+
+    for i, (lat_min, lat_max) in enumerate(bounds):
+        lats[i*segments:(i+1)*segments] = np.linspace(lat_bounds[lat_min], lat_bounds[lat_max], num=segments)
+
+    bounds.reverse()
+
+    for i, (lon_min, lon_max) in enumerate(bounds):
+        lons[i*segments:(i+1)*segments] = np.linspace(lon_bounds[lon_min], lon_bounds[lon_max], num=segments)
+
+    return lats, lons
