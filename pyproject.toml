@@ -56,12 +56,7 @@ classifiers = [
 ]
 
 [project.scripts]
-icenet_process_cmip = "icenet.data.processors.cmip:main"
-icenet_process_era5 = "icenet.data.processors.era5:main"
-icenet_process_oras5 = "icenet.data.processors.oras5:main"
-icenet_process_hres = "icenet.data.processors.hres:main"
-icenet_process_sic = "icenet.data.processors.osi:main"
-icenet_process_metadata = "icenet.data.processors.meta:main"
+# TODO: review condense, not necessarily required
 icenet_process_condense = "icenet.data.processors.utils:condense_main"
 icenet_dataset_check = "icenet.data.dataset:check_dataset"
 icenet_dataset_create = "icenet.data.loader:create"
