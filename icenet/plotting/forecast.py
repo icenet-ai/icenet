@@ -1685,7 +1685,7 @@ def plot_forecast():
                                   y2=args.region_lat_lon[3])
 
 
-            if args.region is not None:
+            if args.region_lat_lon is None:
                 ax = get_plot_axes(**bound_args,
                                 do_coastlines=not args.no_coastlines)
 
