@@ -11,6 +11,7 @@ import matplotlib as mpl
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.ticker as mticker
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -1392,8 +1393,8 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           help="Region specified as lon and lat min/max: x1, y1, x2, y2")
         self.add_argument("-x",
                           "--region-reference",
-                          default=None,
-                          type=region_arg,
+                          action="store_true",
+                          default=False,
                           help="Enable outputting a reference image showing clipped region in world map")
 
     def allow_ecmwf(self):
@@ -1576,6 +1577,11 @@ def plot_forecast():
                     help="Format to output in",
                     choices=("mp4", "png", "svg", "tiff"),
                     default="png")
+    ap.add_argument("-g",
+                    "--gridlines",
+                    help="Turn on gridlines",
+                    action="store_true",
+                    default=False)
     ap.add_argument("-n",
                     "--cmap-name",
                     help="Color map name if not wanting to use default",
@@ -1691,7 +1697,7 @@ def plot_forecast():
                             do_coastlines=not args.no_coastlines)
             elif args.region_lat_lon is not None:
                 pole = 1 if bound_args["north"] else -1
-                source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90)
+                source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
                 target_crs = ccrs.PlateCarree()
 
                 lon, lat = fc.lon.values, fc.lat.values
@@ -1700,20 +1706,36 @@ def plot_forecast():
                 x = transformed_coords[:, :, 0]
                 y = transformed_coords[:, :, 1]
 
-                boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
                 fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
                 # ax = plt.axes(projection=target_crs)
                 ax = get_plot_axes(**bound_args,
                                 do_coastlines=not args.no_coastlines,
                                 proj=target_crs
                                 )
-                im = ax.pcolormesh(x, y, pred_da, transform=source_crs, vmin=0, vmax=1, cmap="viridis")
-                ax.plot(boxlon, boxlat, transform=ccrs.PlateCarree(), color="red")
-                extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
-                ax.set_extent(extent)
-                # ax.set_global()
+                im = ax.pcolormesh(lon, lat, pred_da, transform=target_crs, vmin=0, vmax=1, cmap=cmap)
                 if not args.no_coastlines:
                     ax.coastlines()
+                if args.gridlines:
+                    gl = ax.gridlines(crs=target_crs, draw_labels=True)
+                    gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
+                    gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
+                if i == 0 and args.region_reference:
+                    boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
+
+                    region_plot = ax.plot(boxlon, boxlat, transform=target_crs, color="red")
+                    ax.set_global()
+
+                    output_filename = os.path.join(
+                        output_path, "{}.{}_reference.{}{}".format(
+                            forecast_name,
+                            (args.forecast_date + dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
+                            "" if not args.stddev else "stddev.", args.format))
+                    plt.savefig(output_filename)
+
+                    for handle in region_plot:
+                        handle.remove()
+                extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
+                ax.set_extent(extent)
 
             plt.colorbar(im, ax=ax)
             plot_date = args.forecast_date + dt.timedelta(leadtime)
