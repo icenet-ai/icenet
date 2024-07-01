@@ -59,6 +59,7 @@ def region_arg(argument: str):
     try:
         x1, y1, x2, y2 = parse_location_or_region(argument)
 
+        print(x1, x2, y1, y2)
         assert x2 > x1 and y2 > y1, "Region is not valid"
         return x1, y1, x2, y2
     except TypeError:
@@ -1697,6 +1698,8 @@ def plot_forecast():
                             vmax=vmax,
                             do_coastlines=not args.no_coastlines)
             elif args.region_lat_lon is not None:
+                cmap.set_bad("dimgrey", alpha=0)
+
                 pole = 1 if bound_args["north"] else -1
                 source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
                 target_crs = ccrs.PlateCarree()
@@ -1713,7 +1716,7 @@ def plot_forecast():
                                 do_coastlines=not args.no_coastlines,
                                 proj=target_crs
                                 )
-                im = ax.pcolormesh(lon, lat, pred_da, transform=target_crs, vmin=0, vmax=1, cmap=cmap)
+                im = ax.pcolormesh(x, y, pred_da, transform=source_crs, vmin=0, vmax=1, cmap=cmap)
                 if not args.no_coastlines:
                     # ax.add_feature(cfeature.LAND)
                     # ax.add_feature(cfeature.COASTLINE)
