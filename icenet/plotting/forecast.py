@@ -1394,13 +1394,7 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           default=None,
                           type=region_arg,
                           help="Region specified as lon and lat min/max: lon_min, lat_min, lon_max, lat_max")
-        self.add_argument("-x",
-                          "--region-reference",
-                          action="store_true",
-                          default=False,
-                          help="Enable outputting a reference image showing clipped region in world map")
-        self.add_argument("-p",
-                          "--north_facing",
+        self.add_argument("--north-facing",
                           action="store_true",
                           default=False)
 
@@ -1584,9 +1578,9 @@ def plot_forecast():
                     help="Format to output in",
                     choices=("mp4", "png", "svg", "tiff"),
                     default="png")
-    ap.add_argument("-g",
+    ap.add_argument("-gl",
                     "--gridlines",
-                    help="Turn on gridlines",
+                    help="Turn on gridlines for plots",
                     action="store_true",
                     default=False)
     ap.add_argument("-n",
@@ -1752,7 +1746,7 @@ def plot_forecast():
                     #     gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
                     #     # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
                     #     # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
-                    if i == 0 and args.region_reference:
+                    if i == 0:
                         boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
                         if args.gridlines:
