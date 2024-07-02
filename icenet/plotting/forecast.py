@@ -15,6 +15,7 @@ import matplotlib.dates as mdates
 import matplotlib.ticker as mticker
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_pdf import PdfPages
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import seaborn as sns
 
@@ -1398,6 +1399,10 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           action="store_true",
                           default=False,
                           help="Enable outputting a reference image showing clipped region in world map")
+        self.add_argument("-p",
+                          "--north_facing",
+                          action="store_true",
+                          default=False)
 
     def allow_ecmwf(self):
         self.add_argument("-b",
@@ -1669,6 +1674,9 @@ def plot_forecast():
                         video_path=output_filename,
                         **anim_args)
     else:
+        pole = 1 if args.hemisphere == "north" else -1
+        source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
+        target_crs = ccrs.PlateCarree()
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
             bound_args = dict(north=args.hemisphere == "north",
@@ -1685,11 +1693,12 @@ def plot_forecast():
                                   y1=args.region_lat_lon[1],
                                   y2=args.region_lat_lon[3])
 
-
             if args.region_lat_lon is None:
                 ax = get_plot_axes(**bound_args,
-                                do_coastlines=not args.no_coastlines)
-
+                                do_coastlines=not args.no_coastlines,
+                                proj=target_crs if args.north_facing else None,
+                                set_extents=not args.north_facing
+                                )
                 bound_args.update(cmap=cmap)
 
                 im = show_img(ax,
@@ -1697,53 +1706,79 @@ def plot_forecast():
                             **bound_args,
                             vmax=vmax,
                             do_coastlines=not args.no_coastlines)
-            elif args.region_lat_lon is not None:
-                cmap.set_bad("dimgrey", alpha=0)
 
-                pole = 1 if bound_args["north"] else -1
-                source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
-                target_crs = ccrs.PlateCarree()
+                if args.north_facing and args.region is not None:
+                    lon, lat = pred_da.lon.values, pred_da.lat.values
+                    extent = [lon.min(), lon.max(), lat.min(), lat.max()]
+                    ax.set_extent(extent, crs=target_crs)
+            else:
+                if not args.north_facing:
+                    ax = get_plot_axes(**bound_args,
+                                    do_coastlines=not args.no_coastlines,
+                                    set_extents=False
+                                    )
 
-                lon, lat = fc.lon.values, fc.lat.values
-                transformed_coords = source_crs.transform_points(target_crs, lon, lat)
+                    bound_args.update(cmap=cmap)
+                    # im = ax.pcolormesh(pred_da.lon, pred_da.lat, pred_da, transform=target_crs, vmin=0, vmax=vmax, cmap=cmap)
+                    im = pred_da.plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs, add_colorbar=False, cmap=cmap)
+                    if not args.no_coastlines:
+                        ax.coastlines()
+                        # ax.add_feature(cfeature.COASTLINE)
+                    # ax.set_global()
+                else:
+                    cmap.set_bad("dimgrey", alpha=0)
 
-                x = transformed_coords[:, :, 0]
-                y = transformed_coords[:, :, 1]
+                    source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
+                    target_crs = ccrs.PlateCarree()
 
-                fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
-                # ax = plt.axes(projection=target_crs)
-                ax = get_plot_axes(**bound_args,
-                                do_coastlines=not args.no_coastlines,
-                                proj=target_crs
-                                )
-                im = ax.pcolormesh(x, y, pred_da, transform=source_crs, vmin=0, vmax=1, cmap=cmap)
-                if not args.no_coastlines:
-                    # ax.add_feature(cfeature.LAND)
-                    # ax.add_feature(cfeature.COASTLINE)
-                    ax.coastlines()
-                if args.gridlines:
-                    gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
-                    # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
-                    # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
-                if i == 0 and args.region_reference:
-                    boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
+                    lon, lat = fc.lon.values, fc.lat.values
+                    transformed_coords = source_crs.transform_points(target_crs, lon, lat)
 
-                    region_plot = ax.plot(boxlon, boxlat, transform=target_crs, color="red")
-                    ax.set_global()
+                    x = transformed_coords[:, :, 0]
+                    y = transformed_coords[:, :, 1]
 
-                    output_filename = os.path.join(
-                        output_path, "{}.{}_reference.{}{}".format(
-                            forecast_name,
-                            (args.forecast_date + dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
-                            "" if not args.stddev else "stddev.", args.format))
-                    plt.savefig(output_filename)
+                    # ax = plt.axes(projection=target_crs)
+                    ax = get_plot_axes(**bound_args,
+                                    do_coastlines=not args.no_coastlines,
+                                    proj=target_crs,
+                                    north_facing=True
+                                    )
+                    im = ax.pcolormesh(x, y, pred_da, transform=source_crs, vmin=0, vmax=vmax, cmap=cmap)
+                    if not args.no_coastlines:
+                        ax.add_feature(cfeature.LAND, facecolor="dimgrey")
+                        # ax.add_feature(cfeature.COASTLINE)
+                        ax.coastlines()
+                    # if args.gridlines:
+                    #     gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
+                    #     # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
+                    #     # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
+                    if i == 0 and args.region_reference:
+                        boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
-                    for handle in region_plot:
-                        handle.remove()
-                extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
-                ax.set_extent(extent)
+                        if args.gridlines:
+                            gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
+                        region_plot = ax.plot(boxlon, boxlat, transform=target_crs, color="red")
+                        ax.set_global()
 
-            plt.colorbar(im, ax=ax)
+                        output_filename = os.path.join(
+                            output_path, "{}.{}_reference.{}{}".format(
+                                forecast_name,
+                                (args.forecast_date + dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
+                                "" if not args.stddev else "stddev.", args.format))
+                        plt.savefig(output_filename)
+
+                        for handle in region_plot:
+                            handle.remove()
+                    extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
+                    ax.set_extent(extent)
+
+            if args.gridlines:
+                gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
+            divider = make_axes_locatable(ax)
+            # Pass axes_class to set correct colourbar height with cartopy
+            cax = divider.append_axes("right", size="5%", pad=0.1, axes_class=plt.Axes)
+            plt.colorbar(im, ax=ax, cax=cax)
+
             plot_date = args.forecast_date + dt.timedelta(leadtime)
             ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
                                                        plot_date.month,

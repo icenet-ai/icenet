@@ -326,6 +326,8 @@ def get_plot_axes(x1: int = 0,
                   north: bool = True,
                   south: bool = False,
                   proj = None,
+                  north_facing: bool = False,
+                  set_extents: bool = False
                   ):
     """
 
@@ -336,18 +338,19 @@ def get_plot_axes(x1: int = 0,
     :param do_coastlines:
     :param north:
     :param south:
+    :param proj:
+    :param method:
     :return:
     """
     assert north ^ south, "One hemisphere only must be selected"
 
     fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
 
-    if do_coastlines or proj is not None:
+    if do_coastlines:
         pole = 1 if north else -1
-        if not proj:
-            proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
+        proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90) if proj is None else proj
         ax = fig.add_subplot(1, 1, 1, projection=proj)
-        if not proj:
+        if set_extents:
             extents = calculate_extents(x1, x2, y1, y2)
             ax.set_extent(extents, crs=proj)
     else:
