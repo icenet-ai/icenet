@@ -6,6 +6,7 @@ import re
 
 from concurrent.futures import as_completed, ProcessPoolExecutor
 
+import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -72,6 +73,7 @@ def xarray_to_video(
     da: object,
     fps: int,
     video_path: object = None,
+    north_facing: bool = False,
     mask: object = None,
     mask_type: str = 'contour',
     clim: object = None,
@@ -113,9 +115,14 @@ def xarray_to_video(
     :param ax_extra: Extra method called with axes for additional plotting
     """
 
-    def update(date):
+    target_crs = ccrs.PlateCarree()
+
+    def update(date, north_facing):
         logging.debug("Plotting {}".format(date.strftime("%D")))
-        image.set_data(da.sel(time=date))
+        if north_facing:
+            image.set_array(da.sel(time=date))
+        else:
+            image.set_data(da.sel(time=date))
 
         image_title.set_text("{:04d}/{:02d}/{:02d}".format(
             date.year, date.month, date.day))
@@ -154,7 +161,12 @@ def xarray_to_video(
     logging.info("Initialising plot")
 
     if ax_init is None:
-        fig, ax = plt.subplots(figsize=(figsize, figsize))
+        if north_facing:
+            fig, ax = plt.subplots(figsize=(figsize, figsize),
+                                    subplot_kw={"projection": target_crs}
+                                    )
+        else:
+            fig, ax = plt.subplots(figsize=(figsize, figsize))
         fig.set_dpi(dpi)
     else:
         ax = ax_init
@@ -173,12 +185,25 @@ def xarray_to_video(
         ax_extra(ax)
 
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
-    image = ax.imshow(da.sel(time=date),
-                      cmap=cmap,
-                      clim=(n_min, n_max),
-                      animated=True,
-                      zorder=1,
-                      **imshow_kwargs if imshow_kwargs is not None else {})
+
+    # TODO: Tidy up, and cover all argument options
+    if not north_facing:
+        image = ax.imshow(da.sel(time=date),
+                        cmap=cmap,
+                        clim=(n_min, n_max),
+                        animated=True,
+                        zorder=1,
+                        **imshow_kwargs if imshow_kwargs is not None else {})
+    else:
+        lon, lat = da.lon.values, da.lat.values
+        data = da.sel(time=date)
+        image = ax.pcolormesh(lon, lat, data,
+                                transform=target_crs,
+                                cmap=cmap,
+                                clim=(n_min, n_max),
+                                animated=True,
+                                zorder=1,
+                                )
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
         date.year, date.month, date.day),
@@ -187,7 +212,7 @@ def xarray_to_video(
 
     try:
         divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05, zorder=2)
+        cax = divider.append_axes('right', size='5%', pad=0.05, zorder=2, axes_class=plt.Axes)
         cbar = plt.colorbar(image, cax)
         if colorbar_label:
             cbar.set_label(colorbar_label)
@@ -198,7 +223,8 @@ def xarray_to_video(
     logging.info("Animating")
 
     # Investigated blitting, but it causes a few problems with masks/titles.
-    animation = FuncAnimation(fig, update, video_dates, interval=1000 / fps)
+    animation = FuncAnimation(fig, update, video_dates, fargs=(north_facing,),
+                            interval=1000 / fps)
 
     plt.close()
 

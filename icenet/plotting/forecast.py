@@ -60,7 +60,6 @@ def region_arg(argument: str):
     try:
         x1, y1, x2, y2 = parse_location_or_region(argument)
 
-        print(x1, x2, y1, y2)
         assert x2 > x1 and y2 > y1, "Region is not valid"
         return x1, y1, x2, y2
     except TypeError:
@@ -1666,8 +1665,11 @@ def plot_forecast():
                         imshow_kwargs=dict(vmin=0., vmax=vmax)
                         if not args.stddev else None,
                         video_path=output_filename,
+                        north_facing=args.north_facing,
+                        # ax_init=plt.axes(projection=ccrs.PlateCarree()) if args.north_facing else None
                         **anim_args)
     else:
+        # TODO: Tidy up code into piecewise functions under `icenet/plotting/utils.py`
         pole = 1 if args.hemisphere == "north" else -1
         source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
         target_crs = ccrs.PlateCarree()
@@ -1722,9 +1724,6 @@ def plot_forecast():
                 else:
                     cmap.set_bad("dimgrey", alpha=0)
 
-                    source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
-                    target_crs = ccrs.PlateCarree()
-
                     lon, lat = fc.lon.values, fc.lat.values
                     transformed_coords = source_crs.transform_points(target_crs, lon, lat)
 
@@ -1742,10 +1741,8 @@ def plot_forecast():
                         ax.add_feature(cfeature.LAND, facecolor="dimgrey")
                         # ax.add_feature(cfeature.COASTLINE)
                         ax.coastlines()
-                    # if args.gridlines:
-                    #     gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
-                    #     # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
-                    #     # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
+
+                    # Output a reference image showing cropped region
                     if i == 0:
                         boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
@@ -1768,6 +1765,8 @@ def plot_forecast():
 
             if args.gridlines:
                 gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
+                # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
+                # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
             divider = make_axes_locatable(ax)
             # Pass axes_class to set correct colourbar height with cartopy
             cax = divider.append_axes("right", size="5%", pad=0.1, axes_class=plt.Axes)
