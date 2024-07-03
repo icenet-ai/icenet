@@ -454,7 +454,6 @@ def process_regions(region: tuple, data: tuple, method: str = "pixel") -> tuple:
             if arr is not None:
                 # Create condition where data is within lat/lon region
                 condition = (arr.lon >= x1) & (arr.lon <= x2) & (arr.lat >= y1) & (arr.lat <= y2)
-                print(x1, x2, y1, y2)
 
                 # Extract subset within region using where()
                 data[idx] = arr.where(condition, drop=True)

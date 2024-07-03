@@ -7,6 +7,7 @@ import re
 from concurrent.futures import as_completed, ProcessPoolExecutor
 
 import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -74,6 +75,10 @@ def xarray_to_video(
     fps: int,
     video_path: object = None,
     north_facing: bool = False,
+    pole: int = None,
+    extent: tuple = None,
+    method: str = "pixel",
+    gridlines: bool = False,
     mask: object = None,
     mask_type: str = 'contour',
     clim: object = None,
@@ -115,6 +120,7 @@ def xarray_to_video(
     :param ax_extra: Extra method called with axes for additional plotting
     """
 
+    source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
     target_crs = ccrs.PlateCarree()
 
     def update(date, north_facing):
@@ -160,13 +166,15 @@ def xarray_to_video(
 
     logging.info("Initialising plot")
 
+    projection = target_crs if method == "lat_lon" else source_crs
     if ax_init is None:
         if north_facing:
             fig, ax = plt.subplots(figsize=(figsize, figsize),
                                     subplot_kw={"projection": target_crs}
                                     )
         else:
-            fig, ax = plt.subplots(figsize=(figsize, figsize))
+            fig, ax = plt.subplots(figsize=(figsize, figsize),
+                                    subplot_kw={"projection": source_crs})
         fig.set_dpi(dpi)
     else:
         ax = ax_init
@@ -186,6 +194,10 @@ def xarray_to_video(
 
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 
+    cmap.set_bad("dimgrey", alpha=0)
+    ax.add_feature(cfeature.LAND, facecolor="dimgrey")
+    # ax.add_feature(cfeature.COASTLINE)
+
     # TODO: Tidy up, and cover all argument options
     if not north_facing:
         image = ax.imshow(da.sel(time=date),
@@ -197,12 +209,20 @@ def xarray_to_video(
     else:
         lon, lat = da.lon.values, da.lat.values
         data = da.sel(time=date)
+
+        if gridlines:
+            gl = ax.gridlines(crs=source_crs)
+
+        if extent and method == "lat_lon":
+            ax.set_extent(extent, crs=target_crs)
+
         image = ax.pcolormesh(lon, lat, data,
                                 transform=target_crs,
                                 cmap=cmap,
                                 clim=(n_min, n_max),
                                 animated=True,
                                 zorder=1,
+                                **imshow_kwargs if imshow_kwargs is not None else {}
                                 )
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(

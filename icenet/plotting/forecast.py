@@ -1551,7 +1551,7 @@ def sie_error():
                               threshold=args.threshold)
 
 
-def plot_forecast():
+def plot_forecast(show_plot=False):
     """CLI entry point for icenet_plot_forecast
 
     :return:
@@ -1634,6 +1634,26 @@ def plot_forecast():
         if args.leadtimes is not None \
         else list(range(1, int(max(fc.leadtime.values)) + 1))
 
+    pole = 1 if args.hemisphere == "north" else -1
+
+    bound_args = dict(north=args.hemisphere == "north",
+                        south=args.hemisphere == "south")
+
+    if args.region is not None:
+        method = "pixel"
+        bound_args.update(x1=args.region[0],
+                            x2=args.region[2],
+                            y1=args.region[1],
+                            y2=args.region[3])
+    elif args.region_lat_lon is not None:
+        method = "lat_lon"
+        bound_args.update(x1=args.region_lat_lon[0],
+                            x2=args.region_lat_lon[2],
+                            y1=args.region_lat_lon[1],
+                            y2=args.region_lat_lon[3])
+
+    extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
+
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
 
@@ -1659,6 +1679,7 @@ def plot_forecast():
                                 args.forecast_date.strftime("%Y%m%d"),
                                 "" if not args.stddev else "stddev.",
                                 args.format))
+
         xarray_to_video(pred_da,
                         fps=1,
                         cmap=cmap,
@@ -1666,28 +1687,18 @@ def plot_forecast():
                         if not args.stddev else None,
                         video_path=output_filename,
                         north_facing=args.north_facing,
+                        pole=pole,
+                        extent=extent,
+                        method=method,
+                        gridlines=args.gridlines,
                         # ax_init=plt.axes(projection=ccrs.PlateCarree()) if args.north_facing else None
                         **anim_args)
     else:
         # TODO: Tidy up code into piecewise functions under `icenet/plotting/utils.py`
-        pole = 1 if args.hemisphere == "north" else -1
         source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
         target_crs = ccrs.PlateCarree()
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
-            bound_args = dict(north=args.hemisphere == "north",
-                              south=args.hemisphere == "south")
-
-            if args.region is not None:
-                bound_args.update(x1=args.region[0],
-                                  x2=args.region[2],
-                                  y1=args.region[1],
-                                  y2=args.region[3])
-            elif args.region_lat_lon is not None:
-                bound_args.update(x1=args.region_lat_lon[0],
-                                  x2=args.region_lat_lon[2],
-                                  y1=args.region_lat_lon[1],
-                                  y2=args.region_lat_lon[3])
 
             if args.region_lat_lon is None:
                 ax = get_plot_axes(**bound_args,
@@ -1716,7 +1727,7 @@ def plot_forecast():
 
                     bound_args.update(cmap=cmap)
                     # im = ax.pcolormesh(pred_da.lon, pred_da.lat, pred_da, transform=target_crs, vmin=0, vmax=vmax, cmap=cmap)
-                    im = pred_da.plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs, add_colorbar=False, cmap=cmap)
+                    im = pred_da.plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs, vmin=0, vmax=vmax, add_colorbar=False, cmap=cmap)
                     if not args.no_coastlines:
                         ax.coastlines()
                         # ax.add_feature(cfeature.COASTLINE)
@@ -1785,6 +1796,8 @@ def plot_forecast():
 
             logging.info("Saving to {}".format(output_filename))
             plt.savefig(output_filename)
+            if show_plot:
+                plt.show()
             plt.clf()
 
 
