@@ -1674,9 +1674,6 @@ def plot_forecast(show_plot=False):
             rename(leadtime="time", forecast_date="time").set_index(time="time")
 
         anim_args = dict(figsize=5)
-        if not args.no_coastlines:
-            logging.warning("Coastlines will not work with the current "
-                            "implementation of xarray_to_video")
 
         output_filename = os.path.join(
             output_path,
@@ -1695,6 +1692,7 @@ def plot_forecast(show_plot=False):
                         pole=pole,
                         extent=extent,
                         method=method,
+                        coastlines=not args.no_coastlines,
                         gridlines=args.gridlines,
                         # ax_init=plt.axes(projection=ccrs.PlateCarree()) if args.north_facing else None
                         **anim_args)

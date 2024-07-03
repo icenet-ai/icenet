@@ -78,6 +78,7 @@ def xarray_to_video(
     pole: int = None,
     extent: tuple = None,
     method: str = "pixel",
+    coastlines: bool = False,
     gridlines: bool = False,
     mask: object = None,
     mask_type: str = 'contour',
@@ -196,9 +197,12 @@ def xarray_to_video(
         alpha = 0.0
     else:
         alpha = 1.0
+
     cmap.set_bad("dimgrey", alpha=alpha)
     ax.add_feature(cfeature.LAND, facecolor="dimgrey")
-    ax.add_feature(cfeature.COASTLINE)
+
+    if coastlines:
+        ax.add_feature(cfeature.COASTLINE)
 
     if gridlines:
         gl = ax.gridlines(crs=source_crs)
