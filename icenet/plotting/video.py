@@ -18,7 +18,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet.process.predict import get_refcube
 from icenet.utils import setup_logging
-from icenet.plotting.utils import calculate_extents
 
 
 # TODO: This can be a plotting or analysis util function elsewhere
@@ -124,12 +123,9 @@ def xarray_to_video(
     source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
     target_crs = ccrs.PlateCarree()
 
-    def update(date, north_facing):
+    def update(date):
         logging.debug("Plotting {}".format(date.strftime("%D")))
-        if north_facing:
-            image.set_array(da.sel(time=date))
-        else:
-            image.set_data(da.sel(time=date))
+        image.set_array(da.sel(time=date))
 
         image_title.set_text("{:04d}/{:02d}/{:02d}".format(
             date.year, date.month, date.day))
@@ -195,7 +191,12 @@ def xarray_to_video(
 
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 
-    # cmap.set_bad("dimgrey", alpha=0)
+    # pcolormesh requires set_bad to be transparent for wraparound.
+    if method == "lat_lon" and north_facing:
+        alpha = 0.0
+    else:
+        alpha = 1.0
+    cmap.set_bad("dimgrey", alpha=alpha)
     ax.add_feature(cfeature.LAND, facecolor="dimgrey")
     ax.add_feature(cfeature.COASTLINE)
 
@@ -205,35 +206,26 @@ def xarray_to_video(
     data = da.sel(time=date)
     lon, lat = da.lon.values, da.lat.values
 
-    if method == "pixel":
-        if extent is None:
-            extent = (0, 432, 0, 432)
-        extent = calculate_extents(*extent)
-
     # TODO: Tidy up, and cover all argument options
     if not north_facing:
-        image = ax.imshow(data,
-                        cmap=cmap,
-                        transform=source_crs,
-                        clim=(n_min, n_max),
-                        animated=True,
-                        zorder=1,
-                        extent = extent,
-                        **imshow_kwargs if imshow_kwargs is not None else {})
-        # image = ax.pcolormesh(lon, lat, data,
-        #                         transform=target_crs,
-        #                         cmap=cmap,
-        #                         clim=(n_min, n_max),
-        #                         animated=True,
-        #                         zorder=1,
-        #                         **imshow_kwargs if imshow_kwargs is not None else {}
-        #                         )
+        image = ax.pcolormesh(lon, lat, data,
+                                transform=target_crs,
+                                cmap=cmap,
+                                clim=(n_min, n_max),
+                                animated=True,
+                                zorder=1,
+                                **imshow_kwargs if imshow_kwargs is not None else {}
+                                )
     else:
         if extent and method == "lat_lon":
             ax.set_extent(extent, crs=target_crs)
 
-        image = ax.pcolormesh(lon, lat, data,
-                                transform=target_crs,
+        transformed_coords = source_crs.transform_points(target_crs, lon, lat)
+
+        x = transformed_coords[:, :, 0]
+        y = transformed_coords[:, :, 1]
+        image = ax.pcolormesh(x, y, data,
+                                transform=source_crs,
                                 cmap=cmap,
                                 clim=(n_min, n_max),
                                 animated=True,
@@ -259,7 +251,7 @@ def xarray_to_video(
     logging.info("Animating")
 
     # Investigated blitting, but it causes a few problems with masks/titles.
-    animation = FuncAnimation(fig, update, video_dates, fargs=(north_facing,),
+    animation = FuncAnimation(fig, update, video_dates,
                             interval=1000 / fps)
 
     plt.close()
