@@ -27,11 +27,13 @@ import xarray as xr
 from icenet import __version__ as icenet_version
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
-from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_ds,
+from icenet.plotting.utils import (calculate_extents, filter_ds_by_obs,
+                                   get_forecast_ds,
                                    get_obs_da, get_seas_forecast_da,
-                                   get_seas_forecast_init_dates, show_img,
+                                   get_seas_forecast_init_dates,
+                                   lat_lon_box, show_img,
                                    get_plot_axes, process_probes,
-                                   process_regions, lat_lon_box)
+                                   process_regions)
 from icenet.plotting.video import xarray_to_video
 
 
@@ -1639,8 +1641,8 @@ def plot_forecast(show_plot=False):
     bound_args = dict(north=args.hemisphere == "north",
                         south=args.hemisphere == "south")
 
+    method = "pixel"
     if args.region is not None:
-        method = "pixel"
         bound_args.update(x1=args.region[0],
                             x2=args.region[2],
                             y1=args.region[1],
@@ -1652,7 +1654,10 @@ def plot_forecast(show_plot=False):
                             y1=args.region_lat_lon[1],
                             y2=args.region_lat_lon[3])
 
-    extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
+    if args.region is not None or args.region_lat_lon is not None:
+        extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
+    else:
+        extent = None
 
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)

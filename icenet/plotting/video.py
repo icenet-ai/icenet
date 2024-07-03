@@ -18,6 +18,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet.process.predict import get_refcube
 from icenet.utils import setup_logging
+from icenet.plotting.utils import calculate_extents
 
 
 # TODO: This can be a plotting or analysis util function elsewhere
@@ -194,25 +195,40 @@ def xarray_to_video(
 
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 
-    cmap.set_bad("dimgrey", alpha=0)
+    # cmap.set_bad("dimgrey", alpha=0)
     ax.add_feature(cfeature.LAND, facecolor="dimgrey")
-    # ax.add_feature(cfeature.COASTLINE)
+    ax.add_feature(cfeature.COASTLINE)
+
+    if gridlines:
+        gl = ax.gridlines(crs=source_crs)
+
+    data = da.sel(time=date)
+    lon, lat = da.lon.values, da.lat.values
+
+    if method == "pixel":
+        if extent is None:
+            extent = (0, 432, 0, 432)
+        extent = calculate_extents(*extent)
 
     # TODO: Tidy up, and cover all argument options
     if not north_facing:
-        image = ax.imshow(da.sel(time=date),
+        image = ax.imshow(data,
                         cmap=cmap,
+                        transform=source_crs,
                         clim=(n_min, n_max),
                         animated=True,
                         zorder=1,
+                        extent = extent,
                         **imshow_kwargs if imshow_kwargs is not None else {})
+        # image = ax.pcolormesh(lon, lat, data,
+        #                         transform=target_crs,
+        #                         cmap=cmap,
+        #                         clim=(n_min, n_max),
+        #                         animated=True,
+        #                         zorder=1,
+        #                         **imshow_kwargs if imshow_kwargs is not None else {}
+        #                         )
     else:
-        lon, lat = da.lon.values, da.lat.values
-        data = da.sel(time=date)
-
-        if gridlines:
-            gl = ax.gridlines(crs=source_crs)
-
         if extent and method == "lat_lon":
             ax.set_extent(extent, crs=target_crs)
 
