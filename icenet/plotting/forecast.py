@@ -1759,8 +1759,8 @@ def plot_forecast(show_plot=False):
                     if i == 0:
                         boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
-                        if args.gridlines:
-                            gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
+                        # if args.gridlines:
+                        #     gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
                         region_plot = ax.plot(boxlon, boxlat, transform=target_crs, color="red")
                         ax.set_global()
 
@@ -1777,7 +1777,7 @@ def plot_forecast(show_plot=False):
                     ax.set_extent(extent)
 
             if args.gridlines:
-                gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
+                gl = ax.gridlines(crs=target_crs, draw_labels=True)
                 # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
                 # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
             divider = make_axes_locatable(ax)
