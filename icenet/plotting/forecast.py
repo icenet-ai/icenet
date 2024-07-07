@@ -1709,11 +1709,11 @@ def plot_forecast(show_plot=False):
                                 proj=target_crs if args.north_facing else None,
                                 set_extents=not args.north_facing
                                 )
-                bound_args.update(cmap=cmap)
 
                 im = show_img(ax,
                             pred_da,
                             **bound_args,
+                            cmap=cmap,
                             vmax=vmax,
                             do_coastlines=not args.no_coastlines)
 
@@ -1728,7 +1728,6 @@ def plot_forecast(show_plot=False):
                                     set_extents=False
                                     )
 
-                    bound_args.update(cmap=cmap)
                     # im = ax.pcolormesh(pred_da.lon, pred_da.lat, pred_da, transform=target_crs, vmin=0, vmax=vmax, cmap=cmap)
                     im = pred_da.plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs, vmin=0, vmax=vmax, add_colorbar=False, cmap=cmap)
                     if not args.no_coastlines:
