@@ -5,6 +5,7 @@ import os
 import re
 
 import cartopy.crs as ccrs
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -498,3 +499,15 @@ def lat_lon_box(lon_bounds: np.array, lat_bounds: np.array, segments: int=1):
         lons[i*segments:(i+1)*segments] = np.linspace(lon_bounds[lon_min], lon_bounds[lon_max], num=segments)
 
     return lats, lons
+
+def get_custom_cmap(cmap, vmin=0, vmax=1):
+    """Creates a new colormap for valid array with range 0-1, but with nan set to <0.
+
+    Hack since cartopy needs transparency for nan regions to wraparound
+        correctly with pcolormesh.
+    """
+    colors = cmap(np.linspace(vmin, vmax, cmap.N))
+    custom_cmap = mpl.colors.ListedColormap(colors)
+    custom_cmap.set_bad("dimgrey", alpha=0)
+    custom_cmap.set_under("dimgrey")
+    return custom_cmap

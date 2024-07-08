@@ -18,7 +18,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet.process.predict import get_refcube
 from icenet.utils import setup_logging
-
+from icenet.plotting.utils import get_custom_cmap
 
 # TODO: This can be a plotting or analysis util function elsewhere
 def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
@@ -87,7 +87,7 @@ def xarray_to_video(
     data_type: str = 'abs',
     video_dates: object = None,
     cmap: object = "viridis",
-    figsize: int = 12,
+    figsize: int = (12, 12),
     dpi: int = 150,
     imshow_kwargs: dict = None,
     ax_init: object = None,
@@ -124,9 +124,15 @@ def xarray_to_video(
     source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
     target_crs = ccrs.PlateCarree()
 
+
     def update(date):
         logging.debug("Plotting {}".format(date.strftime("%D")))
-        image.set_array(da.sel(time=date))
+        data = da.sel(time=date)
+        # Hack since cartopy needs transparency for nan regions to wraparound
+        # correctly with pcolormesh.
+        if north_facing:
+            data = np.where(np.isnan(data), -9999, data)
+        image.set_array(data)
 
         image_title.set_text("{:04d}/{:02d}/{:02d}".format(
             date.year, date.month, date.day))
@@ -167,12 +173,15 @@ def xarray_to_video(
     projection = target_crs if method == "lat_lon" else source_crs
     if ax_init is None:
         if north_facing:
-            fig, ax = plt.subplots(figsize=(figsize, figsize),
-                                    subplot_kw={"projection": target_crs}
+            fig, ax = plt.subplots(figsize=figsize,
+                                    subplot_kw={"projection": target_crs},
+                                    layout="tight",
                                     )
         else:
-            fig, ax = plt.subplots(figsize=(figsize, figsize),
-                                    subplot_kw={"projection": source_crs})
+            fig, ax = plt.subplots(figsize=figsize,
+                                    subplot_kw={"projection": source_crs},
+                                    layout="tight",
+                                    )
         fig.set_dpi(dpi)
     else:
         ax = ax_init
@@ -228,9 +237,14 @@ def xarray_to_video(
 
         x = transformed_coords[:, :, 0]
         y = transformed_coords[:, :, 1]
+
+        # Hack since cartopy needs transparency for nan regions to wraparound
+        # correctly with pcolormesh.
+        custom_cmap = get_custom_cmap(cmap)
+
         image = ax.pcolormesh(x, y, data,
                                 transform=source_crs,
-                                cmap=cmap,
+                                cmap=custom_cmap,
                                 clim=(n_min, n_max),
                                 animated=True,
                                 zorder=1,

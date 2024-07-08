@@ -33,7 +33,7 @@ from icenet.plotting.utils import (calculate_extents, filter_ds_by_obs,
                                    get_seas_forecast_init_dates,
                                    lat_lon_box, show_img,
                                    get_plot_axes, process_probes,
-                                   process_regions)
+                                   process_regions, get_custom_cmap)
 from icenet.plotting.video import xarray_to_video
 
 
@@ -1395,7 +1395,8 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           default=None,
                           type=region_arg,
                           help="Region specified as lon and lat min/max: lon_min, lat_min, lon_max, lat_max")
-        self.add_argument("--north-facing",
+        self.add_argument("-nf",
+                          "--north-facing",
                           action="store_true",
                           default=False)
 
@@ -1673,7 +1674,7 @@ def plot_forecast(show_plot=False):
         pred_da = pred_da.drop("time").drop("leadtime").\
             rename(leadtime="time", forecast_date="time").set_index(time="time")
 
-        anim_args = dict(figsize=5)
+        anim_args = dict(figsize=(10, 8))
 
         output_filename = os.path.join(
             output_path,
@@ -1736,6 +1737,10 @@ def plot_forecast(show_plot=False):
                     # ax.set_global()
                 else:
                     cmap.set_bad("dimgrey", alpha=0)
+                    # Hack since cartopy needs transparency for nan regions to wraparound
+                    # correctly with pcolormesh.
+                    data = np.where(np.isnan(pred_da), -9999, pred_da)
+                    custom_cmap = get_custom_cmap(cmap)
 
                     lon, lat = fc.lon.values, fc.lat.values
                     transformed_coords = source_crs.transform_points(target_crs, lon, lat)
@@ -1749,7 +1754,7 @@ def plot_forecast(show_plot=False):
                                     proj=target_crs,
                                     north_facing=True
                                     )
-                    im = ax.pcolormesh(x, y, pred_da, transform=source_crs, vmin=0, vmax=vmax, cmap=cmap)
+                    im = ax.pcolormesh(x, y, data, transform=source_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
                     if not args.no_coastlines:
                         ax.add_feature(cfeature.LAND, facecolor="dimgrey")
                         # ax.add_feature(cfeature.COASTLINE)
@@ -1768,7 +1773,7 @@ def plot_forecast(show_plot=False):
                             output_path, "{}.{}_reference.{}{}".format(
                                 forecast_name,
                                 (args.forecast_date + dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
-                                "" if not args.stddev else "stddev.", args.format))
+                                "" if not args.stddev else "stddev.", "jpg"))
                         plt.savefig(output_filename)
 
                         for handle in region_plot:
