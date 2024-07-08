@@ -1394,7 +1394,7 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           "--region-lat-lon",
                           default=None,
                           type=region_arg,
-                          help="Region specified as lon and lat min/max: lon_min, lat_min, lon_max, lat_max")
+                          help="Region specified as lon and lat min/max: lat_min, lon_min, lat_max, lon_max")
         self.add_argument("-nf",
                           "--north-facing",
                           action="store_true",
@@ -1650,10 +1650,10 @@ def plot_forecast(show_plot=False):
                             y2=args.region[3])
     elif args.region_lat_lon is not None:
         method = "lat_lon"
-        bound_args.update(x1=args.region_lat_lon[0],
-                            x2=args.region_lat_lon[2],
-                            y1=args.region_lat_lon[1],
-                            y2=args.region_lat_lon[3])
+        bound_args.update(x1=args.region_lat_lon[1],
+                            x2=args.region_lat_lon[3],
+                            y1=args.region_lat_lon[0],
+                            y2=args.region_lat_lon[2])
 
     if args.region is not None or args.region_lat_lon is not None:
         extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
