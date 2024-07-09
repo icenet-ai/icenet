@@ -445,23 +445,20 @@ def process_regions(region: tuple, data: tuple, method: str = "pixel") -> tuple:
     x1, y1, x2, y2 = region
     assert x2 > x1 and y2 > y1, "Region is not valid"
 
-    if method == "pixel":
-        for idx, arr in enumerate(data):
-            if arr is not None:
+    for idx, arr in enumerate(data):
+        if arr is not None:
+            if method == "pixel":
                 data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
-        return data
-    elif method == "lat_lon":
-        for idx, arr in enumerate(data):
-            if arr is not None:
+            elif method == "lat_lon":
                 # Create condition where data is within lat/lon region
                 condition = (arr.lat >= x1) & (arr.lat <= x2) & (arr.lon >= y1) & (arr.lon <= y2)
 
                 # Extract subset within region using where()
-                data[idx] = arr.where(condition, drop=True)
+                data[idx] = arr.where(condition.compute(), drop=True)
+            else:
+                raise NotImplementedError
 
-        return data
-    else:
-        raise NotImplementedError
+    return data
 
 
 @cache

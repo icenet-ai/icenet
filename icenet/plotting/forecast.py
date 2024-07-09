@@ -527,9 +527,10 @@ def compute_metrics_leadtime_avg(metric: str,
                                  data_path: str,
                                  bias_correct: bool = False,
                                  region: tuple = None,
+                                 region_lat_lon: tuple = None,
                                  **kwargs) -> object:
     """
-    Given forecast file, for each initialisation date in the xarrray.DataArray
+    Given forecast file, for each initialisation date in the xarray.DataArray
     we compute the metric for each leadtime and store the results
     in a pandas dataframe with columns 'date' (specifying the initialisation date),
     'leadtime' and the metric name. This pandas dataframe can then be used
@@ -548,7 +549,8 @@ def compute_metrics_leadtime_avg(metric: str,
     :param bias_correct: bool to indicate whether or not to
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if ecmwf=False
-    :param region: region to zoom in to
+    :param region: region to zoom in to defined by pixel coordinates
+    :param region_lat_lon: region to zoom in to defined by lat/lon coordinates
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics, or 'grid_area_size' for SIE error metric
@@ -595,7 +597,16 @@ def compute_metrics_leadtime_avg(metric: str,
 
         if region is not None:
             seas, fc, obs, masks = process_regions(region,
-                                                   [seas, fc, obs, masks])
+                                        [seas, fc, obs, masks],
+                                        method="pixel"
+                                        )
+        elif region_lat_lon is not None:
+            raise NotImplementedError("Computing this metric with lat/lon region "
+                                    "bounds has not been implemented yet.")
+            seas, fc, obs, masks = process_regions(region_lat_lon,
+                                        [seas, fc, obs, masks],
+                                        method="lat_lon"
+                                        )
 
         # compute metrics
         fc_metrics_list.append(
@@ -823,6 +834,7 @@ def plot_metrics_leadtime_avg(metric: str,
                               target_date_avg: bool = False,
                               bias_correct: bool = False,
                               region: tuple = None,
+                              region_lat_lon: tuple = None,
                               **kwargs) -> object:
     """
     Plots leadtime averaged metrics either using all the forecasts
@@ -853,7 +865,8 @@ def plot_metrics_leadtime_avg(metric: str,
     :param bias_correct: bool to indicate whether or not to
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if ecmwf=False
-    :param region: region to zoom in to
+    :param region: region to zoom in to defined by pixel coordinates
+    :param region_lat_lon: region to zoom in to defined by lat/lon coordinates
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics, or 'grid_area_size' for SIE error metric
@@ -1498,9 +1511,19 @@ def binary_accuracy():
     else:
         seas = None
 
-    if args.region:
+    if args.region is not None:
         seas, fc, obs, masks = process_regions(args.region,
-                                               [seas, fc, obs, masks])
+                                    [seas, fc, obs, masks],
+                                    method="pixel"
+                                    )
+    elif args.region_lat_lon is not None:
+        raise NotImplementedError("Computing this metric with lat/lon region "
+                                "bounds has not been implemented yet.")
+        seas, fc, obs, masks = process_regions(args.region_lat_lon,
+                                    [seas, fc, obs, masks],
+                                    method="lat_lon"
+                                    )
+
 
     plot_binary_accuracy(masks=masks,
                          fc_da=fc,
@@ -1541,9 +1564,18 @@ def sie_error():
     else:
         seas = None
 
-    if args.region:
+    if args.region is not None:
         seas, fc, obs, masks = process_regions(args.region,
-                                               [seas, fc, obs, masks])
+                                    [seas, fc, obs, masks],
+                                    method="pixel"
+                                    )
+    elif args.region_lat_lon is not None:
+        raise NotImplementedError("Computing this metric with lat/lon region "
+                                "bounds has not been implemented yet.")
+        seas, fc, obs, masks = process_regions(args.region_lat_lon,
+                                    [seas, fc, obs, masks],
+                                    method="lat_lon"
+                                    )
 
     plot_sea_ice_extent_error(masks=masks,
                               fc_da=fc,
@@ -1723,7 +1755,7 @@ def plot_forecast():
             # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
             # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
 
-        plt.tight_layout(pad=3.0)
+        plt.tight_layout(pad=4.0)
 
         custom_cmap = get_custom_cmap(cmap)
 
@@ -1852,9 +1884,18 @@ def metric_plots():
     else:
         seas = None
 
-    if args.region:
+    if args.region is not None:
         seas, fc, obs, masks = process_regions(args.region,
-                                               [seas, fc, obs, masks])
+                                    [seas, fc, obs, masks],
+                                    method="pixel"
+                                    )
+    elif args.region_lat_lon is not None:
+        raise NotImplementedError("Computing this metric with lat/lon region "
+                                "bounds has not been implemented yet.")
+        seas, fc, obs, masks = process_regions(args.region_lat_lon,
+                                    [seas, fc, obs, masks],
+                                    method="lat_lon"
+                                    )
 
     plot_metrics(metrics=metrics,
                  masks=masks,
@@ -1940,8 +1981,18 @@ def sic_error():
         timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
-    if args.region:
-        fc, obs, masks = process_regions(args.region, [fc, obs, masks])
+    if args.region is not None:
+        fc, obs, masks = process_regions(args.region,
+                                    [fc, obs, masks],
+                                    method="pixel"
+                                    )
+    elif args.region_lat_lon is not None:
+        raise NotImplementedError("Computing this metric with lat/lon region "
+                                "bounds has not been implemented yet.")
+        fc, obs, masks = process_regions(args.region_lat_lon,
+                                    [fc, obs, masks],
+                                    method="lat_lon"
+                                    )
 
     sic_error_video(fc_da=fc,
                     obs_da=obs,
