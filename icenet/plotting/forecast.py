@@ -1554,7 +1554,7 @@ def sie_error():
                               threshold=args.threshold)
 
 
-def plot_forecast(show_plot=False):
+def plot_forecast():
     """CLI entry point for icenet_plot_forecast
 
     :return:
@@ -1580,7 +1580,7 @@ def plot_forecast(show_plot=False):
                     help="Format to output in",
                     choices=("mp4", "png", "svg", "tiff"),
                     default="png")
-    ap.add_argument("-gl",
+    ap.add_argument("-g",
                     "--gridlines",
                     help="Turn on gridlines for plots",
                     action="store_true",
@@ -1701,46 +1701,58 @@ def plot_forecast(show_plot=False):
         # TODO: Tidy up code into piecewise functions under `icenet/plotting/utils.py`
         source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
         target_crs = ccrs.PlateCarree()
+
+        ax = get_plot_axes(**bound_args,
+                        do_coastlines=not args.no_coastlines,
+                        proj=target_crs if args.north_facing else None,
+                        set_extents=False if args.region_lat_lon is not None else not args.north_facing,
+                        north_facing=args.north_facing
+                        )
+
+        if not args.no_coastlines:
+            ax.add_feature(cfeature.LAND, facecolor="dimgrey")
+            ax.coastlines()
+            # ax.add_feature(cfeature.COASTLINE)
+        # ax.set_global()
+
+        if args.gridlines:
+            gl = ax.gridlines(crs=target_crs, draw_labels=True)
+            # Prevent generating labels below the colourbar
+            gl.right_labels = False
+            # # Show gridlines around bounds.
+            # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
+            # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
+
+        plt.tight_layout(pad=3.0)
+
+        custom_cmap = get_custom_cmap(cmap)
+
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
 
+            # Standard output plot or using pixel region clipping
             if args.region_lat_lon is None:
-                ax = get_plot_axes(**bound_args,
-                                do_coastlines=not args.no_coastlines,
-                                proj=target_crs if args.north_facing else None,
-                                set_extents=not args.north_facing
-                                )
-
+                if args.north_facing and args.region is not None:
+                    lon, lat = fc.lon.values, fc.lat.values
+                    extent = [lon.min(), lon.max(), lat.min(), lat.max()]
+                    ax.set_extent(extent, crs=target_crs)
                 im = show_img(ax,
                             pred_da,
                             **bound_args,
                             cmap=cmap,
                             vmax=vmax,
                             do_coastlines=not args.no_coastlines)
-
-                if args.north_facing and args.region is not None:
-                    lon, lat = pred_da.lon.values, pred_da.lat.values
-                    extent = [lon.min(), lon.max(), lat.min(), lat.max()]
-                    ax.set_extent(extent, crs=target_crs)
+                # im = pred_da.plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs, vmin=0, vmax=vmax, add_colorbar=False, cmap=cmap)
+            # Using lat/lon region clipping
             else:
                 if not args.north_facing:
-                    ax = get_plot_axes(**bound_args,
-                                    do_coastlines=not args.no_coastlines,
-                                    set_extents=False
-                                    )
-
                     # im = ax.pcolormesh(pred_da.lon, pred_da.lat, pred_da, transform=target_crs, vmin=0, vmax=vmax, cmap=cmap)
                     im = pred_da.plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs, vmin=0, vmax=vmax, add_colorbar=False, cmap=cmap)
-                    if not args.no_coastlines:
-                        ax.coastlines()
-                        # ax.add_feature(cfeature.COASTLINE)
-                    # ax.set_global()
                 else:
                     cmap.set_bad("dimgrey", alpha=0)
                     # Hack since cartopy needs transparency for nan regions to wraparound
                     # correctly with pcolormesh.
                     data = np.where(np.isnan(pred_da), -9999, pred_da)
-                    custom_cmap = get_custom_cmap(cmap)
 
                     lon, lat = fc.lon.values, fc.lat.values
                     transformed_coords = source_crs.transform_points(target_crs, lon, lat)
@@ -1748,24 +1760,13 @@ def plot_forecast(show_plot=False):
                     x = transformed_coords[:, :, 0]
                     y = transformed_coords[:, :, 1]
 
-                    # ax = plt.axes(projection=target_crs)
-                    ax = get_plot_axes(**bound_args,
-                                    do_coastlines=not args.no_coastlines,
-                                    proj=target_crs,
-                                    north_facing=True
-                                    )
                     im = ax.pcolormesh(x, y, data, transform=source_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
-                    if not args.no_coastlines:
-                        ax.add_feature(cfeature.LAND, facecolor="dimgrey")
-                        # ax.add_feature(cfeature.COASTLINE)
-                        ax.coastlines()
+                    stored_extent = ax.get_extent()
 
                     # Output a reference image showing cropped region
                     if i == 0:
                         boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
-                        # if args.gridlines:
-                        #     gl = ax.gridlines(crs=source_crs)#, draw_labels=True)
                         region_plot = ax.plot(boxlon, boxlat, transform=target_crs, color="red")
                         ax.set_global()
 
@@ -1778,13 +1779,10 @@ def plot_forecast(show_plot=False):
 
                         for handle in region_plot:
                             handle.remove()
+
                     extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
                     ax.set_extent(extent)
 
-            if args.gridlines:
-                gl = ax.gridlines(crs=target_crs, draw_labels=True)
-                # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
-                # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
             divider = make_axes_locatable(ax)
             # Pass axes_class to set correct colourbar height with cartopy
             cax = divider.append_axes("right", size="5%", pad=0.1, axes_class=plt.Axes)
@@ -1803,9 +1801,9 @@ def plot_forecast(show_plot=False):
 
             logging.info("Saving to {}".format(output_filename))
             plt.savefig(output_filename)
-            if show_plot:
-                plt.show()
-            plt.clf()
+            im.remove()
+
+    plt.close()
 
 
 def parse_metrics_arg(argument: str) -> object:
