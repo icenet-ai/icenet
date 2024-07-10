@@ -10,6 +10,7 @@ import pandas as pd
 from icenet.data.datasets.utils import SplittingMixin
 from icenet.data.loader import IceNetDataLoaderFactory
 from icenet.data.producers import DataCollection
+
 from icenet.utils import (
     setup_module_logging,
     setup_logging,

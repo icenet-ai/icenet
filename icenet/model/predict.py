@@ -1,18 +1,17 @@
-import argparse
 import datetime as dt
 import logging
 import os
-import re
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-import icenet.model.models as models
+from tensorflow.keras.models import load_model
 
 from icenet.data.loader import save_sample
 from icenet.data.dataset import IceNetDataSet
-from icenet.utils import setup_logging
+from icenet.model.cli import predict_args
+
 """
 
 """
@@ -22,9 +21,6 @@ def predict_forecast(
     dataset_config: object,
     network_name: object,
     dataset_name: object = None,
-    legacy_rounding: bool = False,
-    model_func: callable = models.unet_batchnorm,
-    n_filters_factor: float = 1 / 8,
     network_folder: object = None,
     output_folder: object = None,
     save_args: bool = False,
@@ -56,17 +52,14 @@ def predict_forecast(
         network_folder = os.path.join(".", "results", "networks", network_name)
 
     dataset_name = dataset_name if dataset_name else ds.identifier
-    network_path = os.path.join(
-        network_folder, "{}.network_{}.{}.h5".format(network_name, dataset_name,
-                                                     seed))
+    model_path = os.path.join(
+        network_folder, "{}.network_{}.{}".format(network_name,
+                                                  dataset_name,
+                                                  seed))
 
-    logging.info("Loading model from {}...".format(network_path))
+    logging.info("Loading model from {}...".format(model_path))
 
-    network = model_func((*ds.shape, dl.num_channels), [], [],
-                         legacy_rounding=legacy_rounding,
-                         n_filters_factor=n_filters_factor,
-                         n_forecast_days=ds.n_forecast_days)
-    network.load_weights(network_path)
+    network = load_model(model_path, compile=False)
 
     if not test_set:
         logging.info("Generating forecast inputs from processed/ files")
@@ -146,47 +139,8 @@ def run_prediction(network, date, output_folder, data_sample, save_args):
     return output_path
 
 
-def date_arg(string: str) -> object:
-    """
-
-    :param string:
-    :return:
-    """
-    date_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", string)
-    return dt.date(*[int(s) for s in date_match.groups()])
-
-
-@setup_logging
-def get_args():
-    """
-
-    :return:
-    """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("dataset")
-    ap.add_argument("network_name")
-    ap.add_argument("output_name")
-    ap.add_argument("seed", type=int, default=42)
-    ap.add_argument("datefile", type=argparse.FileType("r"))
-
-    ap.add_argument("-i",
-                    "--train-identifier",
-                    dest="ident",
-                    help="Train dataset identifier",
-                    type=str,
-                    default=None)
-    ap.add_argument("-n", "--n-filters-factor", type=float, default=1.)
-    ap.add_argument("-l", "--legacy-rounding", action="store_true",
-                    default=False, help="Ensure filter number rounding occurs last in channel number calculations")
-    ap.add_argument("-t", "--testset", action="store_true", default=False)
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
-    ap.add_argument("-s", "--save_args", action="store_true", default=False)
-
-    return ap.parse_args()
-
-
 def main():
-    args = get_args()
+    args = predict_args()
 
     dataset_config = \
         os.path.join(".", "dataset_config.{}.json".format(args.dataset))
@@ -207,8 +161,6 @@ def main():
         #  do we need to retain the train SD name in the
         #  network?
         dataset_name=args.ident if args.ident else args.dataset,
-        legacy_rounding=args.legacy_rounding,
-        n_filters_factor=args.n_filters_factor,
         output_folder=output_folder,
         save_args=args.save_args,
         seed=args.seed,

@@ -15,7 +15,7 @@ from matplotlib.animation import FuncAnimation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet.process.predict import get_refcube
-from icenet.utils import setup_logging
+from icenet.cli import setup_logging
 
 
 # TODO: This can be a plotting or analysis util function elsewhere

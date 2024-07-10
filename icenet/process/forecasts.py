@@ -10,8 +10,7 @@ import rasterio
 
 import iris.analysis
 
-from icenet.process.utils import date_arg
-from icenet.utils import setup_logging
+from icenet.cli import date_arg, setup_logging
 
 from icenet.plotting.utils import broadcast_forecast, get_forecast_ds
 

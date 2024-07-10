@@ -192,3 +192,4 @@ def check_pytorch_import(logger: Logger) -> bool:
     except ImportError:
         logger.warning("PyTorch import failed - not required if not using PyTorch")
     return pytorch_available
+
