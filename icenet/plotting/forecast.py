@@ -1813,7 +1813,7 @@ def plot_forecast():
                             handle.remove()
 
                     extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
-                    ax.set_extent(extent)
+                    ax.set_extent(extent, crs=target_crs)
 
             divider = make_axes_locatable(ax)
             # Pass axes_class to set correct colourbar height with cartopy
