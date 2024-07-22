@@ -1692,6 +1692,10 @@ def plot_forecast():
     else:
         extent = None
 
+    data_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
+    target_crs = ccrs.PlateCarree()
+    #target_crs = ccrs.EqualEarth()
+
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
 
@@ -1727,12 +1731,12 @@ def plot_forecast():
                         method=method,
                         coastlines=not args.no_coastlines,
                         gridlines=args.gridlines,
+                        data_crs=data_crs,
+                        target_crs=target_crs,
                         # ax_init=plt.axes(projection=ccrs.PlateCarree()) if args.north_facing else None
                         **anim_args)
     else:
         # TODO: Tidy up code into piecewise functions under `icenet/plotting/utils.py`
-        source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
-        target_crs = ccrs.PlateCarree()
 
         ax = get_plot_axes(**bound_args,
                         do_coastlines=not args.no_coastlines,
@@ -1743,7 +1747,8 @@ def plot_forecast():
 
         if not args.no_coastlines:
             ax.add_feature(cfeature.LAND, facecolor="dimgrey")
-            ax.coastlines()
+            #ax.coastlines()
+            ax.add_feature(cfeature.GSHHSFeature(scale="full"))
             # ax.add_feature(cfeature.COASTLINE)
         # ax.set_global()
 
@@ -1787,12 +1792,12 @@ def plot_forecast():
                     data = np.where(np.isnan(pred_da), -9999, pred_da)
 
                     lon, lat = fc.lon.values, fc.lat.values
-                    transformed_coords = source_crs.transform_points(target_crs, lon, lat)
+                    transformed_coords = data_crs.transform_points(target_crs, lon, lat)
 
                     x = transformed_coords[:, :, 0]
                     y = transformed_coords[:, :, 1]
 
-                    im = ax.pcolormesh(x, y, data, transform=source_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
+                    im = ax.pcolormesh(lon, lat, data, transform=target_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
                     stored_extent = ax.get_extent()
 
                     # Output a reference image showing cropped region

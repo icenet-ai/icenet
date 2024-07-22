@@ -80,13 +80,15 @@ def xarray_to_video(
     method: str = "pixel",
     coastlines: bool = False,
     gridlines: bool = False,
+    data_crs: object = None,
+    target_crs: object = None,
     mask: object = None,
     mask_type: str = 'contour',
     clim: object = None,
     crop: object = None,
     data_type: str = 'abs',
     video_dates: object = None,
-    cmap: object = "viridis",
+    cmap: object = plt.get_cmap("viridis"),
     figsize: int = (12, 12),
     dpi: int = 150,
     imshow_kwargs: dict = None,
@@ -121,9 +123,8 @@ def xarray_to_video(
     :param ax_extra: Extra method called with axes for additional plotting
     """
 
-    source_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
-    target_crs = ccrs.PlateCarree()
-
+    data_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if data_crs is None else data_crs
+    target_crs = ccrs.PlateCarree() if target_crs is None else target_crs
 
     def update(date):
         logging.debug("Plotting {}".format(date.strftime("%D")))
@@ -170,18 +171,13 @@ def xarray_to_video(
 
     logging.info("Initialising plot")
 
-    projection = target_crs if method == "lat_lon" else source_crs
+    projection = target_crs if method == "lat_lon" else data_crs
     if ax_init is None:
-        if north_facing:
-            fig, ax = plt.subplots(figsize=figsize,
-                                    subplot_kw={"projection": target_crs},
-                                    layout="tight",
-                                    )
-        else:
-            fig, ax = plt.subplots(figsize=figsize,
-                                    subplot_kw={"projection": source_crs},
-                                    layout="tight",
-                                    )
+        projection = target_crs if north_facing else data_crs
+        fig, ax = plt.subplots(figsize=figsize,
+                                subplot_kw={"projection": projection},
+                                layout="tight",
+                                )
         fig.set_dpi(dpi)
     else:
         ax = ax_init
@@ -214,7 +210,7 @@ def xarray_to_video(
         ax.add_feature(cfeature.COASTLINE)
 
     if gridlines:
-        gl = ax.gridlines(crs=source_crs)
+        gl = ax.gridlines(crs=data_crs)
 
     data = da.sel(time=date)
     lon, lat = da.lon.values, da.lat.values
@@ -233,7 +229,7 @@ def xarray_to_video(
         if extent and method == "lat_lon":
             ax.set_extent(extent, crs=target_crs)
 
-        transformed_coords = source_crs.transform_points(target_crs, lon, lat)
+        transformed_coords = data_crs.transform_points(target_crs, lon, lat)
 
         x = transformed_coords[:, :, 0]
         y = transformed_coords[:, :, 1]
@@ -243,7 +239,7 @@ def xarray_to_video(
         custom_cmap = get_custom_cmap(cmap)
 
         image = ax.pcolormesh(x, y, data,
-                                transform=source_crs,
+                                transform=data_crs,
                                 cmap=custom_cmap,
                                 clim=(n_min, n_max),
                                 animated=True,

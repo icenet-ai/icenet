@@ -350,7 +350,9 @@ def get_plot_axes(x1: int = 0,
     if do_coastlines:
         pole = 1 if north else -1
         proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90) if proj is None else proj
-        ax = fig.add_subplot(1, 1, 1, projection=proj)
+        print(":-:"*50)
+        print("Projection:", proj)
+        ax = fig.add_subplot(1, 1, 1, projection=ccrs.Mercator())
         if set_extents:
             extents = calculate_extents(x1, x2, y1, y2)
             ax.set_extent(extents, crs=proj)
