@@ -14,7 +14,7 @@ class PeriodProcessor(Processor):
                  *args,
                  method: callable,
                  **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(dataset_config, *args, **kwargs)
         self._method = method
 
     def process(self):
@@ -42,7 +42,7 @@ class LandMaskChannelProcessor(Processor):
                  dataset_config: DatasetConfig,
                  *args,
                  **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(dataset_config, *args, **kwargs)
 
         self.__ds_config = dataset_config
 
