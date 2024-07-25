@@ -48,7 +48,7 @@ def create_get_args() -> object:
     ap.add_argument("-fl",
                     "--forecast-length",
                     dest="forecast_length",
-                    default=6,
+                    default=None,
                     type=int)
 
     ap.add_argument("-i",
@@ -56,7 +56,7 @@ def create_get_args() -> object:
                     type=str,
                     choices=implementations,
                     default=implementations[0])
-    ap.add_argument("-l", "--lag", type=int, default=2)
+    ap.add_argument("-l", "--lag", type=int, default=None)
 
     ap.add_argument("-ob",
                     "--output-batch-size",
@@ -99,7 +99,8 @@ def create_network_dataset():
         args.loader_configuration,
         args.network_dataset_name,
         dry=args.dry,
-        n_forecast_days=args.forecast_length,
+        lag_time=args.lag,
+        lead_time=args.forecast_length,
         output_batch_size=args.batch_size,
         pickup=args.pickup,
         generate_workers=args.workers,

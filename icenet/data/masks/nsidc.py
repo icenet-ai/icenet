@@ -215,10 +215,12 @@ class Masks(Processor):
         return None
 
     def get_active_grid_cell_mask_filenames(self):
-        return [self._agcm_filename_tmpl.format(m) for m in range(1, 13)]
+        return [os.path.join(self.get_data_var_folder("masks"),
+                             self._agcm_filename_tmpl.format(m)) for m in range(1, 13)]
 
     def get_land_mask_filenames(self):
-        return [self._land_mask_filename]
+        return [os.path.join(self.get_data_var_folder("masks"), self._land_mask_filename)]
 
     def get_polarhole_mask_filenames(self):
-        return [self._polarhole_filename_tmpl.format(i) for i in range(1, len(self._polarhole_radii) + 1)]
+        return [os.path.join(self.get_data_var_folder("masks"),
+                             self._polarhole_filename_tmpl.format(i)) for i in range(1, len(self._polarhole_radii) + 1)]

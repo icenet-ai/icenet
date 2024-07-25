@@ -9,8 +9,9 @@ import tensorflow as tf
 
 from math import ceil
 
+from download_toolbox.cli import date_arg
+
 from icenet.data.datasets.utils import get_decoder
-from icenet.data.cli import date_arg
 from icenet.data.network_dataset import IceNetDataSet
 from icenet.utils import setup_logging
 

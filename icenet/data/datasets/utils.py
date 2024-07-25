@@ -58,7 +58,7 @@ class SplittingMixin:
         >>> split_dataset = SplittingMixin()
 
         # Add file paths to the train, validation, and test datasets
-        >>> split_dataset.add_records(base_path="./network_datasets/notebook_data/", hemi="south")
+        >>> split_dataset.add_records(base_path="./network_datasets/notebook_data/")
     """
     _batch_size: int
     _dtype: object
@@ -71,22 +71,21 @@ class SplittingMixin:
     test_fns = []
     val_fns = []
 
-    def add_records(self, base_path: str, hemi: str) -> None:
+    def add_records(self, base_path: str) -> None:
         """Add list of paths to train, val, test *.tfrecord(s) to relevant instance attributes.
 
         Add sorted list of file paths to train, validation, and test datasets in SplittingMixin.
 
         Args:
             base_path (str): The base path where the datasets are located.
-            hemi (str): The hemisphere the datasets correspond to.
 
         Returns:
             None. Updates `self.train_fns`, `self.val_fns`, `self.test_fns` with list
                 of *.tfrecord files.
         """
-        train_path = os.path.join(base_path, hemi, "train")
-        val_path = os.path.join(base_path, hemi, "val")
-        test_path = os.path.join(base_path, hemi, "test")
+        train_path = os.path.join(base_path, "train")
+        val_path = os.path.join(base_path, "val")
+        test_path = os.path.join(base_path, "test")
 
         logging.info("Training dataset path: {}".format(train_path))
         self.train_fns += sorted(glob.glob("{}/*.tfrecord".format(train_path)))

@@ -27,6 +27,7 @@ dependencies = [
   "matplotlib",
   "motuclient",
   "netcdf4",
+  "orjson",
   "pandas<2",
   "plotly",
   "pip",

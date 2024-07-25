@@ -1,10 +1,10 @@
 import argparse
-import json
 import logging
 import os
 
 import dask
 import numpy as np
+import orjson
 import pandas as pd
 
 from icenet.data.datasets.utils import SplittingMixin
@@ -46,7 +46,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         _dtype: The type of the dataset.
         _loader_config: The path to the data loader configuration file.
         _generate_workers: An integer representing number of workers for parallel processing with Dask.
-        _n_forecast_days: An integer representing number of days to predict for.
+        _lead_time: An integer representing number of days to predict for.
         _num_channels: An integer representing number of channels (input variables) in the dataset.
         _shape: The shape of the dataset.
         _shuffling: A flag indicating whether to shuffle the data or not.
@@ -78,17 +78,20 @@ class IceNetDataSet(SplittingMixin, DataCollection):
 
         super().__init__(*args,
                          identifier=self._config["identifier"],
-                         north=bool(self._config["north"]),
-                         path=path,
-                         south=bool(self._config["south"]),
+                         #north=bool(self._config["north"]),
+                         base_path=path, #path=
+                         #south=bool(self._config["south"]),
                          **kwargs)
 
+        # TODO: ugh!
+        self._config = dict()
+        self._load_configuration(configuration_path)
         self._batch_size = batch_size
         self._counts = self._config["counts"]
         self._dtype = getattr(np, self._config["dtype"])
         self._loader_config = self._config["loader_config"]
         self._generate_workers = self._config["generate_workers"]
-        self._n_forecast_days = self._config["n_forecast_days"]
+        self._lead_time = self._config["lead_time"]
         self._num_channels = self._config["num_channels"]
         self._shape = tuple(self._config["shape"])
         self._shuffling = shuffling
@@ -104,8 +107,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         #   that the path exists.
         if self._config[path_attr] and \
                 os.path.exists(self._config[path_attr]):
-            hemi = self.hemisphere_str[0]
-            self.add_records(self.base_path, hemi)
+            self.add_records(self.path)
         else:
             logging.warning("Running in configuration only mode, tfrecords "
                             "were not generated for this dataset")
@@ -123,19 +125,19 @@ class IceNetDataSet(SplittingMixin, DataCollection):
             logging.info("Loading configuration {}".format(path))
 
             with open(path, "r") as fh:
-                obj = json.load(fh)
+                obj = orjson.loads(fh.read())
 
                 self._config.update(obj)
         else:
             raise OSError("{} not found".format(path))
 
     def get_data_loader(self,
-                        n_forecast_days: object = None,
+                        lead_time: object = None,
                         generate_workers: object = None) -> object:
         """Create an instance of the IceNetDataLoader class.
 
         Args:
-            n_forecast_days (optional): The number of forecast days to be used by the data loader.
+            lead_time (optional): The number of forecast steps to be used by the data loader.
                 If not provided, defaults to the value specified in the configuration file.
             generate_workers (optional): An integer representing number of workers to use for
                 parallel processing with Dask. If not provided, defaults to the value specified in
@@ -144,22 +146,20 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         Returns:
             An instance of the DaskMultiWorkerLoader class configured with the specified parameters.
         """
-        if n_forecast_days is None:
-            n_forecast_days = self._config["n_forecast_days"]
+        if lead_time is None:
+            lead_time = self._config["lead_time"]
         if generate_workers is None:
             generate_workers = self._config["generate_workers"]
         loader = IceNetDataLoaderFactory().create_data_loader(
             "dask",  # This will load the `DaskMultiWorkerLoader` class.
             self.loader_config,
             self.identifier,
-            self._config["var_lag"],
-            n_forecast_days=n_forecast_days,
+            lag_time=self._config["lag_time"],
+            lead_time=lead_time,
             generate_workers=generate_workers,
             dataset_config_path=os.path.dirname(self._configuration_path),
             loss_weight_days=self._config["loss_weight_days"],
-            north=self.north,
             output_batch_size=self._config["output_batch_size"],
-            south=self.south,
             var_lag_override=self._config["var_lag_override"],
         )
         return loader
@@ -216,7 +216,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         self._batch_size = batch_size
         self._dtype = getattr(np, self._config["dtype"])
         self._num_channels = self._config["num_channels"]
-        self._n_forecast_days = self._config["n_forecast_days"]
+        self._lead_time = self._config["lead_time"]
         self._shape = self._config["shape"]
         self._shuffling = shuffling
 
@@ -227,10 +227,9 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
         """
         for idx, loader_path in enumerate(self._config["loader_paths"]):
-            hemi = self._config["loaders"][idx].hemisphere_str[0]
             base_path = os.path.join(self._base_path,
                                      self._config["loaders"][idx].identifier)
-            self.add_records(base_path, hemi)
+            self.add_records(base_path)
 
     def _load_configurations(self, paths: object):
         """
@@ -288,7 +287,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                 self._config["counts"][dataset] += count
 
         general_attrs = [
-            "channels", "dtype", "n_forecast_days", "num_channels",
+            "channels", "dtype", "lead_time", "num_channels",
             "output_batch_size", "shape"
         ]
 
