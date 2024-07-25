@@ -109,7 +109,6 @@ ENV/
 .idea/
 
 # IceNet specific
->>>>>>> docs_and_structure
 /build/
 /data/
 /dataloader_configs/
