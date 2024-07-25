@@ -352,7 +352,7 @@ def get_plot_axes(x1: int = 0,
         proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90) if proj is None else proj
         print(":-:"*50)
         print("Projection:", proj)
-        ax = fig.add_subplot(1, 1, 1, projection=ccrs.Mercator())
+        ax = fig.add_subplot(1, 1, 1, projection=proj)
         if set_extents:
             extents = calculate_extents(x1, x2, y1, y2)
             ax.set_extent(extents, crs=proj)
@@ -373,7 +373,10 @@ def show_img(ax,
              vmin: float = 0.,
              vmax: float = 1.,
              north: bool = True,
-             south: bool = False):
+             south: bool = False,
+             crs: object = None,
+             extents: list = None
+             ):
     """
 
     :param ax:

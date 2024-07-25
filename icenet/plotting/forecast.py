@@ -1654,10 +1654,11 @@ def plot_forecast():
     cmap = plt.get_cmap(cmap_name)
     cmap.set_bad("dimgrey")
 
+    # Clip the actual data to the requested region.
     if args.region is not None:
         fc = process_regions(args.region, [fc], method="pixel")[0]
-    elif args.region_lat_lon is not None:
-        fc = process_regions(args.region_lat_lon, [fc], method="lat_lon")[0]
+    # elif args.region_lat_lon is not None:
+    #     fc = process_regions(args.region_lat_lon, [fc], method="lat_lon")[0]
 
     vmax = 1.
 
@@ -1693,8 +1694,14 @@ def plot_forecast():
         extent = None
 
     data_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
-    target_crs = ccrs.PlateCarree()
-    #target_crs = ccrs.EqualEarth()
+    # target_crs = ccrs.PlateCarree()
+    # target_crs = ccrs.EqualEarth()
+    # target_crs = ccrs.Mercator()
+    # target_crs = ccrs.Mercator.GOOGLE
+    target_crs = ccrs.epsg("3347")
+    transform_crs = ccrs.PlateCarree()
+    print("Data CRS:", data_crs)
+    print("Target CRS:", target_crs)
 
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
@@ -1731,8 +1738,8 @@ def plot_forecast():
                         method=method,
                         coastlines=not args.no_coastlines,
                         gridlines=args.gridlines,
-                        data_crs=data_crs,
                         target_crs=target_crs,
+                        transform_crs=transform_crs,
                         # ax_init=plt.axes(projection=ccrs.PlateCarree()) if args.north_facing else None
                         **anim_args)
     else:
@@ -1747,18 +1754,18 @@ def plot_forecast():
 
         if not args.no_coastlines:
             ax.add_feature(cfeature.LAND, facecolor="dimgrey")
-            #ax.coastlines()
-            ax.add_feature(cfeature.GSHHSFeature(scale="full"))
+            ax.coastlines(resolution="10m")
+            # ax.add_feature(cfeature.GSHHSFeature(scale="full"))
             # ax.add_feature(cfeature.COASTLINE)
         # ax.set_global()
 
-        if args.gridlines:
-            gl = ax.gridlines(crs=target_crs, draw_labels=True)
-            # Prevent generating labels below the colourbar
-            gl.right_labels = False
-            # # Show gridlines around bounds.
-            # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
-            # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
+        # if args.gridlines:
+        #     gl = ax.gridlines(crs=transform_crs, draw_labels=True)
+        #     # Prevent generating labels below the colourbar
+        #     gl.right_labels = False
+        #     # # Show gridlines around bounds.
+        #     # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
+        #     # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
 
         plt.tight_layout(pad=4.0)
 
@@ -1772,53 +1779,59 @@ def plot_forecast():
                 if args.north_facing and args.region is not None:
                     lon, lat = fc.lon.values, fc.lat.values
                     extent = [lon.min(), lon.max(), lat.min(), lat.max()]
-                    ax.set_extent(extent, crs=target_crs)
-                im = show_img(ax,
-                            pred_da,
-                            **bound_args,
-                            cmap=cmap,
-                            vmax=vmax,
-                            do_coastlines=not args.no_coastlines)
-                # im = pred_da.plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs, vmin=0, vmax=vmax, add_colorbar=False, cmap=cmap)
+                    # ax.set_extent(extent, crs=ccrs.PlateCarree())
+                    # gl = ax.gridlines(crs=transform_crs, draw_labels=True)
+                else:
+                    extent = None
+                # im = show_img(ax,
+                #             pred_da,
+                #             **bound_args,
+                #             cmap=cmap,
+                #             vmax=vmax,
+                #             do_coastlines=not args.no_coastlines,
+                #             crs=transform_crs,
+                #             extents=extent,
+                #             )
+                im = pred_da.plot.pcolormesh("lon",
+                                             "lat",
+                                             ax=ax,
+                                             transform=transform_crs,
+                                             vmin=0,
+                                             vmax=vmax,
+                                             add_colorbar=False,
+                                             cmap=custom_cmap,
+                                             )
             # Using lat/lon region clipping
             else:
-                if not args.north_facing:
-                    # im = ax.pcolormesh(pred_da.lon, pred_da.lat, pred_da, transform=target_crs, vmin=0, vmax=vmax, cmap=cmap)
-                    im = pred_da.plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs, vmin=0, vmax=vmax, add_colorbar=False, cmap=cmap)
-                else:
-                    cmap.set_bad("dimgrey", alpha=0)
-                    # Hack since cartopy needs transparency for nan regions to wraparound
-                    # correctly with pcolormesh.
-                    data = np.where(np.isnan(pred_da), -9999, pred_da)
+                cmap.set_bad("dimgrey", alpha=0)
+                # Hack since cartopy needs transparency for nan regions to wraparound
+                # correctly with pcolormesh.
+                data = np.where(np.isnan(pred_da), -9999, pred_da)
 
-                    lon, lat = fc.lon.values, fc.lat.values
-                    transformed_coords = data_crs.transform_points(target_crs, lon, lat)
+                lon, lat = fc.lon.values, fc.lat.values
 
-                    x = transformed_coords[:, :, 0]
-                    y = transformed_coords[:, :, 1]
+                im = ax.pcolormesh(lon, lat, data, transform=transform_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
+                stored_extent = ax.get_extent()
 
-                    im = ax.pcolormesh(lon, lat, data, transform=target_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
-                    stored_extent = ax.get_extent()
+                # Output a reference image showing cropped region
+                if i == 0:
+                    boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
-                    # Output a reference image showing cropped region
-                    if i == 0:
-                        boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
+                    region_plot = ax.plot(boxlon, boxlat, transform=transform_crs, color="red")
+                    ax.set_global()
 
-                        region_plot = ax.plot(boxlon, boxlat, transform=target_crs, color="red")
-                        ax.set_global()
+                    output_filename = os.path.join(
+                        output_path, "{}.{}_reference.{}{}".format(
+                            forecast_name,
+                            (args.forecast_date + dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
+                            "" if not args.stddev else "stddev.", "jpg"))
+                    plt.savefig(output_filename)
 
-                        output_filename = os.path.join(
-                            output_path, "{}.{}_reference.{}{}".format(
-                                forecast_name,
-                                (args.forecast_date + dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
-                                "" if not args.stddev else "stddev.", "jpg"))
-                        plt.savefig(output_filename)
+                    for handle in region_plot:
+                        handle.remove()
 
-                        for handle in region_plot:
-                            handle.remove()
-
-                    extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
-                    ax.set_extent(extent, crs=target_crs)
+                extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
+                ax.set_extent(extent, crs=transform_crs)
 
             divider = make_axes_locatable(ax)
             # Pass axes_class to set correct colourbar height with cartopy

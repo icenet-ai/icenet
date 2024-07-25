@@ -80,8 +80,8 @@ def xarray_to_video(
     method: str = "pixel",
     coastlines: bool = False,
     gridlines: bool = False,
-    data_crs: object = None,
     target_crs: object = None,
+    transform_crs: object = None,
     mask: object = None,
     mask_type: str = 'contour',
     clim: object = None,
@@ -123,8 +123,8 @@ def xarray_to_video(
     :param ax_extra: Extra method called with axes for additional plotting
     """
 
-    data_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if data_crs is None else data_crs
-    target_crs = ccrs.PlateCarree() if target_crs is None else target_crs
+    target_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
+    transform_crs = ccrs.PlateCarree() if transform_crs is None else transform_crs
 
     def update(date):
         logging.debug("Plotting {}".format(date.strftime("%D")))
@@ -171,9 +171,9 @@ def xarray_to_video(
 
     logging.info("Initialising plot")
 
-    projection = target_crs if method == "lat_lon" else data_crs
+    projection = target_crs
     if ax_init is None:
-        projection = target_crs if north_facing else data_crs
+        projection = target_crs
         fig, ax = plt.subplots(figsize=figsize,
                                 subplot_kw={"projection": projection},
                                 layout="tight",
@@ -207,10 +207,11 @@ def xarray_to_video(
     ax.add_feature(cfeature.LAND, facecolor="dimgrey")
 
     if coastlines:
-        ax.add_feature(cfeature.COASTLINE)
+        ax.coastlines(resolution="10m")
+        # ax.add_feature(cfeature.COASTLINE)
 
     if gridlines:
-        gl = ax.gridlines(crs=data_crs)
+        gl = ax.gridlines(crs=transform_crs)
 
     data = da.sel(time=date)
     lon, lat = da.lon.values, da.lat.values
@@ -218,7 +219,7 @@ def xarray_to_video(
     # TODO: Tidy up, and cover all argument options
     if not north_facing:
         image = ax.pcolormesh(lon, lat, data,
-                                transform=target_crs,
+                                transform=transform_crs,
                                 cmap=cmap,
                                 clim=(n_min, n_max),
                                 animated=True,
@@ -227,19 +228,14 @@ def xarray_to_video(
                                 )
     else:
         if extent and method == "lat_lon":
-            ax.set_extent(extent, crs=target_crs)
-
-        transformed_coords = data_crs.transform_points(target_crs, lon, lat)
-
-        x = transformed_coords[:, :, 0]
-        y = transformed_coords[:, :, 1]
+            ax.set_extent(extent, crs=transform_crs)
 
         # Hack since cartopy needs transparency for nan regions to wraparound
         # correctly with pcolormesh.
         custom_cmap = get_custom_cmap(cmap)
 
-        image = ax.pcolormesh(x, y, data,
-                                transform=data_crs,
+        image = ax.pcolormesh(lon, lat, data,
+                                transform=transform_crs,
                                 cmap=custom_cmap,
                                 clim=(n_min, n_max),
                                 animated=True,
