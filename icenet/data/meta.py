@@ -72,7 +72,7 @@ class LandMaskChannelProcessor(Processor):
                                   format(self.__class__.__name__, self.abs_vars))
         var_name = self.abs_vars[0]
 
-        land_mask = (Masks(self.__ds_config, self.abs_vars, self.identifier).
+        land_mask = (Masks(self.__ds_config, ["masks",], "masks").
                      get_land_mask())
         land_map = np.ones(land_mask.shape, dtype=self.dtype)
         land_map[~land_mask] = -1.

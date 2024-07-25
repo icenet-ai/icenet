@@ -14,15 +14,15 @@ from preprocess_toolbox.processor import Processor
 # TODO: these stubs can be generalised into preprocess-toolbox and the Masks class made
 #  the relevant import - definitely do this as there is a harsh interface of applications here
 def land(ds_config: DatasetConfig, name: str, processed_path: str):
-    return Masks(ds_config, [name, ], name, base_path=processed_path).get_land_mask_filenames()
+    return Masks(ds_config, ["masks", ], "masks", base_path=processed_path).get_land_mask_filenames()
 
 
 def polarhole(ds_config: DatasetConfig, name: str, processed_path: str):
-    return Masks(ds_config, [name, ], name, base_path=processed_path).get_polarhole_mask_filenames()
+    return Masks(ds_config, ["masks", ], "masks", base_path=processed_path).get_polarhole_mask_filenames()
 
 
 def active_grid_cell(ds_config: DatasetConfig, name: str, processed_path: str):
-    return Masks(ds_config, [name, ], name, base_path=processed_path).get_active_grid_cell_mask_filenames()
+    return Masks(ds_config, ["masks", ], "masks", base_path=processed_path).get_active_grid_cell_mask_filenames()
 
 
 class Masks(Processor):
@@ -65,6 +65,7 @@ class Masks(Processor):
         if not self._north and not self._south:
             raise RuntimeError("Location needs to be north or south hemisphere for IceNet Masks")
 
+        # TODO: fix overproduction of files - we get all months of the year just for the land / PH masks
         self.generate()
 
     def generate(self):
