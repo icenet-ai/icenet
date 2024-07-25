@@ -17,6 +17,16 @@ class PeriodProcessor(Processor):
         super().__init__(dataset_config, *args, **kwargs)
         self._method = method
 
+    def get_config(self,
+                   config_funcs: dict = None,
+                   strip_keys: list = None):
+        return {
+            self.update_key: {
+                "name":     self.identifier,
+                "files":    self.processed_files[self.identifier]
+            }
+        }
+
     def process(self):
         if len(self.abs_vars) != 1:
             raise ProcessingError("{} should be provided ONE absolute var name only, not {}".
@@ -46,13 +56,24 @@ class LandMaskChannelProcessor(Processor):
 
         self.__ds_config = dataset_config
 
+    def get_config(self,
+                   config_funcs: dict = None,
+                   strip_keys: list = None):
+        return {
+            self.update_key: {
+                "name":     self.identifier,
+                "files":    self.processed_files[self.identifier]
+            }
+        }
+
     def process(self):
         if len(self.abs_vars) != 1:
             raise ProcessingError("{} should be provided ONE absolute var name only, not {}".
                                   format(self.__class__.__name__, self.abs_vars))
         var_name = self.abs_vars[0]
 
-        land_mask = Masks(self.__ds_config).get_land_mask()
+        land_mask = (Masks(self.__ds_config, self.abs_vars, self.identifier).
+                     get_land_mask())
         land_map = np.ones(land_mask.shape, dtype=self.dtype)
         land_map[~land_mask] = -1.
 
