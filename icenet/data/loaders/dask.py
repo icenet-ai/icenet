@@ -412,8 +412,9 @@ def generate_sample(forecast_date: object,
 
     # Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_days)
+    forecast_base_idx = list(var_ds.time.values).index(pd.Timestamp(forecast_date))
     forecast_idxs = [
-        list(var_ds.time.values).index(pd.Timestamp(forecast_date)) + n for n in range(n_forecast_steps)
+        forecast_base_idx + n for n in range(0, n_forecast_steps)
     ]
 
     y = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
@@ -463,27 +464,18 @@ def generate_sample(forecast_date: object,
         if var_name.endswith("linear_trend"):
             channel_ds = trend_ds
             if type(trend_steps) is list:
-                channel_dates = [
-                    pd.Timestamp(forecast_date + relativedelta(**{relative_attr: int(n)}))
-                    for n in trend_steps
-                ]
+                channel_idxs = [forecast_base_idx + n for n in trend_steps]
             else:
-                channel_dates = [
-                    pd.Timestamp(forecast_date + relativedelta(**{relative_attr: n}))
-                    for n in range(num_channels)
-                ]
+                channel_idxs = [forecast_base_idx + n for n in range(0, num_channels)]
         else:
             channel_ds = var_ds
-            channel_dates = [
-                pd.Timestamp(forecast_date - relativedelta(**{relative_attr: n}))
-                for n in range(num_channels)
-            ]
+            channel_idxs = [forecast_base_idx + n for n in range(0, num_channels)]
 
         channel_data = []
-        for cdate in channel_dates:
+        for idx in channel_idxs:
             try:
                 channel_data.append(
-                    getattr(channel_ds, var_name).sel(time=cdate))
+                    getattr(channel_ds, var_name).isel(time=idx))
             except KeyError:
                 channel_data.append(da.zeros(shape))
 
