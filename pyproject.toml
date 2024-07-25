@@ -19,7 +19,7 @@ dependencies = [
   "cfgrib",
   "dask",
   "distributed",
-  "download-toolbox @ git+https://github.com/antarctica/download-toolbox@icenet_v0.3.0_dev",
+  "download-toolbox @ git+https://github.com/environmental-forecasting/download-toolbox@icenet_0.4",
   "eccodes",
   "ecmwf-api-client",
   "h5py",
@@ -30,6 +30,7 @@ dependencies = [
   "pandas<2",
   "plotly",
   "pip",
+  "preprocess-toolbox @ git+https://github.com/environmental-forecasting/preprocess-toolbox@icenet_0.4",
   "pydap",
   "rioxarray",
   "scitools-iris",
@@ -56,10 +57,8 @@ classifiers = [
 ]
 
 [project.scripts]
-# TODO: review condense, not necessarily required
-icenet_process_condense = "icenet.data.processors.utils:condense_main"
-icenet_dataset_check = "icenet.data.dataset:check_dataset"
-icenet_dataset_create = "icenet.data.loader:create"
+icenet_dataset_check = "icenet.data.network_dataset:check"
+icenet_dataset_create = "icenet.data.loader:create_network_dataset"
 icenet_train = "icenet.model.train:main"
 icenet_predict = "icenet.model.predict:main"
 icenet_upload_azure = "icenet.process.azure:upload"

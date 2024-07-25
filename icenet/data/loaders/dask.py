@@ -13,10 +13,10 @@ import pandas as pd
 import tensorflow as tf
 import xarray as xr
 
-from icenet.data.process import IceNetPreProcessor
-from icenet.data.loaders.base import IceNetBaseDataLoader
+from icenet.data.loaders.base import IceNetBaseDataLoader, DATE_FORMAT
 from icenet.data.loaders.utils import IceNetDataWarning, write_tfrecord
-from icenet.data.sic.mask import Masks
+from icenet.data.masks.nsidc import active_grid_cell
+
 """
 Dask implementations for icenet data loading
 

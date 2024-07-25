@@ -8,14 +8,15 @@ from pprint import pformat
 
 import numpy as np
 
-from icenet.data.process import IceNetPreProcessor
-from icenet.data.producers import Generator
+from download_toolbox.interface import DataCollection
 """
 
 """
 
+DATE_FORMAT = "%Y-%m-%d"
 
-class IceNetBaseDataLoader(Generator):
+
+class IceNetBaseDataLoader(DataCollection):
     """
 
     :param configuration_path,
@@ -46,7 +47,7 @@ class IceNetBaseDataLoader(Generator):
                  pickup: bool = False,
                  var_lag_override: object = None,
                  **kwargs):
-        super().__init__(*args, identifier=identifier, path=path, **kwargs)
+        super().__init__(*args, identifier=identifier, base_path=path, **kwargs)
 
         self._channels = dict()
         self._channel_files = dict()
@@ -76,7 +77,8 @@ class IceNetBaseDataLoader(Generator):
         self._shape = tuple(self._config["shape"])
 
         self._missing_dates = [
-            dt.datetime.strptime(s, IceNetPreProcessor.DATE_FORMAT)
+            # TODO: format needs to be picked up from dataset frequencies
+            dt.datetime.strptime(s, DATE_FORMAT)
             for s in self._config["missing_dates"]
         ]
 
@@ -96,7 +98,7 @@ class IceNetBaseDataLoader(Generator):
                 list(
                     set([
                         dt.datetime.strptime(
-                            s, IceNetPreProcessor.DATE_FORMAT).date()
+                            s, DATE_FORMAT).date()
                         for identity in self._config["sources"].keys()
                         for s in self._config["sources"][identity]["dates"]
                         [dataset]
@@ -266,7 +268,7 @@ class IceNetBaseDataLoader(Generator):
         # TODO: move to utils for this and process
         def _serialize(x):
             if x is dt.date:
-                return x.strftime(IceNetPreProcessor.DATE_FORMAT)
+                return x.strftime(DATE_FORMAT)
             return str(x)
 
         configuration = {
@@ -282,7 +284,7 @@ class IceNetBaseDataLoader(Generator):
             "dtype": self._dtype.__name__,
             "loader_config": os.path.abspath(self._configuration_path),
             "missing_dates": [
-                date.strftime(IceNetPreProcessor.DATE_FORMAT)
+                date.strftime(DATE_FORMAT)
                 for date in self._missing_dates
             ],
             "n_forecast_days": self._n_forecast_days,

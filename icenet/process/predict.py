@@ -11,7 +11,7 @@ import pandas as pd
 import xarray as xr
 
 from icenet import __version__ as icenet_version
-from icenet.data.dataset import IceNetDataSet
+from icenet.data.network_dataset import IceNetDataSet
 from icenet.data.sic.mask import Masks
 from icenet.utils import run_command, setup_logging
 

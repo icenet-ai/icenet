@@ -11,7 +11,7 @@ import tensorflow as tf
 import icenet.model.models as models
 
 from icenet.data.loader import save_sample
-from icenet.data.dataset import IceNetDataSet
+from icenet.data.network_dataset import IceNetDataSet
 from icenet.utils import setup_logging
 """
 

@@ -14,7 +14,7 @@ from tensorflow.keras.callbacks import \
     EarlyStopping, ModelCheckpoint, LearningRateScheduler
 from tensorflow.keras.models import load_model, save_model
 
-from icenet.data.dataset import IceNetDataSet, MergedIceNetDataSet
+from icenet.data.network_dataset import IceNetDataSet, MergedIceNetDataSet
 import icenet.model.losses as losses
 import icenet.model.metrics as metrics
 from icenet.model.utils import make_exp_decay_lr_schedule
