@@ -297,6 +297,34 @@ def get_obs_da(
     return obs_ds.ice_conc
 
 
+def get_crs(crs_str: str):
+    """Get Coordinate Reference System (CRS) from string input argument
+
+    Args:
+        crs_str: A CRS given as EPSG code (e.g. `EPSG:3347` for North Canada)
+            or, a pre-defined Cartopy CRS call (e.g. "PlateCarree")
+    """
+    if crs_str.casefold().startswith("epsg"):
+        crs = ccrs.epsg(int(crs_str.split(":")[1]))
+    elif crs_str == "Mercator.GOOGLE":
+        crs = ccrs.Mercator.GOOGLE
+    else:
+        try:
+            crs = getattr(ccrs, crs_str)()
+        except AttributeError:
+            get_crs_options = [crs_option for crs_option in dir(ccrs)
+                                if isinstance(getattr(ccrs, crs_option), type)
+                                 and issubclass(getattr(ccrs, crs_option), ccrs.CRS)
+                                 ] + ["Mercator.GOOGLE"]
+            get_crs_options.sort()
+            get_crs_options = ", ".join(get_crs_options)
+            raise AttributeError("Unsupported CRS defined, supported options are:",\
+                f"{get_crs_options}"
+            )
+
+    return crs
+
+
 def calculate_extents(x1: int, x2: int, y1: int, y2: int):
     """
 
@@ -319,6 +347,35 @@ def calculate_extents(x1: int, x2: int, y1: int, y2: int):
     return extents
 
 
+# Convert pixel coordinates to projection coordinates
+def pixel_to_projection(pixel_x_min, pixel_x_max,
+                        pixel_y_min, pixel_y_max,
+                        x_min_proj: float=-5387500, x_max_proj: float=5387500,
+                        y_min_proj: float=-5387500, y_max_proj: float=5387500,
+                        image_width: int=432, image_height: int=432,
+                        ):
+    """Converts pixel coordinates to CRS projection coordinates"""
+    proj_x_min = (pixel_x_min / image_width ) * (x_max_proj - x_min_proj) + x_min_proj
+    proj_x_max = (pixel_x_max / image_width ) * (x_max_proj - x_min_proj) + x_min_proj
+    proj_y_min = (pixel_y_min / image_height) * (y_max_proj - y_min_proj) + y_min_proj
+    proj_y_max = (pixel_y_max / image_height) * (y_max_proj - y_min_proj) + y_min_proj
+
+    return proj_x_min, proj_x_max, proj_y_min, proj_y_max
+
+
+def get_bounds(proj=None, pole=1):
+    """Get min/max bounds for a given CRS projection"""
+    if proj is None or isinstance(proj, ccrs.LambertAzimuthalEqualArea):
+        proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
+        x_min_proj, x_max_proj = [-5387500, 5387500]
+        y_min_proj, y_max_proj = [-5387500, 5387500]
+    else:
+        x_min_proj, x_max_proj = proj.x_limits
+        y_min_proj, y_max_proj = proj.y_limits
+    logging.debug(f"Projection bounds: {proj.x_limits}, {proj.y_limits}")
+    return proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj
+
+
 def get_plot_axes(x1: int = 0,
                   x2: int = 432,
                   y1: int = 0,
@@ -327,7 +384,6 @@ def get_plot_axes(x1: int = 0,
                   north: bool = True,
                   south: bool = False,
                   proj = None,
-                  north_facing: bool = False,
                   set_extents: bool = False
                   ):
     """
@@ -349,13 +405,16 @@ def get_plot_axes(x1: int = 0,
 
     if do_coastlines:
         pole = 1 if north else -1
-        proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90) if proj is None else proj
-        print(":-:"*50)
-        print("Projection:", proj)
+        proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(proj, pole)
+
         ax = fig.add_subplot(1, 1, 1, projection=proj)
-        if set_extents:
-            extents = calculate_extents(x1, x2, y1, y2)
-            ax.set_extent(extents, crs=proj)
+
+        extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
+
+        ax.set_extent(extents, crs=proj)
+
+        # Set colour for areas outside of `process_regions()` - no data here.
+        ax.set_facecolor('dimgrey')
     else:
         ax = fig.add_subplot(1, 1, 1)
 
@@ -436,7 +495,7 @@ def process_probes(probes, data) -> tuple:
     return data
 
 
-def process_regions(region: tuple, data: tuple, method: str = "pixel") -> tuple:
+def process_regions(region: tuple, data: tuple, method: str = "pixel", proj=None, pole=1) -> tuple:
     """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
     :param region: Either image pixel bounds, or lat/lon bounds.
@@ -454,6 +513,10 @@ def process_regions(region: tuple, data: tuple, method: str = "pixel") -> tuple:
         if arr is not None:
             if method == "pixel":
                 data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
+
+                # proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(proj, pole)
+                # x_min, x_max, y_min, y_max = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
+                # data[idx] = arr.sel(xc=slice(x_min/1000, x_max/1000), yc=slice(y_max/1000, y_min/1000))
             elif method == "lat_lon":
                 # Create condition where data is within lat/lon region
                 condition = (arr.lat >= x1) & (arr.lat <= x2) & (arr.lon >= y1) & (arr.lon <= y2)

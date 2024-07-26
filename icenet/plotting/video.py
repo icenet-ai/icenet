@@ -74,7 +74,7 @@ def xarray_to_video(
     da: object,
     fps: int,
     video_path: object = None,
-    north_facing: bool = False,
+    reproject: bool = False,
     pole: int = None,
     extent: tuple = None,
     method: str = "pixel",
@@ -131,7 +131,7 @@ def xarray_to_video(
         data = da.sel(time=date)
         # Hack since cartopy needs transparency for nan regions to wraparound
         # correctly with pcolormesh.
-        if north_facing:
+        if reproject:
             data = np.where(np.isnan(data), -9999, data)
         image.set_array(data)
 
@@ -198,7 +198,7 @@ def xarray_to_video(
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 
     # pcolormesh requires set_bad to be transparent for wraparound.
-    if method == "lat_lon" and north_facing:
+    if method == "lat_lon" and reproject:
         alpha = 0.0
     else:
         alpha = 1.0
@@ -216,8 +216,11 @@ def xarray_to_video(
     data = da.sel(time=date)
     lon, lat = da.lon.values, da.lat.values
 
+    if extent and method == "lat_lon":
+        ax.set_extent(extent, crs=transform_crs)
+
     # TODO: Tidy up, and cover all argument options
-    if not north_facing:
+    if not reproject:
         image = ax.pcolormesh(lon, lat, data,
                                 transform=transform_crs,
                                 cmap=cmap,
@@ -227,9 +230,6 @@ def xarray_to_video(
                                 **imshow_kwargs if imshow_kwargs is not None else {}
                                 )
     else:
-        if extent and method == "lat_lon":
-            ax.set_extent(extent, crs=transform_crs)
-
         # Hack since cartopy needs transparency for nan regions to wraparound
         # correctly with pcolormesh.
         custom_cmap = get_custom_cmap(cmap)
