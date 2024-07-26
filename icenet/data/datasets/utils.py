@@ -202,7 +202,7 @@ class SplittingMixin:
                               dtype=self.dtype.__name__)
 
         for df in getattr(self, "{}_fns".format(split)):
-            logging.debug("Getting records from {}".format(df))
+            logging.info("Getting records from {}".format(df))
             try:
                 raw_dataset = tf.data.TFRecordDataset([df])
                 raw_dataset = raw_dataset.map(decoder)
@@ -217,7 +217,8 @@ class SplittingMixin:
                             df, i, x.shape, y.shape, sw.shape))
 
                     input_nans = np.isnan(x).sum()
-                    output_nans = np.isnan(y[sw > 0.]).sum()
+                    output_nans = np.isnan(y[(sw > 0.)]).sum()
+                    sw_nans = np.isnan(sw).sum()
                     input_min = np.min(x)
                     input_max = np.max(x)
                     output_min = np.min(x)
@@ -231,13 +232,15 @@ class SplittingMixin:
                             sw_min, sw_max))
 
                     if input_nans > 0:
-                        logging.warning("Input NaNs detected in {}:{}".format(
-                            df, i))
+                        logging.warning("Input NaNs detected in {}:{}".format(df, i))
 
                     if output_nans > 0:
                         logging.warning(
-                            "Output NaNs detected in {}:{}, not "
-                            "accounted for by sample weighting".format(df, i))
+                            "Output NaNs detected in {}:{}, not accounted for by sample weighting".format(df, i))
+
+                    if sw_nans > 0:
+                        logging.warning(
+                            "SW NaNs detected in {}:{}".format(df, i))
             except tf.errors.DataLossError as e:
                 logging.warning("{}: data loss error {}".format(df, e.message))
             except tf.errors.OpError as e:

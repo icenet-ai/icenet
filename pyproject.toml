@@ -60,7 +60,6 @@ classifiers = [
 [project.scripts]
 icenet_dataset_check = "icenet.data.network_dataset:check"
 icenet_dataset_create = "icenet.data.loader:create_network_dataset"
-icenet_train = "icenet.model.train:main"
 icenet_predict = "icenet.model.predict:main"
 icenet_upload_azure = "icenet.process.azure:upload"
 icenet_upload_local = "icenet.process.local:upload"
@@ -79,6 +78,8 @@ icenet_output_geotiff = "icenet.process.forecasts:create_geotiff_output"
 icenet_output_broadcast = "icenet.process.forecasts:broadcast_main"
 icenet_output_reproject = "icenet.process.forecasts:reproject_main"
 icenet_result_threshold = "icenet.results.threshold:threshold_main"
+icenet_train_horovod = "icenet.model.train:horovod_main"
+icenet_train_tensorflow = "icenet.model.train:tensorflow_main"
 
 [tool.setuptools]
 py-modules = ["icenet"]

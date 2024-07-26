@@ -12,7 +12,8 @@ from tensorflow.keras.models import load_model
 
 from icenet.data.loader import save_sample
 from icenet.data.network_dataset import IceNetDataSet
-from icenet.utils import setup_logging
+from icenet.model.cli import predict_args
+
 """
 
 """

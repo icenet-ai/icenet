@@ -109,6 +109,34 @@ class LogFormat:
         self.formatter = logging.Formatter(self.str_format, datefmt=self.date_format)
 
 
+def setup_logging(func,
+                  log_format="[%(asctime)-17s :%(levelname)-8s] - %(message)s"):
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        parsed_args = func(*args, **kwargs)
+        level = logging.INFO
+
+        if hasattr(parsed_args, "verbose") and parsed_args.verbose:
+            level = logging.DEBUG
+
+        logging.basicConfig(
+            level=level,
+            format=log_format,
+        )
+
+        # TODO: better way of handling these on a case by case basis
+        logging.getLogger("cdsapi").setLevel(logging.WARNING)
+        logging.getLogger("matplotlib").setLevel(logging.WARNING)
+        logging.getLogger("matplotlib.pyplot").setLevel(logging.WARNING)
+        logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        return parsed_args
+
+    return wrapper
+
+
 def setup_module_logging(module_name: str, level: int=None):
     """
     Configure logger based on input name
@@ -138,35 +166,6 @@ def setup_module_logging(module_name: str, level: int=None):
     else:
         logger.setLevel(level)
     return logger
-
-
-def setup_logging(func,
-                  log_format=LogFormat().str_format):
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        parsed_args = func(*args, **kwargs)
-        level = logging.INFO
-
-        if hasattr(parsed_args, "verbose") and parsed_args.verbose:
-            level = logging.DEBUG
-
-        logging.basicConfig(
-            level=level,
-            format=log_format,
-            datefmt=LogFormat().date_format,
-        )
-
-        # TODO: better way of handling these on a case by case basis
-        logging.getLogger("cdsapi").setLevel(logging.WARNING)
-        logging.getLogger("matplotlib").setLevel(logging.WARNING)
-        logging.getLogger("matplotlib.pyplot").setLevel(logging.WARNING)
-        logging.getLogger("requests").setLevel(logging.WARNING)
-        logging.getLogger("tensorflow").setLevel(logging.WARNING)
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
-        return parsed_args
-
-    return wrapper
 
 
 def check_pytorch_import(logger: Logger) -> bool:
