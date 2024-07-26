@@ -109,7 +109,7 @@ class TensorflowNetwork(BaseNetwork):
             logging.info("Adding ModelCheckpoint callback")
             checkpoint_filestr = str(
                 os.path.join(self.network_folder,
-                             "checkpoint.{}.network_{}.{}.{}.h5".format(self.run_name, self.dataset.identifier, self.seed, "{epoch:03d}")))
+                             "checkpoint.{}.network_{}.{}.{}.keras".format(self.run_name, self.dataset.identifier, self.seed, "{epoch:03d}")))
             callbacks_list.append(
                 ModelCheckpoint(filepath=checkpoint_filestr,
                                 monitor=self._checkpoint_monitor,
@@ -217,10 +217,9 @@ def unet_batchnorm(input_shape: object,
                    metrics: object,
                    learning_rate: float = 1e-4,
                    custom_optimizer: object = None,
-                   experimental_run_tf_function: bool = True,
                    filter_size: float = 3,
                    n_filters_factor: float = 1,
-                   n_forecast_days: int = 1,
+                   n_forecast_steps: int = 1,
                    legacy_rounding: bool = True) -> object:
     """
 
@@ -229,10 +228,9 @@ def unet_batchnorm(input_shape: object,
     :param metrics:
     :param learning_rate:
     :param custom_optimizer:
-    :param experimental_run_tf_function:
     :param filter_size:
     :param n_filters_factor:
-    :param n_forecast_days:
+    :param n_forecast_steps:
     :param legacy_rounding: Ensures filter number calculations are int()'d at the end of calculations
     :return:
     """
@@ -398,7 +396,7 @@ def unet_batchnorm(input_shape: object,
                    padding='same',
                    kernel_initializer='he_normal')(conv9)
 
-    final_layer = Conv2D(n_forecast_days, kernel_size=1,
+    final_layer = Conv2D(n_forecast_steps, kernel_size=1,
                          activation='sigmoid')(conv9)
 
     # Keras graph mode needs y_pred and y_true to have the same shape, so we
@@ -411,7 +409,6 @@ def unet_batchnorm(input_shape: object,
     model.compile(optimizer=Adam(learning_rate=learning_rate)
                   if custom_optimizer is None else custom_optimizer,
                   loss=loss,
-                  weighted_metrics=metrics,
-                  experimental_run_tf_function=experimental_run_tf_function)
+                  weighted_metrics=metrics)
 
     return model

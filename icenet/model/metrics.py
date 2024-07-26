@@ -112,7 +112,9 @@ class WeightedBinaryAccuracy(tf.keras.metrics.BinaryAccuracy):
         """
 
         y_true = y_true > 0.15
+        #y_true = tf.cast(y_true > 0.15, tf.float16)
         y_pred = y_pred > 0.15
+        #y_pred = tf.cast(y_pred > 0.15, tf.float16)
 
         if self._leadtime_idx is not None:
             y_true = y_true[..., self._leadtime_idx, 0]

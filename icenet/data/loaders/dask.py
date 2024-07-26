@@ -411,7 +411,7 @@ def generate_sample(forecast_date: object,
     relative_attr = "{}s".format(frequency_attr)
 
     # Prepare data sample
-    # To become array of shape (*raw_data_shape, n_forecast_days)
+    # To become array of shape (*raw_data_shape, n_forecast_steps)
     forecast_base_idx = list(var_ds.time.values).index(pd.Timestamp(forecast_date))
     forecast_idxs = [
         forecast_base_idx + n for n in range(0, n_forecast_steps)

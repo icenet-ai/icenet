@@ -1,13 +1,7 @@
-import argparse
-import datetime as dt
 import json
 import logging
-import os
-import random
 import time
 
-import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 try:
@@ -47,9 +41,9 @@ def evaluate_model(model_path: object,
         logging.warning("Using validation data source for evaluation, rather "
                         "than test set")
 
-    lead_times = list(range(1, dataset.n_forecast_days + 1))
-    logging.info("Metric creation for lead time of {} days".format(
-        len(lead_times)))
+    lead_times = list(range(1, dataset.lead_time + 1))
+    logging.info("Metric creation for lead time of {} steps".format(len(lead_times)))
+
     # TODO: common across train_model and evaluate_model - list of instantiations
     metric_names = ["binacc", "mae", "rmse"]
     metrics_classes = [
@@ -197,7 +191,7 @@ def execute_tf_training(args, dataset, network,
             learning_rate=args.lr,
             filter_size=args.filter_size,
             n_filters_factor=args.n_filters_factor,
-            n_forecast_days=dataset.n_forecast_days,
+            n_forecast_steps=dataset.lead_time,
         ),
         save=save,
         validation_dataset=val_ds

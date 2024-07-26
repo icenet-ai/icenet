@@ -7,7 +7,7 @@ import numpy as np
 import orjson
 import pandas as pd
 
-from icenet.data.datasets.utils import SplittingMixin
+from icenet.data.datasets.splitting import SplittingMixin
 from icenet.data.loader import IceNetDataLoaderFactory
 from download_toolbox.base import DataCollection
 from icenet.utils import setup_logging
