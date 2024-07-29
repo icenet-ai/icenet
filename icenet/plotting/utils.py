@@ -414,7 +414,7 @@ def get_plot_axes(x1: int = 0,
 
         extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
 
-        ax.set_extent(extents, crs=proj)
+        # ax.set_extent(extents, crs=proj)
 
         # Set colour for areas outside of `process_regions()` - no data here.
         ax.set_facecolor('dimgrey')
@@ -506,29 +506,28 @@ def reproject_array(array, target_crs):
 
 
 def reproject_projected_coords(data,
-                                min_x_pixel,
-                                max_x_pixel,
-                                min_y_pixel,
-                                max_y_pixel,
+                                min_x=None,
+                                max_x=None,
+                                min_y=None,
+                                max_y=None,
                                 target_crs=ccrs.Mercator(),
                                 pole=1,
+                                method="pixel",
                                 ):
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
     data_crs_geo = ccrs.PlateCarree()
 
-    x_m, y_m = data.xc.values*1000, data.yc.values*1000
-    transformed_coords_proj = target_crs.transform_points(data_crs_proj, x_m, y_m)
+    # x_m, y_m = data.xc.values*1000, data.yc.values*1000
+    # transformed_coords_proj = target_crs.transform_points(data_crs_proj, x_m, y_m)
 
-    trans_x = transformed_coords_proj[..., 0]
-    trans_y = transformed_coords_proj[..., 1]
+    # trans_x = transformed_coords_proj[..., 0]
+    # trans_y = transformed_coords_proj[..., 1]
 
-    lon, lat = data.lon.values, data.lat.values
-    transformed_coords_proj = target_crs.transform_points(data_crs_geo, lon, lat)
+    # lon, lat = data.lon.values, data.lat.values
+    # transformed_coords_proj = target_crs.transform_points(data_crs_geo, lon, lat)
 
-    trans_lon = transformed_coords_proj[..., 0]
-    trans_lat = transformed_coords_proj[..., 1]
-
-    data_crs = ccrs.LambertAzimuthalEqualArea(0, pole*90)
+    # trans_lon = transformed_coords_proj[..., 0]
+    # trans_lat = transformed_coords_proj[..., 1]
 
     data_reproject = xr.DataArray(
         data.data,
@@ -544,7 +543,7 @@ def reproject_projected_coords(data,
     )
 
     data_reproject.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
-    data_reproject.rio.write_crs(data_crs.proj4_init, inplace=True)
+    data_reproject.rio.write_crs(data_crs_proj.proj4_init, inplace=True)
     data_reproject.rio.write_nodata(np.nan, inplace=True)
 
     times = len(data_reproject.time)
@@ -558,6 +557,9 @@ def reproject_projected_coords(data,
         leadtime_data = xr.concat(leadtime_data, dim="leadtime")
         reprojected_data.append(leadtime_data)
     reprojected_data = xr.concat(reprojected_data, dim="time")
+    reprojected_data.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
+    reprojected_data.rio.write_crs(target_crs.proj4_init, inplace=True)
+    reprojected_data.rio.write_nodata(np.nan, inplace=True)
 
     # Compute lat/lon for reprojected image
     data_geo = reprojected_data.isel(time=0, leadtime=0).rio.reproject(data_crs_geo.proj4_init, shape=reprojected_data.isel(time=0, leadtime=0).shape)
@@ -566,36 +568,53 @@ def reproject_projected_coords(data,
     reprojected_data["lon"] = (("y", "x"), lon_grid)
     reprojected_data["lat"] = (("y", "x"), lat_grid)
 
-    # plt.plot(lon_grid, lat_grid, marker='o', color='k', linestyle='none')
+    reprojected_data = reprojected_data.rename({"x": "xc", "y": "yc"})
 
-    # # Define your pixel bounds
-    # min_x_pixel = 0
-    # max_x_pixel = 1500
-    # min_y_pixel = 0
-    # max_y_pixel = 2000
+    if min_x is None:
+        return reprojected_data
 
-    x_max, y_max = reprojected_data.x.shape[0], reprojected_data.y.shape[0]
-    max_x_pixel = min(x_max, max_x_pixel)
-    max_y_pixel = min(y_max, max_y_pixel)
+    if method == "pixel":
+        # # Define your pixel bounds
+        # min_x_pixel = 0
+        # max_x_pixel = 1500
+        # min_y_pixel = 0
+        # max_y_pixel = 2000
 
-    # Clip the data array
-    clipped_data = reprojected_data[..., (y_max - max_y_pixel):(y_max - min_y_pixel), min_x_pixel:max_x_pixel]
+        x_max, y_max = reprojected_data.xc.shape[0], reprojected_data.yc.shape[0]
+        max_x = min(x_max, max_x)
+        max_y = min(y_max, max_y)
 
-    # plt.figure(figsize=(10, 10))
-    # ax = plt.axes(projection=target_crs)
-    # # clipped_data.isel(time=0, leadtime=0).plot.imshow(ax=ax, transform=target_crs)
-    # # ax.imshow(clipped_data.isel(time=0, leadtime=0), transform=target_crs)
-    # # clipped_data.isel(time=0, leadtime=0).plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs)
-    # # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=target_crs)
-    # ax.coastlines()
-    # # ax.set_global()
+        # Clip the data array
+        clipped_data = reprojected_data[..., (y_max - max_y):(y_max - min_y), min_x:max_x]
+    elif method == "lat_lon":
+        print("Limits:", min_x, max_x, min_y, max_y)
+        # if min_x == 0 and max_x == 90 and min_y == -180 and max_y == 180:
+        #     print("Returning...")
+        #     plt.imshow(reprojected_data.isel(time=0, leadtime=0).values)
+        #     return reprojected_data
+        # Create condition where data is within lat/lon region
+        condition = (reprojected_data.lat >= min_x) & (reprojected_data.lat <= max_x) & (reprojected_data.lon >= min_y) & (reprojected_data.lon <= max_y)
+
+        # Extract subset within region using where()
+        clipped_data = reprojected_data.where(condition.compute(), drop=True)
+        plt.imshow(clipped_data.isel(time=0, leadtime=0).values)
+
+
+    # # plt.figure(figsize=(10, 10))
+    # # ax = plt.axes(projection=target_crs)
+    # # # clipped_data.isel(time=0, leadtime=0).plot.imshow(ax=ax, transform=target_crs)
+    # # # ax.imshow(clipped_data.isel(time=0, leadtime=0), transform=target_crs)
+    # # # clipped_data.isel(time=0, leadtime=0).plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs)
+    # # # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=target_crs)
+    # # ax.coastlines()
+    # # # ax.set_global()
+    # # plt.show()
+    # ax = plt.axes(projection=data_crs_geo)
+    # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=data_crs_geo)
     # plt.show()
-    ax = plt.axes(projection=data_crs_geo)
-    ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0))
-    plt.show()
 
-    # return clipped_data
-    return data
+    return clipped_data
+    # return data
 
 
 def process_regions(region: tuple,
@@ -622,19 +641,28 @@ def process_regions(region: tuple,
             if method == "pixel":
                 # data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
                 data[idx] = reproject_projected_coords(arr,
-                                            min_x_pixel=x1,
-                                            max_x_pixel=x2,
-                                            min_y_pixel=y1,
-                                            max_y_pixel=y2,
+                                            min_x=x1,
+                                            max_x=x2,
+                                            min_y=y1,
+                                            max_y=y2,
                                             target_crs=proj,
                                             pole=pole,
+                                            method="pixel",
                                             )
 
                 # proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(proj, pole)
                 # x_min, x_max, y_min, y_max = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
                 # data[idx] = arr.sel(xc=slice(x_min/1000, x_max/1000), yc=slice(y_max/1000, y_min/1000))
             elif method == "lat_lon":
-                # Create condition where data is within lat/lon region
+                # data[idx] = reproject_projected_coords(arr,
+                #                             min_x=x1,
+                #                             max_x=x2,
+                #                             min_y=y1,
+                #                             max_y=y2,
+                #                             target_crs=proj,
+                #                             pole=pole,
+                #                             method="lat_lon"
+                #                             )
                 condition = (arr.lat >= x1) & (arr.lat <= x2) & (arr.lon >= y1) & (arr.lon <= y2)
 
                 # Extract subset within region using where()

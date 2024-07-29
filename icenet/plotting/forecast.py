@@ -1762,7 +1762,7 @@ def plot_forecast():
         # ax = plt.axes(projection=target_crs)
 
         if not args.no_coastlines:
-            ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=100)
+            # ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=100)
             ax.coastlines(resolution="10m", zorder=100)
             # ax.add_feature(cfeature.GSHHSFeature(scale="full"))
             # ax.add_feature(cfeature.COASTLINE)
@@ -1785,22 +1785,44 @@ def plot_forecast():
 
             # Standard output plot or using pixel region clipping
             if args.region_lat_lon is None:
-                if args.crs and args.region is not None:
-                    lon, lat = fc.lon.values, fc.lat.values
-                    extent = [lon.min(), lon.max(), lat.min(), lat.max()]
-                    # ax.set_extent(extent, crs=target_crs)
-                else:
-                    extent = None
-                # im = pred_da.plot.pcolormesh("x",
-                #                              "y",
-                #                              ax=ax,
-                #                              transform=target_crs,
+                # if args.crs and args.region is not None:
+                #     lon, lat = fc.lon.values, fc.lat.values
+                #     extent = [lon.min(), lon.max(), lat.min(), lat.max()]
+                #     # ax.set_extent(extent, crs=target_crs)
+                # else:
+                #     extent = None
+                im = pred_da.plot.pcolormesh("xc",
+                                             "yc",
+                                             ax=ax,
+                                             transform=target_crs,
+                                             vmin=0,
+                                             vmax=vmax,
+                                             add_colorbar=False,
+                                             cmap=custom_cmap,
+                                             )
+                # im = pred_da.plot.imshow(ax=ax, transform=target_crs,
                 #                              vmin=0,
                 #                              vmax=vmax,
                 #                              add_colorbar=False,
                 #                              cmap=custom_cmap,
                 #                              )
-                # im = pred_da.plot.imshow(ax=ax, transform=target_crs,
+                # im = pred_da.plot.pcolormesh("lon",
+                #                             "lat",
+                #                             ax=ax,
+                #                             transform=target_crs,
+                #                             add_colorbar=False,
+                #                             )
+            # Using lat/lon region clipping
+            else:
+                # cmap.set_bad("dimgrey", alpha=0)
+                # Hack since cartopy needs transparency for nan regions to wraparound
+                # correctly with pcolormesh.
+                data = np.where(np.isnan(pred_da), -9999, pred_da)
+
+                lon, lat = fc.lon.values, fc.lat.values
+
+                # im = ax.pcolormesh(pred_da.x.values, pred_da.y.values, data, transform=target_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
+                # im = pred_da.plot.imshow(ax=ax, transform=transform_crs,
                 #                              vmin=0,
                 #                              vmax=vmax,
                 #                              add_colorbar=False,
@@ -1812,22 +1834,6 @@ def plot_forecast():
                                             transform=transform_crs,
                                             add_colorbar=False,
                                             )
-            # Using lat/lon region clipping
-            else:
-                # cmap.set_bad("dimgrey", alpha=0)
-                # Hack since cartopy needs transparency for nan regions to wraparound
-                # correctly with pcolormesh.
-                data = np.where(np.isnan(pred_da), -9999, pred_da)
-
-                lon, lat = fc.lon.values, fc.lat.values
-
-                # im = ax.pcolormesh(x, y, data, transform=target_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
-                im = pred_da.plot.imshow(ax=ax, transform=target_crs,
-                                             vmin=0,
-                                             vmax=vmax,
-                                             add_colorbar=False,
-                                             cmap=custom_cmap,
-                                             )
                 stored_extent = ax.get_extent()
 
                 # Output a reference image showing cropped region
@@ -1849,7 +1855,7 @@ def plot_forecast():
 
                 extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
                 print("Extent:", extent)
-                ax.set_extent(extent, crs=transform_crs)
+                # ax.set_extent(extent, crs=transform_crs)
 
             divider = make_axes_locatable(ax)
             # Pass axes_class to set correct colourbar height with cartopy
