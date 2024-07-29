@@ -5,6 +5,7 @@ import os
 import re
 
 import cartopy.crs as ccrs
+import dask.array as da
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -504,6 +505,12 @@ def reproject_array(array, target_crs):
         nodata=np.nan
         )
 
+def process_block(block, target_crs):
+    # dataarray = xr.DataArray(block, dims=["leadtime", "y", "x"])
+    dataarray = block
+    reprojected = reproject_array(dataarray, target_crs)
+    return reprojected.drop_vars(["time"])
+
 
 def reproject_projected_coords(data,
                                 target_crs=ccrs.Mercator(),
@@ -535,7 +542,7 @@ def reproject_projected_coords(data,
                     "time": data.time.data,
                     "leadtime": data.leadtime.data,
                 }
-    )
+    ).chunk({"time": 1, "leadtime": 1})
 
     data_reproject.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
     data_reproject.rio.write_crs(data_crs_proj.proj4_init, inplace=True)
@@ -544,17 +551,47 @@ def reproject_projected_coords(data,
     times = len(data_reproject.time)
     leadtimes = len(data_reproject.leadtime)
     # reprojected_data = xr.DataArray([[data_reproject.isel(time=time, leadtime=leadtime).map_blocks(reproject_array, template=data_reproject, kwargs={"target_crs": target_crs}) for leadtime in range(leadtimes)] for time in range(times)], dims=data_reproject.dims)
+
+    sample_block = data_reproject.isel(time=0, leadtime=0)
+    sample_reprojected =  reproject_array(sample_block, target_crs)
+
+    # Create a template DataArray based on the reprojected sample block
+    template_shape = (data_reproject.sizes['leadtime'], sample_reprojected.sizes['y'], sample_reprojected.sizes['x'])
+    template_data = da.zeros(template_shape, chunks=(1, -1, -1))
+    template = xr.DataArray(template_data, dims=['leadtime', 'y', 'x'],
+                            coords={'leadtime': data_reproject.coords['leadtime'],
+                            'y': sample_reprojected.coords['y'],
+                            'x': sample_reprojected.coords['x'],
+                            'spatial_ref': sample_reprojected.coords['spatial_ref'],
+                            }
+                            )
+
     reprojected_data = []
     for time in range(times):
-        leadtime_data = []
-        for leadtime in range(leadtimes):
-            leadtime_data.append( reproject_array(data_reproject.isel(time=time, leadtime=leadtime), target_crs=target_crs) )
-        leadtime_data = xr.concat(leadtime_data, dim="leadtime")
+        leadtime_data = xr.map_blocks(process_block, data_reproject.isel(time=time), template=template, kwargs={"target_crs": target_crs})
         reprojected_data.append(leadtime_data)
+    # reprojected_data = xr.DataArray(reprojected_data, dims=leadtime_data.dims, coords=leadtime_data.coords).expand_dims(dim="time")
     reprojected_data = xr.concat(reprojected_data, dim="time")
+    reprojected_data.coords["time"] = data_reproject.time.data
+
+    # print("Reprojected", reprojected_data)
+    # reprojected_data = reprojected_data.compute()
+
+
+
+
+    # reprojected_data = []
+    # for time in range(times):
+    #     leadtime_data = []
+    #     for leadtime in range(leadtimes):
+    #         leadtime_data.append( reproject_array(data_reproject.isel(time=time, leadtime=leadtime), target_crs=target_crs) )
+    #     leadtime_data = xr.concat(leadtime_data, dim="leadtime")
+    #     reprojected_data.append(leadtime_data)
+    # reprojected_data = xr.concat(reprojected_data, dim="time")
     reprojected_data.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
     reprojected_data.rio.write_crs(target_crs.proj4_init, inplace=True)
     reprojected_data.rio.write_nodata(np.nan, inplace=True)
+
 
     # Compute lat/lon for reprojected image
     data_geo = reprojected_data.isel(time=0, leadtime=0).rio.reproject(data_crs_geo.proj4_init, shape=reprojected_data.isel(time=0, leadtime=0).shape)
