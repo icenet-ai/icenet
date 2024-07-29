@@ -351,7 +351,6 @@ def calculate_extents(x1: int, x2: int, y1: int, y2: int):
     return extents
 
 
-# Convert pixel coordinates to projection coordinates
 def pixel_to_projection(pixel_x_min, pixel_x_max,
                         pixel_y_min, pixel_y_max,
                         x_min_proj: float=-5387500, x_max_proj: float=5387500,
@@ -519,26 +518,13 @@ def reproject_projected_coords(data,
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
     data_crs_geo = ccrs.PlateCarree()
 
-    # x_m, y_m = data.xc.values*1000, data.yc.values*1000
-    # transformed_coords_proj = target_crs.transform_points(data_crs_proj, x_m, y_m)
-
-    # trans_x = transformed_coords_proj[..., 0]
-    # trans_y = transformed_coords_proj[..., 1]
-
-    # lon, lat = data.lon.values, data.lat.values
-    # transformed_coords_proj = target_crs.transform_points(data_crs_geo, lon, lat)
-
-    # trans_lon = transformed_coords_proj[..., 0]
-    # trans_lat = transformed_coords_proj[..., 1]
-
     data_reproject = xr.DataArray(
         data.data,
                 dims=["time", "leadtime", "y", "x"],
                 coords={
+                    # Convert eastings and northings to meters from 1000 metres.
                     "x": data.xc.data*1000,
                     "y": data.yc.data*1000,
-                    # "lon": (("y", "x"), data.lon.data),
-                    # "lat": (("y", "x"), data.lat.data),
                     "time": data.time.data,
                     "leadtime": data.leadtime.data,
                 }
@@ -550,8 +536,8 @@ def reproject_projected_coords(data,
 
     times = len(data_reproject.time)
     leadtimes = len(data_reproject.leadtime)
-    # reprojected_data = xr.DataArray([[data_reproject.isel(time=time, leadtime=leadtime).map_blocks(reproject_array, template=data_reproject, kwargs={"target_crs": target_crs}) for leadtime in range(leadtimes)] for time in range(times)], dims=data_reproject.dims)
 
+    # Create a sample image block for use as template for Dask
     sample_block = data_reproject.isel(time=0, leadtime=0)
     sample_reprojected =  reproject_array(sample_block, target_crs)
 
@@ -570,28 +556,14 @@ def reproject_projected_coords(data,
     for time in range(times):
         leadtime_data = xr.map_blocks(process_block, data_reproject.isel(time=time), template=template, kwargs={"target_crs": target_crs})
         reprojected_data.append(leadtime_data)
-    # reprojected_data = xr.DataArray(reprojected_data, dims=leadtime_data.dims, coords=leadtime_data.coords).expand_dims(dim="time")
+
     reprojected_data = xr.concat(reprojected_data, dim="time")
     reprojected_data.coords["time"] = data_reproject.time.data
 
-    # print("Reprojected", reprojected_data)
-    # reprojected_data = reprojected_data.compute()
-
-
-
-
-    # reprojected_data = []
-    # for time in range(times):
-    #     leadtime_data = []
-    #     for leadtime in range(leadtimes):
-    #         leadtime_data.append( reproject_array(data_reproject.isel(time=time, leadtime=leadtime), target_crs=target_crs) )
-    #     leadtime_data = xr.concat(leadtime_data, dim="leadtime")
-    #     reprojected_data.append(leadtime_data)
-    # reprojected_data = xr.concat(reprojected_data, dim="time")
+    # Set attributes
     reprojected_data.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
     reprojected_data.rio.write_crs(target_crs.proj4_init, inplace=True)
     reprojected_data.rio.write_nodata(np.nan, inplace=True)
-
 
     # Compute lat/lon for reprojected image
     data_geo = reprojected_data.isel(time=0, leadtime=0).rio.reproject(data_crs_geo.proj4_init, shape=reprojected_data.isel(time=0, leadtime=0).shape)
@@ -603,22 +575,6 @@ def reproject_projected_coords(data,
     reprojected_data = reprojected_data.rename({"x": "xc", "y": "yc"})
 
     return reprojected_data
-
-    # # # plt.figure(figsize=(10, 10))
-    # # # ax = plt.axes(projection=target_crs)
-    # # # # clipped_data.isel(time=0, leadtime=0).plot.imshow(ax=ax, transform=target_crs)
-    # # # # ax.imshow(clipped_data.isel(time=0, leadtime=0), transform=target_crs)
-    # # # # clipped_data.isel(time=0, leadtime=0).plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs)
-    # # # # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=target_crs)
-    # # # ax.coastlines()
-    # # # # ax.set_global()
-    # # # plt.show()
-    # # ax = plt.axes(projection=data_crs_geo)
-    # # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=data_crs_geo)
-    # # plt.show()
-
-    # return clipped_data
-    # # return data
 
 
 def process_regions(region: tuple=None,
@@ -658,13 +614,7 @@ def process_regions(region: tuple=None,
                     # Clip the data array
                     clipped_data = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
                 elif method.casefold() == "lat_lon" and not no_clip_region:
-                    # # Create condition where data is within lat/lon region
-                    # condition = (reprojected_data.lat >= x1) & (reprojected_data.lat <= x2) & (reprojected_data.lon >= y1) & (reprojected_data.lon <= y2)
-
-                    # # Extract subset within region using where()
-                    # clipped_data = reprojected_data.where(condition.compute(), drop=True)
-                    # # plt.imshow(clipped_data.isel(time=0, leadtime=0).values)
-
+                    # Create condition where data is within lat/lon region
                     condition = (arr.lat >= x1) & (arr.lat <= x2) & (arr.lon >= y1) & (arr.lon <= y2)
 
                     # Extract subset within region using where()
