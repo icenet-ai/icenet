@@ -506,13 +506,8 @@ def reproject_array(array, target_crs):
 
 
 def reproject_projected_coords(data,
-                                min_x=None,
-                                max_x=None,
-                                min_y=None,
-                                max_y=None,
                                 target_crs=ccrs.Mercator(),
                                 pole=1,
-                                method="pixel",
                                 ):
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
     data_crs_geo = ccrs.PlateCarree()
@@ -570,58 +565,31 @@ def reproject_projected_coords(data,
 
     reprojected_data = reprojected_data.rename({"x": "xc", "y": "yc"})
 
-    if min_x is None:
-        return reprojected_data
+    return reprojected_data
 
-    if method == "pixel":
-        # # Define your pixel bounds
-        # min_x_pixel = 0
-        # max_x_pixel = 1500
-        # min_y_pixel = 0
-        # max_y_pixel = 2000
-
-        x_max, y_max = reprojected_data.xc.shape[0], reprojected_data.yc.shape[0]
-        max_x = min(x_max, max_x)
-        max_y = min(y_max, max_y)
-
-        # Clip the data array
-        clipped_data = reprojected_data[..., (y_max - max_y):(y_max - min_y), min_x:max_x]
-    elif method == "lat_lon":
-        print("Limits:", min_x, max_x, min_y, max_y)
-        # if min_x == 0 and max_x == 90 and min_y == -180 and max_y == 180:
-        #     print("Returning...")
-        #     plt.imshow(reprojected_data.isel(time=0, leadtime=0).values)
-        #     return reprojected_data
-        # Create condition where data is within lat/lon region
-        condition = (reprojected_data.lat >= min_x) & (reprojected_data.lat <= max_x) & (reprojected_data.lon >= min_y) & (reprojected_data.lon <= max_y)
-
-        # Extract subset within region using where()
-        clipped_data = reprojected_data.where(condition.compute(), drop=True)
-        plt.imshow(clipped_data.isel(time=0, leadtime=0).values)
-
-
-    # # plt.figure(figsize=(10, 10))
-    # # ax = plt.axes(projection=target_crs)
-    # # # clipped_data.isel(time=0, leadtime=0).plot.imshow(ax=ax, transform=target_crs)
-    # # # ax.imshow(clipped_data.isel(time=0, leadtime=0), transform=target_crs)
-    # # # clipped_data.isel(time=0, leadtime=0).plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs)
-    # # # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=target_crs)
-    # # ax.coastlines()
-    # # # ax.set_global()
+    # # # plt.figure(figsize=(10, 10))
+    # # # ax = plt.axes(projection=target_crs)
+    # # # # clipped_data.isel(time=0, leadtime=0).plot.imshow(ax=ax, transform=target_crs)
+    # # # # ax.imshow(clipped_data.isel(time=0, leadtime=0), transform=target_crs)
+    # # # # clipped_data.isel(time=0, leadtime=0).plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs)
+    # # # # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=target_crs)
+    # # # ax.coastlines()
+    # # # # ax.set_global()
+    # # # plt.show()
+    # # ax = plt.axes(projection=data_crs_geo)
+    # # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=data_crs_geo)
     # # plt.show()
-    # ax = plt.axes(projection=data_crs_geo)
-    # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=data_crs_geo)
-    # plt.show()
 
-    return clipped_data
-    # return data
+    # return clipped_data
+    # # return data
 
 
-def process_regions(region: tuple,
-        data: tuple,
+def process_regions(region: tuple=None,
+        data: tuple=None,
         method: str = "pixel",
         proj=None,
         pole=1,
+        no_clip_region=True,
     ) -> tuple:
     """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
@@ -632,43 +600,46 @@ def process_regions(region: tuple,
     :return:
     """
 
-    assert len(region) == 4, "Region needs to be a list of four integers"
-    x1, y1, x2, y2 = region
-    assert x2 > x1 and y2 > y1, "Region is not valid"
+    if region is not None:
+        assert len(region) == 4, "Region needs to be a list of four integers"
+        x1, y1, x2, y2 = region
+        assert x2 > x1 and y2 > y1, "Region is not valid"
 
     for idx, arr in enumerate(data):
         if arr is not None:
-            if method == "pixel":
-                # data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
-                data[idx] = reproject_projected_coords(arr,
-                                            min_x=x1,
-                                            max_x=x2,
-                                            min_y=y1,
-                                            max_y=y2,
-                                            target_crs=proj,
-                                            pole=pole,
-                                            method="pixel",
-                                            )
+            reprojected_data = reproject_projected_coords(arr,
+                                        target_crs=proj,
+                                        pole=pole,
+                                        )
 
-                # proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(proj, pole)
-                # x_min, x_max, y_min, y_max = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
-                # data[idx] = arr.sel(xc=slice(x_min/1000, x_max/1000), yc=slice(y_max/1000, y_min/1000))
-            elif method == "lat_lon":
-                # data[idx] = reproject_projected_coords(arr,
-                #                             min_x=x1,
-                #                             max_x=x2,
-                #                             min_y=y1,
-                #                             max_y=y2,
-                #                             target_crs=proj,
-                #                             pole=pole,
-                #                             method="lat_lon"
-                #                             )
-                condition = (arr.lat >= x1) & (arr.lat <= x2) & (arr.lon >= y1) & (arr.lon <= y2)
+            if region is not None:
+                if method.casefold() == "pixel":
+                    x_max, y_max = reprojected_data.xc.shape[0], reprojected_data.yc.shape[0]
+                    max_x = min(x_max, x2)
+                    max_y = min(y_max, y2)
 
-                # Extract subset within region using where()
-                data[idx] = arr.where(condition.compute(), drop=True)
+                    # Clip the data array
+                    clipped_data = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
+                elif method.casefold() == "lat_lon" and not no_clip_region:
+                    # # Create condition where data is within lat/lon region
+                    # condition = (reprojected_data.lat >= x1) & (reprojected_data.lat <= x2) & (reprojected_data.lon >= y1) & (reprojected_data.lon <= y2)
+
+                    # # Extract subset within region using where()
+                    # clipped_data = reprojected_data.where(condition.compute(), drop=True)
+                    # # plt.imshow(clipped_data.isel(time=0, leadtime=0).values)
+
+                    condition = (arr.lat >= x1) & (arr.lat <= x2) & (arr.lon >= y1) & (arr.lon <= y2)
+
+                    # Extract subset within region using where()
+                    clipped_data = arr.where(condition.compute(), drop=True)
+                elif method.casefold() == "lat_lon" and no_clip_region:
+                    data[idx] = arr
+                    continue
+                else:
+                    raise NotImplementedError
+                data[idx] = clipped_data
             else:
-                raise NotImplementedError
+                data[idx] = reprojected_data
 
     return data
 

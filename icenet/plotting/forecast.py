@@ -1626,11 +1626,12 @@ def plot_forecast():
     ap.add_argument("--crs",
                         default=None,
                         help="Coordinate Reference System to use for plotting")
-    ap.add_argument("--clip-region",
+    ap.add_argument("--no-clip-region",
                         action="store_true",
                         default=False,
-                        help="Whether to clip the data to the region specified,"\
-                            " Default is False"
+                        help="Whether to clip the data to the region specified by lat/lon,"\
+                            " When enabled, this shows missing values when plotting along boundaries"\
+                            " due to lat/lon curvature. Default is False"
                         )
     args = ap.parse_args()
 
@@ -1677,10 +1678,16 @@ def plot_forecast():
     if args.crs:
         logging.warning(f"Using {args.crs} for plot reprojection, this can cause " \
             "empty regions along the outer edges due to re-projection.")
+
+    region_args = None
+    method = "pixel"
     if args.region is not None:
-        fc = process_regions(args.region, [fc], method="pixel", proj=target_crs, pole=pole)[0]
+        region_args = args.region
     elif args.region_lat_lon is not None:
-        fc = process_regions(args.region_lat_lon, [fc], method="lat_lon", proj=target_crs, pole=pole)[0]
+        region_args = args.region_lat_lon
+        method = "lat_lon"
+
+    fc = process_regions(region_args, [fc], method=method, proj=target_crs, pole=pole, no_clip_region=args.no_clip_region)[0]
 
     vmax = 1.
 
@@ -1762,7 +1769,7 @@ def plot_forecast():
         # ax = plt.axes(projection=target_crs)
 
         if not args.no_coastlines:
-            # ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=100)
+            ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
             ax.coastlines(resolution="10m", zorder=100)
             # ax.add_feature(cfeature.GSHHSFeature(scale="full"))
             # ax.add_feature(cfeature.COASTLINE)
@@ -1833,6 +1840,7 @@ def plot_forecast():
                                             ax=ax,
                                             transform=transform_crs,
                                             add_colorbar=False,
+                                            cmap=custom_cmap,
                                             )
                 stored_extent = ax.get_extent()
 
@@ -1854,8 +1862,8 @@ def plot_forecast():
                         handle.remove()
 
                 extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
-                print("Extent:", extent)
-                # ax.set_extent(extent, crs=transform_crs)
+                logging.debug("Forecast plot extent:", extent)
+                ax.set_extent(extent, crs=transform_crs)
 
             divider = make_axes_locatable(ax)
             # Pass axes_class to set correct colourbar height with cartopy
