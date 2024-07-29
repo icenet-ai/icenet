@@ -1677,14 +1677,10 @@ def plot_forecast():
     if args.crs:
         logging.warning(f"Using {args.crs} for plot reprojection, this can cause " \
             "empty regions along the outer edges due to re-projection.")
-    if args.clip_region and args.region is not None:
+    if args.region is not None:
         fc = process_regions(args.region, [fc], method="pixel", proj=target_crs, pole=pole)[0]
-    elif args.clip_region and args.region_lat_lon is not None:
+    elif args.region_lat_lon is not None:
         fc = process_regions(args.region_lat_lon, [fc], method="lat_lon", proj=target_crs, pole=pole)[0]
-
-    transformed_coords = data_crs.transform_points(target_crs, fc.lon.data, fc.lat.data)
-    x = transformed_coords[:, :, 0]
-    y = transformed_coords[:, :, 1]
 
     vmax = 1.
 
@@ -1763,6 +1759,7 @@ def plot_forecast():
                         proj=target_crs if args.crs else None,
                         set_extents=False if args.region_lat_lon is not None else not args.crs,
                         )
+        # ax = plt.axes(projection=target_crs)
 
         if not args.no_coastlines:
             ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=100)
@@ -1791,18 +1788,30 @@ def plot_forecast():
                 if args.crs and args.region is not None:
                     lon, lat = fc.lon.values, fc.lat.values
                     extent = [lon.min(), lon.max(), lat.min(), lat.max()]
-                    # ax.set_extent(extent, crs=transform_crs)
+                    # ax.set_extent(extent, crs=target_crs)
                 else:
                     extent = None
+                # im = pred_da.plot.pcolormesh("x",
+                #                              "y",
+                #                              ax=ax,
+                #                              transform=target_crs,
+                #                              vmin=0,
+                #                              vmax=vmax,
+                #                              add_colorbar=False,
+                #                              cmap=custom_cmap,
+                #                              )
+                # im = pred_da.plot.imshow(ax=ax, transform=target_crs,
+                #                              vmin=0,
+                #                              vmax=vmax,
+                #                              add_colorbar=False,
+                #                              cmap=custom_cmap,
+                #                              )
                 im = pred_da.plot.pcolormesh("lon",
-                                             "lat",
-                                             ax=ax,
-                                             transform=transform_crs,
-                                             vmin=0,
-                                             vmax=vmax,
-                                             add_colorbar=False,
-                                             cmap=custom_cmap,
-                                             )
+                                            "lat",
+                                            ax=ax,
+                                            transform=transform_crs,
+                                            add_colorbar=False,
+                                            )
             # Using lat/lon region clipping
             else:
                 # cmap.set_bad("dimgrey", alpha=0)
@@ -1812,7 +1821,13 @@ def plot_forecast():
 
                 lon, lat = fc.lon.values, fc.lat.values
 
-                im = ax.pcolormesh(x, y, data, transform=target_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
+                # im = ax.pcolormesh(x, y, data, transform=target_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
+                im = pred_da.plot.imshow(ax=ax, transform=target_crs,
+                                             vmin=0,
+                                             vmax=vmax,
+                                             add_colorbar=False,
+                                             cmap=custom_cmap,
+                                             )
                 stored_extent = ax.get_extent()
 
                 # Output a reference image showing cropped region

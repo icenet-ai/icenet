@@ -505,7 +505,14 @@ def reproject_array(array, target_crs):
         )
 
 
-def reproject_projected_coords(data, target_crs=ccrs.Mercator(), pole=1):
+def reproject_projected_coords(data,
+                                min_x_pixel,
+                                max_x_pixel,
+                                min_y_pixel,
+                                max_y_pixel,
+                                target_crs=ccrs.Mercator(),
+                                pole=1,
+                                ):
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
     data_crs_geo = ccrs.PlateCarree()
 
@@ -521,12 +528,7 @@ def reproject_projected_coords(data, target_crs=ccrs.Mercator(), pole=1):
     trans_lon = transformed_coords_proj[..., 0]
     trans_lat = transformed_coords_proj[..., 1]
 
-    data_crs = ccrs.LambertAzimuthalEqualArea(0, 90)
-    # target_crs = ccrs.epsg("3347")
-    target_crs = ccrs.Mercator()
-    target_crs = ccrs.Mercator.GOOGLE
-    # target_crs = ccrs.PlateCarree()
-    # target_crs = data_crs
+    data_crs = ccrs.LambertAzimuthalEqualArea(0, pole*90)
 
     data_reproject = xr.DataArray(
         data.data,
@@ -545,36 +547,32 @@ def reproject_projected_coords(data, target_crs=ccrs.Mercator(), pole=1):
     data_reproject.rio.write_crs(data_crs.proj4_init, inplace=True)
     data_reproject.rio.write_nodata(np.nan, inplace=True)
 
-    # Reproject to Mercator
-    # data_mercator = data_reproject.isel(time=0, leadtime=0).rio.reproject(target_crs.proj4_init,
-    #     # resampling=Resampling.bilinear,
-    #     nodata=np.nan
-    #     )
-
     times = len(data_reproject.time)
     leadtimes = len(data_reproject.leadtime)
-    reprojected_data = xr.DataArray([[data_reproject.isel(time=time, leadtime=leadtime).map_blocks(reproject_array, template=data_reproject, kwargs={"target_crs": target_crs}) for leadtime in range(leadtimes)] for time in range(times)], dims=data_reproject.dims)
-    # reprojected_data = []
-    # for time in range(times):
-    #     leadtime_data = []
-    #     for leadtime in range(leadtimes):
-    #         leadtime_data.append( reproject_array(data_reproject.isel(time=time, leadtime=leadtime), target_crs=target_crs) )
-    #     leadtime_data = xr.concat(leadtime_data, dim="leadtime")
-    #     reprojected_data.append(leadtime_data)
-    # reprojected_data = xr.concat(reprojected_data, dim="time")
+    # reprojected_data = xr.DataArray([[data_reproject.isel(time=time, leadtime=leadtime).map_blocks(reproject_array, template=data_reproject, kwargs={"target_crs": target_crs}) for leadtime in range(leadtimes)] for time in range(times)], dims=data_reproject.dims)
+    reprojected_data = []
+    for time in range(times):
+        leadtime_data = []
+        for leadtime in range(leadtimes):
+            leadtime_data.append( reproject_array(data_reproject.isel(time=time, leadtime=leadtime), target_crs=target_crs) )
+        leadtime_data = xr.concat(leadtime_data, dim="leadtime")
+        reprojected_data.append(leadtime_data)
+    reprojected_data = xr.concat(reprojected_data, dim="time")
 
     # Compute lat/lon for reprojected image
-    data_geo = data_reproject.isel(time=0, leadtime=0).rio.reproject(data_crs_geo.proj4_init, shape=reprojected_data.isel(time=0, leadtime=0).shape)
+    data_geo = reprojected_data.isel(time=0, leadtime=0).rio.reproject(data_crs_geo.proj4_init, shape=reprojected_data.isel(time=0, leadtime=0).shape)
     lon_grid, lat_grid = np.meshgrid(data_geo.x, data_geo.y)
 
     reprojected_data["lon"] = (("y", "x"), lon_grid)
     reprojected_data["lat"] = (("y", "x"), lat_grid)
 
-    # Define your pixel bounds
-    min_x_pixel = 200
-    max_x_pixel = 1500
-    min_y_pixel = 0
-    max_y_pixel = 2000
+    # plt.plot(lon_grid, lat_grid, marker='o', color='k', linestyle='none')
+
+    # # Define your pixel bounds
+    # min_x_pixel = 0
+    # max_x_pixel = 1500
+    # min_y_pixel = 0
+    # max_y_pixel = 2000
 
     x_max, y_max = reprojected_data.x.shape[0], reprojected_data.y.shape[0]
     max_x_pixel = min(x_max, max_x_pixel)
@@ -583,17 +581,21 @@ def reproject_projected_coords(data, target_crs=ccrs.Mercator(), pole=1):
     # Clip the data array
     clipped_data = reprojected_data[..., (y_max - max_y_pixel):(y_max - min_y_pixel), min_x_pixel:max_x_pixel]
 
-    plt.figure(figsize=(10, 10))
-    ax = plt.axes(projection=target_crs)
-    # clipped_data.isel(time=0, leadtime=0).plot.imshow(ax=ax, transform=target_crs)
-    # ax.imshow(clipped_data.isel(time=0, leadtime=0), transform=target_crs)
-    # clipped_data.isel(time=0, leadtime=0).plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs)
-    ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=target_crs)
-    ax.coastlines()
-    # ax.set_global()
+    # plt.figure(figsize=(10, 10))
+    # ax = plt.axes(projection=target_crs)
+    # # clipped_data.isel(time=0, leadtime=0).plot.imshow(ax=ax, transform=target_crs)
+    # # ax.imshow(clipped_data.isel(time=0, leadtime=0), transform=target_crs)
+    # # clipped_data.isel(time=0, leadtime=0).plot.pcolormesh("lon", "lat", ax=ax, transform=target_crs)
+    # # ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0), transform=target_crs)
+    # ax.coastlines()
+    # # ax.set_global()
+    # plt.show()
+    ax = plt.axes(projection=data_crs_geo)
+    ax.pcolormesh(clipped_data.lon.data, clipped_data.lat.data, clipped_data.isel(time=0, leadtime=0))
     plt.show()
 
-    return clipped_data
+    # return clipped_data
+    return data
 
 
 def process_regions(region: tuple,
@@ -617,10 +619,16 @@ def process_regions(region: tuple,
 
     for idx, arr in enumerate(data):
         if arr is not None:
-            arr = reproject_projected_coords(arr)
-
             if method == "pixel":
-                data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
+                # data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
+                data[idx] = reproject_projected_coords(arr,
+                                            min_x_pixel=x1,
+                                            max_x_pixel=x2,
+                                            min_y_pixel=y1,
+                                            max_y_pixel=y2,
+                                            target_crs=proj,
+                                            pole=pole,
+                                            )
 
                 # proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(proj, pole)
                 # x_min, x_max, y_min, y_max = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
