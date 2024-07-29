@@ -9,10 +9,13 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import rioxarray
 import xarray as xr
 
 from functools import cache
 from ibicus.debias import LinearScaling
+from pyproj import CRS
+from rasterio.enums import Resampling
 
 
 def broadcast_forecast(start_date: object,
@@ -495,7 +498,92 @@ def process_probes(probes, data) -> tuple:
     return data
 
 
-def process_regions(region: tuple, data: tuple, method: str = "pixel", proj=None, pole=1) -> tuple:
+def reproject_projected_coords(data, target_crs=ccrs.Mercator(), pole=1):
+    if pole == 1:
+        data_crs_proj = ccrs.NorthPolarStereo()
+    elif pole == -1:
+        data_crs_proj = ccrs.SouthPolarStereo()
+    data_crs_geo = ccrs.PlateCarree()
+
+    x_m, y_m = data.xc.values*1000, data.yc.values*1000
+    transformed_coords_proj = target_crs.transform_points(data_crs_proj, x_m, y_m)
+
+    trans_x = transformed_coords_proj[..., 0]
+    trans_y = transformed_coords_proj[..., 1]
+
+    lon, lat = data.lon.values, data.lat.values
+    transformed_coords_proj = target_crs.transform_points(data_crs_geo, lon, lat)
+
+    trans_lon = transformed_coords_proj[..., 0]
+    trans_lat = transformed_coords_proj[..., 1]
+
+    data_crs = ccrs.LambertAzimuthalEqualArea(0, 90)
+    # target_crs = ccrs.epsg("3347")
+    target_crs = ccrs.Mercator()
+    target_crs = ccrs.Mercator.GOOGLE
+    # target_crs = ccrs.PlateCarree()
+    # target_crs = data_crs
+
+    data_reproject = xr.DataArray(
+        data.data,
+                dims=["time", "leadtime", "y", "x"],
+                coords={
+                    "x": data.xc.data*1000,
+                    "y": data.yc.data*1000,
+                    # "lon": (("y", "x"), data.lon.data),
+                    # "lat": (("y", "x"), data.lat.data),
+                    "time": data.time.data,
+                    "leadtime": data.leadtime.data,
+                }
+    )
+
+    data_reproject.rio.set_spatial_dims(x_dim="y", y_dim="x", inplace=True)
+    data_reproject.rio.write_crs(data_crs.proj4_init, inplace=True)
+    data_reproject.rio.write_nodata(np.nan, inplace=True)
+
+    # Reproject to Mercator
+    data_mercator = data_reproject.isel(time=0, leadtime=0).rio.reproject(target_crs.proj4_init,
+        # resampling=Resampling.bilinear,
+        nodata=np.nan
+        )
+
+    # Compute lat/lon for reprojected image
+    data_geo = data_mercator.rio.reproject(data_crs_geo.proj4_init, shape=data_mercator.shape)    
+    lon_grid, lat_grid = np.meshgrid(data_geo.x, data_geo.y)
+
+    data_mercator["lon"] = (("y", "x"), lon_grid)
+    data_mercator["lat"] = (("y", "x"), lat_grid)
+
+    # Define your pixel bounds
+    min_x_pixel = 10
+    max_x_pixel = 150
+    min_y_pixel = 20
+    max_y_pixel = 200
+
+    x_max, y_max = data_mercator.x.shape[0], data_mercator.y.shape[0]
+    max_x_pixel = min(x_max, max_x_pixel)
+    max_y_pixel = min(y_max, max_y_pixel)
+
+    # Clip the data array
+    clipped_data = data_mercator[..., (y_max - max_y_pixel):(y_max - min_y_pixel), min_x_pixel:max_x_pixel]
+
+    # plt.figure(figsize=(10, 10))
+    # ax = plt.axes(projection=target_crs)
+    # clipped_data.plot.imshow(ax=ax, transform=target_crs)
+    # # ax.imshow(clipped_data, transform=ccrs.Mercator.GOOGLE)
+    # ax.coastlines()
+    # ax.set_global()
+    # plt.show()
+
+    return clipped_data
+
+
+def process_regions(region: tuple,
+        data: tuple,
+        method: str = "pixel",
+        proj=None,
+        pole=1,
+    ) -> tuple:
     """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
     :param region: Either image pixel bounds, or lat/lon bounds.
@@ -511,6 +599,8 @@ def process_regions(region: tuple, data: tuple, method: str = "pixel", proj=None
 
     for idx, arr in enumerate(data):
         if arr is not None:
+            arr = reproject_projected_coords(arr)
+
             if method == "pixel":
                 data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
 
