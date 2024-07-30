@@ -15,7 +15,7 @@ import xarray as xr
 
 from functools import cache
 from ibicus.debias import LinearScaling
-from pyproj import CRS
+from pyproj import CRS, Transformer
 from rasterio.enums import Resampling
 
 
@@ -383,7 +383,7 @@ def get_plot_axes(x1: int = 0,
                   x2: int = 432,
                   y1: int = 0,
                   y2: int = 432,
-                  do_coastlines: bool = True,
+                  geoaxes: bool = True,
                   north: bool = True,
                   south: bool = False,
                   proj = None,
@@ -395,7 +395,7 @@ def get_plot_axes(x1: int = 0,
     :param x2:
     :param y1:
     :param y2:
-    :param do_coastlines:
+    :param geoaxes:
     :param north:
     :param south:
     :param proj:
@@ -406,7 +406,7 @@ def get_plot_axes(x1: int = 0,
 
     fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
 
-    if do_coastlines:
+    if geoaxes:
         pole = 1 if north else -1
         proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(proj, pole)
 
@@ -431,7 +431,7 @@ def show_img(ax,
              y1: int = 0,
              y2: int = 432,
              cmap: object = None,
-             do_coastlines: bool = True,
+             geoaxes: bool = True,
              vmin: float = 0.,
              vmax: float = 1.,
              north: bool = True,
@@ -448,7 +448,7 @@ def show_img(ax,
     :param y1:
     :param y2:
     :param cmap:
-    :param do_coastlines:
+    :param geoaxes:
     :param vmin:
     :param vmax:
     :param north:
@@ -458,7 +458,7 @@ def show_img(ax,
 
     assert north ^ south, "One hemisphere only must be selected"
 
-    if do_coastlines:
+    if geoaxes:
         pole = 1 if north else -1
         data_crs = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
         extents = calculate_extents(x1, x2, y1, y2)
@@ -515,7 +515,9 @@ def reproject_projected_coords(data,
                                 target_crs=ccrs.Mercator(),
                                 pole=1,
                                 ):
+    # Eastings/Northings projection
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
+    # Lat/Lon projection
     data_crs_geo = ccrs.PlateCarree()
 
     data_reproject = xr.DataArray(
@@ -530,6 +532,7 @@ def reproject_projected_coords(data,
                 }
     ).chunk({"time": 1, "leadtime": 1})
 
+    # Set xc, yc (eastings and northings) projection details
     data_reproject.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
     data_reproject.rio.write_crs(data_crs_proj.proj4_init, inplace=True)
     data_reproject.rio.write_nodata(np.nan, inplace=True)
@@ -566,12 +569,17 @@ def reproject_projected_coords(data,
     reprojected_data.rio.write_nodata(np.nan, inplace=True)
 
     # Compute lat/lon for reprojected image
-    data_geo = reprojected_data.isel(time=0, leadtime=0).rio.reproject(data_crs_geo.proj4_init, shape=reprojected_data.isel(time=0, leadtime=0).shape)
-    lon_grid, lat_grid = np.meshgrid(data_geo.x, data_geo.y)
+    transformer = Transformer.from_crs(target_crs.proj4_init, data_crs_geo.proj4_init)
+    x = reprojected_data.x.values
+    y = reprojected_data.y.values
+
+    X, Y = np.meshgrid(x, y)
+    lon_grid, lat_grid = transformer.transform(X, Y)
 
     reprojected_data["lon"] = (("y", "x"), lon_grid)
     reprojected_data["lat"] = (("y", "x"), lat_grid)
 
+    # Rename back to 'xc' and 'yc', although, these are now in metres rather than 1000 metres
     reprojected_data = reprojected_data.rename({"x": "xc", "y": "yc"})
 
     return reprojected_data
@@ -597,13 +605,18 @@ def process_regions(region: tuple=None,
         assert len(region) == 4, "Region needs to be a list of four integers"
         x1, y1, x2, y2 = region
         assert x2 > x1 and y2 > y1, "Region is not valid"
+        if method == "lat_lon":
+            assert y1 >= -180 and y2 <= 180, "Expect longitude range to be `-180<=longitude>=180`"
 
     for idx, arr in enumerate(data):
         if arr is not None:
-            reprojected_data = reproject_projected_coords(arr,
-                                        target_crs=proj,
-                                        pole=pole,
-                                        )
+            if not proj:
+                reprojected_data = arr
+            else:
+                reprojected_data = reproject_projected_coords(arr,
+                                            target_crs=proj,
+                                            pole=pole,
+                                            )
 
             if region is not None:
                 if method.casefold() == "pixel":
@@ -614,13 +627,20 @@ def process_regions(region: tuple=None,
                     # Clip the data array
                     clipped_data = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
                 elif method.casefold() == "lat_lon" and not no_clip_region:
+                    arr = reprojected_data
+
                     # Create condition where data is within lat/lon region
-                    condition = (arr.lat >= x1) & (arr.lat <= x2) & (arr.lon >= y1) & (arr.lon <= y2)
+                    condition = (arr.lat >= x1) & (arr.lat <= x2) & \
+                                (arr.lon >= y1) & (arr.lon <= y2)
 
                     # Extract subset within region using where()
-                    clipped_data = arr.where(condition.compute(), drop=True)
+                    clipped_data = arr.where(condition, drop=True)
+                    # clipped_data = reproject_projected_coords(clipped_data,
+                    #                             target_crs=proj,
+                    #                             pole=pole,
+                    #                             )
                 elif method.casefold() == "lat_lon" and no_clip_region:
-                    data[idx] = arr
+                    data[idx] = reprojected_data
                     continue
                 else:
                     raise NotImplementedError

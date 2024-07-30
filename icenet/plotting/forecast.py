@@ -1762,11 +1762,10 @@ def plot_forecast():
     else:
         # TODO: Tidy up code into piecewise functions under `icenet/plotting/utils.py`
         ax = get_plot_axes(**bound_args,
-                        do_coastlines=not args.no_coastlines,
+                        geoaxes=True,
                         proj=target_crs if args.crs else None,
                         set_extents=False if args.region_lat_lon is not None else not args.crs,
                         )
-        # ax = plt.axes(projection=target_crs)
 
         if not args.no_coastlines:
             ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
@@ -1829,20 +1828,29 @@ def plot_forecast():
 
                 lon, lat = fc.lon.values, fc.lat.values
 
-                # im = ax.pcolormesh(pred_da.x.values, pred_da.y.values, data, transform=target_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
+                # im = ax.pcolormesh(pred_da.xc.values, pred_da.yc.values, data, transform=data_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
                 # im = pred_da.plot.imshow(ax=ax, transform=transform_crs,
                 #                              vmin=0,
                 #                              vmax=vmax,
                 #                              add_colorbar=False,
                 #                              cmap=custom_cmap,
                 #                              )
-                im = pred_da.plot.pcolormesh("lon",
-                                            "lat",
-                                            ax=ax,
-                                            transform=transform_crs,
-                                            add_colorbar=False,
-                                            cmap=custom_cmap,
-                                            )
+                # im = pred_da.plot.pcolormesh("lon",
+                #                             "lat",
+                #                             ax=ax,
+                #                             transform=transform_crs,
+                #                             add_colorbar=False,
+                #                             cmap=custom_cmap,
+                #                             )
+                im = pred_da.plot.pcolormesh("xc",
+                                             "yc",
+                                             ax=ax,
+                                             transform=target_crs,
+                                             vmin=0,
+                                             vmax=vmax,
+                                             add_colorbar=False,
+                                             cmap=custom_cmap,
+                                             )
                 stored_extent = ax.get_extent()
 
                 # Output a reference image showing cropped region
@@ -1862,7 +1870,10 @@ def plot_forecast():
                     for handle in region_plot:
                         handle.remove()
 
-                extent = bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]
+                extent = [bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]]
+                # With some projections like Mercator, it doesn't like having exact boundary longitude
+                if bound_args["x1"] == -180:
+                    extent[0] = -179.99
                 logging.debug("Forecast plot extent:", extent)
                 ax.set_extent(extent, crs=transform_crs)
 
