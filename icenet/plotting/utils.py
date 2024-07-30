@@ -520,20 +520,14 @@ def reproject_projected_coords(data,
     # Lat/Lon projection
     data_crs_geo = ccrs.PlateCarree()
 
-    data_reproject = xr.DataArray(
-        data.data,
-                dims=["time", "leadtime", "y", "x"],
-                coords={
-                    # Convert eastings and northings to meters from 1000 metres.
-                    "x": data.xc.data*1000,
-                    "y": data.yc.data*1000,
-                    "time": data.time.data,
-                    "leadtime": data.leadtime.data,
-                }
-    ).chunk({"time": 1, "leadtime": 1})
+    data_reproject = data.copy()
+    data_reproject = data_reproject.drop_vars(["Lambert_Azimuthal_Grid", "lon", "lat"])
+    data_reproject = data_reproject.assign_coords({"xc": data_reproject.xc.data*1000,
+                                    "yc": data_reproject.yc.data*1000
+                                })
 
     # Set xc, yc (eastings and northings) projection details
-    data_reproject.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
+    data_reproject = data_reproject.rename({"xc": "x", "yc": "y"})
     data_reproject.rio.write_crs(data_crs_proj.proj4_init, inplace=True)
     data_reproject.rio.write_nodata(np.nan, inplace=True)
 
@@ -551,7 +545,6 @@ def reproject_projected_coords(data,
                             coords={'leadtime': data_reproject.coords['leadtime'],
                             'y': sample_reprojected.coords['y'],
                             'x': sample_reprojected.coords['x'],
-                            'spatial_ref': sample_reprojected.coords['spatial_ref'],
                             }
                             )
 
@@ -564,7 +557,6 @@ def reproject_projected_coords(data,
     reprojected_data.coords["time"] = data_reproject.time.data
 
     # Set attributes
-    reprojected_data.rio.set_spatial_dims(x_dim="x", y_dim="y", inplace=True)
     reprojected_data.rio.write_crs(target_crs.proj4_init, inplace=True)
     reprojected_data.rio.write_nodata(np.nan, inplace=True)
 

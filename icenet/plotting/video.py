@@ -211,7 +211,9 @@ def xarray_to_video(
         # ax.add_feature(cfeature.COASTLINE)
 
     if gridlines:
-        gl = ax.gridlines(crs=transform_crs)
+        gl = ax.gridlines(crs=transform_crs, draw_labels=True)
+        # Prevent generating labels below the colourbar
+        gl.right_labels = False
 
     data = da.sel(time=date)
     lon, lat = da.lon.values, da.lat.values
