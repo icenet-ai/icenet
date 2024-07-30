@@ -1672,13 +1672,6 @@ def plot_forecast():
         target_crs = data_crs
     transform_crs = ccrs.PlateCarree()
 
-    ## Clip the actual data to the requested region.
-    ## This can cause empty region at the borders if used with different CRS projections
-    ## due to re-projection.
-    if args.crs:
-        logging.warning(f"Using {args.crs} for plot reprojection, this can cause " \
-            "empty regions along the outer edges due to re-projection.")
-
     region_args = None
     method = "pixel"
     if args.region is not None:
@@ -1687,8 +1680,16 @@ def plot_forecast():
         region_args = args.region_lat_lon
         method = "lat_lon"
 
+
+    ## Clip the actual data to the requested region.
+    ## This can cause empty region at the borders if used with different CRS projections
+    ## due to re-projection.
+    if args.crs and args.region_lat_lon:
+        logging.warning(f"Using {args.crs} for plot reprojection, this can cause " \
+            "empty regions along the outer edges due to re-projection.")
+
     # Reproject, and process regions if necessary
-    # TODO: Split thsi function to separate `reproject` and `process_regions`
+    # TODO: Split this function to separate `reproject` and `process_regions`
     fc = process_regions(region_args, [fc], method=method, proj=target_crs, pole=pole, no_clip_region=args.no_clip_region)[0]
 
     vmax = 1.

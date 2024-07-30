@@ -203,7 +203,6 @@ def xarray_to_video(
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 
     data = da.sel(time=date)
-    lon, lat = da.lon.values, da.lat.values
 
     if extent and method == "lat_lon":
         ax.set_extent(extent, crs=transform_crs)
@@ -213,14 +212,17 @@ def xarray_to_video(
     # correctly with pcolormesh.
     custom_cmap = get_custom_cmap(cmap)
 
-    image = ax.pcolormesh(lon, lat, data,
-                            transform=transform_crs,
-                            cmap=custom_cmap,
-                            clim=(n_min, n_max),
-                            animated=True,
-                            zorder=1,
-                            **imshow_kwargs if imshow_kwargs is not None else {}
-                            )
+    image = data.plot.pcolormesh("xc",
+                                    "yc",
+                                    ax=ax,
+                                    transform=target_crs,
+                                    clim=(n_min, n_max),
+                                    animated=True,
+                                    zorder=1,
+                                    add_colorbar=False,
+                                    cmap=custom_cmap,
+                                    **imshow_kwargs if imshow_kwargs is not None else {}
+                                    )
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
         date.year, date.month, date.day),
