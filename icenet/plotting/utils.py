@@ -391,6 +391,8 @@ def get_plot_axes(x1: int = 0,
                   gridlines: bool = True,
                   target_crs: object = ccrs.Mercator(),
                   transform_crs: object = ccrs.PlateCarree(),
+                  figsize: int = (10, 8),
+                  dpi: int = 150,
                   ):
     """
 
@@ -404,7 +406,7 @@ def get_plot_axes(x1: int = 0,
     assert north ^ south, "One hemisphere only must be selected"
     pole = 1 if north else -1
 
-    fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
+    fig = plt.figure(figsize=figsize, dpi=dpi, layout='tight')
 
     if geoaxes:
         target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
@@ -433,7 +435,7 @@ def get_plot_axes(x1: int = 0,
     else:
         ax = fig.add_subplot(1, 1, 1)
 
-    return ax
+    return fig, ax
 
 
 def show_img(ax,

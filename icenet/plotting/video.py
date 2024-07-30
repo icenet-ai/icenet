@@ -18,7 +18,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet.process.predict import get_refcube
 from icenet.utils import setup_logging
-from icenet.plotting.utils import get_custom_cmap
+from icenet.plotting.utils import get_plot_axes, get_custom_cmap
 
 # TODO: This can be a plotting or analysis util function elsewhere
 def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
@@ -75,10 +75,11 @@ def xarray_to_video(
     fps: int,
     video_path: object = None,
     reproject: bool = False,
-    pole: int = None,
+    north: bool = True,
+    south: bool = False,
     extent: tuple = None,
     method: str = "pixel",
-    coastlines: bool = False,
+    coastlines: str = "default",
     gridlines: bool = False,
     target_crs: object = None,
     transform_crs: object = None,
@@ -171,14 +172,18 @@ def xarray_to_video(
 
     logging.info("Initialising plot")
 
-    projection = target_crs
     if ax_init is None:
-        projection = target_crs
-        fig, ax = plt.subplots(figsize=figsize,
-                                subplot_kw={"projection": projection},
-                                layout="tight",
-                                )
-        fig.set_dpi(dpi)
+        fig, ax = get_plot_axes(
+                            geoaxes=True,
+                            north=north,
+                            south=south,
+                            target_crs=target_crs,
+                            transform_crs=transform_crs,
+                            coastlines=coastlines,
+                            gridlines=gridlines,
+                            figsize=figsize,
+                            dpi=dpi,
+                            )
     else:
         ax = ax_init
         fig = ax.get_figure()
@@ -197,24 +202,6 @@ def xarray_to_video(
 
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 
-    # pcolormesh requires set_bad to be transparent for wraparound.
-    if method == "lat_lon" and reproject:
-        alpha = 0.0
-    else:
-        alpha = 1.0
-
-    cmap.set_bad("dimgrey", alpha=alpha)
-    ax.add_feature(cfeature.LAND, facecolor="dimgrey")
-
-    if coastlines:
-        ax.coastlines(resolution="10m")
-        # ax.add_feature(cfeature.COASTLINE)
-
-    if gridlines:
-        gl = ax.gridlines(crs=transform_crs, draw_labels=True)
-        # Prevent generating labels below the colourbar
-        gl.right_labels = False
-
     data = da.sel(time=date)
     lon, lat = da.lon.values, da.lat.values
 
@@ -222,28 +209,18 @@ def xarray_to_video(
         ax.set_extent(extent, crs=transform_crs)
 
     # TODO: Tidy up, and cover all argument options
-    if not reproject:
-        image = ax.pcolormesh(lon, lat, data,
-                                transform=transform_crs,
-                                cmap=cmap,
-                                clim=(n_min, n_max),
-                                animated=True,
-                                zorder=1,
-                                **imshow_kwargs if imshow_kwargs is not None else {}
-                                )
-    else:
-        # Hack since cartopy needs transparency for nan regions to wraparound
-        # correctly with pcolormesh.
-        custom_cmap = get_custom_cmap(cmap)
+    # Hack since cartopy needs transparency for nan regions to wraparound
+    # correctly with pcolormesh.
+    custom_cmap = get_custom_cmap(cmap)
 
-        image = ax.pcolormesh(lon, lat, data,
-                                transform=transform_crs,
-                                cmap=custom_cmap,
-                                clim=(n_min, n_max),
-                                animated=True,
-                                zorder=1,
-                                **imshow_kwargs if imshow_kwargs is not None else {}
-                                )
+    image = ax.pcolormesh(lon, lat, data,
+                            transform=transform_crs,
+                            cmap=custom_cmap,
+                            clim=(n_min, n_max),
+                            animated=True,
+                            zorder=1,
+                            **imshow_kwargs if imshow_kwargs is not None else {}
+                            )
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
         date.year, date.month, date.day),

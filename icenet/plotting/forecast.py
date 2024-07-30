@@ -1687,6 +1687,8 @@ def plot_forecast():
         region_args = args.region_lat_lon
         method = "lat_lon"
 
+    # Reproject, and process regions if necessary
+    # TODO: Split thsi function to separate `reproject` and `process_regions`
     fc = process_regions(region_args, [fc], method=method, proj=target_crs, pole=pole, no_clip_region=args.no_clip_region)[0]
 
     vmax = 1.
@@ -1725,9 +1727,10 @@ def plot_forecast():
     if args.no_coastlines:
         coastlines = None
 
-    ax = get_plot_axes(**bound_args,
+    fig, ax = get_plot_axes(**bound_args,
                     geoaxes=True,
                     target_crs=target_crs,
+                    transform_crs=transform_crs,
                     coastlines=coastlines,
                     gridlines=args.gridlines,
                     )
@@ -1766,14 +1769,15 @@ def plot_forecast():
                         if not args.stddev else None,
                         video_path=output_filename,
                         reproject=reproject,
-                        pole=pole,
                         extent=extent,
                         method=method,
-                        coastlines=not args.no_coastlines,
+                        coastlines=coastlines,
                         gridlines=args.gridlines,
                         target_crs=target_crs,
                         transform_crs=transform_crs,
                         # ax_init=plt.axes(projection=ccrs.PlateCarree()) if reproject else None
+                        north=bound_args["north"],
+                        south=bound_args["south"],
                         **anim_args)
     else:
         for i, leadtime in enumerate(leadtimes):
@@ -1781,6 +1785,7 @@ def plot_forecast():
 
             # Standard output plot or using pixel region clipping
             if args.region_lat_lon is None:
+                print("Standard plot")
                 # if args.crs and args.region is not None:
                 #     lon, lat = fc.lon.values, fc.lat.values
                 #     extent = [lon.min(), lon.max(), lat.min(), lat.max()]
