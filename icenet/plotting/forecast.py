@@ -1776,7 +1776,6 @@ def plot_forecast():
                         gridlines=args.gridlines,
                         target_crs=target_crs,
                         transform_crs=transform_crs,
-                        # ax_init=plt.axes(projection=ccrs.PlateCarree()) if reproject else None
                         north=bound_args["north"],
                         south=bound_args["south"],
                         **anim_args)
@@ -1787,12 +1786,6 @@ def plot_forecast():
             # Standard output plot or using pixel region clipping
             if args.region_lat_lon is None:
                 print("Standard plot")
-                # if args.crs and args.region is not None:
-                #     lon, lat = fc.lon.values, fc.lat.values
-                #     extent = [lon.min(), lon.max(), lat.min(), lat.max()]
-                #     # ax.set_extent(extent, crs=target_crs)
-                # else:
-                #     extent = None
                 im = pred_da.plot.pcolormesh("xc",
                                              "yc",
                                              ax=ax,
@@ -1802,18 +1795,6 @@ def plot_forecast():
                                              add_colorbar=False,
                                              cmap=custom_cmap,
                                              )
-                # im = pred_da.plot.imshow(ax=ax, transform=target_crs,
-                #                              vmin=0,
-                #                              vmax=vmax,
-                #                              add_colorbar=False,
-                #                              cmap=custom_cmap,
-                #                              )
-                # im = pred_da.plot.pcolormesh("lon",
-                #                             "lat",
-                #                             ax=ax,
-                #                             transform=target_crs,
-                #                             add_colorbar=False,
-                #                             )
             # Using lat/lon region clipping
             else:
                 # cmap.set_bad("dimgrey", alpha=0)
@@ -1823,20 +1804,6 @@ def plot_forecast():
 
                 lon, lat = fc.lon.values, fc.lat.values
 
-                # im = ax.pcolormesh(pred_da.xc.values, pred_da.yc.values, data, transform=data_crs, vmin=0, vmax=vmax, cmap=custom_cmap)
-                # im = pred_da.plot.imshow(ax=ax, transform=transform_crs,
-                #                              vmin=0,
-                #                              vmax=vmax,
-                #                              add_colorbar=False,
-                #                              cmap=custom_cmap,
-                #                              )
-                # im = pred_da.plot.pcolormesh("lon",
-                #                             "lat",
-                #                             ax=ax,
-                #                             transform=transform_crs,
-                #                             add_colorbar=False,
-                #                             cmap=custom_cmap,
-                #                             )
                 im = pred_da.plot.pcolormesh("xc",
                                              "yc",
                                              ax=ax,
