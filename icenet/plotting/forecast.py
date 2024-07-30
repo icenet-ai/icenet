@@ -1770,10 +1770,11 @@ def plot_forecast():
 
         if not args.no_coastlines:
             ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
-            ax.coastlines(resolution="10m", zorder=100)
-            # ax.add_feature(cfeature.GSHHSFeature(scale="full"))
-            # ax.add_feature(cfeature.COASTLINE)
-        # ax.set_global()
+            if args.region or args.region_lat_lon:
+                # Higher resolution coastlines when a region is specified
+                ax.add_feature(cfeature.GSHHSFeature(scale="high", levels=[1]), zorder=100)
+            else:
+                ax.coastlines(resolution="10m", zorder=100)
 
         if args.gridlines:
             gl = ax.gridlines(crs=transform_crs, draw_labels=True)
