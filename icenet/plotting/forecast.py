@@ -1715,10 +1715,26 @@ def plot_forecast():
                             y1=args.region_lat_lon[0],
                             y2=args.region_lat_lon[2])
 
+    coastlines = "default"
     if args.region is not None or args.region_lat_lon is not None:
         extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
+        coastlines = "gshhs"
     else:
         extent = None
+
+    if args.no_coastlines:
+        coastlines = None
+
+    ax = get_plot_axes(**bound_args,
+                    geoaxes=True,
+                    target_crs=target_crs,
+                    coastlines=coastlines,
+                    gridlines=args.gridlines,
+                    )
+
+    plt.tight_layout(pad=4.0)
+
+    custom_cmap = get_custom_cmap(cmap)
 
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
@@ -1760,33 +1776,6 @@ def plot_forecast():
                         # ax_init=plt.axes(projection=ccrs.PlateCarree()) if reproject else None
                         **anim_args)
     else:
-        # TODO: Tidy up code into piecewise functions under `icenet/plotting/utils.py`
-        ax = get_plot_axes(**bound_args,
-                        geoaxes=True,
-                        proj=target_crs if args.crs else None,
-                        set_extents=False if args.region_lat_lon is not None else not args.crs,
-                        )
-
-        if not args.no_coastlines:
-            ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
-            if args.region or args.region_lat_lon:
-                # Higher resolution coastlines when a region is specified
-                ax.add_feature(cfeature.GSHHSFeature(scale="high", levels=[1]), zorder=100)
-            else:
-                ax.coastlines(resolution="10m", zorder=100)
-
-        if args.gridlines:
-            gl = ax.gridlines(crs=transform_crs, draw_labels=True)
-            # Prevent generating labels below the colourbar
-            gl.right_labels = False
-            # # Show gridlines around bounds.
-            # gl.xlocator = mticker.FixedLocator([bound_args["x1"], bound_args["x2"]])
-            # gl.ylocator = mticker.FixedLocator([bound_args["y1"], bound_args["y2"]])
-
-        plt.tight_layout(pad=4.0)
-
-        custom_cmap = get_custom_cmap(cmap)
-
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
 

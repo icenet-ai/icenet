@@ -5,6 +5,7 @@ import os
 import re
 
 import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import dask.array as da
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -383,11 +384,13 @@ def get_plot_axes(x1: int = 0,
                   x2: int = 432,
                   y1: int = 0,
                   y2: int = 432,
-                  geoaxes: bool = True,
                   north: bool = True,
                   south: bool = False,
-                  proj = None,
-                  set_extents: bool = False
+                  geoaxes: bool = True,
+                  coastlines: str = None,
+                  gridlines: bool = True,
+                  target_crs: object = ccrs.Mercator(),
+                  transform_crs: object = ccrs.PlateCarree(),
                   ):
     """
 
@@ -396,28 +399,37 @@ def get_plot_axes(x1: int = 0,
     :param y1:
     :param y2:
     :param geoaxes:
-    :param north:
-    :param south:
-    :param proj:
-    :param method:
     :return:
     """
     assert north ^ south, "One hemisphere only must be selected"
+    pole = 1 if north else -1
 
     fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
 
     if geoaxes:
-        pole = 1 if north else -1
-        proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(proj, pole)
+        target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
 
-        ax = fig.add_subplot(1, 1, 1, projection=proj)
+        ax = fig.add_subplot(1, 1, 1, projection=target_crs)
 
-        extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
-
+        # extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
         # ax.set_extent(extents, crs=proj)
 
         # Set colour for areas outside of `process_regions()` - no data here.
         ax.set_facecolor('dimgrey')
+
+        if coastlines is not None:
+            ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
+            if coastlines.casefold() == "gshhs":
+                # Higher resolution coastlines when a region is specified
+                ax.add_feature(cfeature.GSHHSFeature(scale="high", levels=[1]), zorder=100)
+            else:
+                ax.coastlines(resolution="10m", zorder=100)
+
+        if gridlines:
+            gl = ax.gridlines(crs=transform_crs, draw_labels=True)
+            # Prevent generating labels below the colourbar
+            gl.right_labels = False
+
     else:
         ax = fig.add_subplot(1, 1, 1)
 
