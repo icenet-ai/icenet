@@ -543,7 +543,7 @@ def reproject_projected_coords(data,
                                 })
 
     # Need to use correctly scaled xc and yc to get coastlines working even if not reprojecting.
-    # So, just return scaled DataArray back and not reproject.
+    # So, just return scaled DataArray back and not reproject if don't need to.
     if target_crs == data_crs_proj:
         return data_reproject
 
@@ -574,6 +574,7 @@ def reproject_projected_coords(data,
         leadtime_data = xr.map_blocks(process_block, data_reproject.isel(time=time), template=template, kwargs={"target_crs": target_crs})
         reprojected_data.append(leadtime_data)
 
+    # TODO: Add projection info into DataArray, like the `Lambert_Azimuthal_Grid` dropped above
     reprojected_data = xr.concat(reprojected_data, dim="time")
     reprojected_data.coords["time"] = data_reproject.time.data
 

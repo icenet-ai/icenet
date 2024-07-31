@@ -1748,14 +1748,6 @@ def plot_forecast():
     if args.no_coastlines:
         coastlines = None
 
-    fig, ax = get_plot_axes(**bound_args,
-                    geoaxes=True,
-                    target_crs=target_crs,
-                    transform_crs=transform_crs,
-                    coastlines=coastlines,
-                    gridlines=args.gridlines,
-                    )
-
     custom_cmap = get_custom_cmap(cmap)
 
     if args.format == "mp4":
@@ -1799,40 +1791,35 @@ def plot_forecast():
                         colorbar_label=colorbar_label,
                         **anim_args)
     else:
+        fig, ax = get_plot_axes(**bound_args,
+                        geoaxes=True,
+                        target_crs=target_crs,
+                        transform_crs=transform_crs,
+                        coastlines=coastlines,
+                        gridlines=args.gridlines,
+                        )
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
 
-            # Standard output plot or using pixel region clipping
-            if args.region_geographic is None:
-                im = pred_da.plot.pcolormesh("xc",
-                                             "yc",
-                                             ax=ax,
-                                             transform=target_crs,
-                                             vmin=0,
-                                             vmax=vmax,
-                                             add_colorbar=False,
-                                             cmap=custom_cmap,
-                                             )
-            # Using lon/lat region clipping
-            else:
-                lon, lat = fc.lon.values, fc.lat.values
+            im = pred_da.plot.pcolormesh("xc",
+                                            "yc",
+                                            ax=ax,
+                                            transform=target_crs,
+                                            vmin=0,
+                                            vmax=vmax,
+                                            add_colorbar=False,
+                                            cmap=custom_cmap,
+                                            )
 
-                im = pred_da.plot.pcolormesh("xc",
-                                             "yc",
-                                             ax=ax,
-                                             transform=target_crs,
-                                             vmin=0,
-                                             vmax=vmax,
-                                             add_colorbar=False,
-                                             cmap=custom_cmap,
-                                             )
+            if args.region_geographic:
+                # Special case, when using geographic (lon/lat) region clipping
                 stored_extent = ax.get_extent()
 
                 # Output a reference image showing cropped region
                 if i == 0:
                     box_lon, box_lat = geographic_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
-                    region_plot = ax.plot(box_lon, box_lat, transform=transform_crs, color="red")
+                    region_plot = ax.plot(box_lon, box_lat, transform=transform_crs, color="red", zorder=999)
                     ax.set_global()
 
                     output_filename = os.path.join(
