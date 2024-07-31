@@ -1701,15 +1701,10 @@ def plot_forecast():
 
     # Reproject, and process regions if necessary
     # TODO: Split this function to separate `reproject` and `process_regions`
-    if reproject:
-        projection = target_crs
-    else:
-        projection = None
-
     fc = process_regions(region_args,
                             [fc],
                             method=method,
-                            target_crs=projection,
+                            target_crs=target_crs,
                             pole=pole,
                             clip_geographic_region=not args.no_clip_region
                         )[0]

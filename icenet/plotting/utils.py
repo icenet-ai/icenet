@@ -542,6 +542,11 @@ def reproject_projected_coords(data,
                                     "yc": data_reproject.yc.data*1000
                                 })
 
+    # Need to use correctly scaled xc and yc to get coastlines working even if not reprojecting.
+    # So, just return scaled DataArray back and not reproject.
+    if target_crs == data_crs_proj:
+        return data_reproject
+
     # Set xc, yc (eastings and northings) projection details
     data_reproject = data_reproject.rename({"xc": "x", "yc": "y"})
     data_reproject.rio.write_crs(data_crs_proj.proj4_init, inplace=True)
@@ -596,7 +601,7 @@ def reproject_projected_coords(data,
 def process_regions(region: tuple=None,
         data: tuple=None,
         method: str = "pixel",
-        target_crs=None,
+        target_crs=ccrs.Mercator.GOOGLE,
         pole=1,
         clip_geographic_region=True,
     ) -> tuple:
@@ -619,13 +624,10 @@ def process_regions(region: tuple=None,
 
     for idx, arr in enumerate(data):
         if arr is not None:
-            if target_crs is None:
-                reprojected_data = arr
-            elif (method == "geographic" and clip_geographic_region):
+            if (method == "geographic" and clip_geographic_region):
+                # Reproject when region is bounded by lon/lat without the 'clip_geographic_region' flag
                 data[idx] = arr
             else:
-                # Reproject only when target_crs is defined, and when region is bounded by lon/lat without the
-                # 'clip_geographic_region' flag
                 logging.info(f"Reprojecting data to specified CRS")
                 reprojected_data = reproject_projected_coords(arr,
                             target_crs=target_crs,
