@@ -429,7 +429,7 @@ def get_plot_axes(x1: int = 0,
 
         if gridlines:
             gl = ax.gridlines(crs=transform_crs, draw_labels=True)
-            # Prevent generating labels below the colourbar
+            # Prevent generating labels beneath the colourbar
             gl.right_labels = False
 
     else:

@@ -90,7 +90,7 @@ def xarray_to_video(
     data_type: str = 'abs',
     video_dates: object = None,
     cmap: object = plt.get_cmap("viridis"),
-    figsize: int = (12, 12),
+    figsize: tuple = None,
     dpi: int = 150,
     imshow_kwargs: dict = None,
     ax_init: object = None,
@@ -123,6 +123,8 @@ def xarray_to_video(
     :param ax_init: pre-initialised axes object for display
     :param ax_extra: Extra method called with axes for additional plotting
     """
+    assert north ^ south, "Only one hemisphere must be selected"
+    pole = 1 if north else -1
 
     target_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
     transform_crs = ccrs.PlateCarree() if transform_crs is None else transform_crs
@@ -228,16 +230,16 @@ def xarray_to_video(
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
         date.year, date.month, date.day),
-                               fontsize="medium",
+                               fontsize="large",
                                zorder=2)
 
     try:
         divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.1, zorder=2, axes_class=plt.Axes)
-        cbar = plt.colorbar(image, cax)
+        cax = divider.append_axes("right", size="5%", pad=0.05, zorder=2, axes_class=plt.Axes)
+        cbar = plt.colorbar(image, ax=ax, cax=cax)
         if colorbar_label:
             cbar.set_label(colorbar_label)
-            fig.subplots_adjust(right=0.85)
+        plt.subplots_adjust(right=0.5)
     except KeyError as ex:
         logging.warning("Could not configure locatable colorbar: {}".format(ex))
 

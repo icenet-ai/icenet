@@ -1653,7 +1653,13 @@ def plot_forecast():
         os.path.splitext(os.path.basename(args.forecast_file))[0],
         args.forecast_date)
 
-    cmap_name = "BuPu_r" if args.stddev else "Blues_r"
+    if args.stddev:
+        cmap_name = "BuPu_r"
+        colorbar_label = "Sea-ice concentration fraction (standard deviation)"
+    else:
+        cmap_name = "Blues_r"
+        colorbar_label = "Sea-ice concentration fraction"
+
     if args.cmap_name is not None:
         cmap_name = args.cmap_name
 
@@ -1736,8 +1742,6 @@ def plot_forecast():
                     gridlines=args.gridlines,
                     )
 
-    plt.tight_layout(pad=4.0)
-
     custom_cmap = get_custom_cmap(cmap)
 
     if args.format == "mp4":
@@ -1778,6 +1782,7 @@ def plot_forecast():
                         north=bound_args["north"],
                         south=bound_args["south"],
                         clim=(0, vmax),
+                        colorbar_label=colorbar_label,
                         **anim_args)
     else:
         for i, leadtime in enumerate(leadtimes):
@@ -1841,13 +1846,18 @@ def plot_forecast():
 
             divider = make_axes_locatable(ax)
             # Pass axes_class to set correct colourbar height with cartopy
-            cax = divider.append_axes("right", size="5%", pad=0.1, axes_class=plt.Axes)
-            plt.colorbar(im, ax=ax, cax=cax)
+            cax = divider.append_axes("right", size="5%", pad=0.05, axes_class=plt.Axes)
+            cbar = plt.colorbar(im, ax=ax, cax=cax)
 
             plot_date = args.forecast_date + dt.timedelta(leadtime)
             ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
                                                        plot_date.month,
-                                                       plot_date.day))
+                                                       plot_date.day),
+                                                       fontsize="large",
+                                                       )
+            if colorbar_label:
+                cbar.set_label(colorbar_label)
+            plt.subplots_adjust(right=0.5)
             output_filename = os.path.join(
                 output_path, "{}.{}.{}{}".format(
                     forecast_name,
