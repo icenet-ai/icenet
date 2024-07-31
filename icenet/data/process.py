@@ -487,7 +487,6 @@ class IceNetPreProcessor(Processor):
 
         scale_path = os.path.join(proc_dir, "{}".format(var_name))
 
-        print("Scale path:", scale_path)
         if os.path.exists(scale_path):
             logging.debug(
                 "Loading norm-scaling min-max from {}".format(scale_path))

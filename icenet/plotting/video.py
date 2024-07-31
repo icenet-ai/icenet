@@ -90,7 +90,7 @@ def xarray_to_video(
     data_type: str = 'abs',
     video_dates: object = None,
     cmap: object = plt.get_cmap("viridis"),
-    figsize: tuple = None,
+    figsize: tuple = (10, 8),
     dpi: int = 150,
     imshow_kwargs: dict = None,
     ax_init: object = None,
