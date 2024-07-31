@@ -201,12 +201,12 @@ def xarray_to_video(
     if ax_extra is not None:
         ax_extra(ax)
 
+    if extent and method == "lat_lon":
+        ax.set_extent(extent, crs=transform_crs)
+
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 
     data = da.sel(time=date)
-
-    if extent and method == "lat_lon":
-        ax.set_extent(extent, crs=transform_crs)
 
     # TODO: Tidy up, and cover all argument options
     # Hack since cartopy needs transparency for nan regions to wraparound
@@ -248,6 +248,7 @@ def xarray_to_video(
                             frames=video_dates,
                             interval=1000 / fps,
                             repeat=False,
+                            blit=True,
                             )
 
     plt.close()
