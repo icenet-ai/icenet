@@ -596,15 +596,16 @@ def reproject_projected_coords(data,
 def process_regions(region: tuple=None,
         data: tuple=None,
         method: str = "pixel",
-        proj=None,
+        target_crs=None,
         pole=1,
-        no_clip_region=True,
+        clip_geographic_region=True,
     ) -> tuple:
     """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
     :param region: Either image pixel bounds, or geographic bounds.
     :param data: Contains the full xarray DataArray.
     :param method: Whether providing pixel coordinates or geographic (i.e. lon/lat).
+    :param clip_geographic_region: Whether to clip the data to the defined lon/lat region bounds.
 
     :return:
     """
@@ -618,45 +619,46 @@ def process_regions(region: tuple=None,
 
     for idx, arr in enumerate(data):
         if arr is not None:
-            if not proj:
+            if target_crs is None:
                 reprojected_data = arr
+            elif (method == "geographic" and clip_geographic_region):
+                data[idx] = arr
             else:
+                # Reproject only when target_crs is defined, and when region is bounded by lon/lat without the
+                # 'clip_geographic_region' flag
+                logging.info(f"Reprojecting data to specified CRS")
                 reprojected_data = reproject_projected_coords(arr,
-                                            target_crs=proj,
-                                            pole=pole,
-                                            )
+                            target_crs=target_crs,
+                            pole=pole,
+                            )
+                data[idx] = reprojected_data
+
 
             if region is not None:
-                if method.casefold() == "pixel":
+                logging.info(f"Clipping data to specified bounds: {region}")
+                if method.casefold() == "geographic":
+                    if clip_geographic_region:
+                        # Limit to lon/lat region, within a given tolerance
+                        tolerance = 1E-1
+                        # Create condition where data is within geographic (lon/lat) region
+                        condition = (arr.lon >= x1-tolerance) & (arr.lon <= x2+tolerance) & \
+                                    (arr.lat >= y1-tolerance) & (arr.lat <= y2+tolerance)
+
+                        # Extract subset within region using where()
+                        clipped_data = arr.where(condition, drop=True)
+
+                        # Reproject just the clipped region for speed
+                        data[idx] = reproject_projected_coords(clipped_data,
+                                                    target_crs=target_crs,
+                                                    pole=pole,
+                                                    )
+                elif method.casefold() == "pixel":
                     x_max, y_max = reprojected_data.xc.shape[0], reprojected_data.yc.shape[0]
-                    max_x = min(x_max, x2)
-                    max_y = min(y_max, y2)
 
-                    # Clip the data array
-                    clipped_data = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
-                elif method.casefold() == "geographic" and not no_clip_region:
-                    arr = reprojected_data
-
-                    # Limit to lon/lat region, within a given tolerance
-                    tolerance = 1E-1
-                    # Create condition where data is within geographic (lon/lat) region
-                    condition = (arr.lon >= x1-tolerance) & (arr.lon <= x2+tolerance) & \
-                                (arr.lat >= y1-tolerance) & (arr.lat <= y2+tolerance)
-
-                    # Extract subset within region using where()
-                    clipped_data = arr.where(condition, drop=True)
-                    # clipped_data = reproject_projected_coords(clipped_data,
-                    #                             target_crs=proj,
-                    #                             pole=pole,
-                    #                             )
-                elif method.casefold() == "geographic" and no_clip_region:
-                    data[idx] = reprojected_data
-                    continue
+                    # Clip the data array to specified pixel region
+                    data[idx] = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
                 else:
-                    raise NotImplementedError
-                data[idx] = clipped_data
-            else:
-                data[idx] = reprojected_data
+                    raise NotImplementedError("Only method='pixel' or 'geographic' bounds are supported")
 
     return data
 

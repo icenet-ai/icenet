@@ -1673,11 +1673,13 @@ def plot_forecast():
 
     # Define CRS for plotting
     reproject = True if args.crs else False
-    data_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
+    data_crs_proj = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
+    data_crs_geo = ccrs.PlateCarree()
+
     if args.crs:
         target_crs = get_crs(args.crs)
     else:
-        target_crs = data_crs
+        target_crs = data_crs_proj
     transform_crs = ccrs.PlateCarree()
 
     region_args = None
@@ -1687,7 +1689,6 @@ def plot_forecast():
     elif args.region_geographic is not None:
         region_args = args.region_geographic
         method = "geographic"
-
 
     ## Clip the actual data to the requested region.
     ## This can cause empty region at the borders if used with different CRS projections
@@ -1700,7 +1701,18 @@ def plot_forecast():
 
     # Reproject, and process regions if necessary
     # TODO: Split this function to separate `reproject` and `process_regions`
-    fc = process_regions(region_args, [fc], method=method, proj=target_crs, pole=pole, no_clip_region=args.no_clip_region)[0]
+    if reproject:
+        projection = target_crs
+    else:
+        projection = None
+
+    fc = process_regions(region_args,
+                            [fc],
+                            method=method,
+                            target_crs=projection,
+                            pole=pole,
+                            clip_geographic_region=not args.no_clip_region
+                        )[0]
 
     vmax = 1.
 
@@ -1731,6 +1743,9 @@ def plot_forecast():
     coastlines = "default"
     if args.region is not None or args.region_geographic is not None:
         extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
+        # Note: Using GSHHS coastlines will slow png/mp4 output quite a bit!
+        # This is automatically activated when a sub region is specified with the
+        # '-r' or '-z' region flags.
         coastlines = "gshhs"
     else:
         extent = None
