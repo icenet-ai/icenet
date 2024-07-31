@@ -412,6 +412,7 @@ def get_plot_axes(x1: int = 0,
         # target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
 
         ax = fig.add_subplot(1, 1, 1, projection=target_crs)
+        plt.tight_layout(pad=4.0)
 
         # extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
         # ax.set_extent(extents, crs=proj)
@@ -430,6 +431,7 @@ def get_plot_axes(x1: int = 0,
         if gridlines:
             gl = ax.gridlines(crs=transform_crs, draw_labels=True)
             # Prevent generating labels beneath the colourbar
+            gl.top_labels = False
             gl.right_labels = False
 
     else:
@@ -531,7 +533,7 @@ def reproject_projected_coords(data,
                                 ):
     # Eastings/Northings projection
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
-    # Lat/Lon projection
+    # geographic projection
     data_crs_geo = ccrs.PlateCarree()
 
     data_reproject = data.copy()
@@ -574,7 +576,7 @@ def reproject_projected_coords(data,
     reprojected_data.rio.write_crs(target_crs.proj4_init, inplace=True)
     reprojected_data.rio.write_nodata(np.nan, inplace=True)
 
-    # Compute lat/lon for reprojected image
+    # Compute geographic for reprojected image
     transformer = Transformer.from_crs(target_crs.proj4_init, data_crs_geo.proj4_init)
     x = reprojected_data.x.values
     y = reprojected_data.y.values
@@ -600,9 +602,9 @@ def process_regions(region: tuple=None,
     ) -> tuple:
     """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
-    :param region: Either image pixel bounds, or lat/lon bounds.
+    :param region: Either image pixel bounds, or geographic bounds.
     :param data: Contains the full xarray DataArray.
-    :param method: Whether providing pixel coordinates or lat/lon.
+    :param method: Whether providing pixel coordinates or geographic (i.e. lon/lat).
 
     :return:
     """
@@ -611,8 +613,8 @@ def process_regions(region: tuple=None,
         assert len(region) == 4, "Region needs to be a list of four integers"
         x1, y1, x2, y2 = region
         assert x2 > x1 and y2 > y1, "Region is not valid"
-        if method == "lat_lon":
-            assert y1 >= -180 and y2 <= 180, "Expect longitude range to be `-180<=longitude>=180`"
+        if method == "geographic":
+            assert x1 >= -180 and x2 <= 180, "Expect longitude range to be `-180<=longitude>=180`"
 
     for idx, arr in enumerate(data):
         if arr is not None:
@@ -632,12 +634,12 @@ def process_regions(region: tuple=None,
 
                     # Clip the data array
                     clipped_data = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
-                elif method.casefold() == "lat_lon" and not no_clip_region:
+                elif method.casefold() == "geographic" and not no_clip_region:
                     arr = reprojected_data
 
-                    # Create condition where data is within lat/lon region
-                    condition = (arr.lat >= x1) & (arr.lat <= x2) & \
-                                (arr.lon >= y1) & (arr.lon <= y2)
+                    # Create condition where data is within geographic (lon/lat) region
+                    condition = (arr.lon >= x1) & (arr.lon <= x2) & \
+                                (arr.lat >= y1) & (arr.lat <= y2)
 
                     # Extract subset within region using where()
                     clipped_data = arr.where(condition, drop=True)
@@ -645,7 +647,7 @@ def process_regions(region: tuple=None,
                     #                             target_crs=proj,
                     #                             pole=pole,
                     #                             )
-                elif method.casefold() == "lat_lon" and no_clip_region:
+                elif method.casefold() == "geographic" and no_clip_region:
                     data[idx] = reprojected_data
                     continue
                 else:
@@ -658,8 +660,8 @@ def process_regions(region: tuple=None,
 
 
 @cache
-def lat_lon_box(lon_bounds: np.array, lat_bounds: np.array, segments: int=1):
-    """Rectangular boundary coordinates in lat/lon coordinates.
+def geographic_box(lon_bounds: np.array, lat_bounds: np.array, segments: int=1):
+    """Rectangular boundary coordinates in lon/lat coordinates.
 
     Args:
         lon_bounds: (min, max) lon values
@@ -673,8 +675,8 @@ def lat_lon_box(lon_bounds: np.array, lat_bounds: np.array, segments: int=1):
     segments += 1
     rectangular_sides = 4
 
-    lats = np.empty((segments*rectangular_sides))
     lons = np.empty((segments*rectangular_sides))
+    lats = np.empty((segments*rectangular_sides))
 
     bounds = [
         [0, 0],
@@ -691,7 +693,7 @@ def lat_lon_box(lon_bounds: np.array, lat_bounds: np.array, segments: int=1):
     for i, (lon_min, lon_max) in enumerate(bounds):
         lons[i*segments:(i+1)*segments] = np.linspace(lon_bounds[lon_min], lon_bounds[lon_max], num=segments)
 
-    return lats, lons
+    return lons, lats
 
 def get_custom_cmap(cmap):
     """Creates a new colormap, but with nan set to <0.

@@ -203,7 +203,7 @@ def xarray_to_video(
     if ax_extra is not None:
         ax_extra(ax)
 
-    if extent and method == "lat_lon":
+    if extent and method == "geographic":
         ax.set_extent(extent, crs=transform_crs)
 
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
@@ -239,7 +239,7 @@ def xarray_to_video(
         cbar = plt.colorbar(image, ax=ax, cax=cax)
         if colorbar_label:
             cbar.set_label(colorbar_label)
-        plt.subplots_adjust(right=0.5)
+        plt.subplots_adjust(right=0.9)
     except KeyError as ex:
         logging.warning("Could not configure locatable colorbar: {}".format(ex))
 

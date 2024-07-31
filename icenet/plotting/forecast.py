@@ -31,7 +31,7 @@ from icenet.plotting.utils import (calculate_extents, filter_ds_by_obs,
                                    get_forecast_ds,
                                    get_obs_da, get_seas_forecast_da,
                                    get_seas_forecast_init_dates,
-                                   lat_lon_box, show_img,
+                                   geographic_box, show_img,
                                    get_plot_axes, process_probes,
                                    process_regions, get_custom_cmap,
                                    get_crs)
@@ -528,7 +528,7 @@ def compute_metrics_leadtime_avg(metric: str,
                                  data_path: str,
                                  bias_correct: bool = False,
                                  region: tuple = None,
-                                 region_lat_lon: tuple = None,
+                                 region_geographic: tuple = None,
                                  **kwargs) -> object:
     """
     Given forecast file, for each initialisation date in the xarray.DataArray
@@ -551,7 +551,8 @@ def compute_metrics_leadtime_avg(metric: str,
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if ecmwf=False
     :param region: region to zoom in to defined by pixel coordinates
-    :param region_lat_lon: region to zoom in to defined by lat/lon coordinates
+    :param region_geographic: region to zoom in to defined by geographic, i.e.,
+                           (lon_min, lat_min, lon_max, lat_max) coordinates
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics, or 'grid_area_size' for SIE error metric
@@ -601,12 +602,12 @@ def compute_metrics_leadtime_avg(metric: str,
                                         [seas, fc, obs, masks],
                                         method="pixel"
                                         )
-        elif region_lat_lon is not None:
-            raise NotImplementedError("Computing this metric with lat/lon region "
+        elif region_geographic is not None:
+            raise NotImplementedError("Computing this metric with lon/lat region "
                                     "bounds has not been implemented yet.")
-            seas, fc, obs, masks = process_regions(region_lat_lon,
+            seas, fc, obs, masks = process_regions(region_geographic,
                                         [seas, fc, obs, masks],
-                                        method="lat_lon"
+                                        method="geographic"
                                         )
 
         # compute metrics
@@ -835,7 +836,7 @@ def plot_metrics_leadtime_avg(metric: str,
                               target_date_avg: bool = False,
                               bias_correct: bool = False,
                               region: tuple = None,
-                              region_lat_lon: tuple = None,
+                              region_geographic: tuple = None,
                               **kwargs) -> object:
     """
     Plots leadtime averaged metrics either using all the forecasts
@@ -867,7 +868,8 @@ def plot_metrics_leadtime_avg(metric: str,
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if ecmwf=False
     :param region: region to zoom in to defined by pixel coordinates
-    :param region_lat_lon: region to zoom in to defined by lat/lon coordinates
+    :param region_geographic: region to zoom in to defined by geographic, i.e.,
+                           (lon_min, lat_min, lon_max, lat_max) coordinates
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics, or 'grid_area_size' for SIE error metric
@@ -1405,10 +1407,10 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           type=region_arg,
                           help="Region specified x1, y1, x2, y2")
         self.add_argument("-z",
-                          "--region-lat-lon",
+                          "--region-geographic",
                           default=None,
                           type=region_arg,
-                          help="Region specified as lon and lat min/max: lat_min, lon_min, lat_max, lon_max")
+                          help="Geographic region specified as lon and lat min/max: lon_min, lat_min, lon_max, lat_max")
 
     def allow_ecmwf(self):
         self.add_argument("-b",
@@ -1513,12 +1515,12 @@ def binary_accuracy():
                                     [seas, fc, obs, masks],
                                     method="pixel"
                                     )
-    elif args.region_lat_lon is not None:
-        raise NotImplementedError("Computing this metric with lat/lon region "
+    elif args.region_geographic is not None:
+        raise NotImplementedError("Computing this metric with lon/lat region "
                                 "bounds has not been implemented yet.")
-        seas, fc, obs, masks = process_regions(args.region_lat_lon,
+        seas, fc, obs, masks = process_regions(args.region_geographic,
                                     [seas, fc, obs, masks],
-                                    method="lat_lon"
+                                    method="geographic"
                                     )
 
 
@@ -1566,12 +1568,12 @@ def sie_error():
                                     [seas, fc, obs, masks],
                                     method="pixel"
                                     )
-    elif args.region_lat_lon is not None:
-        raise NotImplementedError("Computing this metric with lat/lon region "
+    elif args.region_geographic is not None:
+        raise NotImplementedError("Computing this metric with lon/lat region "
                                 "bounds has not been implemented yet.")
-        seas, fc, obs, masks = process_regions(args.region_lat_lon,
+        seas, fc, obs, masks = process_regions(args.region_geographic,
                                     [seas, fc, obs, masks],
-                                    method="lat_lon"
+                                    method="geographic"
                                     )
 
     plot_sea_ice_extent_error(masks=masks,
@@ -1629,9 +1631,9 @@ def plot_forecast():
     ap.add_argument("--no-clip-region",
                         action="store_true",
                         default=False,
-                        help="Whether to clip the data to the region specified by lat/lon,"\
+                        help="Whether to clip the data to the region specified by lon/lat,"\
                             " When enabled, this shows missing values when plotting along boundaries"\
-                            " due to lat/lon curvature. Default is False"
+                            " due to lon/lat curvature. Default is False"
                         )
     args = ap.parse_args()
 
@@ -1682,15 +1684,15 @@ def plot_forecast():
     method = "pixel"
     if args.region is not None:
         region_args = args.region
-    elif args.region_lat_lon is not None:
-        region_args = args.region_lat_lon
-        method = "lat_lon"
+    elif args.region_geographic is not None:
+        region_args = args.region_geographic
+        method = "geographic"
 
 
     ## Clip the actual data to the requested region.
     ## This can cause empty region at the borders if used with different CRS projections
     ## due to re-projection.
-    if args.crs and args.region_lat_lon and not args.no_clip_region:
+    if args.crs and args.region_geographic and not args.no_clip_region:
         logging.warning(f"Using '{args.crs}' for plot reprojection, this can cause " \
             "empty regions along the outer edges due to re-projection.")
         logging.warning(f"You may want to run with '--no-clip-region' to plot full region without " \
@@ -1719,15 +1721,15 @@ def plot_forecast():
                             x2=args.region[2],
                             y1=args.region[1],
                             y2=args.region[3])
-    elif args.region_lat_lon is not None:
-        method = "lat_lon"
-        bound_args.update(x1=args.region_lat_lon[1],
-                            x2=args.region_lat_lon[3],
-                            y1=args.region_lat_lon[0],
-                            y2=args.region_lat_lon[2])
+    elif args.region_geographic is not None:
+        method = "geographic"
+        bound_args.update(x1=args.region_geographic[0],
+                            x2=args.region_geographic[2],
+                            y1=args.region_geographic[1],
+                            y2=args.region_geographic[3])
 
     coastlines = "default"
-    if args.region is not None or args.region_lat_lon is not None:
+    if args.region is not None or args.region_geographic is not None:
         extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
         coastlines = "gshhs"
     else:
@@ -1791,7 +1793,7 @@ def plot_forecast():
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
 
             # Standard output plot or using pixel region clipping
-            if args.region_lat_lon is None:
+            if args.region_geographic is None:
                 print("Standard plot")
                 im = pred_da.plot.pcolormesh("xc",
                                              "yc",
@@ -1802,7 +1804,7 @@ def plot_forecast():
                                              add_colorbar=False,
                                              cmap=custom_cmap,
                                              )
-            # Using lat/lon region clipping
+            # Using lon/lat region clipping
             else:
                 # cmap.set_bad("dimgrey", alpha=0)
                 # Hack since cartopy needs transparency for nan regions to wraparound
@@ -1824,9 +1826,9 @@ def plot_forecast():
 
                 # Output a reference image showing cropped region
                 if i == 0:
-                    boxlat, boxlon = lat_lon_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
+                    box_lon, box_lat = geographic_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
-                    region_plot = ax.plot(boxlon, boxlat, transform=transform_crs, color="red")
+                    region_plot = ax.plot(box_lon, box_lat, transform=transform_crs, color="red")
                     ax.set_global()
 
                     output_filename = os.path.join(
@@ -1859,7 +1861,7 @@ def plot_forecast():
                                                        )
             if colorbar_label:
                 cbar.set_label(colorbar_label)
-            plt.subplots_adjust(right=0.5)
+            plt.subplots_adjust(right=0.9)
             output_filename = os.path.join(
                 output_path, "{}.{}.{}{}".format(
                     forecast_name,
@@ -1925,12 +1927,12 @@ def metric_plots():
                                     [seas, fc, obs, masks],
                                     method="pixel"
                                     )
-    elif args.region_lat_lon is not None:
-        raise NotImplementedError("Computing this metric with lat/lon region "
+    elif args.region_geographic is not None:
+        raise NotImplementedError("Computing this metric with lon/lat region "
                                 "bounds has not been implemented yet.")
-        seas, fc, obs, masks = process_regions(args.region_lat_lon,
+        seas, fc, obs, masks = process_regions(args.region_geographic,
                                     [seas, fc, obs, masks],
-                                    method="lat_lon"
+                                    method="geographic"
                                     )
 
     plot_metrics(metrics=metrics,
@@ -2022,12 +2024,12 @@ def sic_error():
                                     [fc, obs, masks],
                                     method="pixel"
                                     )
-    elif args.region_lat_lon is not None:
-        raise NotImplementedError("Computing this metric with lat/lon region "
+    elif args.region_geographic is not None:
+        raise NotImplementedError("Computing this metric with lon/lat region "
                                 "bounds has not been implemented yet.")
-        fc, obs, masks = process_regions(args.region_lat_lon,
+        fc, obs, masks = process_regions(args.region_geographic,
                                     [fc, obs, masks],
-                                    method="lat_lon"
+                                    method="geographic"
                                     )
 
     sic_error_video(fc_da=fc,
