@@ -127,13 +127,14 @@ def xarray_to_video(
     target_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
     transform_crs = ccrs.PlateCarree() if transform_crs is None else transform_crs
 
+    # Hack since cartopy needs transparency for nan regions to wraparound
+    # correctly with pcolormesh, set nan areas as under range.
+    if reproject:
+        da = da.where(~np.isnan(da), -9999, drop=False)
+
     def update(date):
         logging.debug("Plotting {}".format(date.strftime("%D")))
         data = da.sel(time=date)
-        # Hack since cartopy needs transparency for nan regions to wraparound
-        # correctly with pcolormesh.
-        if reproject:
-            data = np.where(np.isnan(data), -9999, data)
         image.set_array(data)
 
         image_title.set_text("{:04d}/{:02d}/{:02d}".format(
