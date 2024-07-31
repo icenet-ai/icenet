@@ -1690,9 +1690,11 @@ def plot_forecast():
     ## Clip the actual data to the requested region.
     ## This can cause empty region at the borders if used with different CRS projections
     ## due to re-projection.
-    if args.crs and args.region_lat_lon:
-        logging.warning(f"Using {args.crs} for plot reprojection, this can cause " \
+    if args.crs and args.region_lat_lon and not args.no_clip_region:
+        logging.warning(f"Using '{args.crs}' for plot reprojection, this can cause " \
             "empty regions along the outer edges due to re-projection.")
+        logging.warning(f"You may want to run with '--no-clip-region' to plot full region without " \
+                        "clipping data to only the specifed longitude and latitude bounds.")
 
     # Reproject, and process regions if necessary
     # TODO: Split this function to separate `reproject` and `process_regions`

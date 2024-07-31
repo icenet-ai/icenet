@@ -423,9 +423,9 @@ def get_plot_axes(x1: int = 0,
             ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
             if coastlines.casefold() == "gshhs":
                 # Higher resolution coastlines when a region is specified
-                ax.add_feature(cfeature.GSHHSFeature(scale="high", levels=[1]), zorder=100)
+                ax.add_feature(cfeature.GSHHSFeature(scale="auto", levels=[1]), zorder=100)
             else:
-                ax.coastlines(resolution="10m", zorder=100)
+                ax.coastlines(resolution="50m", zorder=100)
 
         if gridlines:
             gl = ax.gridlines(crs=transform_crs, draw_labels=True)
