@@ -1766,8 +1766,7 @@ def plot_forecast():
         xarray_to_video(pred_da,
                         fps=1,
                         cmap=cmap,
-                        imshow_kwargs=dict(vmin=0., vmax=vmax)
-                        if not args.stddev else None,
+                        imshow_kwargs={},
                         video_path=output_filename,
                         reproject=reproject,
                         extent=extent,
@@ -1778,6 +1777,7 @@ def plot_forecast():
                         transform_crs=transform_crs,
                         north=bound_args["north"],
                         south=bound_args["south"],
+                        clim=(0, vmax),
                         **anim_args)
     else:
         for i, leadtime in enumerate(leadtimes):

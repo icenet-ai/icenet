@@ -217,11 +217,12 @@ def xarray_to_video(
                                     "yc",
                                     ax=ax,
                                     transform=target_crs,
-                                    clim=(n_min, n_max),
                                     animated=True,
                                     zorder=1,
                                     add_colorbar=False,
                                     cmap=custom_cmap,
+                                    vmin=n_min,
+                                    vmax=n_max,
                                     **imshow_kwargs if imshow_kwargs is not None else {}
                                     )
 
@@ -232,7 +233,7 @@ def xarray_to_video(
 
     try:
         divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05, zorder=2, axes_class=plt.Axes)
+        cax = divider.append_axes('right', size='5%', pad=0.1, zorder=2, axes_class=plt.Axes)
         cbar = plt.colorbar(image, cax)
         if colorbar_label:
             cbar.set_label(colorbar_label)
