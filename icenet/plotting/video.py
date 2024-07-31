@@ -242,8 +242,12 @@ def xarray_to_video(
     logging.info("Animating")
 
     # Investigated blitting, but it causes a few problems with masks/titles.
-    animation = FuncAnimation(fig, update, video_dates,
-                            interval=1000 / fps)
+    animation = FuncAnimation(fig,
+                            func=update,
+                            frames=video_dates,
+                            interval=1000 / fps,
+                            repeat=False,
+                            )
 
     plt.close()
 
