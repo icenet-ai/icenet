@@ -1794,7 +1794,6 @@ def plot_forecast():
 
             # Standard output plot or using pixel region clipping
             if args.region_geographic is None:
-                print("Standard plot")
                 im = pred_da.plot.pcolormesh("xc",
                                              "yc",
                                              ax=ax,
@@ -1806,11 +1805,6 @@ def plot_forecast():
                                              )
             # Using lon/lat region clipping
             else:
-                # cmap.set_bad("dimgrey", alpha=0)
-                # Hack since cartopy needs transparency for nan regions to wraparound
-                # correctly with pcolormesh.
-                data = np.where(np.isnan(pred_da), -9999, pred_da)
-
                 lon, lat = fc.lon.values, fc.lat.values
 
                 im = pred_da.plot.pcolormesh("xc",

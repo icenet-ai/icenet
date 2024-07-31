@@ -637,9 +637,11 @@ def process_regions(region: tuple=None,
                 elif method.casefold() == "geographic" and not no_clip_region:
                     arr = reprojected_data
 
+                    # Limit to lon/lat region, within a given tolerance
+                    tolerance = 1E-1
                     # Create condition where data is within geographic (lon/lat) region
-                    condition = (arr.lon >= x1) & (arr.lon <= x2) & \
-                                (arr.lat >= y1) & (arr.lat <= y2)
+                    condition = (arr.lon >= x1-tolerance) & (arr.lon <= x2+tolerance) & \
+                                (arr.lat >= y1-tolerance) & (arr.lat <= y2+tolerance)
 
                     # Extract subset within region using where()
                     clipped_data = arr.where(condition, drop=True)
