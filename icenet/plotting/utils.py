@@ -404,12 +404,12 @@ def get_plot_axes(x1: int = 0,
     :return:
     """
     assert north ^ south, "One hemisphere only must be selected"
-    pole = 1 if north else -1
 
-    fig = plt.figure(figsize=figsize, dpi=dpi, layout='tight')
+    fig = plt.figure(figsize=figsize, dpi=dpi, layout="tight")
 
     if geoaxes:
-        target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
+        # pole = 1 if north else -1
+        # target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
 
         ax = fig.add_subplot(1, 1, 1, projection=target_crs)
 
