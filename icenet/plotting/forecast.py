@@ -557,7 +557,7 @@ def compute_metrics_leadtime_avg(metric: str,
         (fc_start_date, fc_end_date) = (fc_ds.time.values.min(),
                                         fc_ds.time.values.max())
         dates = get_seas_forecast_init_dates(hemisphere)
-        dates = dates[(dates > fc_start_date) & (dates <= fc_end_date)]
+        dates = dates[(dates >= fc_start_date) & (dates <= fc_end_date)]
         times = [x for x in fc_ds.time.values if x in dates]
         fc_ds = fc_ds.sel(time=times)
 
