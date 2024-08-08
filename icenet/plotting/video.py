@@ -191,12 +191,6 @@ def xarray_to_video(
         ax = ax_init
         fig = ax.get_figure()
 
-    if mask is not None:
-        if mask_type == 'contour':
-            ax.contour(mask, levels=[.5, 1], colors='k', zorder=3)
-        elif mask_type == 'contourf':
-            ax.contourf(mask, levels=[.5, 1], colors='k', zorder=3)
-
     ax.axes.xaxis.set_visible(False)
     ax.axes.yaxis.set_visible(False)
 
@@ -209,6 +203,22 @@ def xarray_to_video(
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 
     data = da.sel(time=date)
+
+    if mask is not None:
+        if mask_type == 'contour':
+            image = ax.contour(data.xc.data, data.yc.data, mask,
+                                levels=[.5, 1],
+                                colors='k',
+                                transform=target_crs,
+                                zorder=3,
+                                )
+        elif mask_type == 'contourf':
+            image = ax.contourf(data.xc.data, data.yc.data, mask,
+                                levels=[.5, 1],
+                                colors='k',
+                                transform=target_crs,
+                                zorder=3,
+                                )
 
     # TODO: Tidy up, and cover all argument options
     # Hack since cartopy needs transparency for nan regions to wraparound
