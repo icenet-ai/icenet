@@ -389,7 +389,7 @@ def get_plot_axes(x1: int = 0,
                   geoaxes: bool = True,
                   coastlines: str = None,
                   gridlines: bool = True,
-                  target_crs: object = ccrs.Mercator(),
+                  target_crs: object = None,
                   transform_crs: object = ccrs.PlateCarree(),
                   figsize: int = (10, 8),
                   dpi: int = 150,
@@ -410,6 +410,8 @@ def get_plot_axes(x1: int = 0,
     if geoaxes:
         # pole = 1 if north else -1
         # target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
+        pole = 1 if north else -1
+        target_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
 
         ax = fig.add_subplot(1, 1, 1, projection=target_crs)
         plt.tight_layout(pad=4.0)
@@ -420,12 +422,12 @@ def get_plot_axes(x1: int = 0,
         # Set colour for areas outside of `process_regions()` - no data here.
         ax.set_facecolor('dimgrey')
 
-        if coastlines is not None:
+        if coastlines:
             ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
-            if coastlines.casefold() == "gshhs":
+            if isinstance(coastlines, str) and coastlines.casefold() == "gshhs":
                 # Higher resolution coastlines when a region is specified
                 ax.add_feature(cfeature.GSHHSFeature(scale="auto", levels=[1]), zorder=100)
-            else:
+            elif isinstance(coastlines, bool) or coastlines.casefold() == "default":
                 ax.coastlines(resolution="50m", zorder=100)
 
         if gridlines:
@@ -528,7 +530,7 @@ def process_block(block, target_crs):
 
 
 def reproject_projected_coords(data,
-                                target_crs=ccrs.Mercator(),
+                                target_crs,
                                 pole=1,
                                 ):
     # Eastings/Northings projection
@@ -537,7 +539,6 @@ def reproject_projected_coords(data,
     data_crs_geo = ccrs.PlateCarree()
 
     data_reproject = data.copy()
-    data_reproject = data_reproject.drop_vars(["Lambert_Azimuthal_Grid", "lon", "lat"])
     data_reproject = data_reproject.assign_coords({"xc": data_reproject.xc.data*1000,
                                     "yc": data_reproject.yc.data*1000
                                 })
@@ -546,6 +547,8 @@ def reproject_projected_coords(data,
     # So, just return scaled DataArray back and not reproject if don't need to.
     if target_crs == data_crs_proj:
         return data_reproject
+
+    data_reproject = data_reproject.drop_vars(["Lambert_Azimuthal_Grid", "lon", "lat"])
 
     # Set xc, yc (eastings and northings) projection details
     data_reproject = data_reproject.rename({"xc": "x", "yc": "y"})
@@ -602,7 +605,7 @@ def reproject_projected_coords(data,
 def process_regions(region: tuple=None,
         data: tuple=None,
         method: str = "pixel",
-        target_crs=ccrs.Mercator.GOOGLE,
+        target_crs=None,
         pole=1,
         clip_geographic_region=True,
     ) -> tuple:
@@ -622,6 +625,9 @@ def process_regions(region: tuple=None,
         assert x2 > x1 and y2 > y1, "Region is not valid"
         if method == "geographic":
             assert x1 >= -180 and x2 <= 180, "Expect longitude range to be `-180<=longitude>=180`"
+
+    if target_crs is None:
+        target_crs = ccrs.LambertAzimuthalEqualArea(0, pole*90)
 
     for idx, arr in enumerate(data):
         if arr is not None:
