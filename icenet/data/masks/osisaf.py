@@ -7,16 +7,16 @@ logging.basicConfig(level=logging.DEBUG)
 import numpy as np
 import xarray as xr
 
-from download_toolbox.dataset import DatasetConfig
+from download_toolbox.interface import Configuration, DatasetConfig
 from download_toolbox.utils import run_command
 from preprocess_toolbox.processor import Processor, ProcessingError
 
 
 class MaskDatasetConfig(DatasetConfig):
     def __init__(self,
-                 identifier=None,
+                 identifier="masks",
                  **kwargs):
-        super().__init__(identifier="masks" if identifier is None else identifier,
+        super().__init__(identifier=identifier,
                          levels=[None, None, None],
                          path_components=[],
                          var_names=["land", "active_grid_cell", "polarhole"],
@@ -46,8 +46,11 @@ class MaskDatasetConfig(DatasetConfig):
         return xr.open_dataset(month_path)
 
     def _generate_active_grid_cell(self):
+        agcm_files = list()
+
         for month in range(1, 13):
-            mask_path = os.path.join(self.path, "active_grid_cell_mask_{:02d}.npy".format(month))
+            mask_path = os.path.join(self.var_config("active_grid_cell").path,
+                                     "active_grid_cell_mask_{:02d}.npy".format(month))
 
             if not os.path.exists(mask_path):
                 ds = self._download_or_load(month)
@@ -65,15 +68,17 @@ class MaskDatasetConfig(DatasetConfig):
                 max_extent_mask = ~max_extent_mask
 
                 # FIXME: Remove Caspian and Black seas - should we do this sh?
-                # if self.north:
-                #     # TODO: Add source/explanation for these indices.
-                #     max_extent_mask[325:386, 317:380] = False
+                if self.location.north:
+                    # TODO: Add source/explanation for these indices.
+                    max_extent_mask[325:386, 317:380] = False
 
                 logging.info("Saving {}".format(mask_path))
                 np.save(mask_path, max_extent_mask)
+            agcm_files.append(mask_path)
+        return agcm_files
 
     def _generate_land(self):
-        land_mask_path = os.path.join(self.path, "land_mask.npy")
+        land_mask_path = os.path.join(self.var_config("land").path, "land_mask.npy")
 
         if not os.path.exists(land_mask_path):
             ds = self._download_or_load(1)
@@ -88,8 +93,10 @@ class MaskDatasetConfig(DatasetConfig):
 
             logging.info("Saving {}".format(land_mask_path))
             np.save(land_mask_path, land_mask)
+        return land_mask_path
 
     def _generate_polarhole(self):
+        polarhole_files = list()
         # Generate the polar hole masks
         ds = self._download_or_load(1)
         shape = ds.isel(time=0).ice_conc.shape
@@ -105,10 +112,12 @@ class MaskDatasetConfig(DatasetConfig):
             polarhole_data[squaresum < radius ** 2] = True
 
             polarhole_path = os.path.join(
-                self.path,
-                "polarhole{}_mask.npy".format(i + 1))
+                self.var_config("polarhole").path,
+                "polarhole_mask_{:02d}.npy".format(i + 1))
             logging.info("Saving polarhole {}".format(polarhole_path))
             np.save(polarhole_path, polarhole_data)
+            polarhole_files.append(polarhole_path)
+        return polarhole_files
 
     def save_data_for_config(self,
                              rename_var_list: dict = None,
@@ -118,7 +127,17 @@ class MaskDatasetConfig(DatasetConfig):
                              var_filter_list: list = None):
 
         for var_config in self.variables:
-            getattr(self, "_generate_{}".format(var_config.name))()
+            files = getattr(self, "_generate_{}".format(var_config.name))()
+            self.var_files[var_config.name] = files
+
+    @property
+    def config(self):
+        if self._config is None:
+            logging.debug("Creating dataset configuration with {}".format(self.location.name))
+            self._config = Configuration(config_type=self.config_type,
+                                         directory=self.root_path,
+                                         identifier=self.location.name)
+        return self._config
 
 
 class Masks(Processor):
@@ -130,7 +149,7 @@ class Masks(Processor):
             frequency=dataset_config.frequency,
             location=dataset_config.location,
         )
-        mask_ds.generate()
+        mask_ds.save_data_for_config()
         super().__init__(mask_ds, *args, **kwargs)
         # Extract shape from dataset_config
 
