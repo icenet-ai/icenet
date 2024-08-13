@@ -21,10 +21,7 @@ class PeriodProcessor(Processor):
                    config_funcs: dict = None,
                    strip_keys: list = None):
         return {
-            self.update_key: {
-                "name":     self.identifier,
-                "files":    self.processed_files[self.identifier]
-            }
+            self.update_key: self.processed_files[self.identifier][0]
         }
 
     def process(self):
@@ -44,42 +41,6 @@ class PeriodProcessor(Processor):
                 time=pd.date_range(start='2012-1-1', end='2012-12-31')),
             attrs=dict(
                 description="IceNet {} mask metadata".format(var_name)))
-        self.save_processed_file(var_name, "{}.nc".format(var_name), da)
-
-
-class LandMaskChannelProcessor(Processor):
-    def __init__(self,
-                 dataset_config: DatasetConfig,
-                 *args,
-                 **kwargs):
-        super().__init__(dataset_config, *args, **kwargs)
-
-        self.__ds_config = dataset_config
-
-    def get_config(self,
-                   config_funcs: dict = None,
-                   strip_keys: list = None):
-        return {
-            self.update_key: {
-                "name":     self.identifier,
-                "files":    self.processed_files[self.identifier]
-            }
-        }
-
-    def process(self):
-        if len(self.abs_vars) != 1:
-            raise ProcessingError("{} should be provided ONE absolute var name only, not {}".
-                                  format(self.__class__.__name__, self.abs_vars))
-        var_name = self.abs_vars[0]
-
-        land_mask = (Masks(self.__ds_config, ["masks",], "masks").
-                     get_land_mask())
-        land_map = np.ones(land_mask.shape, dtype=self.dtype)
-        land_map[~land_mask] = -1.
-
-        da = xr.DataArray(data=land_map,
-                          dims=["yc", "xc"],
-                          attrs=dict(description="IceNet land mask metadata"))
         self.save_processed_file(var_name, "{}.nc".format(var_name), da)
 
 
