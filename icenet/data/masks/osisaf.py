@@ -5,6 +5,7 @@ import os
 logging.basicConfig(level=logging.DEBUG)
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from download_toolbox.interface import Configuration, DatasetConfig
@@ -49,8 +50,8 @@ class MaskDatasetConfig(DatasetConfig):
         agcm_files = list()
 
         for month in range(1, 13):
-            mask_path = os.path.join(self.var_config("active_grid_cell").path,
-                                     "active_grid_cell_mask_{:02d}.npy".format(month))
+            mask_path = os.path.join(self.path,
+                                     "active_grid_cell_mask_{}_{:02d}.npy".format(self._hemi_str, month))
 
             if not os.path.exists(mask_path):
                 ds = self._download_or_load(month)
@@ -78,7 +79,8 @@ class MaskDatasetConfig(DatasetConfig):
         return agcm_files
 
     def _generate_land(self):
-        land_mask_path = os.path.join(self.var_config("land").path, "land_mask.npy")
+        land_mask_path = os.path.join(self.path,
+                                      "land_mask.{}.npy".format(self._hemi_str))
 
         if not os.path.exists(land_mask_path):
             ds = self._download_or_load(1)
@@ -112,8 +114,8 @@ class MaskDatasetConfig(DatasetConfig):
             polarhole_data[squaresum < radius ** 2] = True
 
             polarhole_path = os.path.join(
-                self.var_config("polarhole").path,
-                "polarhole_mask_{:02d}.npy".format(i + 1))
+                self.path,
+                "polarhole_mask_{}_{:02d}.npy".format(self._hemi_str, i + 1))
             logging.info("Saving polarhole {}".format(polarhole_path))
             np.save(polarhole_path, polarhole_data)
             polarhole_files.append(polarhole_path)
@@ -150,8 +152,14 @@ class Masks(Processor):
             location=dataset_config.location,
         )
         mask_ds.save_data_for_config()
-        super().__init__(mask_ds, *args, **kwargs)
-        # Extract shape from dataset_config
+        mask_ds.save_config()
+
+        super().__init__(mask_ds,
+                         absolute_vars=["active_grid_cell", "land", "polarhole"],
+                         identifier="masks",
+                         **kwargs)
+
+        self._source_files = mask_ds.var_files.copy()
 
     def get_config(self,
                    config_funcs: dict = None,
@@ -159,72 +167,63 @@ class Masks(Processor):
         return {
             self.update_key: {
                 "name":     self.identifier,
-                "files":    self.processed_files[self.identifier]
+                "files":    {var_name: os.path.join(self.path, "{}.nc".format(var_name)) for var_name in self.abs_vars}
             }
         }
 
     def process(self):
-        if len(self.abs_vars) != 1:
-            raise ProcessingError("{} should be provided ONE absolute var name only, not {}".
-                                  format(self.__class__.__name__, self.abs_vars))
-        var_name = self.abs_vars[0]
+        # Active grid cell mask preparation
+        destination_filename = os.path.join(self.path, "active_grid_cell.nc")
+        mask_files = self._source_files["active_grid_cell"]
 
-        land_mask = self.get_dataset(["land"])
-        land_map = np.ones(land_mask.shape, dtype=self.dtype)
-        land_map[~land_mask] = -1.
+        if not os.path.exists(destination_filename):
+            da = xr.DataArray(data=[np.load(acgm_month_file) for acgm_month_file in mask_files],
+                              dims=["month", "yc", "xc"],
+                              coords=dict(
+                                  month=range(1, 13),
+                              ),
+                              attrs=dict(description="IceNet active grid cell mask metadata"))
+            self.save_processed_file("active_grid_cell", os.path.basename(destination_filename), da)
 
-        da = xr.DataArray(data=land_map,
-                          dims=["yc", "xc"],
-                          attrs=dict(description="IceNet land mask metadata"))
-        self.save_processed_file(var_name, "{}.nc".format(var_name), da)
+        # Land mask preparation
+        filename = "land.nc"
+        if not os.path.exists(os.path.join(self.path, filename)):
+            land_mask = np.load(self._source_files["land"])
+            land_map = np.ones(land_mask.shape, dtype=self.dtype)
+            land_map[~land_mask] = -1.
 
-    def get_active_grid_cell_mask(self, month: object) -> object:
-        mask_path = os.path.join(
-            self.get_data_var_folder("masks"),
-            "active_grid_cell_mask_{:02d}.npy".format(month))
+            da = xr.DataArray(data=land_map,
+                              dims=["yc", "xc"],
+                              attrs=dict(description="IceNet land mask metadata"))
+            self.save_processed_file("land", filename, da)
 
-        if not os.path.exists(mask_path):
-            raise RuntimeError("Active cell masks have not been generated, "
-                               "this is not done automatically so you might "
-                               "want to address this!")
+        # Polar hole mask preparation
+        destination_filename = os.path.join(self.path, "polarhole.nc")
+        mask_files = self._source_files["polarhole"]
 
-        logging.debug("Loading active cell mask {}".format(mask_path))
-        return np.load(mask_path)
+        if not os.path.exists(destination_filename):
+            da = xr.DataArray(data=[np.load(polarhole_file) for polarhole_file in mask_files],
+                              dims=["polarhole", "yc", "xc"],
+                              coords=dict(
+                                  polarhole=[pd.Timestamp(el) for el in [
+                                      dt.date(1987, 6, 1),
+                                      dt.date(2005, 10, 1),
+                                      dt.date(2015, 12, 1),
+                                  ]],
+                              ),
+                              attrs=dict(description="IceNet polar hole mask metadata"))
+            self.save_processed_file("polarhole", os.path.basename(destination_filename), da)
 
-    def get_land_mask(self) -> object:
-        mask_path = os.path.join(self.get_data_var_folder("masks"),
-                                 "land_mask.npy")
+        self.save_config()
 
-        if not os.path.exists(mask_path):
-            raise RuntimeError("Land mask has not been generated, this is "
-                               "not done automatically so you might want to "
-                               "address this!")
+    @property
+    def active_grid_cell_filenames(self):
+        return os.path.join(self.path, "active_grid_cell.nc")
 
-        logging.debug("Loading land mask {}".format(mask_path))
-        return np.load(mask_path)
+    @property
+    def land_filenames(self):
+        return os.path.join(self.path, "land.nc")
 
-    def get_polarhole_mask(self, date: object) -> object:
-        polarhole_dates = (
-            dt.date(1987, 6, 1),
-            dt.date(2005, 10, 1),
-            dt.date(2015, 12, 1),
-        )
-
-        for i, r in enumerate([28, 11, 3]):
-            if date <= polarhole_dates[i]:
-                polarhole_path = os.path.join(
-                    self.get_data_var_folder("masks"),
-                    "polarhole{}_mask.npy".format(i + 1))
-                logging.debug("Loading polarhole {}".format(polarhole_path))
-                return np.load(polarhole_path)
-        return None
-
-
-if __name__ == "__main__":
-    from download_toolbox.interface import get_dataset_config_implementation
-    from icenet.data.masks.osisaf import MaskDatasetConfig
-
-    ds_config = get_dataset_config_implementation("data/osisaf/dataset_config.month.hemi.north.json")
-    dsc = MaskDatasetConfig(location=ds_config.location)
-    dsc.save_data_for_config()
-    dsc.save_config()
+    @property
+    def polarhole_filenames(self):
+        return os.path.join(self.path, "polarhole.nc")
