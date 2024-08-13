@@ -5,7 +5,7 @@ import xarray as xr
 from download_toolbox.interface import DatasetConfig
 from preprocess_toolbox.base import Processor, ProcessingError
 
-from icenet.data.masks.nsidc import Masks
+from icenet.data.masks.osisaf import Masks
 
 
 class PeriodProcessor(Processor):
