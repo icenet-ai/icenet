@@ -253,7 +253,7 @@ class IceNetBaseDataLoader(DataCollection):
             self._channels[var_name] = 1
             self._add_channel_files(
                 var_name,
-                meta_channel["files"])
+                meta_channel["processed_files"][var_name])
 
         logging.debug(
             "Channel quantities deduced:\n{}\n\nTotal channels: {}".format(

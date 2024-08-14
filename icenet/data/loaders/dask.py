@@ -136,8 +136,10 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         super().__init__(*args, **kwargs)
 
         # FIXME
-        self._masks = da.array(
-            [np.load(self._config["masks"]["active_grid_cell"][month-1]) for month in range(1, 13)])
+        # self._masks = da.array(
+        #    [np.load(self._config["masks"]["active_grid_cell"][month-1]) for month in range(1, 13)])
+        self._masks = {var_name: xr.open_dataarray(mask_cfg["processed_files"][var_name][0])
+                       for var_name, mask_cfg in self._config["masks"].items()}
 
         self._futures = futures_per_worker
 
@@ -439,7 +441,10 @@ def generate_sample(forecast_date: object,
             sample_weight = da.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
-            sample_weight = masks[forecast_day.month - 1]
+            #sample_weight = masks["active_grid_cell"][forecast_day.month - 1]
+            sample_weight = masks["active_grid_cell"].sel(month=forecast_day.month).data
+            sample_weight[masks["land"]] = True
+            # TODO: dynamic inclusion of polarhole
             sample_weight = sample_weight.astype(dtype)
 
             # We can pick up nans, which messes up training
@@ -475,8 +480,10 @@ def generate_sample(forecast_date: object,
         channel_data = []
         for idx in channel_idxs:
             try:
-                channel_data.append(
-                    getattr(channel_ds, var_name).isel(time=idx))
+                data = getattr(channel_ds, var_name).isel(time=idx)
+                if var_name.startswith("siconca"):
+                    data = da.ma.where(masks["land"], 0., data)
+                channel_data.append(data)
             except KeyError:
                 channel_data.append(da.zeros(shape))
 

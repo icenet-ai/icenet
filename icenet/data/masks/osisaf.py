@@ -172,7 +172,7 @@ class Masks(Processor):
         self._dataset_config = mask_ds.save_config()
 
         super().__init__(mask_ds,
-                         absolute_vars=["active_grid_cell", "land", "polarhole"],
+                         absolute_vars=["active_grid_cell", "land", "land_map", "polarhole"],
                          identifier="masks",
                          **kwargs)
 
@@ -192,58 +192,67 @@ class Masks(Processor):
 
     def process(self):
         # Active grid cell mask preparation
-        destination_filename = os.path.join(self.path, "active_grid_cell.nc")
         mask_files = self._source_files["active_grid_cell"]
 
-        if not os.path.exists(destination_filename):
-            da = xr.DataArray(data=[np.load(acgm_month_file) for acgm_month_file in mask_files],
-                              dims=["month", "yc", "xc"],
-                              coords=dict(
-                                  month=range(1, 13),
-                              ),
-                              attrs=dict(description="IceNet active grid cell mask metadata"))
-            self.save_processed_file("active_grid_cell", os.path.basename(destination_filename), da)
+        da = xr.DataArray(data=[np.load(acgm_month_file) for acgm_month_file in mask_files],
+                          dims=["month", "yc", "xc"],
+                          coords=dict(
+                              month=range(1, 13),
+                          ),
+                          attrs=dict(description="IceNet active grid cell mask metadata"))
+
+        self.save_processed_file("active_grid_cell",
+                                 os.path.basename(self.active_grid_cell_filename),
+                                 da,
+                                 overwrite=False)
 
         # Land mask preparation
-        filename = "land.nc"
-        if not os.path.exists(os.path.join(self.path, filename)):
-            land_mask = np.load(self._source_files["land"])
-            land_map = np.ones(land_mask.shape, dtype=self.dtype)
-            land_map[~land_mask] = -1.
+        land_mask = np.load(self._source_files["land"])
 
-            da = xr.DataArray(data=land_map,
-                              dims=["yc", "xc"],
-                              attrs=dict(description="IceNet land mask metadata"))
-            self.save_processed_file("land", filename, da)
+        da = xr.DataArray(data=land_mask,
+                          dims=["yc", "xc"],
+                          attrs=dict(description="IceNet land mask metadata"))
+
+        self.save_processed_file("land", os.path.basename(self.land_filename), da, overwrite=False)
+
+        land_map = np.ones(land_mask.shape, dtype=self.dtype)
+        land_map[~land_mask] = -1.
+        da = xr.DataArray(data=land_map,
+                          dims=["yc", "xc"],
+                          attrs=dict(description="IceNet land map metadata"))
+
+        self.save_processed_file("land_map", os.path.basename(self.land_map_filename), da, overwrite=False)
 
         # Polar hole mask preparation
-        destination_filename = os.path.join(self.path, "polarhole.nc")
         mask_files = self._source_files["polarhole"]
 
-        if not os.path.exists(destination_filename):
-            da = xr.DataArray(data=[np.load(polarhole_file) for polarhole_file in mask_files],
-                              dims=["polarhole", "yc", "xc"],
-                              coords=dict(
-                                  polarhole=[pd.Timestamp(el) for el in [
-                                      dt.date(1987, 6, 1),
-                                      dt.date(2005, 10, 1),
-                                      dt.date(2015, 12, 1),
-                                  ]],
-                              ),
-                              attrs=dict(description="IceNet polar hole mask metadata"))
-            self.save_processed_file("polarhole", os.path.basename(destination_filename), da)
+        da = xr.DataArray(data=[np.load(polarhole_file) for polarhole_file in mask_files],
+                          dims=["polarhole", "yc", "xc"],
+                          coords=dict(
+                              polarhole=[pd.Timestamp(el) for el in [
+                                  dt.date(1987, 6, 1),
+                                  dt.date(2005, 10, 1),
+                                  dt.date(2015, 12, 1),
+                              ]],
+                          ),
+                          attrs=dict(description="IceNet polar hole mask metadata"))
+
+        self.save_processed_file("polarhole",
+                                 os.path.basename(self.polarhole_filename),
+                                 da,
+                                 overwrite=False)
 
         self.save_config()
 
     def active_grid_cell(self, date=None, *args, **kwargs):
         da = xr.open_dataarray(self.active_grid_cell_filename)
         da = da.sel(month=pd.to_datetime(date).month)
-        return da.data
+        return ~da.data
 
     # TODO: caching please
     def land(self, *args, **kwargs):
         da = xr.open_dataarray(self.land_filename)
-        return da.data > 0
+        return da.data
 
     def polarhole(self, date, *args, **kwargs):
         da = xr.open_dataarray(self.polarhole_filename)
@@ -264,6 +273,10 @@ class Masks(Processor):
     @property
     def land_filename(self):
         return os.path.join(self.path, "land.nc")
+
+    @property
+    def land_map_filename(self):
+        return os.path.join(self.path, "land_map.nc")
 
     @property
     def polarhole_filename(self):
