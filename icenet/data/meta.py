@@ -21,7 +21,10 @@ class PeriodProcessor(Processor):
                    config_funcs: dict = None,
                    strip_keys: list = None):
         return {
-            self.update_key: self.processed_files[self.identifier][0]
+            "implementation": "{}:{}".format(self.__module__, self.__class__.__name__),
+            "absolute_vars": self.abs_vars,
+            "path": self.path,
+            "processed_files": self._processed_files,
         }
 
     def process(self):

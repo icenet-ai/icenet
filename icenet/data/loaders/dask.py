@@ -17,7 +17,7 @@ import xarray as xr
 
 from icenet.data.loaders.base import IceNetBaseDataLoader, DATE_FORMAT
 from icenet.data.loaders.utils import IceNetDataWarning, write_tfrecord
-from icenet.data.masks.nsidc import active_grid_cell
+from icenet.data.masks.osisaf import Masks
 
 """
 Dask implementations for icenet data loading
@@ -135,6 +135,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                  **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+        # FIXME
         self._masks = da.array(
             [np.load(self._config["masks"]["active_grid_cell"][month-1]) for month in range(1, 13)])
 

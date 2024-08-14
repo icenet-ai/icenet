@@ -2,8 +2,6 @@ import datetime as dt
 import logging
 import os
 
-logging.basicConfig(level=logging.DEBUG)
-
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -132,6 +130,20 @@ class MaskDatasetConfig(DatasetConfig):
             files = getattr(self, "_generate_{}".format(var_config.name))()
             self.var_files[var_config.name] = files
 
+    def get_config(self,
+                   config_funcs: dict = None,
+                   strip_keys: list = None):
+        return super().get_config(strip_keys=[
+            #"_filename_template_osi450",
+            #"_hemi_str",
+            "_identifier",
+            "_levels",
+            "_path_components",
+            #"_retrieve_cmd_template_osi450",
+            "_var_names",
+            #"_year",
+        ])
+
     @property
     def config(self):
         if self._config is None:
@@ -146,13 +158,17 @@ class Masks(Processor):
     def __init__(self,
                  dataset_config: DatasetConfig,
                  *args,
+                 # TODO: we need to review, consuming for recreation is a bit narly no!?
+                 #  Should these even be in the configuration file? ? ?
+                 absolute_vars: list = None,
+                 identifier: str = None,
                  **kwargs):
         mask_ds = MaskDatasetConfig(
             frequency=dataset_config.frequency,
             location=dataset_config.location,
         )
         mask_ds.save_data_for_config()
-        mask_ds.save_config()
+        self._dataset_config = mask_ds.save_config()
 
         super().__init__(mask_ds,
                          absolute_vars=["active_grid_cell", "land", "polarhole"],
@@ -165,10 +181,12 @@ class Masks(Processor):
                    config_funcs: dict = None,
                    strip_keys: list = None):
         return {
-            self.update_key: {
-                "name":     self.identifier,
-                "files":    {var_name: os.path.join(self.path, "{}.nc".format(var_name)) for var_name in self.abs_vars}
-            }
+            "implementation": "{}:{}".format(self.__module__, self.__class__.__name__),
+            "absolute_vars": self.abs_vars,
+            "dataset_config": self._dataset_config,
+            "path": self.path,
+            "processed_files": self._processed_files,
+            "source_files": self._source_files,
         }
 
     def process(self):
@@ -217,13 +235,34 @@ class Masks(Processor):
         self.save_config()
 
     @property
-    def active_grid_cell_filenames(self):
+    def active_grid_cell(self, date=None, **kwargs):
+        ds = xr.open_dataset(self.active_grid_cell_filename)
+        print(ds)
+        import sys
+        sys.exit(0)
+
+    @property
+    def land(self, **kwargs):
+        ds = xr.open_dataset(self.land_filename)
+        print(ds)
+        import sys
+        sys.exit(0)
+
+    @property
+    def polarhole(self, date=None, **kwargs):
+        ds = xr.open_dataset(self.polarhole_filename)
+        print(ds)
+        import sys
+        sys.exit(0)
+
+    @property
+    def active_grid_cell_filename(self):
         return os.path.join(self.path, "active_grid_cell.nc")
 
     @property
-    def land_filenames(self):
+    def land_filename(self):
         return os.path.join(self.path, "land.nc")
 
     @property
-    def polarhole_filenames(self):
+    def polarhole_filename(self):
         return os.path.join(self.path, "polarhole.nc")
