@@ -98,6 +98,7 @@ class MaskDatasetConfig(DatasetConfig):
     def _generate_polarhole(self):
         polarhole_files = list()
         # Generate the polar hole masks
+        # TODO: south doesn't require any polar hole masks and ice_conc is hardcoded
         ds = self._download_or_load(1)
         shape = ds.isel(time=0).ice_conc.shape
 
@@ -234,26 +235,27 @@ class Masks(Processor):
 
         self.save_config()
 
-    @property
-    def active_grid_cell(self, date=None, **kwargs):
-        ds = xr.open_dataset(self.active_grid_cell_filename)
-        print(ds)
-        import sys
-        sys.exit(0)
+    def active_grid_cell(self, date=None, *args, **kwargs):
+        da = xr.open_dataarray(self.active_grid_cell_filename)
+        da = da.sel(month=pd.to_datetime(date).month)
+        return da.data
 
-    @property
-    def land(self, **kwargs):
-        ds = xr.open_dataset(self.land_filename)
-        print(ds)
-        import sys
-        sys.exit(0)
+    # TODO: caching please
+    def land(self, *args, **kwargs):
+        da = xr.open_dataarray(self.land_filename)
+        return da.data > 0
 
-    @property
-    def polarhole(self, date=None, **kwargs):
-        ds = xr.open_dataset(self.polarhole_filename)
-        print(ds)
-        import sys
-        sys.exit(0)
+    def polarhole(self, date, *args, **kwargs):
+        da = xr.open_dataarray(self.polarhole_filename)
+        polarhole_mask = np.full(da.isel(polarhole=0).shape, False)
+        da = da[da.polarhole >= date]
+
+        if len(da.polarhole) > 0:
+            polarhole_mask = da.isel(polarhole=0)
+            logging.debug("Selecting mask {} for {}".format(polarhole_mask.polarhole, date))
+            return polarhole_mask.data
+        else:
+            return polarhole_mask
 
     @property
     def active_grid_cell_filename(self):
