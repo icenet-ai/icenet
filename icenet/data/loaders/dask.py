@@ -432,20 +432,25 @@ def generate_sample(forecast_date: object,
                 "please review siconca ground-truth: dates {}".format(forecast_idxs))
             raise RuntimeError(sic_ex)
         y[:, :, :, 0] = sample_output
+        y_mask = da.stack([masks["land"].data for _ in range(0, n_forecast_steps)], axis=-1)
+        y_mask = da.stack([y_mask], axis=-1)
+        y = da.ma.where(y_mask, 0., y)
 
     # Masked recomposition of output
-    for leadtime_idx in range(n_forecast_steps):
-        forecast_day = forecast_date + relativedelta(**{relative_attr: leadtime_idx})
+    agcm_masks = []
 
-        if any([forecast_day == missing_date for missing_date in missing_dates]):
+    for leadtime_idx in range(n_forecast_steps):
+        forecast_step = forecast_date + relativedelta(**{relative_attr: leadtime_idx})
+
+        if any([forecast_step == missing_date for missing_date in missing_dates]):
             sample_weight = da.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
             #sample_weight = masks["active_grid_cell"][forecast_day.month - 1]
-            sample_weight = masks["active_grid_cell"].sel(month=forecast_day.month).data
-            sample_weight[masks["land"]] = True
+            sample_weight = masks["active_grid_cell"].sel(month=forecast_step.month).data
             # TODO: dynamic inclusion of polarhole
             sample_weight = sample_weight.astype(dtype)
+            sample_weight[masks["land"]] = 0.
 
             # We can pick up nans, which messes up training
             sample_weight[da.isnan(y[..., leadtime_idx, 0])] = 0
@@ -455,7 +460,17 @@ def generate_sample(forecast_date: object,
             if loss_weight_days:
                 sample_weight *= 33928. / sample_weight.sum()
 
+            agcm_masks.append(masks["active_grid_cell"].sel(month=forecast_step.month).data)
+
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
+
+    # This is an attempt to avoid the following hack, but it doesn't work
+    # agcm_masks = da.stack([agcm for agcm in agcm_masks], axis=-1)
+    # agcm_masks = da.stack([agcm_masks], axis=-1)
+    # y = da.ma.where(agcm_masks, y, 0.)
+
+    # TODO: this is a hack, we have unwarranted nans and sample_weights aren't working with metrics
+    y[da.isnan(y)] = 0
 
     # INPUT FEATURES
     x = da.zeros((*shape, num_channels), dtype=dtype)
