@@ -261,7 +261,7 @@ class Masks(Processor):
 
         if len(da.polarhole) > 0:
             polarhole_mask = da.isel(polarhole=0)
-            logging.debug("Selecting mask {} for {}".format(polarhole_mask.polarhole, date))
+            # logging.debug("Selecting mask {} for {}".format(polarhole_mask.polarhole, date))
             return polarhole_mask.data
         else:
             return polarhole_mask

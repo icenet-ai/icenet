@@ -464,14 +464,6 @@ def generate_sample(forecast_date: object,
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
-    # This is an attempt to avoid the following hack, but it doesn't work
-    # agcm_masks = da.stack([agcm for agcm in agcm_masks], axis=-1)
-    # agcm_masks = da.stack([agcm_masks], axis=-1)
-    # y = da.ma.where(agcm_masks, y, 0.)
-
-    # TODO: this is a hack, we have unwarranted nans and sample_weights aren't working with metrics
-    y[da.isnan(y)] = 0
-
     # INPUT FEATURES
     x = da.zeros((*shape, num_channels), dtype=dtype)
     v1, v2 = 0, 0
@@ -520,5 +512,15 @@ def generate_sample(forecast_date: object,
         else:
             x[:, :, v1] = da.array(meta_ds.to_numpy())
         v1 += channels[var_name]
+
+    # This is an attempt to avoid the following hack, but it doesn't work
+    # agcm_masks = da.stack([agcm for agcm in agcm_masks], axis=-1)
+    # agcm_masks = da.stack([agcm_masks], axis=-1)
+    # y = da.ma.where(agcm_masks, y, 0.)
+
+    # TODO: this is a hack, we have unwarranted nans and sample_weights aren't working with metrics
+    x[da.isnan(x)] = 0
+    sample_weights[da.isnan(sample_weights)] = 0
+    y[da.isnan(y)] = 0
 
     return x, y, sample_weights
