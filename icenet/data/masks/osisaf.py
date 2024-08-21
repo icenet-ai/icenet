@@ -173,6 +173,7 @@ class Masks(Processor):
 
         super().__init__(mask_ds,
                          absolute_vars=["active_grid_cell", "land", "land_map", "polarhole"],
+                         dtype=np.dtype(bool),
                          identifier="masks",
                          **kwargs)
 
@@ -215,7 +216,7 @@ class Masks(Processor):
 
         self.save_processed_file("land", os.path.basename(self.land_filename), da, overwrite=False)
 
-        land_map = np.ones(land_mask.shape, dtype=self.dtype)
+        land_map = np.ones(land_mask.shape, dtype=np.float16)
         land_map[~land_mask] = -1.
         da = xr.DataArray(data=land_map,
                           dims=["yc", "xc"],
