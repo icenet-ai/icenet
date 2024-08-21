@@ -145,8 +145,7 @@ class IceNetBaseDataLoader(DataCollection):
                         dt.datetime.strptime(
                             s, DATE_FORMAT).date()
                         for identity in self._config["sources"].keys()
-                        for s in self._config["sources"][identity]["dates"]
-                        [dataset]
+                        for s in self._config["sources"][identity]["splits"][dataset]
                     ])))
 
             logging.info("{} {} dates in total, NOT generating cache "
