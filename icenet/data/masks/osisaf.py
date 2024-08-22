@@ -170,11 +170,12 @@ class Masks(Processor):
         )
         mask_ds.save_data_for_config()
         self._dataset_config = mask_ds.save_config()
+        self._hemi_str = "north" if dataset_config.location.north else "south"
 
         super().__init__(mask_ds,
                          absolute_vars=["active_grid_cell", "land", "land_map", "polarhole"],
                          dtype=np.dtype(bool),
-                         identifier="masks",
+                         identifier="masks.{}".format(self._hemi_str),
                          **kwargs)
 
         self._source_files = mask_ds.var_files.copy()
@@ -269,16 +270,16 @@ class Masks(Processor):
 
     @property
     def active_grid_cell_filename(self):
-        return os.path.join(self.path, "active_grid_cell.nc")
+        return os.path.join(self.path, "active_grid_cell.{}.nc".format(self._hemi_str))
 
     @property
     def land_filename(self):
-        return os.path.join(self.path, "land.nc")
+        return os.path.join(self.path, "land.{}.nc".format(self._hemi_str))
 
     @property
     def land_map_filename(self):
-        return os.path.join(self.path, "land_map.nc")
+        return os.path.join(self.path, "land_map.{}.nc".format(self._hemi_str))
 
     @property
     def polarhole_filename(self):
-        return os.path.join(self.path, "polarhole.nc")
+        return os.path.join(self.path, "polarhole.{}.nc".format(self._hemi_str))
