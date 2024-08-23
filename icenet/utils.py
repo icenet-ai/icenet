@@ -6,6 +6,7 @@ from enum import Flag, auto
 from functools import wraps
 from logging import Logger
 
+
 class Hemisphere(Flag):
     """Representation of hemispheres & both with bitwise operations.
 

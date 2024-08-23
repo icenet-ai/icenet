@@ -217,13 +217,12 @@ class Masks(Processor):
 
         self.save_processed_file("land", os.path.basename(self.land_filename), da, overwrite=False)
 
-        land_map = np.ones(land_mask.shape, dtype=np.float16)
+        land_map = np.ones(land_mask.shape, dtype=np.float32)
         land_map[~land_mask] = -1.
         da = xr.DataArray(data=land_map,
                           dims=["yc", "xc"],
                           attrs=dict(description="IceNet land map metadata"))
-
-        self.save_processed_file("land_map", os.path.basename(self.land_map_filename), da, overwrite=False)
+        self.save_processed_file("land_map", os.path.basename(self.land_map_filename), da, convert=False, overwrite=False)
 
         # Polar hole mask preparation
         mask_files = self._source_files["polarhole"]

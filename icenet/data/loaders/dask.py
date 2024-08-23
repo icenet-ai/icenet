@@ -135,9 +135,6 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                  **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        # FIXME
-        # self._masks = da.array(
-        #    [np.load(self._config["masks"]["active_grid_cell"][month-1]) for month in range(1, 13)])
         self._masks = {var_name: xr.open_dataarray(mask_cfg["processed_files"][var_name][0])
                        for var_name, mask_cfg in self._config["masks"].items()}
 
