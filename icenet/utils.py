@@ -123,6 +123,7 @@ def setup_logging(func,
 
         logging.basicConfig(
             level=level,
+            force=True,
             format=log_format,
         )
 
