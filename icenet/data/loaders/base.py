@@ -131,7 +131,7 @@ class IceNetBaseDataLoader(DataCollection):
         """
 
         """
-        splits = ("train", "val", "test")
+        splits = self._config["sources"][list(self._config["sources"].keys())[0]]["splits"]
         counts = {el: 0 for el in splits}
 
         logging.info("Writing dataset configuration without data generation")

@@ -9,7 +9,7 @@ import pandas as pd
 
 from icenet.data.datasets.splitting import SplittingMixin
 from icenet.data.loader import IceNetDataLoaderFactory
-from download_toolbox.base import DataCollection
+from download_toolbox.interface import DataCollection
 from icenet.utils import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -378,6 +378,7 @@ if pytorch_available:
         @property
         def dates(self):
             return self._dates
+
 
 @setup_logging
 def get_args() -> object:

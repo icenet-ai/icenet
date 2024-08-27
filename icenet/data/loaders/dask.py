@@ -477,9 +477,10 @@ def generate_sample(forecast_date: object,
                 channel_idxs = [forecast_base_idx + n for n in trend_steps]
             else:
                 channel_idxs = [forecast_base_idx + n for n in range(0, num_channels)]
+        # If we're not a trend, we're a lag channel looking back historically from the initialisation date
         else:
             channel_ds = var_ds
-            channel_idxs = [forecast_base_idx + n for n in range(0, num_channels)]
+            channel_idxs = [forecast_base_idx - n for n in range(0, num_channels)]
 
         channel_data = []
         for idx in channel_idxs:
@@ -488,7 +489,10 @@ def generate_sample(forecast_date: object,
                 if var_name.startswith("siconca"):
                     data = da.ma.where(masks["land"], 0., data)
                 channel_data.append(data)
-            except KeyError:
+
+                # logging.info("NANs: {} = {} in {}-{}".format(forecast_date, int(da.isnan(data).sum()), var_name, idx))
+            except KeyError as e:
+                logging.warning("KeyError detected on channel construction for {} - {}: {}".format(var_name, idx, e))
                 channel_data.append(da.zeros(shape))
 
         x[:, :, v1:v2] = da.from_array(channel_data).transpose([1, 2, 0])
@@ -510,14 +514,14 @@ def generate_sample(forecast_date: object,
             x[:, :, v1] = da.array(meta_ds.to_numpy())
         v1 += channels[var_name]
 
-    # This is an attempt to avoid the following hack, but it doesn't work
-    # agcm_masks = da.stack([agcm for agcm in agcm_masks], axis=-1)
-    # agcm_masks = da.stack([agcm_masks], axis=-1)
-    # y = da.ma.where(agcm_masks, y, 0.)
-
-    # TODO: this is a hack, we have unwarranted nans and sample_weights aren't working with metrics
-    x[da.isnan(x)] = 0
-    sample_weights[da.isnan(sample_weights)] = 0
-    y[da.isnan(y)] = 0
+    # TODO: we have unwarranted nans which need fixing, probably from broken spatial infilling
+    nan_mask_x, nan_mask_y, nan_mask_sw = da.isnan(x), da.isnan(y), da.isnan(sample_weights)
+    if nan_mask_x.sum() + nan_mask_y.sum() + nan_mask_sw.sum() > 0:
+        logging.warning("NANs: {} in input, {} in output, {} in weights".format(
+            int(nan_mask_x.sum()), int(nan_mask_y.sum()), int(nan_mask_sw.sum())
+        ))
+        x[nan_mask_x] = 0
+        sample_weights[nan_mask_sw] = 0
+        y[nan_mask_y] = 0
 
     return x, y, sample_weights
