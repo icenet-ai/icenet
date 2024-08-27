@@ -12,52 +12,11 @@ import xarray as xr
 
 from icenet import __version__ as icenet_version
 from icenet.data.network_dataset import IceNetDataSet
-from icenet.data.sic.mask import Masks
-from icenet.utils import run_command, setup_logging
+from icenet.utils import setup_logging
 
+from icenet.data.masks.osisaf import Masks
 
-def get_refsic(north: bool = True, south: bool = False) -> object:
-    """
-
-    :param north:
-    :param south:
-    :return:
-    """
-    assert north or south, "Select one hemisphere at least..."
-
-    str = "nh" if north else "sh"
-
-    sic_day_fname = 'ice_conc_{}_ease2-250_cdr-v2p0_197901021200.nc'.format(
-        str)
-    sic_day_path = os.path.join(".", "_sicfile")
-
-    if not os.path.exists(os.path.join(sic_day_path, sic_day_fname)):
-        logging.info("Downloading single daily SIC netCDF file for "
-                     "regridding ERA5 data to EASE grid...")
-
-        retrieve_sic_day_cmd = 'wget -m -nH --cut-dirs=6 -P {} ' \
-                               'ftp://osisaf.met.no/reprocessed/ice/' \
-                               'conc/v2p0/1979/01/{}'. \
-            format(sic_day_path, sic_day_fname)
-
-        run_command(retrieve_sic_day_cmd)
-
-    return os.path.join(sic_day_path, sic_day_fname)
-
-
-def get_refcube(north: bool = True, south: bool = False) -> object:
-    """
-
-    :param north:
-    :param south:
-    :return:
-    """
-    assert north or south, "Select one hemisphere at least..."
-
-    path = get_refsic(north, south)
-
-    cube = iris.load_cube(path, 'sea_ice_area_fraction')
-    return cube
+from download_toolbox.interface import get_dataset_config_implementation
 
 
 def get_prediction_data(root: object, name: object, date: object) -> tuple:
@@ -144,9 +103,12 @@ def create_cf_output():
     dataset_config = \
         os.path.join(args.root, "dataset_config.{}.json".format(args.dataset))
     ds = IceNetDataSet(dataset_config)
+    dl = ds.get_data_loader()
 
-    ref_sic = xr.open_dataset(get_refsic(ds.north, ds.south))
-    ref_cube = get_refcube(ds.north, ds.south)
+    # TODO: this is a bit nasty, but it works well - we need to revise for AMSR / other setups
+    ref_file = "data/masks/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format("nh" if dl.north else "sh")
+    ref_sic = xr.open_dataset(ref_file)
+    ref_cube = iris.load_cube(ref_file, 'sea_ice_area_fraction')
 
     dates = [
         dt.date(*[int(v) for v in s.split("-")])
@@ -165,7 +127,7 @@ def create_cf_output():
     sic_stddev = arr[..., 1]
 
     if args.mask:
-        mask_gen = Masks(north=ds.north, south=ds.south)
+        mask_gen = Masks(get_dataset_config_implementation("data/osisaf/dataset_config.month.hemi.north.json"))
 
         if args.agcm:
             logging.info("Applying active grid cell masks")
@@ -178,14 +140,13 @@ def create_cf_output():
                         "Active grid cell mask start {} forecast date {}".
                         format(forecast_date, lead_dt))
 
-                    grid_cell_mask = mask_gen.get_active_cell_mask(
-                        lead_dt.month)
-                    sic_mean[idx, ~grid_cell_mask, lead_idx] = 0
-                    sic_stddev[idx, ~grid_cell_mask, lead_idx] = 0
+                    grid_cell_mask = mask_gen.active_grid_cell(lead_dt)
+                    sic_mean[idx, grid_cell_mask, lead_idx] = 0
+                    sic_stddev[idx, grid_cell_mask, lead_idx] = 0
 
         if args.land:
             logging.info("Land masking the forecast output")
-            land_mask = mask_gen.get_land_mask()
+            land_mask = mask_gen.land()
             mask = land_mask[np.newaxis, ..., np.newaxis]
             mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
             mask = np.repeat(mask, sic_mean.shape[0], axis=0)
@@ -230,7 +191,7 @@ def create_cf_output():
             creator_url="www.bas.ac.uk",
             date_created=dt.datetime.now().strftime("%Y-%m-%d"),
             # Issue#18: Overcoming OSI-SAF EPSG ref issue
-            geospatial_bounds_crs="EPSG:6931" if ds.north else "EPSG:6932",
+            geospatial_bounds_crs="EPSG:6931" if dl.north else "EPSG:6932",
             geospatial_lat_min=ref_cube.attributes["geospatial_lat_min"],
             geospatial_lat_max=ref_cube.attributes["geospatial_lat_max"],
             geospatial_lon_min=ref_cube.attributes["geospatial_lon_min"],
@@ -245,7 +206,7 @@ def create_cf_output():
             Earth Science > Oceans > Sea Ice > Sea Ice Concentration
             Earth Science > Climate Indicators > Cryospheric Indicators > Sea Ice
             Geographic Region > {} Hemisphere""".format(
-                "Northern" if ds.north else "Southern"),
+                "Northern" if dl.north else "Southern"),
             # TODO: check we're valid
             keywords_vocabulary="GCMD Science Keywords",
             # TODO: Double check this is good with PDC

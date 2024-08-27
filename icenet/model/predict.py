@@ -55,9 +55,9 @@ def predict_forecast(
 
     dataset_name = dataset_name if dataset_name else ds.identifier
     model_path = os.path.join(
-        network_folder, "{}.network_{}.{}".format(network_name,
-                                                  dataset_name,
-                                                  seed))
+        network_folder, "{}.model_{}.{}".format(network_name,
+                                                dataset_name,
+                                                seed))
 
     logging.info("Loading model from {}...".format(model_path))
 

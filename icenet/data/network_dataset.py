@@ -78,12 +78,9 @@ class IceNetDataSet(SplittingMixin, DataCollection):
 
         super().__init__(*args,
                          identifier=self._config["identifier"],
-                         #north=bool(self._config["north"]),
-                         base_path=path, #path=
-                         #south=bool(self._config["south"]),
+                         base_path=path,
                          **kwargs)
 
-        # TODO: ugh!
         self._config = dict()
         self._load_configuration(configuration_path)
         self._batch_size = batch_size
