@@ -165,6 +165,7 @@ class Masks(Processor):
                  identifier: str = None,
                  **kwargs):
         mask_ds = MaskDatasetConfig(
+            base_path=dataset_config.base_path,
             frequency=dataset_config.frequency,
             location=dataset_config.location,
         )
