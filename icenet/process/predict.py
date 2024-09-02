@@ -108,7 +108,7 @@ def create_cf_output():
     dl = ds.get_data_loader()
 
     # TODO: this is a bit nasty, but it works well - we need to revise for AMSR / other setups
-    ref_file = "data/masks/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format("nh" if dl.north else "sh")
+    ref_file = "processed_data/masks/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format("nh" if dl.north else "sh")
     ref_sic = xr.open_dataset(ref_file)
     ref_cube = iris.load_cube(ref_file, 'sea_ice_area_fraction')
 
