@@ -8,6 +8,7 @@ import re
 from dateutil.relativedelta import relativedelta
 
 import iris
+import iris.cube
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -19,6 +20,27 @@ from icenet.utils import setup_logging
 from icenet.data.masks.osisaf import Masks
 
 from download_toolbox.interface import get_dataset_config_implementation
+
+
+def get_ref_ds(ds: IceNetDataSet) -> xr.Dataset:
+    # TODO: this is a bit nasty, but it works well - STORE the originally downloaded mask files in config
+    ds = IceNetDataSet(ds)
+    dl = ds.get_data_loader()
+    ref_file_str = "nh" if dl.north else "sh"
+    masks_path = ds.config["masks"][ds.config["masks"].keys()[0]]["paths"]
+    ref_file = "{}/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format(masks_path, ref_file_str)
+    return xr.open_dataset(ref_file)
+
+
+def get_ref_cube(ds: IceNetDataSet) -> iris.cube.Cube:
+    # TODO: this is a bit nasty, but it works well - STORE the originally downloaded mask files in config
+    ds = IceNetDataSet(ds)
+    dl = ds.get_data_loader()
+    ref_file_str = "nh" if dl.north else "sh"
+    masks_path = ds.config["masks"][ds.config["masks"].keys()[0]]["paths"]
+    ref_file = "{}/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format(masks_path, ref_file_str)
+    ref_cube = iris.load_cube(ref_file, 'sea_ice_area_fraction')
+    return ref_cube
 
 
 def get_prediction_data(root: object, name: object, date: object) -> tuple:
@@ -107,12 +129,8 @@ def create_cf_output():
     ds = IceNetDataSet(dataset_config)
     dl = ds.get_data_loader()
     hemi_str = "north" if dl.north else "south"
-
-    # TODO: this is a bit nasty, but it works well - we need to revise for AMSR / other setups
-    ref_file_str = "nh" if dl.north else "sh"
-    ref_file = "processed_data/masks/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format(ref_file_str)
-    ref_sic = xr.open_dataset(ref_file)
-    ref_cube = iris.load_cube(ref_file, 'sea_ice_area_fraction')
+    ref_sic = get_ref_ds(ds)
+    ref_cube = get_ref_cube(ds)
 
     dates = [
         dt.date(*[int(v) for v in s.split("-")])
@@ -208,7 +226,7 @@ def create_cf_output():
             hemisphere_string=hemi_str,
             history="{} - creation".format(dt.datetime.now()),
             icenet_ground_truth_ds=ground_truth_ds_filename,
-            icenet_mask_implementation="icenet.data.masks.osisaf.Masks",
+            icenet_mask_implementation="icenet.data.masks.osisaf:Masks",
             id="IceNet {}".format(icenet_version),
             institution="British Antarctic Survey",
             keywords=
