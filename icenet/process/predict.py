@@ -24,7 +24,6 @@ from download_toolbox.interface import get_dataset_config_implementation
 
 def get_ref_ds(ds: IceNetDataSet) -> xr.Dataset:
     # TODO: this is a bit nasty, but it works well - STORE the originally downloaded mask files in config
-    ds = IceNetDataSet(ds)
     dl = ds.get_data_loader()
     ref_file_str = "nh" if dl.north else "sh"
     masks_path = ds.config["masks"][ds.config["masks"].keys()[0]]["paths"]
@@ -34,7 +33,6 @@ def get_ref_ds(ds: IceNetDataSet) -> xr.Dataset:
 
 def get_ref_cube(ds: IceNetDataSet) -> iris.cube.Cube:
     # TODO: this is a bit nasty, but it works well - STORE the originally downloaded mask files in config
-    ds = IceNetDataSet(ds)
     dl = ds.get_data_loader()
     ref_file_str = "nh" if dl.north else "sh"
     masks_path = ds.config["masks"][ds.config["masks"].keys()[0]]["paths"]
