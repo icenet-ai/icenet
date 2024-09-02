@@ -26,7 +26,7 @@ def get_ref_ds(ds: IceNetDataSet) -> xr.Dataset:
     # TODO: this is a bit nasty, but it works well - STORE the originally downloaded mask files in config
     dl = ds.get_data_loader()
     ref_file_str = "nh" if dl.north else "sh"
-    masks_path = ds.config["masks"][ds.config["masks"].keys()[0]]["paths"]
+    masks_path = os.path.dirname(list(dl.config["masks"]["land"]["source_files"].values())[0])
     ref_file = "{}/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format(masks_path, ref_file_str)
     return xr.open_dataset(ref_file)
 
@@ -35,7 +35,7 @@ def get_ref_cube(ds: IceNetDataSet) -> iris.cube.Cube:
     # TODO: this is a bit nasty, but it works well - STORE the originally downloaded mask files in config
     dl = ds.get_data_loader()
     ref_file_str = "nh" if dl.north else "sh"
-    masks_path = ds.config["masks"][ds.config["masks"].keys()[0]]["paths"]
+    masks_path = os.path.dirname(list(dl.config["masks"]["land"]["source_files"].values())[0])
     ref_file = "{}/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format(masks_path, ref_file_str)
     ref_cube = iris.load_cube(ref_file, 'sea_ice_area_fraction')
     return ref_cube
