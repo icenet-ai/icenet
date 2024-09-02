@@ -5,6 +5,8 @@ import logging
 import os
 import re
 
+from dateutil.relativedelta import relativedelta
+
 import iris
 import numpy as np
 import pandas as pd
@@ -125,9 +127,11 @@ def create_cf_output():
 
     sic_mean = arr[..., 0]
     sic_stddev = arr[..., 1]
+    ground_truth_ds_config = get_dataset_config_implementation("data/osisaf/dataset_config.month.hemi.north.json")
 
     if args.mask:
-        mask_gen = Masks(get_dataset_config_implementation("data/osisaf/dataset_config.month.hemi.north.json"))
+        # TODO: daily will need to use appropriate reference, so don't leave like this
+        mask_gen = Masks(ground_truth_ds_config)
 
         if args.agcm:
             logging.info("Applying active grid cell masks")
@@ -161,7 +165,7 @@ def create_cf_output():
                 sic_stddev[mask] = 0
 
     lists_of_fcast_dates = [[
-        pd.Timestamp(date + dt.timedelta(days=int(lead_idx)))
+        pd.Timestamp(date + relativedelta({"{}s".format(ground_truth_ds_config.frequency.attribute): int(lead_idx)}))
         for lead_idx in np.arange(1, arr.shape[3] + 1, 1)
     ] for date in dates]
 
@@ -271,6 +275,7 @@ def create_cf_output():
     xarr.leadtime.attrs = dict(
         long_name="leadtime of forecast in relation to reference time",
         short_name="leadtime",
+        # TODO: days, months etc from ground_truth_ds_config.frequency.attribute
         # units="1",
     )
 
