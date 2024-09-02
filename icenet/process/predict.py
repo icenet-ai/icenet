@@ -106,9 +106,11 @@ def create_cf_output():
         os.path.join(args.root, "dataset_config.{}.json".format(args.dataset))
     ds = IceNetDataSet(dataset_config)
     dl = ds.get_data_loader()
+    hemi_str = "north" if dl.north else "south"
 
     # TODO: this is a bit nasty, but it works well - we need to revise for AMSR / other setups
-    ref_file = "processed_data/masks/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format("nh" if dl.north else "sh")
+    ref_file_str = "nh" if dl.north else "sh"
+    ref_file = "processed_data/masks/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format(ref_file_str)
     ref_sic = xr.open_dataset(ref_file)
     ref_cube = iris.load_cube(ref_file, 'sea_ice_area_fraction')
 
@@ -127,7 +129,8 @@ def create_cf_output():
 
     sic_mean = arr[..., 0]
     sic_stddev = arr[..., 1]
-    ground_truth_ds_config = get_dataset_config_implementation("data/osisaf/dataset_config.month.hemi.north.json")
+    ground_truth_ds_filename = "data/osisaf/dataset_config.month.hemi.{}.json".format(hemi_str)
+    ground_truth_ds_config = get_dataset_config_implementation(ground_truth_ds_filename)
 
     if args.mask:
         # TODO: daily will need to use appropriate reference, so don't leave like this
@@ -202,7 +205,10 @@ def create_cf_output():
             geospatial_lon_max=ref_cube.attributes["geospatial_lon_max"],
             geospatial_vertical_min=0.0,
             geospatial_vertical_max=0.0,
+            hemisphere_string=hemi_str,
             history="{} - creation".format(dt.datetime.now()),
+            icenet_ground_truth_ds=ground_truth_ds_filename,
+            icenet_mask_implementation="icenet.data.masks.osisaf.Masks",
             id="IceNet {}".format(icenet_version),
             institution="British Antarctic Survey",
             keywords=
