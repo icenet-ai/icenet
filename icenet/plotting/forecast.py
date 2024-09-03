@@ -1,13 +1,12 @@
 import argparse
-import datetime as dt
 import logging
 import os
 import sys
 
 from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 
 import matplotlib as mpl
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
@@ -20,15 +19,20 @@ import pandas as pd
 import dask.array as da
 import xarray as xr
 
+from download_toolbox.dataset import DatasetConfig
+from download_toolbox.interface import get_dataset_config_implementation
+from preprocess_toolbox.utils import get_implementation
+
 from icenet import __version__ as icenet_version
-from icenet.data.cli import date_arg
-from icenet.data.sic.mask import Masks
-from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_ds,
-                                   get_obs_da, get_seas_forecast_da,
+from icenet.cli import date_arg
+from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_obs_data,
+                                   get_seas_forecast_da, get_forecast_data,
                                    get_seas_forecast_init_dates, show_img,
                                    get_plot_axes, process_probes,
                                    process_regions)
 from icenet.plotting.video import xarray_to_video
+
+cm = mpl.colormaps
 
 
 def parse_location_or_region(argument: str):
@@ -40,7 +44,7 @@ def parse_location_or_region(argument: str):
 def location_arg(argument: str):
     try:
         x, y = parse_location_or_region(argument)
-        return (x, y)
+        return x, y
     except ValueError:
         argparse.ArgumentTypeError(
             "Expected a location (pair of integers separated by a comma)")
@@ -56,14 +60,17 @@ def region_arg(argument: str):
     try:
         x1, y1, x2, y2 = parse_location_or_region(argument)
 
-        assert x2 > x1 and y2 > y1, "Region is not valid"
+        if x2 < x1 or y2 < y1:
+            raise RuntimeError(f"Region is not valid x1 {x1}:x2 {x2}, y1 {y1}:y2 {y2}")
         return x1, y1, x2, y2
     except TypeError:
         raise argparse.ArgumentTypeError(
             "Region argument must be list of four integers")
 
 
-def compute_binary_accuracy(masks: object, fc_da: object, obs_da: object,
+def compute_binary_accuracy(masks: object,
+                            fc_da: object,
+                            obs_da: object,
                             threshold: float) -> object:
     """
     Compute the binary class accuracy of a forecast,
@@ -85,18 +92,13 @@ def compute_binary_accuracy(masks: object, fc_da: object, obs_da: object,
     if (threshold < 0) or (threshold > 1):
         raise ValueError("threshold must be a float between 0 and 1")
 
-    # obtain mask
     agcm = masks.get_active_cell_da(obs_da)
 
-    # binary for observed (i.e. truth)
     binary_obs_da = obs_da > threshold
-
-    # binary for forecast
     binary_fc_da = fc_da > threshold
 
     # compute binary accuracy metric
-    binary_fc_da = (binary_fc_da == binary_obs_da). \
-        astype(np.float16).weighted(agcm)
+    binary_fc_da = (binary_fc_da == binary_obs_da).astype(np.float16).weighted(~agcm)
     binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
 
     return binacc_fc
@@ -136,6 +138,7 @@ def plot_binary_accuracy(masks: object,
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.set_title(
         f"Binary accuracy comparison (threshold SIC = {threshold*100}%)")
+
     ax.plot(binacc_fc.time, binacc_fc.values, label="IceNet")
 
     if cmp_da is not None:
@@ -151,6 +154,7 @@ def plot_binary_accuracy(masks: object,
     ax.xaxis.set_major_formatter(
         mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
+    # TODO: review, likely not going to want these with longer forecasts
     ax.xaxis.set_minor_locator(mdates.DayLocator())
     ax.set_xlabel("Date")
     ax.legend(loc='lower right')
@@ -163,7 +167,9 @@ def plot_binary_accuracy(masks: object,
     return binacc_fc, binacc_cmp
 
 
-def compute_sea_ice_extent_error(masks: object, fc_da: object, obs_da: object,
+def compute_sea_ice_extent_error(masks: object,
+                                 fc_da: object,
+                                 obs_da: object,
                                  grid_area_size: int,
                                  threshold: float) -> object:
     """
@@ -192,11 +198,11 @@ def compute_sea_ice_extent_error(masks: object, fc_da: object, obs_da: object,
 
     # binary for observed (i.e. truth)
     binary_obs_da = obs_da > threshold
-    binary_obs_weighted_da = binary_obs_da.astype(int).weighted(agcm)
+    binary_obs_weighted_da = binary_obs_da.astype(int).weighted(~agcm)
 
     # binary for forecast
     binary_fc_da = fc_da > threshold
-    binary_fc_weighted_da = binary_fc_da.astype(int).weighted(agcm)
+    binary_fc_weighted_da = binary_fc_da.astype(int).weighted(~agcm)
 
     # sie error
     forecast_sie_error = (binary_fc_weighted_da.sum(['xc', 'yc']) -
@@ -260,6 +266,7 @@ def plot_sea_ice_extent_error(masks: object,
     ax.xaxis.set_major_formatter(
         mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
+    # TODO: review, likely not going to want these with longer forecasts
     ax.xaxis.set_minor_locator(mdates.DayLocator())
     ax.set_xlabel("Date")
     ax.legend(loc='lower right')
@@ -272,7 +279,9 @@ def plot_sea_ice_extent_error(masks: object,
     return forecast_sie_error, cmp_sie_error
 
 
-def compute_metrics(metrics: object, masks: object, fc_da: object,
+def compute_metrics(metrics: object,
+                    masks: object,
+                    fc_da: object,
                     obs_da: object) -> object:
     """
     Computes metrics based on SIC error which are passed in as a list of strings.
@@ -421,9 +430,13 @@ def plot_metrics(metrics: object,
     return fc_metric_dict, cmp_metric_dict
 
 
-def compute_metric_as_dataframe(metric: object, masks: object,
-                                init_date: object, fc_da: object,
-                                obs_da: object, **kwargs) -> pd.DataFrame:
+def compute_metric_as_dataframe(metric: object,
+                                masks: object,
+                                init_date: object,
+                                fc_da: object,
+                                obs_da: object,
+                                obs_ds_config: object,
+                                **kwargs) -> pd.DataFrame:
     """
     Computes a metric for each leadtime in a forecast and stores the
     results in a pandas dataframe with columns 'date' (which is the
@@ -435,6 +448,7 @@ def compute_metric_as_dataframe(metric: object, masks: object,
                       added to pandas dataframe (as string, or datetime object)
     :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
     :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
+    :param obs_ds_config:
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics, or 'grid_area_size' for SIE error metric
@@ -479,6 +493,7 @@ def compute_metric_as_dataframe(metric: object, masks: object,
     # create dataframe from metric_dict
     metric_df = pd.DataFrame(metric_dict)
 
+    # TODO: Pretty sure all of this will crumble for monthly forecasts, revise accordingly
     init_date = pd.to_datetime(init_date)
     # compute day of year after first converting year to a non-leap year
     # avoids issue where 2016-03-31 is different to 2015-03-31
@@ -491,8 +506,9 @@ def compute_metric_as_dataframe(metric: object, masks: object,
     month = init_date.month
     # get target dates
     leadtime = list(range(1, len(metric_df.index) + 1, 1))
-    target_date = pd.Series([init_date + timedelta(days=d) for d in leadtime])
-    target_dayofyear = target_date.dt.dayofyear
+    leadtime_attr = obs_ds_config.frequency.attribute
+    target_date = pd.Series([init_date + relativedelta(**{leadtime_attr: d}) for d in leadtime])
+
     # obtain day of year using same method above to avoid any leap-year issues
     target_dayofyear = pd.Series([
         59 if d.strftime("%m-%d") == "02-29" else d.replace(
@@ -509,14 +525,12 @@ def compute_metric_as_dataframe(metric: object, masks: object,
             "target_month": target_month,
             "leadtime": leadtime
         }), metric_df
-    ],
-                     axis=1)
+    ], axis=1)
 
 
 def compute_metrics_leadtime_avg(metric: str,
-                                 masks: object,
-                                 hemisphere: str,
                                  forecast_file: str,
+                                 ds_config: DatasetConfig,
                                  ecmwf: bool,
                                  data_path: str,
                                  bias_correct: bool = False,
@@ -529,10 +543,11 @@ def compute_metrics_leadtime_avg(metric: str,
     'leadtime' and the metric name. This pandas dataframe can then be used
     to average over leadtime to obtain leadtime averaged metrics.
 
+    # TODO: ensure able to calculate metrics across different temporal domains
+
     :param metric: string specifying which metric to compute
-    :param masks: an icenet Masks object
-    :param hemisphere: string, typically either 'north' or 'south'
     :param forecast_file: string specifying a path to a .nc file
+    :param ds_config: ground truth dataset config appropriate to the forecast file
     :param ecmwf: bool to indicate whether or not to compare
                   with ECMWF SEAS forecast. If True, will only average
                   over forecasts where the initialisation dates between IceNet
@@ -551,12 +566,13 @@ def compute_metrics_leadtime_avg(metric: str,
     """
     # open forecast file
     fc_ds = xr.open_dataset(forecast_file)
+    masks = get_implementation(fc_ds.attrs["icenet_mask_implementation"])(ds_config)
 
     if ecmwf:
         # find out what dates cross over with the SEAS5 predictions
         (fc_start_date, fc_end_date) = (fc_ds.time.values.min(),
                                         fc_ds.time.values.max())
-        dates = get_seas_forecast_init_dates(hemisphere)
+        dates = get_seas_forecast_init_dates(fc_ds.attrs["hemisphere_string"])
         dates = dates[(dates > fc_start_date) & (dates <= fc_end_date)]
         times = [x for x in fc_ds.time.values if x in dates]
         fc_ds = fc_ds.sel(time=times)
@@ -570,15 +586,17 @@ def compute_metrics_leadtime_avg(metric: str,
     for time in fc_ds.time.values:
         # obtain forecast
         fc = fc_ds.sel(time=slice(time, time))["sic_mean"]
-        obs = get_obs_da(hemisphere=hemisphere,
-                         start_date=pd.to_datetime(time) + timedelta(days=1),
-                         end_date=pd.to_datetime(time) +
-                         timedelta(days=int(fc.leadtime.max())))
+        obs = ds_config.get_dataset(var_names=["siconca"])
+        obs = obs.sel(time=slice(
+            pd.to_datetime(time),
+            pd.to_datetime(time) + relativedelta(**{
+                "{}s".format(ds_config.frequency.attribute): int(fc.leadtime.max())})
+        ))
         fc = filter_ds_by_obs(fc, obs, time)
 
         if ecmwf:
             # obtain SEAS forecast
-            seas = get_seas_forecast_da(hemisphere=hemisphere,
+            seas = get_seas_forecast_da(obs_ds_config=ds_config,
                                         date=pd.to_datetime(time),
                                         bias_correct=bias_correct)
             # remove the initialisation date from dataarray
@@ -598,6 +616,7 @@ def compute_metrics_leadtime_avg(metric: str,
                                         init_date=time,
                                         fc_da=fc,
                                         obs_da=obs,
+                                        obs_ds_config=ds_config,
                                         **kwargs))
         if seas is not None:
             seas_metrics_list.append(
@@ -606,6 +625,7 @@ def compute_metrics_leadtime_avg(metric: str,
                                             init_date=time,
                                             fc_da=seas,
                                             obs_da=obs,
+                                            obs_ds_config=ds_config,
                                             **kwargs))
 
     # groupby the leadtime and compute the mean average of the metric
@@ -629,7 +649,8 @@ def compute_metrics_leadtime_avg(metric: str,
     return fc_metric_df.reset_index(drop=True)
 
 
-def _parse_day_of_year(dayofyear: int, leapyear: bool = False) -> int:
+def _parse_day_of_year(dayofyear: int,
+                       leapyear: bool = False) -> int:
     """
     Private function which takes in a day of year (integer or float) and returns
     the integer day of year. Useful for ensuring consistency over leap years,
@@ -650,7 +671,8 @@ def _parse_day_of_year(dayofyear: int, leapyear: bool = False) -> int:
                 timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
 
 
-def _heatmap_ylabels(metrics_df: pd.DataFrame, average_over: str,
+def _heatmap_ylabels(metrics_df: pd.DataFrame,
+                     average_over: str,
                      groupby_col: str) -> object:
     """
     Private function to return the labels for the y-axis in heatmap plots.
@@ -779,6 +801,7 @@ def standard_deviation_heatmap(metric: str,
     ax.set_xlabel("Lead time (days)")
 
     # add plot title
+    # TODO: tied to daily forecasting date representations
     (start_date, end_date) = (metrics_df["date"].min().strftime('%d/%m/%Y'),
                               metrics_df["date"].max().strftime('%d/%m/%Y'))
     time_coverage = "\nStandard deviation over a minimum of " + \
@@ -805,9 +828,8 @@ def standard_deviation_heatmap(metric: str,
 
 
 def plot_metrics_leadtime_avg(metric: str,
-                              masks: object,
-                              hemisphere: str,
                               forecast_file: str,
+                              ds_config: DatasetConfig,
                               ecmwf: bool,
                               output_path: str,
                               average_over: str,
@@ -823,9 +845,8 @@ def plot_metrics_leadtime_avg(metric: str,
     in the forecast file, or averaging them over by month or day.
 
     :param metric: string specifying which metric to compute
-    :param masks: an icenet Masks object
-    :param hemisphere: string, typically either 'north' or 'south'
     :param forecast_file: a path to a .nc file
+    :param ds_config: dataset config appropriate for the forecast file
     :param ecmwf: bool to indicate whether or not to compare
                   with ECMWF SEAS forecast. If True, will only average
                   over forecasts where the initialisation dates between IceNet
@@ -894,10 +915,9 @@ def plot_metrics_leadtime_avg(metric: str,
         # computing the dataframes for the metrics
         # will save dataframe in data_path if data_path is not None
         metric_df = compute_metrics_leadtime_avg(metric=metric,
-                                                 hemisphere=hemisphere,
                                                  forecast_file=forecast_file,
+                                                 ds_config=ds_config,
                                                  ecmwf=ecmwf,
-                                                 masks=masks,
                                                  data_path=data_path,
                                                  bias_correct=bias_correct,
                                                  region=region,
@@ -910,6 +930,7 @@ def plot_metrics_leadtime_avg(metric: str,
 
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
+    # TODO: tied to daily forecasting date representations
     (start_date, end_date) = (fc_metric_df["date"].min().strftime('%d/%m/%Y'),
                               fc_metric_df["date"].max().strftime('%d/%m/%Y'))
 
@@ -1098,12 +1119,16 @@ def plot_metrics_leadtime_avg(metric: str,
     return fc_metric_df, seas_metric_df
 
 
-def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
+def sic_error_video(fc_da: object,
+                    obs_da: object,
+                    obs_ds_config: object,
+                    land_mask: object,
                     output_path: object) -> object:
     """
 
     :param fc_da:
     :param obs_da:
+    :param obs_ds_config:
     :param land_mask:
     :param output_path:
 
@@ -1120,17 +1145,17 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
     diff_plot = diff.isel(time=leadtime).to_numpy()
 
     upper_bound = np.max(
-        [np.abs(np.min(diff_plot)),
-         np.abs(np.max(diff_plot))])
+        [np.abs(np.nanmin(diff_plot)),
+         np.abs(np.nanmax(diff_plot))])
     diff_vmin = -upper_bound
     diff_vmax = upper_bound
     logging.debug("Bounds of differences: {} - {}".format(
         diff_vmin, diff_vmax))
 
-    sic_cmap = mpl.cm.get_cmap("Blues_r", 20)
+    sic_cmap = cm.get_cmap("Blues_r")
     contour_kwargs = dict(vmin=0, vmax=1, cmap=sic_cmap)
 
-    diff_cmap = mpl.cm.get_cmap("RdBu_r", 20)
+    diff_cmap = cm.get_cmap("RdBu_r")
     im1 = maps[0].imshow(fc_plot, **contour_kwargs)
     im2 = maps[1].imshow(obs_plot, **contour_kwargs)
     im3 = maps[2].imshow(diff_plot,
@@ -1140,11 +1165,11 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
 
     tic = maps[0].set_title(
         "IceNet "
-        f"{pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}"
+        f"{pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime(obs_ds_config.frequency.plot_format)}"
     )
     tio = maps[1].set_title(
         "OSISAF Obs "
-        f"{pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime('%d/%m/%Y')}"
+        f"{pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime(obs_ds_config.frequency.plot_format)}"
     )
     maps[2].set_title("Diff")
 
@@ -1165,9 +1190,10 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
         )
         m_ax.contourf(land_mask,
                       levels=[.5, 1],
-                      colors=[mpl.cm.gray(180)],
+                      cmap=cm.get_cmap("gray"),
                       zorder=3)
 
+    # TODO: tied to daily forecasting date representations
     def update(date):
         logging.debug(f"Plotting {date}")
 
@@ -1177,10 +1203,10 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
 
         tic.set_text("IceNet {}".format(
             pd.to_datetime(
-                fc_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
+                fc_da.isel(time=date).time.values).strftime(obs_ds_config.frequency.plot_format)))
         tio.set_text("OSISAF Obs {}".format(
             pd.to_datetime(
-                obs_da.isel(time=date).time.values).strftime("%d/%m/%Y")))
+                obs_da.isel(time=date).time.values).strftime(obs_ds_config.frequency.plot_format)))
 
         im1.set_data(fc_plot)
         im2.set_data(obs_plot)
@@ -1198,7 +1224,7 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
     output_path = os.path.join("plot", "sic_error.mp4") \
         if not output_path else output_path
     logging.info(f"Saving to {output_path}")
-    animation.save(output_path, fps=10, extra_args=['-vcodec', 'libx264'])
+    animation.save(output_path, fps=2) # TODO: needs to be optional, extra_args=['-vcodec', 'libx264'])
     return animation
 
 
@@ -1369,7 +1395,7 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
     def __init__(self, *args, forecast_date: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.add_argument("hemisphere", choices=("north", "south"))
+        self.add_argument("obs_dataset_config", type=str)
         self.add_argument("forecast_file", type=str)
         if forecast_date:
             self.add_argument("forecast_date", type=date_arg)
@@ -1441,7 +1467,9 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
         args = super().parse_args(*args, **kwargs)
 
         logging.basicConfig(
-            level=logging.DEBUG if args.verbose else logging.INFO)
+            level=logging.DEBUG if args.verbose else logging.INFO,
+            force=True,
+        )
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
         return args
@@ -1459,23 +1487,15 @@ def binary_accuracy():
     ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold())
     args = ap.parse_args()
 
-    masks = Masks(north=args.hemisphere == "north",
-                  south=args.hemisphere == "south")
-
-    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
-    obs = get_obs_da(
-        args.hemisphere,
-        pd.to_datetime(args.forecast_date) + timedelta(days=1),
-        pd.to_datetime(args.forecast_date) +
-        timedelta(days=int(fc.leadtime.max())))
-    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+    fc, obs, masks = get_forecast_obs_data(args.forecast_file,
+                                           args.obs_dataset_config,
+                                           args.forecast_date)
 
     if args.ecmwf:
         seas = get_seas_forecast_da(
-            args.hemisphere,
-            args.forecast_date,
-            bias_correct=args.bias_correct) \
-            if args.ecmwf else None
+            obs_ds_config=args.obs_dataset_config,
+            date=args.forecast_date,
+            bias_correct=args.bias_correct) if args.ecmwf else None
 
         if seas is not None:
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
@@ -1502,23 +1522,15 @@ def sie_error():
     ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold().allow_sie())
     args = ap.parse_args()
 
-    masks = Masks(north=args.hemisphere == "north",
-                  south=args.hemisphere == "south")
-
-    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
-    obs = get_obs_da(
-        args.hemisphere,
-        pd.to_datetime(args.forecast_date) + timedelta(days=1),
-        pd.to_datetime(args.forecast_date) +
-        timedelta(days=int(fc.leadtime.max())))
-    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+    fc, obs, masks = get_forecast_obs_data(args.forecast_file,
+                                           args.obs_dataset_config,
+                                           args.forecast_date)
 
     if args.ecmwf:
         seas = get_seas_forecast_da(
-            args.hemisphere,
-            args.forecast_date,
-            bias_correct=args.bias_correct) \
-            if args.ecmwf else None
+            obs_ds_config=args.obs_dataset_config,
+            date=args.forecast_date,
+            bias_correct=args.bias_correct) if args.ecmwf else None
 
         if seas is not None:
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
@@ -1576,9 +1588,8 @@ def plot_forecast():
                     default=False)
     args = ap.parse_args()
 
-    fc = get_forecast_ds(args.forecast_file,
-                         args.forecast_date,
-                         stddev=args.stddev)
+    fc = get_forecast_data(args.forecast_file, args.forecast_date, stddev=args.stddev)
+    ds_config = get_dataset_config_implementation(args.obs_dataset_config)
     fc = fc.transpose(..., "yc", "xc")
 
     output_path = "." if args.output_path is None else args.output_path
@@ -1614,13 +1625,14 @@ def plot_forecast():
     leadtimes = args.leadtimes \
         if args.leadtimes is not None \
         else list(range(1, int(max(fc.leadtime.values)) + 1))
+    leadtime_attr = ds_config.frequency.attribute
 
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
 
         if "forecast_date" not in pred_da:
             forecast_dates = [
-                pd.Timestamp(args.forecast_date) + dt.timedelta(lt)
+                pd.Timestamp(args.forecast_date) + relativedelta(**{leadtime_attr: lt})
                 for lt in args.leadtimes
             ]
             pred_da = pred_da.assign_coords(forecast_date=("leadtime",
@@ -1637,7 +1649,7 @@ def plot_forecast():
         output_filename = os.path.join(
             output_path,
             "{}.{}.{}{}".format(forecast_name,
-                                args.forecast_date.strftime("%Y%m%d"),
+                                args.forecast_date.strftime(ds_config.frequency.date_format),
                                 "" if not args.stddev else "stddev.",
                                 args.format))
         xarray_to_video(pred_da,
@@ -1646,12 +1658,13 @@ def plot_forecast():
                         imshow_kwargs=dict(vmin=0., vmax=vmax)
                         if not args.stddev else None,
                         video_path=output_filename,
+                        date_format=ds_config.frequency.plot_format,
                         **anim_args)
     else:
         for leadtime in leadtimes:
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
-            bound_args = dict(north=args.hemisphere == "north",
-                              south=args.hemisphere == "south")
+            bound_args = dict(north=ds_config.location.north,
+                              south=ds_config.location.south)
 
             if args.region is not None:
                 bound_args.update(x1=args.region[0],
@@ -1671,15 +1684,13 @@ def plot_forecast():
                           do_coastlines=not args.no_coastlines)
 
             plt.colorbar(im, ax=ax)
-            plot_date = args.forecast_date + dt.timedelta(leadtime)
-            ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
-                                                       plot_date.month,
-                                                       plot_date.day))
+            plot_date = args.forecast_date + relativedelta(**{leadtime_attr: leadtime})
+            ax.set_title(plot_date.strftime(ds_config.frequency.plot_format))
             output_filename = os.path.join(
                 output_path, "{}.{}.{}{}".format(
                     forecast_name,
                     (args.forecast_date +
-                     dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
+                     relativedelta(**{leadtime_attr: leadtime})).strftime(ds_config.frequency.date_format),
                     "" if not args.stddev else "stddev.", args.format))
 
             logging.info("Saving to {}".format(output_filename))
@@ -1707,22 +1718,15 @@ def metric_plots():
     ap = (ForecastPlotArgParser().allow_ecmwf().allow_metrics())
     args = ap.parse_args()
 
-    masks = Masks(north=args.hemisphere == "north",
-                  south=args.hemisphere == "south")
-
-    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
-    obs = get_obs_da(
-        args.hemisphere,
-        pd.to_datetime(args.forecast_date) + timedelta(days=1),
-        pd.to_datetime(args.forecast_date) +
-        timedelta(days=int(fc.leadtime.max())))
-    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+    fc, obs, masks = get_forecast_obs_data(args.forecast_file,
+                                           args.obs_dataset_config,
+                                           args.forecast_date)
 
     metrics = parse_metrics_arg(args.metrics)
 
     if args.ecmwf:
         seas = get_seas_forecast_da(
-            args.hemisphere,
+            args.obs_dataset_config,
             args.forecast_date,
             bias_correct=args.bias_correct) \
             if args.ecmwf else None
@@ -1783,13 +1787,12 @@ def leadtime_avg_plots():
         action="store_true",
         default=False)
     args = ap.parse_args()
-    masks = Masks(north=args.hemisphere == "north",
-                  south=args.hemisphere == "south")
+
+    ds_config = get_dataset_config_implementation(args.obs_dataset_config)
 
     plot_metrics_leadtime_avg(metric=args.metric,
-                              masks=masks,
-                              hemisphere=args.hemisphere,
                               forecast_file=args.forecast_file,
+                              ds_config=ds_config,
                               ecmwf=args.ecmwf,
                               output_path=args.output_path,
                               average_over=args.average_over,
@@ -1810,23 +1813,18 @@ def sic_error():
     ap = ForecastPlotArgParser()
     args = ap.parse_args()
 
-    masks = Masks(north=args.hemisphere == "north",
-                  south=args.hemisphere == "south")
-
-    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
-    obs = get_obs_da(
-        args.hemisphere,
-        pd.to_datetime(args.forecast_date) + timedelta(days=1),
-        pd.to_datetime(args.forecast_date) +
-        timedelta(days=int(fc.leadtime.max())))
-    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+    fc, obs, masks = get_forecast_obs_data(args.forecast_file,
+                                           args.obs_dataset_config,
+                                           args.forecast_date)
+    ds_config = get_dataset_config_implementation(args.obs_dataset_config)
 
     if args.region:
         fc, obs, masks = process_regions(args.region, [fc, obs, masks])
 
     sic_error_video(fc_da=fc,
                     obs_da=obs,
-                    land_mask=masks.get_land_mask(),
+                    obs_ds_config=ds_config,
+                    land_mask=masks.land(),
                     output_path=args.output_path)
 
 
@@ -1838,14 +1836,11 @@ def sic_error_local():
     ap = (ForecastPlotArgParser().allow_probes())
     args = ap.parse_args()
 
-    fc = get_forecast_ds(args.forecast_file, args.forecast_date)
-    obs = get_obs_da(
-        args.hemisphere,
-        pd.to_datetime(args.forecast_date) + timedelta(days=1),
-        pd.to_datetime(args.forecast_date) +
-        timedelta(days=int(fc.leadtime.max())))
-    fc = filter_ds_by_obs(fc, obs, args.forecast_date)
+    fc, obs, _ = get_forecast_obs_data(args.forecast_file,
+                                       args.obs_dataset_config,
+                                       args.forecast_date)
 
     fc, obs = process_probes(args.probes, [fc, obs])
 
     sic_error_local_plots(fc, obs, args.output_path, as_command=True)
+

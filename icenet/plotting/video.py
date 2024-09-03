@@ -14,7 +14,7 @@ import xarray as xr
 from matplotlib.animation import FuncAnimation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from icenet.process.predict import get_refcube
+from icenet.process.predict import get_ref_cube
 from icenet.utils import setup_logging
 
 
@@ -51,7 +51,11 @@ def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
 
         # FIXME: naive implementations abound
         path_comps = os.path.dirname(files[0]).split(os.sep)
-        ref_cube = get_refcube("north" in path_comps, "south" in path_comps)
+
+        import sys
+        print(files, path_comps)
+        sys.exit(0)
+        ref_cube = get_ref_cube()
         var_name = path_comps[-2]
 
         da = xr.DataArray(
@@ -84,6 +88,7 @@ def xarray_to_video(
     imshow_kwargs: dict = None,
     ax_init: object = None,
     ax_extra: callable = None,
+    date_format: str = None,
 ) -> object:
     """
     Generate video of an xarray.DataArray. Optionally input a list of
@@ -110,14 +115,16 @@ def xarray_to_video(
     :param imshow_kwargs: Extra arguments for displaying array
     :param ax_init: pre-initialised axes object for display
     :param ax_extra: Extra method called with axes for additional plotting
+    :param date_format: Optional format for outputting dates
     """
 
     def update(date):
         logging.debug("Plotting {}".format(date.strftime("%D")))
         image.set_data(da.sel(time=date))
 
-        image_title.set_text("{:04d}/{:02d}/{:02d}".format(
-            date.year, date.month, date.day))
+        image_title.set_text(
+            date.strftime(date_format) if date_format is not None else
+            "{:04d}/{:02d}/{:02d}".format(date.year, date.month, date.day))
 
         return image, image_title
 
@@ -179,8 +186,9 @@ def xarray_to_video(
                       zorder=1,
                       **imshow_kwargs if imshow_kwargs is not None else {})
 
-    image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
-        date.year, date.month, date.day),
+    image_title = ax.set_title(date.strftime(date_format)
+                               if date_format is not None else
+                               "{:04d}/{:02d}/{:02d}".format(date.year, date.month, date.day),
                                fontsize="medium",
                                zorder=2)
 
@@ -202,7 +210,7 @@ def xarray_to_video(
         logging.info("Not saving plot, will return animation")
     else:
         logging.info("Saving plot to {}".format(video_path))
-        animation.save(video_path, fps=fps, extra_args=['-vcodec', 'libx264'])
+        animation.save(video_path, fps=fps, )#extra_args=['-vcodec', 'libx264'])
     return animation
 
 

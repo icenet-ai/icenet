@@ -8,12 +8,13 @@ import xarray as xr
 
 from download_toolbox.interface import Configuration, DatasetConfig
 from download_toolbox.utils import run_command
-from preprocess_toolbox.processor import Processor, ProcessingError
+from preprocess_toolbox.processor import Processor
 
 
 class MaskDatasetConfig(DatasetConfig):
     def __init__(self,
-                 identifier="masks",
+                 downloaded_files: list = None,
+                 identifier: str = "masks",
                  **kwargs):
         super().__init__(identifier=identifier,
                          levels=[None, None, None],
@@ -24,6 +25,7 @@ class MaskDatasetConfig(DatasetConfig):
         if not self.location.north and not self.location.south:
             raise NotImplementedError("Location must be north or south, not custom")
 
+        self._downloaded_files = [] if downloaded_files is None else downloaded_files
         self._year = 2000
         self._retrieve_cmd_template_osi450 = \
             "wget -O {} ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/{}"
@@ -38,6 +40,9 @@ class MaskDatasetConfig(DatasetConfig):
         if not os.path.exists(month_path):
             run_command(self._retrieve_cmd_template_osi450.format(
                 month_path, self._year, month, filename_osi450))
+
+            if filename_osi450 not in self._downloaded_files:
+                self._downloaded_files.append(filename_osi450)
         else:
             logging.info("siconca {} already exists".format(filename_osi450))
 
@@ -180,6 +185,7 @@ class Masks(Processor):
                          **kwargs)
 
         self._source_files = mask_ds.var_files.copy()
+        self._region = (slice(None, None), slice(None, None))
 
     def get_config(self,
                    config_funcs: dict = None,
@@ -247,16 +253,45 @@ class Masks(Processor):
         self.save_config()
 
     def active_grid_cell(self, date=None, *args, **kwargs):
+        """
+
+        Args:
+            date:
+            *args:
+            **kwargs:
+
+        Returns:
+
+        """
         da = xr.open_dataarray(self.active_grid_cell_filename)
         da = da.sel(month=pd.to_datetime(date).month)
-        return ~da.data
+        return (~da.data)[self._region]
 
     # TODO: caching please
     def land(self, *args, **kwargs):
+        """
+
+        Args:
+            *args:
+            **kwargs:
+
+        Returns:
+
+        """
         da = xr.open_dataarray(self.land_filename)
-        return da.data
+        return da.data[self._region]
 
     def polarhole(self, date, *args, **kwargs):
+        """
+
+        Args:
+            date:
+            *args:
+            **kwargs:
+
+        Returns:
+
+        """
         da = xr.open_dataarray(self.polarhole_filename)
         polarhole_mask = np.full(da.isel(polarhole=0).shape, False)
         da = da[da.polarhole >= date]
@@ -264,9 +299,61 @@ class Masks(Processor):
         if len(da.polarhole) > 0:
             polarhole_mask = da.isel(polarhole=0)
             # logging.debug("Selecting mask {} for {}".format(polarhole_mask.polarhole, date))
-            return polarhole_mask.data
+            return polarhole_mask.data[self._region]
         else:
-            return polarhole_mask
+            return polarhole_mask[self._region]
+
+    def get_active_cell_da(self, src_da: object) -> object:
+        """Generate an xarray.DataArray object containing the active cell masks
+         for each timestamp in a given source DataArray.
+
+        Args:
+            src_da: Source xarray.DataArray object containing time, xc, yc
+                coordinates.
+
+        Returns:
+            An xarray.DataArray containing active cell masks for each time
+                in source DataArray.
+        """
+        return xr.DataArray(
+            [
+                self.active_grid_cell(pd.to_datetime(date).month)
+                for date in src_da.time.values
+            ],
+            dims=('time', 'yc', 'xc'),
+            coords={
+                'time': src_da.time.values,
+                'yc': src_da.yc.values,
+                'xc': src_da.xc.values,
+            })
+
+    def get_blank_mask(self) -> object:
+        """Returns an empty mask.
+
+        Returns:
+            A numpy array of flags set to false for pre-defined `self._region`
+                of shape `self._shape` (the `data_shape` instance initialisation
+                value).
+        """
+        shape = self.land().shape
+        return np.full(shape, False)[self._region]
+
+    def __getitem__(self, item):
+        """Sets slice of region wanted for masking, and allows method chaining.
+
+        This might be a semantically dodgy thing to do, but it works for the mo
+
+        Args:
+            item: Index/slice to extract.
+        """
+        logging.info("Mask region set to: {}".format(item))
+        self._region = item
+        return self
+
+    def reset_region(self):
+        """Resets the mask region and logs a message indicating that the whole mask will be returned."""
+        logging.info("Mask region reset, whole mask will be returned")
+        self._region = (slice(None, None), slice(None, None))
 
     @property
     def active_grid_cell_filename(self):
@@ -283,3 +370,4 @@ class Masks(Processor):
     @property
     def polarhole_filename(self):
         return os.path.join(self.path, "polarhole.{}.nc".format(self._hemi_str))
+
