@@ -305,7 +305,7 @@ def compute_metrics(metrics: object,
                 f"Please only choose out of {implemented_metrics}.")
 
     # obtain mask
-    mask_da = masks.get_active_cell_da(obs_da)
+    agcm = masks.get_active_cell_da(obs_da)
 
     metric_dict = {}
     # compute raw error
@@ -313,11 +313,11 @@ def compute_metrics(metrics: object,
     if "mae" in metrics:
         # compute absolute SIC errors
         abs_err_da = da.fabs(err_da)
-        abs_weighted_da = abs_err_da.weighted(mask_da)
+        abs_weighted_da = abs_err_da.weighted(~agcm)
     if "mse" in metrics or "rmse" in metrics:
         # compute squared SIC errors
         square_err_da = err_da**2
-        square_weighted_da = square_err_da.weighted(mask_da)
+        square_weighted_da = square_err_da.weighted(~agcm)
 
     for metric in metrics:
         if metric == "mae":
@@ -493,7 +493,6 @@ def compute_metric_as_dataframe(metric: object,
     # create dataframe from metric_dict
     metric_df = pd.DataFrame(metric_dict)
 
-    # TODO: Pretty sure all of this will crumble for monthly forecasts, revise accordingly
     init_date = pd.to_datetime(init_date)
     # compute day of year after first converting year to a non-leap year
     # avoids issue where 2016-03-31 is different to 2015-03-31
@@ -586,13 +585,13 @@ def compute_metrics_leadtime_avg(metric: str,
     for time in fc_ds.time.values:
         # obtain forecast
         fc = fc_ds.sel(time=slice(time, time))["sic_mean"]
-        obs = ds_config.get_dataset(var_names=["siconca"])
+        obs = ds_config.get_dataset(var_names=["siconca"]).siconca
         obs = obs.sel(time=slice(
             pd.to_datetime(time),
             pd.to_datetime(time) + relativedelta(**{
                 "{}s".format(ds_config.frequency.attribute): int(fc.leadtime.max())})
         ))
-        fc = filter_ds_by_obs(fc, obs, time)
+        fc = filter_ds_by_obs(fc, obs, time, ds_config.frequency)
 
         if ecmwf:
             # obtain SEAS forecast
@@ -725,6 +724,7 @@ def standard_deviation_heatmap(metric: str,
                                output_path: str = None,
                                fc_std_metric: pd.DataFrame = None,
                                vmax: float = None,
+                               date_format: str = None,
                                **kwargs) -> object:
     """
     Produces a heatmap plot of the leadtime standard deviation of a metric.
@@ -746,6 +746,7 @@ def standard_deviation_heatmap(metric: str,
                           If None, this will be computed here
     :param vmax: float specifying maximum to anchor the colourmap. If None,
                  this is inferred from the data
+    :param date_format: str the plot output format for dates
 
     :return: dataframe of the standard deviation of the metric over leadtime
     """
@@ -763,7 +764,7 @@ def standard_deviation_heatmap(metric: str,
         fc_std_metric = metrics_df.groupby([groupby_col, "leadtime"]).std(numeric_only=True).\
             reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
             sort_values(groupby_col, ascending=True)
-    n_forecast_days = fc_std_metric.shape[1]
+    n_forecast_steps = fc_std_metric.shape[1]
 
     # set ylabel (if average_over == "all"), or legend label (otherwise)
     if metric in ["mae", "mse", "rmse"]:
@@ -795,17 +796,16 @@ def standard_deviation_heatmap(metric: str,
         ax.set_ylabel("Initialisation date of forecast")
 
     # x-axis
-    ax.set_xticks(np.arange(30, n_forecast_days, 30))
-    ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
+    ax.set_xticks(np.arange(30, n_forecast_steps, 30))
+    ax.set_xticklabels(np.arange(30, n_forecast_steps, 30))
     plt.xticks(rotation=0)
     ax.set_xlabel("Lead time (days)")
 
     # add plot title
-    # TODO: tied to daily forecasting date representations
-    (start_date, end_date) = (metrics_df["date"].min().strftime('%d/%m/%Y'),
-                              metrics_df["date"].max().strftime('%d/%m/%Y'))
+    (start_date, end_date) = (metrics_df["date"].min().strftime(date_format),
+                              metrics_df["date"].max().strftime(date_format))
     time_coverage = "\nStandard deviation over a minimum of " + \
-        f"{round((metrics_df[groupby_col].value_counts()/n_forecast_days).min())} " + \
+        f"{round((metrics_df[groupby_col].value_counts()/n_forecast_steps).min())} " + \
         f"forecasts between {start_date} - {end_date}"
     if metric in ["mae", "mse", "rmse"]:
         title = f"{metric.upper()} comparison"
@@ -930,9 +930,8 @@ def plot_metrics_leadtime_avg(metric: str,
 
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
-    # TODO: tied to daily forecasting date representations
-    (start_date, end_date) = (fc_metric_df["date"].min().strftime('%d/%m/%Y'),
-                              fc_metric_df["date"].max().strftime('%d/%m/%Y'))
+    (start_date, end_date) = (fc_metric_df["date"].min().strftime(ds_config.frequency.plot_format),
+                              fc_metric_df["date"].max().strftime(ds_config.frequency.plot_format))
 
     # set ylabel (if average_over == "all"), or legend label (otherwise)
     if metric in ["mae", "mse", "rmse"]:
@@ -1099,6 +1098,7 @@ def plot_metrics_leadtime_avg(metric: str,
                                        target_date_avg=target_date_avg,
                                        fc_std_metric=seas_std_metric,
                                        vmax=vmax,
+                                       date_format=ds_config.frequency.plot_format,
                                        **kwargs)
         else:
             # no need to pre-compute the scale for the heatmap, hence
@@ -1114,6 +1114,7 @@ def plot_metrics_leadtime_avg(metric: str,
                                    target_date_avg=target_date_avg,
                                    fc_std_metric=fc_std_metric,
                                    vmax=vmax,
+                                   date_format=ds_config.frequency.plot_format,
                                    **kwargs)
 
     return fc_metric_df, seas_metric_df

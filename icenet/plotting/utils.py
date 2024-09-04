@@ -292,10 +292,10 @@ def filter_ds_by_obs(ds: object,
 
         logging.warning("Observational data not available for full range of "
                         "forecast lead times: obs {}-{} vs fc {}-{}".format(
-                            obs_da.time.to_series()[0].strftime(frequency.plot_format),
-                            obs_da.time.to_series()[-1].strftime(frequency.plot_format),
-                            start_date.strftime(frequency.plot_format),
-                            end_date.strftime(frequency.plot_format)))
+                            obs_da.time.to_series()[0].strftime(frequency.date_format),
+                            obs_da.time.to_series()[-1].strftime(frequency.date_format),
+                            start_date.strftime(frequency.date_format),
+                            end_date.strftime(frequency.date_format)))
 
         (start_date, end_date) = (obs_da.time.to_series()[0],
                                   obs_da.time.to_series()[-1])
