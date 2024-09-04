@@ -505,7 +505,7 @@ def compute_metric_as_dataframe(metric: object,
     month = init_date.month
     # get target dates
     leadtime = list(range(1, len(metric_df.index) + 1, 1))
-    leadtime_attr = obs_ds_config.frequency.attribute
+    leadtime_attr = "{}s".format(obs_ds_config.frequency.attribute)
     target_date = pd.Series([init_date + relativedelta(**{leadtime_attr: d}) for d in leadtime])
 
     # obtain day of year using same method above to avoid any leap-year issues
@@ -1626,7 +1626,7 @@ def plot_forecast():
     leadtimes = args.leadtimes \
         if args.leadtimes is not None \
         else list(range(1, int(max(fc.leadtime.values)) + 1))
-    leadtime_attr = ds_config.frequency.attribute
+    leadtime_attr = "{}s".format(ds_config.frequency.attribute)
 
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
