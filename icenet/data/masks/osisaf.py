@@ -71,7 +71,6 @@ class MaskDatasetConfig(DatasetConfig):
                 max_extent_mask = np.sum(binary[:, :, [7, 6, 0]], axis=2).reshape(*shape) >= 1
                 max_extent_mask = ~max_extent_mask
 
-                # FIXME: Remove Caspian and Black seas - should we do this sh?
                 if self.location.north:
                     # TODO: Add source/explanation for these indices.
                     max_extent_mask[325:386, 317:380] = False
@@ -265,9 +264,21 @@ class Masks(Processor):
         """
         da = xr.open_dataarray(self.active_grid_cell_filename)
         da = da.sel(month=pd.to_datetime(date).month)
-        return (~da.data)[self._region]
+        return da.data[self._region]
 
-    # TODO: caching please
+    def inactive_grid_cell(self, date=None, *args, **kwargs):
+        """
+
+        Args:
+            date:
+            *args:
+            **kwargs:
+
+        Returns:
+
+        """
+        return ~(self.active_grid_cell(date, *args, **kwargs))
+
     def land(self, *args, **kwargs):
         """
 
@@ -349,6 +360,14 @@ class Masks(Processor):
         logging.info("Mask region set to: {}".format(item))
         self._region = item
         return self
+
+    @property
+    def region(self):
+        return self._region
+
+    @region.setter
+    def region(self, value):
+        self._region = value
 
     def reset_region(self):
         """Resets the mask region and logs a message indicating that the whole mask will be returned."""
