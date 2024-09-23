@@ -387,10 +387,7 @@ def get_plot_axes(x1: int = 0,
                   north: bool = True,
                   south: bool = False,
                   geoaxes: bool = True,
-                  coastlines: str = None,
-                  gridlines: bool = True,
                   target_crs: object = None,
-                  transform_crs: object = ccrs.PlateCarree(),
                   figsize: int = (10, 8),
                   dpi: int = 150,
                   ):
@@ -403,7 +400,7 @@ def get_plot_axes(x1: int = 0,
     :param geoaxes:
     :return:
     """
-    assert north ^ south, "One hemisphere only must be selected"
+    assert north ^ south, "Only one hemisphere must be selected"
 
     fig = plt.figure(figsize=figsize, dpi=dpi, layout="tight")
 
@@ -411,36 +408,43 @@ def get_plot_axes(x1: int = 0,
         # pole = 1 if north else -1
         # target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
         pole = 1 if north else -1
-        target_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
+        proj = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
 
-        ax = fig.add_subplot(1, 1, 1, projection=target_crs)
-        plt.tight_layout(pad=4.0)
-
-        # extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
-        # ax.set_extent(extents, crs=proj)
-
-        # Set colour for areas outside of `process_regions()` - no data here.
-        ax.set_facecolor('dimgrey')
-
-        if coastlines:
-            ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
-            if isinstance(coastlines, str) and coastlines.casefold() == "gshhs":
-                # Higher resolution coastlines when a region is specified
-                ax.add_feature(cfeature.GSHHSFeature(scale="auto", levels=[1]), zorder=100)
-            elif isinstance(coastlines, bool) or coastlines.casefold() == "default":
-                ax.coastlines(resolution="50m", zorder=100)
-
-        if gridlines:
-            gl = ax.gridlines(crs=transform_crs, draw_labels=True)
-            # Prevent generating labels beneath the colourbar
-            gl.top_labels = False
-            gl.right_labels = False
-
+        ax = fig.add_subplot(1, 1, 1, projection=proj)
     else:
         ax = fig.add_subplot(1, 1, 1)
 
     return fig, ax
 
+
+def set_plot_geoaxes(ax,
+                  coastlines: str = None,
+                  gridlines: bool = False,
+                  transform_crs: object = ccrs.PlateCarree(),
+                  ):
+    plt.tight_layout(pad=4.0)
+
+    # extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
+    # ax.set_extent(extents, crs=proj)
+
+    # Set colour for areas outside of `process_regions()` - i.e., no data here.
+    ax.set_facecolor('dimgrey')
+
+    if coastlines:
+        ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
+        if isinstance(coastlines, str) and coastlines.casefold() == "gshhs":
+            # Higher resolution coastlines when a region is specified
+            ax.add_feature(cfeature.GSHHSFeature(scale="auto", levels=[1]), zorder=100)
+        elif isinstance(coastlines, bool) or coastlines.casefold() == "default":
+            ax.coastlines(resolution="50m", zorder=100)
+
+    if gridlines:
+        gl = ax.gridlines(crs=transform_crs, draw_labels=True)
+        # Prevent generating labels beneath the colourbar
+        gl.top_labels = False
+        gl.right_labels = False
+
+    return ax
 
 def show_img(ax,
              arr,

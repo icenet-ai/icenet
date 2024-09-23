@@ -32,7 +32,7 @@ from icenet.plotting.utils import (calculate_extents, filter_ds_by_obs,
                                    get_obs_da, get_seas_forecast_da,
                                    get_seas_forecast_init_dates,
                                    geographic_box, show_img,
-                                   get_plot_axes, process_probes,
+                                   get_plot_axes, set_plot_geoaxes, process_probes,
                                    process_regions, get_custom_cmap,
                                    get_crs)
 from icenet.plotting.video import xarray_to_video
@@ -1783,29 +1783,33 @@ def plot_forecast():
                         **anim_args)
     else:
         fig, ax = get_plot_axes(**bound_args,
-                        geoaxes=True,
-                        target_crs=target_crs,
-                        transform_crs=data_crs_geo,
-                        coastlines=coastlines,
-                        gridlines=args.gridlines,
-                        )
+                                geoaxes=True,
+                                target_crs=target_crs
+                                )
+        ax = set_plot_geoaxes(ax,
+                              coastlines=coastlines,
+                              gridlines=args.gridlines,
+                              transform_crs=data_crs_geo,
+                              )
+
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
 
             im = pred_da.plot.pcolormesh("xc",
-                                            "yc",
-                                            ax=ax,
-                                            transform=target_crs,
-                                            vmin=0,
-                                            vmax=vmax,
-                                            add_colorbar=False,
-                                            cmap=custom_cmap,
-                                            # shading="gouraud",
-                                            # rasterized=True,
-                                            )
+                                         "yc",
+                                         ax=ax,
+                                         transform=target_crs,
+                                         vmin=0,
+                                         vmax=vmax,
+                                         add_colorbar=False,
+                                         cmap=custom_cmap,
+                                         # shading="gouraud",
+                                         # rasterized=True,
+                                         )
 
             if args.region_geographic:
                 # Special case, when using geographic (lon/lat) region clipping
+                # Highlights sub-region being plotted in a reference plot of the globe
                 stored_extent = ax.get_extent()
 
                 # Output a reference image showing cropped region
