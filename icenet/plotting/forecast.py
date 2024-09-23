@@ -1809,6 +1809,8 @@ def plot_forecast():
                                             vmax=vmax,
                                             add_colorbar=False,
                                             cmap=custom_cmap,
+                                            # shading="gouraud",
+                                            # rasterized=True,
                                             )
 
             if args.region_geographic:
