@@ -533,10 +533,30 @@ def process_block(block, target_crs):
     return reprojected.drop_vars(["time"])
 
 
-def reproject_projected_coords(data,
-                                target_crs,
-                                pole=1,
-                                ):
+def reproject_projected_coords(data: object,
+                                target_crs: object,
+                                pole: int=1,
+                                ) -> object:
+    """
+    Reprojects an xarray Dataset from LambertAzimuthalEqualArea to `target_crs`.
+
+    The Dataset is expected to have dims of (xc, yc).
+
+    Args:
+        data: xarray dataset with dims (xc, yc), and also coords of lon and lat.
+        target_crs: Cartopy CRS to project to (e.g. `ccrs.Mercator()`)
+        pole: Whether north (`1`) or south pole (`-1`).
+
+    Returns:
+        Reprojected data as an xarray dataset.
+
+    Examples:
+
+    >>> reprojected_data = reproject_projected_coords(arr, # doctest: +SKIP
+    >>>             target_crs=target_crs,
+    >>>             pole=pole,
+    >>>             )
+    """
     # Eastings/Northings projection
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
     # geographic projection
