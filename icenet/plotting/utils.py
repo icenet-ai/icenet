@@ -427,7 +427,7 @@ def set_plot_geoaxes(ax,
     # extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
     # ax.set_extent(extents, crs=proj)
 
-    # Set colour for areas outside of `process_regions()` - i.e., no data here.
+    # Set colour for areas outside of `process_subregion()` - i.e., no data here.
     ax.set_facecolor('dimgrey')
 
     if coastlines:
@@ -606,7 +606,7 @@ def reproject_projected_coords(data,
     return reprojected_data
 
 
-def process_regions(region: tuple=None,
+def process_subregion(region: tuple=None,
         data: tuple=None,
         region_definition: str = "pixel",
         target_crs=None,
@@ -616,7 +616,7 @@ def process_regions(region: tuple=None,
     """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
     :param region: Either image pixel bounds, or geographic bounds.
-    :param data: Contains the full xarray DataArray.
+    :param data: Contains list of xarray DataArrays.
     :param region_definition: Whether providing pixel coordinates or geographic (i.e. lon/lat).
     :param clip_geographic_region: Whether to clip the data to the defined lon/lat region bounds.
 
@@ -645,7 +645,6 @@ def process_regions(region: tuple=None,
                             pole=pole,
                             )
                 data[idx] = reprojected_data
-
 
             if region is not None:
                 logging.info(f"Clipping data to specified bounds: {region}")
