@@ -1703,14 +1703,10 @@ def plot_forecast():
                                     y1=args.region_geographic[1],
                                     y2=args.region_geographic[3])
 
-    # Reproject, and clip the actual data to the requested region if necessary
-    # TODO: Split this function to separate `reproject` and `process_subregion`
+    # Clip the actual data to the requested region if necessary
     fc = process_subregion(region_args,
                             [fc],
                             region_definition=region_definition,
-                            target_crs=target_crs,
-                            pole=pole,
-                            clip_geographic_region=not args.no_clip_region
                         )[0]
 
     vmax = 1.
@@ -1795,10 +1791,10 @@ def plot_forecast():
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
 
-            im = pred_da.plot.pcolormesh("xc",
-                                         "yc",
+            im = pred_da.plot.pcolormesh("lon",
+                                         "lat",
                                          ax=ax,
-                                         transform=target_crs,
+                                         transform=data_crs_geo,
                                          vmin=0,
                                          vmax=vmax,
                                          add_colorbar=False,

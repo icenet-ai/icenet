@@ -628,17 +628,13 @@ def reproject_projected_coords(data: object,
 
 def process_subregion(region: tuple=None,
         data: tuple=None,
-        region_definition: str = "pixel",
-        target_crs=None,
-        pole=1,
-        clip_geographic_region=True,
+        region_definition: str = "pixel"
     ) -> tuple:
     """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
     :param region: Either image pixel bounds, or geographic bounds.
     :param data: Contains list of xarray DataArrays.
     :param region_definition: Whether providing pixel coordinates or geographic (i.e. lon/lat).
-    :param clip_geographic_region: Whether to clip the data to the defined lon/lat region bounds.
 
     :return:
     """
@@ -650,47 +646,25 @@ def process_subregion(region: tuple=None,
         if region_definition == "geographic":
             assert x1 >= -180 and x2 <= 180, "Expect longitude range to be `-180<=longitude>=180`"
 
-    if target_crs is None:
-        target_crs = ccrs.LambertAzimuthalEqualArea(0, pole*90)
-
     for idx, arr in enumerate(data):
-        if arr is not None:
-            if (region_definition == "geographic" and clip_geographic_region):
-                # Reproject when region is bounded by lon/lat without the 'clip_geographic_region' flag
-                data[idx] = arr
+        if arr is not None and region is not None:
+            logging.info(f"Clipping data to specified bounds: {region}")
+            if region_definition.casefold() == "geographic":
+                # Limit to lon/lat region, within a given tolerance
+                tolerance = 1E-1
+                # Create condition where data is within geographic (lon/lat) region
+                condition = (arr.lon >= x1-tolerance) & (arr.lon <= x2+tolerance) & \
+                            (arr.lat >= y1-tolerance) & (arr.lat <= y2+tolerance)
+
+                # Extract subset within region using where()
+                data[idx] = arr.where(condition, drop=True)
+            elif region_definition.casefold() == "pixel":
+                x_max, y_max = arr.xc.shape[0], arr.yc.shape[0]
+
+                # Clip the data array to specified pixel region
+                data[idx] = arr[..., (y_max - y2):(y_max - y1), x1:x2]
             else:
-                logging.info(f"Reprojecting data to specified CRS")
-                reprojected_data = reproject_projected_coords(arr,
-                            target_crs=target_crs,
-                            pole=pole,
-                            )
-                data[idx] = reprojected_data
-
-            if region is not None:
-                logging.info(f"Clipping data to specified bounds: {region}")
-                if region_definition.casefold() == "geographic":
-                    if clip_geographic_region:
-                        # Limit to lon/lat region, within a given tolerance
-                        tolerance = 1E-1
-                        # Create condition where data is within geographic (lon/lat) region
-                        condition = (arr.lon >= x1-tolerance) & (arr.lon <= x2+tolerance) & \
-                                    (arr.lat >= y1-tolerance) & (arr.lat <= y2+tolerance)
-
-                        # Extract subset within region using where()
-                        clipped_data = arr.where(condition, drop=True)
-
-                        # Reproject just the clipped region for speed
-                        data[idx] = reproject_projected_coords(clipped_data,
-                                                    target_crs=target_crs,
-                                                    pole=pole,
-                                                    )
-                elif region_definition.casefold() == "pixel":
-                    x_max, y_max = reprojected_data.xc.shape[0], reprojected_data.yc.shape[0]
-
-                    # Clip the data array to specified pixel region
-                    data[idx] = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
-                else:
-                    raise NotImplementedError("Only region_definition='pixel' or 'geographic' bounds are supported")
+                raise NotImplementedError("Only region_definition='pixel' or 'geographic' bounds are supported")
 
     return data
 
