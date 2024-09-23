@@ -5,12 +5,19 @@ import os
 import re
 
 import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import dask.array as da
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import rioxarray
 import xarray as xr
 
+from functools import cache
 from ibicus.debias import LinearScaling
+from pyproj import CRS, Transformer
+from rasterio.enums import Resampling
 
 
 def broadcast_forecast(start_date: object,
@@ -295,6 +302,34 @@ def get_obs_da(
     return obs_ds.ice_conc
 
 
+def get_crs(crs_str: str):
+    """Get Coordinate Reference System (CRS) from string input argument
+
+    Args:
+        crs_str: A CRS given as EPSG code (e.g. `EPSG:3347` for North Canada)
+            or, a pre-defined Cartopy CRS call (e.g. "PlateCarree")
+    """
+    if crs_str.casefold().startswith("epsg"):
+        crs = ccrs.epsg(int(crs_str.split(":")[1]))
+    elif crs_str == "Mercator.GOOGLE":
+        crs = ccrs.Mercator.GOOGLE
+    else:
+        try:
+            crs = getattr(ccrs, crs_str)()
+        except AttributeError:
+            get_crs_options = [crs_option for crs_option in dir(ccrs)
+                                if isinstance(getattr(ccrs, crs_option), type)
+                                 and issubclass(getattr(ccrs, crs_option), ccrs.CRS)
+                                 ] + ["Mercator.GOOGLE"]
+            get_crs_options.sort()
+            get_crs_options = ", ".join(get_crs_options)
+            raise AttributeError("Unsupported CRS defined, supported options are:",\
+                f"{get_crs_options}"
+            )
+
+    return crs
+
+
 def calculate_extents(x1: int, x2: int, y1: int, y2: int):
     """
 
@@ -317,38 +352,94 @@ def calculate_extents(x1: int, x2: int, y1: int, y2: int):
     return extents
 
 
+def pixel_to_projection(pixel_x_min, pixel_x_max,
+                        pixel_y_min, pixel_y_max,
+                        x_min_proj: float=-5387500, x_max_proj: float=5387500,
+                        y_min_proj: float=-5387500, y_max_proj: float=5387500,
+                        image_width: int=432, image_height: int=432,
+                        ):
+    """Converts pixel coordinates to CRS projection coordinates"""
+    proj_x_min = (pixel_x_min / image_width ) * (x_max_proj - x_min_proj) + x_min_proj
+    proj_x_max = (pixel_x_max / image_width ) * (x_max_proj - x_min_proj) + x_min_proj
+    proj_y_min = (pixel_y_min / image_height) * (y_max_proj - y_min_proj) + y_min_proj
+    proj_y_max = (pixel_y_max / image_height) * (y_max_proj - y_min_proj) + y_min_proj
+
+    return proj_x_min, proj_x_max, proj_y_min, proj_y_max
+
+
+def get_bounds(proj=None, pole=1):
+    """Get min/max bounds for a given CRS projection"""
+    if proj is None or isinstance(proj, ccrs.LambertAzimuthalEqualArea):
+        proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
+        x_min_proj, x_max_proj = [-5387500, 5387500]
+        y_min_proj, y_max_proj = [-5387500, 5387500]
+    else:
+        x_min_proj, x_max_proj = proj.x_limits
+        y_min_proj, y_max_proj = proj.y_limits
+    logging.debug(f"Projection bounds: {proj.x_limits}, {proj.y_limits}")
+    return proj, x_min_proj, x_max_proj, y_min_proj, y_max_proj
+
+
 def get_plot_axes(x1: int = 0,
                   x2: int = 432,
                   y1: int = 0,
                   y2: int = 432,
-                  do_coastlines: bool = True,
                   north: bool = True,
-                  south: bool = False):
+                  south: bool = False,
+                  geoaxes: bool = True,
+                  coastlines: str = None,
+                  gridlines: bool = True,
+                  target_crs: object = None,
+                  transform_crs: object = ccrs.PlateCarree(),
+                  figsize: int = (10, 8),
+                  dpi: int = 150,
+                  ):
     """
 
     :param x1:
     :param x2:
     :param y1:
     :param y2:
-    :param do_coastlines:
-    :param north:
-    :param south:
+    :param geoaxes:
     :return:
     """
     assert north ^ south, "One hemisphere only must be selected"
 
-    fig = plt.figure(figsize=(10, 8), dpi=150, layout='tight')
+    fig = plt.figure(figsize=figsize, dpi=dpi, layout="tight")
 
-    if do_coastlines:
+    if geoaxes:
+        # pole = 1 if north else -1
+        # target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
         pole = 1 if north else -1
-        proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
-        ax = fig.add_subplot(1, 1, 1, projection=proj)
-        extents = calculate_extents(x1, x2, y1, y2)
-        ax.set_extent(extents, crs=proj)
+        target_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
+
+        ax = fig.add_subplot(1, 1, 1, projection=target_crs)
+        plt.tight_layout(pad=4.0)
+
+        # extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
+        # ax.set_extent(extents, crs=proj)
+
+        # Set colour for areas outside of `process_regions()` - no data here.
+        ax.set_facecolor('dimgrey')
+
+        if coastlines:
+            ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
+            if isinstance(coastlines, str) and coastlines.casefold() == "gshhs":
+                # Higher resolution coastlines when a region is specified
+                ax.add_feature(cfeature.GSHHSFeature(scale="auto", levels=[1]), zorder=100)
+            elif isinstance(coastlines, bool) or coastlines.casefold() == "default":
+                ax.coastlines(resolution="50m", zorder=100)
+
+        if gridlines:
+            gl = ax.gridlines(crs=transform_crs, draw_labels=True)
+            # Prevent generating labels beneath the colourbar
+            gl.top_labels = False
+            gl.right_labels = False
+
     else:
         ax = fig.add_subplot(1, 1, 1)
 
-    return ax
+    return fig, ax
 
 
 def show_img(ax,
@@ -358,11 +449,14 @@ def show_img(ax,
              y1: int = 0,
              y2: int = 432,
              cmap: object = None,
-             do_coastlines: bool = True,
+             geoaxes: bool = True,
              vmin: float = 0.,
              vmax: float = 1.,
              north: bool = True,
-             south: bool = False):
+             south: bool = False,
+             crs: object = None,
+             extents: list = None
+             ):
     """
 
     :param ax:
@@ -372,7 +466,7 @@ def show_img(ax,
     :param y1:
     :param y2:
     :param cmap:
-    :param do_coastlines:
+    :param geoaxes:
     :param vmin:
     :param vmax:
     :param north:
@@ -382,7 +476,7 @@ def show_img(ax,
 
     assert north ^ south, "One hemisphere only must be selected"
 
-    if do_coastlines:
+    if geoaxes:
         pole = 1 if north else -1
         data_crs = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
         extents = calculate_extents(x1, x2, y1, y2)
@@ -422,20 +516,206 @@ def process_probes(probes, data) -> tuple:
     return data
 
 
-def process_regions(region: tuple, data: tuple) -> tuple:
-    """
+def reproject_array(array, target_crs):
+    return array.rio.reproject(target_crs.proj4_init,
+        # resampling=Resampling.bilinear,
+        nodata=np.nan
+        )
 
-    :param region:
-    :param data:
+def process_block(block, target_crs):
+    # dataarray = xr.DataArray(block, dims=["leadtime", "y", "x"])
+    dataarray = block
+    reprojected = reproject_array(dataarray, target_crs)
+    return reprojected.drop_vars(["time"])
+
+
+def reproject_projected_coords(data,
+                                target_crs,
+                                pole=1,
+                                ):
+    # Eastings/Northings projection
+    data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
+    # geographic projection
+    data_crs_geo = ccrs.PlateCarree()
+
+    data_reproject = data.copy()
+    data_reproject = data_reproject.assign_coords({"xc": data_reproject.xc.data*1000,
+                                    "yc": data_reproject.yc.data*1000
+                                })
+
+    # Need to use correctly scaled xc and yc to get coastlines working even if not reprojecting.
+    # So, just return scaled DataArray back and not reproject if don't need to.
+    if target_crs == data_crs_proj:
+        return data_reproject
+
+    data_reproject = data_reproject.drop_vars(["Lambert_Azimuthal_Grid", "lon", "lat"])
+
+    # Set xc, yc (eastings and northings) projection details
+    data_reproject = data_reproject.rename({"xc": "x", "yc": "y"})
+    data_reproject.rio.write_crs(data_crs_proj.proj4_init, inplace=True)
+    data_reproject.rio.write_nodata(np.nan, inplace=True)
+
+    times = len(data_reproject.time)
+    leadtimes = len(data_reproject.leadtime)
+
+    # Create a sample image block for use as template for Dask
+    sample_block = data_reproject.isel(time=0, leadtime=0)
+    sample_reprojected =  reproject_array(sample_block, target_crs)
+
+    # Create a template DataArray based on the reprojected sample block
+    template_shape = (data_reproject.sizes['leadtime'], sample_reprojected.sizes['y'], sample_reprojected.sizes['x'])
+    template_data = da.zeros(template_shape, chunks=(1, -1, -1))
+    template = xr.DataArray(template_data, dims=['leadtime', 'y', 'x'],
+                            coords={'leadtime': data_reproject.coords['leadtime'],
+                            'y': sample_reprojected.coords['y'],
+                            'x': sample_reprojected.coords['x'],
+                            }
+                            )
+
+    reprojected_data = []
+    for time in range(times):
+        leadtime_data = xr.map_blocks(process_block, data_reproject.isel(time=time), template=template, kwargs={"target_crs": target_crs})
+        reprojected_data.append(leadtime_data)
+
+    # TODO: Add projection info into DataArray, like the `Lambert_Azimuthal_Grid` dropped above
+    reprojected_data = xr.concat(reprojected_data, dim="time")
+    reprojected_data.coords["time"] = data_reproject.time.data
+
+    # Set attributes
+    reprojected_data.rio.write_crs(target_crs.proj4_init, inplace=True)
+    reprojected_data.rio.write_nodata(np.nan, inplace=True)
+
+    # Compute geographic for reprojected image
+    transformer = Transformer.from_crs(target_crs.proj4_init, data_crs_geo.proj4_init)
+    x = reprojected_data.x.values
+    y = reprojected_data.y.values
+
+    X, Y = np.meshgrid(x, y)
+    lon_grid, lat_grid = transformer.transform(X, Y)
+
+    reprojected_data["lon"] = (("y", "x"), lon_grid)
+    reprojected_data["lat"] = (("y", "x"), lat_grid)
+
+    # Rename back to 'xc' and 'yc', although, these are now in metres rather than 1000 metres
+    reprojected_data = reprojected_data.rename({"x": "xc", "y": "yc"})
+
+    return reprojected_data
+
+
+def process_regions(region: tuple=None,
+        data: tuple=None,
+        method: str = "pixel",
+        target_crs=None,
+        pole=1,
+        clip_geographic_region=True,
+    ) -> tuple:
+    """Extract subset of pan-Arctic/Antarctic region based on region bounds.
+
+    :param region: Either image pixel bounds, or geographic bounds.
+    :param data: Contains the full xarray DataArray.
+    :param method: Whether providing pixel coordinates or geographic (i.e. lon/lat).
+    :param clip_geographic_region: Whether to clip the data to the defined lon/lat region bounds.
 
     :return:
     """
 
-    assert len(region) == 4, "Region needs to be a list of four integers"
-    x1, y1, x2, y2 = region
-    assert x2 > x1 and y2 > y1, "Region is not valid"
+    if region is not None:
+        assert len(region) == 4, "Region needs to be a list of four integers"
+        x1, y1, x2, y2 = region
+        assert x2 > x1 and y2 > y1, "Region is not valid"
+        if method == "geographic":
+            assert x1 >= -180 and x2 <= 180, "Expect longitude range to be `-180<=longitude>=180`"
+
+    if target_crs is None:
+        target_crs = ccrs.LambertAzimuthalEqualArea(0, pole*90)
 
     for idx, arr in enumerate(data):
         if arr is not None:
-            data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
+            if (method == "geographic" and clip_geographic_region):
+                # Reproject when region is bounded by lon/lat without the 'clip_geographic_region' flag
+                data[idx] = arr
+            else:
+                logging.info(f"Reprojecting data to specified CRS")
+                reprojected_data = reproject_projected_coords(arr,
+                            target_crs=target_crs,
+                            pole=pole,
+                            )
+                data[idx] = reprojected_data
+
+
+            if region is not None:
+                logging.info(f"Clipping data to specified bounds: {region}")
+                if method.casefold() == "geographic":
+                    if clip_geographic_region:
+                        # Limit to lon/lat region, within a given tolerance
+                        tolerance = 1E-1
+                        # Create condition where data is within geographic (lon/lat) region
+                        condition = (arr.lon >= x1-tolerance) & (arr.lon <= x2+tolerance) & \
+                                    (arr.lat >= y1-tolerance) & (arr.lat <= y2+tolerance)
+
+                        # Extract subset within region using where()
+                        clipped_data = arr.where(condition, drop=True)
+
+                        # Reproject just the clipped region for speed
+                        data[idx] = reproject_projected_coords(clipped_data,
+                                                    target_crs=target_crs,
+                                                    pole=pole,
+                                                    )
+                elif method.casefold() == "pixel":
+                    x_max, y_max = reprojected_data.xc.shape[0], reprojected_data.yc.shape[0]
+
+                    # Clip the data array to specified pixel region
+                    data[idx] = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
+                else:
+                    raise NotImplementedError("Only method='pixel' or 'geographic' bounds are supported")
+
     return data
+
+
+@cache
+def geographic_box(lon_bounds: np.array, lat_bounds: np.array, segments: int=1):
+    """Rectangular boundary coordinates in lon/lat coordinates.
+
+    Args:
+        lon_bounds: (min, max) lon values
+        lat_bounds: (min, max) lat values
+        segments: Number of segments per edge
+
+    Returns:
+        (lats, lons) for rectangular boundary region
+    """
+
+    segments += 1
+    rectangular_sides = 4
+
+    lons = np.empty((segments*rectangular_sides))
+    lats = np.empty((segments*rectangular_sides))
+
+    bounds = [
+        [0, 0],
+        [-1, 0],
+        [-1, -1],
+        [0, -1],
+    ]
+
+    for i, (lat_min, lat_max) in enumerate(bounds):
+        lats[i*segments:(i+1)*segments] = np.linspace(lat_bounds[lat_min], lat_bounds[lat_max], num=segments)
+
+    bounds.reverse()
+
+    for i, (lon_min, lon_max) in enumerate(bounds):
+        lons[i*segments:(i+1)*segments] = np.linspace(lon_bounds[lon_min], lon_bounds[lon_max], num=segments)
+
+    return lons, lats
+
+def get_custom_cmap(cmap):
+    """Creates a new colormap, but with nan set to <0.
+
+    Hack since cartopy needs transparency for nan regions to wraparound
+        correctly with pcolormesh.
+    """
+    colors = cmap(np.linspace(0, 1, cmap.N))
+    custom_cmap = mpl.colors.ListedColormap(colors)
+    custom_cmap.set_bad("dimgrey", alpha=0)
+    custom_cmap.set_under("dimgrey")
+    return custom_cmap

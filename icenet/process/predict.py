@@ -60,13 +60,24 @@ def get_refcube(north: bool = True, south: bool = False) -> object:
     return cube
 
 
-def get_prediction_data(root: object, name: object, date: object) -> tuple:
+def get_prediction_data(root: str, name: str, date: dt,
+                        return_ensemble_data: bool = False) -> tuple:
     """
+    Get prediction data from ensemble numpy files for specified date.
 
-    :param root:
-    :param name:
-    :param date:
-    :return:
+    Args:
+        root: Root directory path to pipeline results.
+        name: Name of the prediction.
+        date: Forecast date to get prediction data for.
+        return_ensemble_data (optional): Whether to also return full ensemble data
+            array, or just the mean. Defaults to False.
+
+    Returns:
+        tuple:
+            - If `return_ensemble_data` is True:
+              Returns (data_mean, full_data_ensemble, number_of_ensemble_members)
+            - If `return_ensemble_data` is False:
+              Returns (data_mean, number_of_ensemble_members)
     """
     logging.info("Post-processing {}".format(date))
 
@@ -85,8 +96,13 @@ def get_prediction_data(root: object, name: object, date: object) -> tuple:
     logging.debug("Data read from disk: {} from: {}".format(
         data.shape, np_files))
 
-    return np.stack([data.mean(axis=0), data.std(axis=0)],
-                    axis=-1).squeeze(), ens_members
+    data_mean = np.stack([data.mean(axis=0), data.std(axis=0)],
+                        axis=-1).squeeze()
+
+    if return_ensemble_data:
+        return data_mean, data, ens_members
+    else:
+        return data_mean, ens_members
 
 
 def date_arg(string: str) -> object:

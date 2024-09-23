@@ -6,12 +6,16 @@ import sys
 
 from datetime import timedelta
 
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import matplotlib as mpl
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.ticker as mticker
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_pdf import PdfPages
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import seaborn as sns
 
@@ -23,11 +27,14 @@ import xarray as xr
 from icenet import __version__ as icenet_version
 from icenet.data.cli import date_arg
 from icenet.data.sic.mask import Masks
-from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_ds,
+from icenet.plotting.utils import (calculate_extents, filter_ds_by_obs,
+                                   get_forecast_ds,
                                    get_obs_da, get_seas_forecast_da,
-                                   get_seas_forecast_init_dates, show_img,
+                                   get_seas_forecast_init_dates,
+                                   geographic_box, show_img,
                                    get_plot_axes, process_probes,
-                                   process_regions)
+                                   process_regions, get_custom_cmap,
+                                   get_crs)
 from icenet.plotting.video import xarray_to_video
 
 
@@ -521,9 +528,10 @@ def compute_metrics_leadtime_avg(metric: str,
                                  data_path: str,
                                  bias_correct: bool = False,
                                  region: tuple = None,
+                                 region_geographic: tuple = None,
                                  **kwargs) -> object:
     """
-    Given forecast file, for each initialisation date in the xarrray.DataArray
+    Given forecast file, for each initialisation date in the xarray.DataArray
     we compute the metric for each leadtime and store the results
     in a pandas dataframe with columns 'date' (specifying the initialisation date),
     'leadtime' and the metric name. This pandas dataframe can then be used
@@ -542,7 +550,9 @@ def compute_metrics_leadtime_avg(metric: str,
     :param bias_correct: bool to indicate whether or not to
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if ecmwf=False
-    :param region: region to zoom in to
+    :param region: region to zoom in to defined by pixel coordinates
+    :param region_geographic: region to zoom in to defined by geographic, i.e.,
+                           (lon_min, lat_min, lon_max, lat_max) coordinates
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics, or 'grid_area_size' for SIE error metric
@@ -589,7 +599,16 @@ def compute_metrics_leadtime_avg(metric: str,
 
         if region is not None:
             seas, fc, obs, masks = process_regions(region,
-                                                   [seas, fc, obs, masks])
+                                        [seas, fc, obs, masks],
+                                        method="pixel"
+                                        )
+        elif region_geographic is not None:
+            raise NotImplementedError("Computing this metric with lon/lat region "
+                                    "bounds has not been implemented yet.")
+            seas, fc, obs, masks = process_regions(region_geographic,
+                                        [seas, fc, obs, masks],
+                                        method="geographic"
+                                        )
 
         # compute metrics
         fc_metrics_list.append(
@@ -817,6 +836,7 @@ def plot_metrics_leadtime_avg(metric: str,
                               target_date_avg: bool = False,
                               bias_correct: bool = False,
                               region: tuple = None,
+                              region_geographic: tuple = None,
                               **kwargs) -> object:
     """
     Plots leadtime averaged metrics either using all the forecasts
@@ -847,7 +867,9 @@ def plot_metrics_leadtime_avg(metric: str,
     :param bias_correct: bool to indicate whether or not to
                          perform a bias correction on SEAS forecast,
                          by default False. Ignored if ecmwf=False
-    :param region: region to zoom in to
+    :param region: region to zoom in to defined by pixel coordinates
+    :param region_geographic: region to zoom in to defined by geographic, i.e.,
+                           (lon_min, lat_min, lon_max, lat_max) coordinates
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics, or 'grid_area_size' for SIE error metric
@@ -1384,6 +1406,11 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           default=None,
                           type=region_arg,
                           help="Region specified x1, y1, x2, y2")
+        self.add_argument("-z",
+                          "--region-geographic",
+                          default=None,
+                          type=region_arg,
+                          help="Geographic region specified as lon and lat min/max: lon_min, lat_min, lon_max, lat_max")
 
     def allow_ecmwf(self):
         self.add_argument("-b",
@@ -1483,9 +1510,19 @@ def binary_accuracy():
     else:
         seas = None
 
-    if args.region:
+    if args.region is not None:
         seas, fc, obs, masks = process_regions(args.region,
-                                               [seas, fc, obs, masks])
+                                    [seas, fc, obs, masks],
+                                    method="pixel"
+                                    )
+    elif args.region_geographic is not None:
+        raise NotImplementedError("Computing this metric with lon/lat region "
+                                "bounds has not been implemented yet.")
+        seas, fc, obs, masks = process_regions(args.region_geographic,
+                                    [seas, fc, obs, masks],
+                                    method="geographic"
+                                    )
+
 
     plot_binary_accuracy(masks=masks,
                          fc_da=fc,
@@ -1526,9 +1563,18 @@ def sie_error():
     else:
         seas = None
 
-    if args.region:
+    if args.region is not None:
         seas, fc, obs, masks = process_regions(args.region,
-                                               [seas, fc, obs, masks])
+                                    [seas, fc, obs, masks],
+                                    method="pixel"
+                                    )
+    elif args.region_geographic is not None:
+        raise NotImplementedError("Computing this metric with lon/lat region "
+                                "bounds has not been implemented yet.")
+        seas, fc, obs, masks = process_regions(args.region_geographic,
+                                    [seas, fc, obs, masks],
+                                    method="geographic"
+                                    )
 
     plot_sea_ice_extent_error(masks=masks,
                               fc_da=fc,
@@ -1565,6 +1611,11 @@ def plot_forecast():
                     help="Format to output in",
                     choices=("mp4", "png", "svg", "tiff"),
                     default="png")
+    ap.add_argument("-g",
+                    "--gridlines",
+                    help="Turn on gridlines for plots",
+                    action="store_true",
+                    default=False)
     ap.add_argument("-n",
                     "--cmap-name",
                     help="Color map name if not wanting to use default",
@@ -1574,6 +1625,16 @@ def plot_forecast():
                     help="Plot the standard deviation from the ensemble",
                     action="store_true",
                     default=False)
+    ap.add_argument("--crs",
+                        default=None,
+                        help="Coordinate Reference System to use for plotting")
+    ap.add_argument("--no-clip-region",
+                        action="store_true",
+                        default=False,
+                        help="Whether to clip the data to the region specified by lon/lat,"\
+                            " When enabled, this shows missing values when plotting along boundaries"\
+                            " due to lon/lat curvature. Default is False"
+                        )
     args = ap.parse_args()
 
     fc = get_forecast_ds(args.forecast_file,
@@ -1594,7 +1655,13 @@ def plot_forecast():
         os.path.splitext(os.path.basename(args.forecast_file))[0],
         args.forecast_date)
 
-    cmap_name = "BuPu_r" if args.stddev else "Blues_r"
+    if args.stddev:
+        cmap_name = "BuPu_r"
+        colorbar_label = "Sea-ice concentration fraction (standard deviation)"
+    else:
+        cmap_name = "Blues_r"
+        colorbar_label = "Sea-ice concentration fraction"
+
     if args.cmap_name is not None:
         cmap_name = args.cmap_name
 
@@ -1602,8 +1669,45 @@ def plot_forecast():
     cmap = plt.get_cmap(cmap_name)
     cmap.set_bad("dimgrey")
 
+    pole = 1 if args.hemisphere == "north" else -1
+
+    # Define CRS for plotting
+    reproject = True if args.crs else False
+    data_crs_proj = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
+    data_crs_geo = ccrs.PlateCarree()
+
+    if args.crs:
+        target_crs = get_crs(args.crs)
+    else:
+        target_crs = data_crs_proj
+    transform_crs = ccrs.PlateCarree()
+
+    region_args = None
+    method = "pixel"
     if args.region is not None:
-        fc = process_regions(args.region, [fc])[0]
+        region_args = args.region
+    elif args.region_geographic is not None:
+        region_args = args.region_geographic
+        method = "geographic"
+
+    ## Clip the actual data to the requested region.
+    ## This can cause empty region at the borders if used with different CRS projections
+    ## due to re-projection.
+    if args.crs and args.region_geographic and not args.no_clip_region:
+        logging.warning(f"Using '{args.crs}' for plot reprojection, this can cause " \
+            "empty regions along the outer edges due to re-projection.")
+        logging.warning(f"You may want to run with '--no-clip-region' to plot full region without " \
+                        "clipping data to only the specifed longitude and latitude bounds.")
+
+    # Reproject, and process regions if necessary
+    # TODO: Split this function to separate `reproject` and `process_regions`
+    fc = process_regions(region_args,
+                            [fc],
+                            method=method,
+                            target_crs=target_crs,
+                            pole=pole,
+                            clip_geographic_region=not args.no_clip_region
+                        )[0]
 
     vmax = 1.
 
@@ -1614,6 +1718,37 @@ def plot_forecast():
     leadtimes = args.leadtimes \
         if args.leadtimes is not None \
         else list(range(1, int(max(fc.leadtime.values)) + 1))
+
+    bound_args = dict(north=args.hemisphere == "north",
+                        south=args.hemisphere == "south")
+
+    method = "pixel"
+    if args.region is not None:
+        bound_args.update(x1=args.region[0],
+                            x2=args.region[2],
+                            y1=args.region[1],
+                            y2=args.region[3])
+    elif args.region_geographic is not None:
+        method = "geographic"
+        bound_args.update(x1=args.region_geographic[0],
+                            x2=args.region_geographic[2],
+                            y1=args.region_geographic[1],
+                            y2=args.region_geographic[3])
+
+    coastlines = "default"
+    if args.region is not None or args.region_geographic is not None:
+        extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
+        # Note: Using GSHHS coastlines will slow png/mp4 output quite a bit!
+        # This is automatically activated when a sub region is specified with the
+        # '-r' or '-z' region flags.
+        coastlines = "gshhs"
+    else:
+        extent = None
+
+    if args.no_coastlines:
+        coastlines = None
+
+    custom_cmap = get_custom_cmap(cmap)
 
     if args.format == "mp4":
         pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
@@ -1629,10 +1764,7 @@ def plot_forecast():
         pred_da = pred_da.drop("time").drop("leadtime").\
             rename(leadtime="time", forecast_date="time").set_index(time="time")
 
-        anim_args = dict(figsize=5)
-        if not args.no_coastlines:
-            logging.warning("Coastlines will not work with the current "
-                            "implementation of xarray_to_video")
+        anim_args = dict(figsize=(10, 8))
 
         output_filename = os.path.join(
             output_path,
@@ -1640,41 +1772,89 @@ def plot_forecast():
                                 args.forecast_date.strftime("%Y%m%d"),
                                 "" if not args.stddev else "stddev.",
                                 args.format))
+
         xarray_to_video(pred_da,
                         fps=1,
                         cmap=cmap,
-                        imshow_kwargs=dict(vmin=0., vmax=vmax)
-                        if not args.stddev else None,
+                        imshow_kwargs={},
                         video_path=output_filename,
+                        reproject=reproject,
+                        extent=extent,
+                        method=method,
+                        coastlines=coastlines,
+                        gridlines=args.gridlines,
+                        target_crs=target_crs,
+                        transform_crs=transform_crs,
+                        north=bound_args["north"],
+                        south=bound_args["south"],
+                        clim=(0, vmax),
+                        colorbar_label=colorbar_label,
                         **anim_args)
     else:
-        for leadtime in leadtimes:
+        fig, ax = get_plot_axes(**bound_args,
+                        geoaxes=True,
+                        target_crs=target_crs,
+                        transform_crs=transform_crs,
+                        coastlines=coastlines,
+                        gridlines=args.gridlines,
+                        )
+        for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
-            bound_args = dict(north=args.hemisphere == "north",
-                              south=args.hemisphere == "south")
 
-            if args.region is not None:
-                bound_args.update(x1=args.region[0],
-                                  x2=args.region[2],
-                                  y1=args.region[1],
-                                  y2=args.region[3])
+            im = pred_da.plot.pcolormesh("xc",
+                                            "yc",
+                                            ax=ax,
+                                            transform=target_crs,
+                                            vmin=0,
+                                            vmax=vmax,
+                                            add_colorbar=False,
+                                            cmap=custom_cmap,
+                                            # shading="gouraud",
+                                            # rasterized=True,
+                                            )
 
-            ax = get_plot_axes(**bound_args,
-                               do_coastlines=not args.no_coastlines)
+            if args.region_geographic:
+                # Special case, when using geographic (lon/lat) region clipping
+                stored_extent = ax.get_extent()
 
-            bound_args.update(cmap=cmap)
+                # Output a reference image showing cropped region
+                if i == 0:
+                    box_lon, box_lat = geographic_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
-            im = show_img(ax,
-                          pred_da,
-                          **bound_args,
-                          vmax=vmax,
-                          do_coastlines=not args.no_coastlines)
+                    region_plot = ax.plot(box_lon, box_lat, transform=transform_crs, color="red", zorder=999)
+                    ax.set_global()
 
-            plt.colorbar(im, ax=ax)
+                    output_filename = os.path.join(
+                        output_path, "{}.{}_reference.{}{}".format(
+                            forecast_name,
+                            (args.forecast_date + dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
+                            "" if not args.stddev else "stddev.", "jpg"))
+                    plt.savefig(output_filename)
+
+                    for handle in region_plot:
+                        handle.remove()
+
+                extent = [bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"]]
+                # With some projections like Mercator, it doesn't like having exact boundary longitude
+                if bound_args["x1"] == -180:
+                    extent[0] = -179.99
+                logging.debug("Forecast plot extent:", extent)
+                ax.set_extent(extent, crs=transform_crs)
+
+            divider = make_axes_locatable(ax)
+            # Pass axes_class to set correct colourbar height with cartopy
+            cax = divider.append_axes("right", size="5%", pad=0.05, axes_class=plt.Axes)
+            cbar = plt.colorbar(im, ax=ax, cax=cax)
+
             plot_date = args.forecast_date + dt.timedelta(leadtime)
             ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
                                                        plot_date.month,
-                                                       plot_date.day))
+                                                       plot_date.day),
+                                                       fontsize="large",
+                                                       )
+            if colorbar_label:
+                cbar.set_label(colorbar_label)
+            plt.subplots_adjust(right=0.9)
             output_filename = os.path.join(
                 output_path, "{}.{}.{}{}".format(
                     forecast_name,
@@ -1684,7 +1864,9 @@ def plot_forecast():
 
             logging.info("Saving to {}".format(output_filename))
             plt.savefig(output_filename)
-            plt.clf()
+            im.remove()
+
+    plt.close()
 
 
 def parse_metrics_arg(argument: str) -> object:
@@ -1733,9 +1915,18 @@ def metric_plots():
     else:
         seas = None
 
-    if args.region:
+    if args.region is not None:
         seas, fc, obs, masks = process_regions(args.region,
-                                               [seas, fc, obs, masks])
+                                    [seas, fc, obs, masks],
+                                    method="pixel"
+                                    )
+    elif args.region_geographic is not None:
+        raise NotImplementedError("Computing this metric with lon/lat region "
+                                "bounds has not been implemented yet.")
+        seas, fc, obs, masks = process_regions(args.region_geographic,
+                                    [seas, fc, obs, masks],
+                                    method="geographic"
+                                    )
 
     plot_metrics(metrics=metrics,
                  masks=masks,
@@ -1821,8 +2012,18 @@ def sic_error():
         timedelta(days=int(fc.leadtime.max())))
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
-    if args.region:
-        fc, obs, masks = process_regions(args.region, [fc, obs, masks])
+    if args.region is not None:
+        fc, obs, masks = process_regions(args.region,
+                                    [fc, obs, masks],
+                                    method="pixel"
+                                    )
+    elif args.region_geographic is not None:
+        raise NotImplementedError("Computing this metric with lon/lat region "
+                                "bounds has not been implemented yet.")
+        fc, obs, masks = process_regions(args.region_geographic,
+                                    [fc, obs, masks],
+                                    method="geographic"
+                                    )
 
     sic_error_video(fc_da=fc,
                     obs_da=obs,
