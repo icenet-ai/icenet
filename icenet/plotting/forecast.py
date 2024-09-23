@@ -1671,25 +1671,37 @@ def plot_forecast():
 
     pole = 1 if args.hemisphere == "north" else -1
 
-    # Define CRS for plotting if reprojecting
+    # Define Coordinate Reference System (CRS) for plotting if reprojecting
     reproject = True if args.crs else False
+    # `xc` and `yc` CRS
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0)
+    # `lon` and `lat` CRS
     data_crs_geo = ccrs.PlateCarree()
 
+    # Whether to reproject, and if so, what CRS to reproject to
     if args.crs:
         target_crs = get_crs(args.crs)
     else:
         target_crs = data_crs_proj
-    transform_crs = ccrs.PlateCarree()
 
-    # Whether subregion is defined using pixel coords or lon/lat
+    # Whether subregion is defined via bounds using pixel coords or lon/lat
     region_args = None
     region_definition = "pixel"
+    bound_args = dict(north=args.hemisphere == "north",
+                        south=args.hemisphere == "south")
     if args.region is not None:
         region_args = args.region
+        bound_args.update(x1=args.region[0],
+                            x2=args.region[2],
+                            y1=args.region[1],
+                            y2=args.region[3])
     elif args.region_geographic is not None:
         region_args = args.region_geographic
         region_definition = "geographic"
+        bound_args.update(x1=args.region_geographic[0],
+                                    x2=args.region_geographic[2],
+                                    y1=args.region_geographic[1],
+                                    y2=args.region_geographic[3])
 
     # Reproject, and clip the actual data to the requested region if necessary
     # TODO: Split this function to separate `reproject` and `process_regions`
@@ -1711,22 +1723,9 @@ def plot_forecast():
         if args.leadtimes is not None \
         else list(range(1, int(max(fc.leadtime.values)) + 1))
 
-    bound_args = dict(north=args.hemisphere == "north",
-                        south=args.hemisphere == "south")
-
-    region_definition = "pixel"
-    if args.region is not None:
-        bound_args.update(x1=args.region[0],
-                            x2=args.region[2],
-                            y1=args.region[1],
-                            y2=args.region[3])
-    elif args.region_geographic is not None:
-        region_definition = "geographic"
-        bound_args.update(x1=args.region_geographic[0],
-                            x2=args.region_geographic[2],
-                            y1=args.region_geographic[1],
-                            y2=args.region_geographic[3])
-
+    # Define which coastline data to use for plots.
+    # Set to use `GHSS` when specifying a sub-region, else, default `Natural Earth`
+    # coastlines.
     coastlines = "default"
     if args.region is not None or args.region_geographic is not None:
         extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
@@ -1776,7 +1775,7 @@ def plot_forecast():
                         coastlines=coastlines,
                         gridlines=args.gridlines,
                         target_crs=target_crs,
-                        transform_crs=transform_crs,
+                        transform_crs=data_crs_geo,
                         north=bound_args["north"],
                         south=bound_args["south"],
                         clim=(0, vmax),
@@ -1786,7 +1785,7 @@ def plot_forecast():
         fig, ax = get_plot_axes(**bound_args,
                         geoaxes=True,
                         target_crs=target_crs,
-                        transform_crs=transform_crs,
+                        transform_crs=data_crs_geo,
                         coastlines=coastlines,
                         gridlines=args.gridlines,
                         )
@@ -1813,7 +1812,7 @@ def plot_forecast():
                 if i == 0:
                     box_lon, box_lat = geographic_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 
-                    region_plot = ax.plot(box_lon, box_lat, transform=transform_crs, color="red", zorder=999)
+                    region_plot = ax.plot(box_lon, box_lat, transform=data_crs_geo, color="red", zorder=999)
                     ax.set_global()
 
                     output_filename = os.path.join(
@@ -1831,7 +1830,7 @@ def plot_forecast():
                 if bound_args["x1"] == -180:
                     extent[0] = -179.99
                 logging.debug("Forecast plot extent:", extent)
-                ax.set_extent(extent, crs=transform_crs)
+                ax.set_extent(extent, crs=data_crs_geo)
 
             divider = make_axes_locatable(ax)
             # Pass axes_class to set correct colourbar height with cartopy
