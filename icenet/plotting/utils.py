@@ -604,7 +604,7 @@ def reproject_projected_coords(data,
 
 def process_regions(region: tuple=None,
         data: tuple=None,
-        method: str = "pixel",
+        region_definition: str = "pixel",
         target_crs=None,
         pole=1,
         clip_geographic_region=True,
@@ -613,7 +613,7 @@ def process_regions(region: tuple=None,
 
     :param region: Either image pixel bounds, or geographic bounds.
     :param data: Contains the full xarray DataArray.
-    :param method: Whether providing pixel coordinates or geographic (i.e. lon/lat).
+    :param region_definition: Whether providing pixel coordinates or geographic (i.e. lon/lat).
     :param clip_geographic_region: Whether to clip the data to the defined lon/lat region bounds.
 
     :return:
@@ -623,7 +623,7 @@ def process_regions(region: tuple=None,
         assert len(region) == 4, "Region needs to be a list of four integers"
         x1, y1, x2, y2 = region
         assert x2 > x1 and y2 > y1, "Region is not valid"
-        if method == "geographic":
+        if region_definition == "geographic":
             assert x1 >= -180 and x2 <= 180, "Expect longitude range to be `-180<=longitude>=180`"
 
     if target_crs is None:
@@ -631,7 +631,7 @@ def process_regions(region: tuple=None,
 
     for idx, arr in enumerate(data):
         if arr is not None:
-            if (method == "geographic" and clip_geographic_region):
+            if (region_definition == "geographic" and clip_geographic_region):
                 # Reproject when region is bounded by lon/lat without the 'clip_geographic_region' flag
                 data[idx] = arr
             else:
@@ -645,7 +645,7 @@ def process_regions(region: tuple=None,
 
             if region is not None:
                 logging.info(f"Clipping data to specified bounds: {region}")
-                if method.casefold() == "geographic":
+                if region_definition.casefold() == "geographic":
                     if clip_geographic_region:
                         # Limit to lon/lat region, within a given tolerance
                         tolerance = 1E-1
@@ -661,13 +661,13 @@ def process_regions(region: tuple=None,
                                                     target_crs=target_crs,
                                                     pole=pole,
                                                     )
-                elif method.casefold() == "pixel":
+                elif region_definition.casefold() == "pixel":
                     x_max, y_max = reprojected_data.xc.shape[0], reprojected_data.yc.shape[0]
 
                     # Clip the data array to specified pixel region
                     data[idx] = reprojected_data[..., (y_max - y2):(y_max - y1), x1:x2]
                 else:
-                    raise NotImplementedError("Only method='pixel' or 'geographic' bounds are supported")
+                    raise NotImplementedError("Only region_definition='pixel' or 'geographic' bounds are supported")
 
     return data
 
