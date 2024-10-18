@@ -19,6 +19,8 @@ from ibicus.debias import LinearScaling
 from pyproj import CRS, Transformer
 from rasterio.enums import Resampling
 
+from icenet.data.sic.mask import Masks
+
 
 def broadcast_forecast(start_date: object,
                        end_date: object,
@@ -408,7 +410,7 @@ def get_plot_axes(x1: int = 0,
         # pole = 1 if north else -1
         # target_crs, x_min_proj, x_max_proj, y_min_proj, y_max_proj = get_bounds(target_crs, pole)
         pole = 1 if north else -1
-        proj = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
+        proj = ccrs.LambertAzimuthalEqualArea(central_longitude=0, central_latitude=pole*90) if target_crs is None else target_crs
 
         ax = fig.add_subplot(1, 1, 1, projection=proj)
     else:
@@ -564,8 +566,8 @@ def reproject_projected_coords(data: object,
 
     data_reproject = data.copy()
     data_reproject = data_reproject.assign_coords({"xc": data_reproject.xc.data*1000,
-                                    "yc": data_reproject.yc.data*1000
-                                })
+                                                   "yc": data_reproject.yc.data*1000
+                                                })
 
     # Need to use correctly scaled xc and yc to get coastlines working even if not reprojecting.
     # So, just return scaled DataArray back and not reproject if don't need to.
@@ -626,9 +628,27 @@ def reproject_projected_coords(data: object,
     return reprojected_data
 
 
+def projection_to_geographic_coords(data, target_crs):
+    # Compute geographic for reprojected image
+    transform_crs=ccrs.PlateCarree()
+    transformer = Transformer.from_crs(target_crs.proj4_init, transform_crs.proj4_init)
+    x = data.xc.values*1000
+    y = data.yc.values*1000
+
+    X, Y = np.meshgrid(x, y)
+    lon_grid, lat_grid = transformer.transform(X, Y)
+
+    data["lon"] = (("yc", "xc"), lon_grid)
+    data["lat"] = (("yc", "xc"), lat_grid)
+
+    return data
+
+
 def process_subregion(region: tuple=None,
         data: tuple=None,
-        region_definition: str = "pixel"
+        pole: int=1,
+        src_da: object=None,
+        region_definition: str = "pixel",
     ) -> tuple:
     """Extract subset of pan-Arctic/Antarctic region based on region bounds.
 
@@ -648,23 +668,49 @@ def process_subregion(region: tuple=None,
 
     for idx, arr in enumerate(data):
         if arr is not None and region is not None:
-            logging.info(f"Clipping data to specified bounds: {region}")
-            if region_definition.casefold() == "geographic":
-                # Limit to lon/lat region, within a given tolerance
-                tolerance = 1E-1
-                # Create condition where data is within geographic (lon/lat) region
-                condition = (arr.lon >= x1-tolerance) & (arr.lon <= x2+tolerance) & \
-                            (arr.lat >= y1-tolerance) & (arr.lat <= y2+tolerance)
-
-                # Extract subset within region using where()
-                data[idx] = arr.where(condition, drop=True)
-            elif region_definition.casefold() == "pixel":
-                x_max, y_max = arr.xc.shape[0], arr.yc.shape[0]
-
-                # Clip the data array to specified pixel region
-                data[idx] = arr[..., (y_max - y2):(y_max - y1), x1:x2]
+            logging.debug(f"Clipping data to specified bounds: {region}")
+            # Case when not an array, but an IceNet Masks class
+            if isinstance(arr, Masks):
+                if region_definition.casefold() == "geographic":
+                    masks = arr
+                    xc, yc = src_da.xc, src_da.yc
+                    lon, lat = src_da.lon, src_da.lat
+                    # Edge cases, where the time dimension is passed in,
+                    # seems to be with "./data/osisaf/north/siconca/2020.nc"
+                    # and, possibly newer.
+                    if "time" in lon.dims:
+                        lon = lon.isel(time=0)
+                    if "time" in lat.dims:
+                        lat = lat.isel(time=0)
+                    masks.set_region_by_lonlat(xc, yc, lon,lat, region)
+                    data[idx] = masks
+                elif region_definition.casefold() == "pixel":
+                    data[idx] = arr[..., (432 - y2):(432 - y1), x1:x2]
             else:
-                raise NotImplementedError("Only region_definition='pixel' or 'geographic' bounds are supported")
+                # If array only contains "xc" and "yc", but not "lon" and "lat".
+                # Reproject using pyproj to get it.
+                if "lon" not in arr.coords and "lat" not in arr.coords:
+                    target_crs = ccrs.LambertAzimuthalEqualArea(0, pole*90)
+                    arr = projection_to_geographic_coords(arr, target_crs)
+
+                lon, lat = arr.lon, arr.lat
+
+                if region_definition.casefold() == "geographic":
+                    # Limit to lon/lat region, within a given tolerance
+                    tolerance = 0
+                    # Create mask where data is within geographic (lon/lat) region
+                    mask = (lon >= x1-tolerance) & (lon <= x2+tolerance) & \
+                           (lat >= y1-tolerance) & (lat <= y2+tolerance)
+
+                    # Extract subset within region using where()
+                    data[idx] = arr.where(mask.compute(), drop=True)
+                elif region_definition.casefold() == "pixel":
+                    x_max, y_max = arr.xc.shape[0], arr.yc.shape[0]
+
+                    # Clip the data array to specified pixel region
+                    data[idx] = arr[..., (y_max - y2):(y_max - y1), x1:x2]
+                else:
+                    raise NotImplementedError("Only region_definition='pixel' or 'geographic' bounds are supported")
 
     return data
 

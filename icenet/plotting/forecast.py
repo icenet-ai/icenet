@@ -559,6 +559,8 @@ def compute_metrics_leadtime_avg(metric: str,
 
     :return: pandas dataframe with columns 'date', 'leadtime' and the metric name.
     """
+    pole = 1 if hemisphere == "north" else -1
+
     # open forecast file
     fc_ds = xr.open_dataset(forecast_file)
 
@@ -600,14 +602,15 @@ def compute_metrics_leadtime_avg(metric: str,
         if region is not None:
             seas, fc, obs, masks = process_subregion(region,
                                         [seas, fc, obs, masks],
-                                        region_definition="pixel"
+                                        pole,
+                                        region_definition="pixel",
                                         )
         elif region_geographic is not None:
-            raise NotImplementedError("Computing this metric with lon/lat region "
-                                    "bounds has not been implemented yet.")
             seas, fc, obs, masks = process_subregion(region_geographic,
                                         [seas, fc, obs, masks],
-                                        region_definition="geographic"
+                                        pole,
+                                        src_da=obs,
+                                        region_definition="geographic",
                                         )
 
         # compute metrics
@@ -923,6 +926,7 @@ def plot_metrics_leadtime_avg(metric: str,
                                                  data_path=data_path,
                                                  bias_correct=bias_correct,
                                                  region=region,
+                                                 region_geographic=region_geographic,
                                                  **kwargs)
 
     fc_metric_df = metric_df[metric_df["forecast_name"] == "IceNet"]
@@ -1486,6 +1490,8 @@ def binary_accuracy():
     ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold())
     args = ap.parse_args()
 
+    pole = 1 if args.hemisphere == "north" else -1
+
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
 
@@ -1513,13 +1519,14 @@ def binary_accuracy():
     if args.region is not None:
         seas, fc, obs, masks = process_subregion(args.region,
                                     [seas, fc, obs, masks],
+                                    pole,
                                     region_definition="pixel"
                                     )
     elif args.region_geographic is not None:
-        raise NotImplementedError("Computing this metric with lon/lat region "
-                                "bounds has not been implemented yet.")
         seas, fc, obs, masks = process_subregion(args.region_geographic,
                                     [seas, fc, obs, masks],
+                                    pole,
+                                    src_da=obs,
                                     region_definition="geographic"
                                     )
 
@@ -1539,6 +1546,8 @@ def sie_error():
     ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold().allow_sie())
     args = ap.parse_args()
 
+    pole = 1 if args.hemisphere == "north" else -1
+
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
 
@@ -1566,13 +1575,14 @@ def sie_error():
     if args.region is not None:
         seas, fc, obs, masks = process_subregion(args.region,
                                     [seas, fc, obs, masks],
+                                    pole,
                                     region_definition="pixel"
                                     )
     elif args.region_geographic is not None:
-        raise NotImplementedError("Computing this metric with lon/lat region "
-                                "bounds has not been implemented yet.")
         seas, fc, obs, masks = process_subregion(args.region_geographic,
                                     [seas, fc, obs, masks],
+                                    pole,
+                                    src_da=obs,
                                     region_definition="geographic"
                                     )
 
@@ -1706,6 +1716,7 @@ def plot_forecast():
     # Clip the actual data to the requested region if necessary
     fc = process_subregion(region_args,
                             [fc],
+                            pole,
                             region_definition=region_definition,
                         )[0]
 
@@ -1880,6 +1891,8 @@ def metric_plots():
     ap = (ForecastPlotArgParser().allow_ecmwf().allow_metrics())
     args = ap.parse_args()
 
+    pole = 1 if args.hemisphere == "north" else -1
+
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
 
@@ -1909,13 +1922,14 @@ def metric_plots():
     if args.region is not None:
         seas, fc, obs, masks = process_subregion(args.region,
                                     [seas, fc, obs, masks],
+                                    pole,
                                     region_definition="pixel"
                                     )
     elif args.region_geographic is not None:
-        raise NotImplementedError("Computing this metric with lon/lat region "
-                                "bounds has not been implemented yet.")
         seas, fc, obs, masks = process_subregion(args.region_geographic,
                                     [seas, fc, obs, masks],
+                                    pole,
+                                    src_da=obs,
                                     region_definition="geographic"
                                     )
 
@@ -1981,6 +1995,7 @@ def leadtime_avg_plots():
                               target_date_avg=args.target_date_average,
                               bias_correct=args.bias_correct,
                               region=args.region,
+                              region_geographic=args.region_geographic,
                               threshold=args.threshold,
                               grid_area_size=args.grid_area)
 
@@ -1991,6 +2006,8 @@ def sic_error():
     """
     ap = ForecastPlotArgParser()
     args = ap.parse_args()
+
+    pole = 1 if args.hemisphere == "north" else -1
 
     masks = Masks(north=args.hemisphere == "north",
                   south=args.hemisphere == "south")
@@ -2006,13 +2023,14 @@ def sic_error():
     if args.region is not None:
         fc, obs, masks = process_subregion(args.region,
                                     [fc, obs, masks],
+                                    pole,
                                     region_definition="pixel"
                                     )
     elif args.region_geographic is not None:
-        raise NotImplementedError("Computing this metric with lon/lat region "
-                                "bounds has not been implemented yet.")
         fc, obs, masks = process_subregion(args.region_geographic,
                                     [fc, obs, masks],
+                                    pole,
+                                    src_da=obs,
                                     region_definition="geographic"
                                     )
 

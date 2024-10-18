@@ -37,6 +37,8 @@ class Masks(Generator):
                  polarhole_radii: object = POLARHOLE_RADII,
                  data_shape: object = (432, 432),
                  dtype: object = np.float32,
+                 longitudes = None,
+                 latitudes = None,
                  **kwargs):
         """Initialises Masks across specified hemispheres.
 
@@ -52,7 +54,10 @@ class Masks(Generator):
         self._polarhole_radii = polarhole_radii
         self._dtype = dtype
         self._shape = data_shape
+        self.longitudes = longitudes
+        self.latitudes = latitudes
         self._region = (slice(None, None), slice(None, None))
+        self._region_geo_mask = None
 
         self.init_params()
 
@@ -199,6 +204,36 @@ class Masks(Generator):
                 logging.info("Saving polarhole {}".format(polarhole_path))
                 np.save(polarhole_path, polarhole)
 
+    def get_region_data(self, data):
+        """
+        Get either a lat/lon region or a pixel bounded region via slicing.
+
+        If setting region via lat/lon, coordinates must be passed by calling
+        `self.set_region_by_lonlat` method first.
+        """
+        if self._region_geo_mask is not None:
+            if self.longitudes is None or self.latitudes is None:
+                raise ValueError(f"Call {self.__name__}.set_region_by_lonlat first," +
+                                 "to pass in latitude and longitude coordinates.")
+            array = xr.DataArray(
+                data,
+                dims=('yc', 'xc'),
+                coords={
+                    'yc': self.yc,
+                    'xc': self.xc,
+                })
+            array["lon"] = (("yc", "xc"), self.longitudes.data)
+            array["lat"] = (("yc", "xc"), self.latitudes.data)
+            array = array.where(self._region_geo_mask.compute(), drop=True).values
+
+            # When used as weights for xarray.DataArray.weighted(), it shouldn't have
+            # nan's in grid (i.e., outside of lat/lon bounds), so set these areas to 0.
+            array = np.nan_to_num(array)
+
+            return array
+        else:
+            return data[self._region]
+
     def get_active_cell_mask(self, month: object) -> object:
         """Loads an active grid cell mask from numpy file.
 
@@ -221,9 +256,11 @@ class Masks(Generator):
             raise RuntimeError("Active cell masks have not been generated, "
                                "this is not done automatically so you might "
                                "want to address this!")
-
         # logging.debug("Loading active cell mask {}".format(mask_path))
-        return np.load(mask_path)[self._region]
+        data = np.load(mask_path)
+
+        return self.get_region_data(data)
+
 
     def get_active_cell_da(self, src_da: object) -> object:
         """Generate an xarray.DataArray object containing the active cell masks
@@ -237,17 +274,21 @@ class Masks(Generator):
             An xarray.DataArray containing active cell masks for each time
                 in source DataArray.
         """
-        return xr.DataArray(
-            [
+        active_cell_mask = [
                 self.get_active_cell_mask(pd.to_datetime(date).month)
                 for date in src_da.time.values
-            ],
+            ]
+
+        active_cell_mask_da = xr.DataArray(
+            active_cell_mask,
             dims=('time', 'yc', 'xc'),
             coords={
                 'time': src_da.time.values,
                 'yc': src_da.yc.values,
                 'xc': src_da.xc.values,
             })
+
+        return active_cell_mask_da
 
     def get_land_mask(self,
                       land_mask_filename: str = LAND_MASK_FILENAME) -> object:
@@ -271,7 +312,8 @@ class Masks(Generator):
                                "address this!")
 
         # logging.debug("Loading land mask {}".format(mask_path))
-        return np.load(mask_path)[self._region]
+        data = np.load(mask_path)
+        return self.get_region_data(data)
 
     def get_polarhole_mask(self, date: object) -> object:
         """Get mask of polar hole region.
@@ -289,7 +331,8 @@ class Masks(Generator):
                     self.get_data_var_folder("masks"),
                     "polarhole{}_mask.npy".format(i + 1))
                 # logging.debug("Loading polarhole {}".format(polarhole_path))
-                return np.load(polarhole_path)[self._region]
+                data = np.load(polarhole_path)
+                return self.get_region_data(data)
         return None
 
     def get_blank_mask(self) -> object:
@@ -300,7 +343,49 @@ class Masks(Generator):
                 of shape `self._shape` (the `data_shape` instance initialisation
                 value).
         """
-        return np.full(self._shape, False)[self._region]
+        data = np.full(self._shape, False)
+        return self.get_region_data(data)
+
+    def set_region_by_lonlat(self, xc, yc, lon, lat, region):
+        """
+        Sets the region based on longitude and latitude bounds by converting
+        them into index slices based on the provided xarray DataArray.
+
+        Alternative to __getitem__ if not using slicing.
+
+        Args:
+            xc:
+            yc:
+            lon:
+            lat:
+            region: lat/lon region bounds to get masks for, [lon_min, lat_min, lon_max, lat_max]
+            src_da: An xarray.DataArray that contains longitude and latitude coordinates.
+        """
+        self.xc = xc
+        self.yc = yc
+        self.longitudes = lon
+        self.latitudes = lat
+        self.region_geographic = region
+
+        lon_min, lat_min, lon_max, lat_max = region
+
+        lon_mask = (lon >= lon_min) & (lon <= lon_max)
+        lat_mask = (lat >= lat_min) & (lat <= lat_max)
+
+        lat_lon_mask = lat_mask & lon_mask
+
+        rows, cols = np.where(lat_lon_mask)
+
+        row_min, row_max = rows.min(), rows.max()
+        col_min, col_max = cols.min(), cols.max()
+
+        # Specify min/max latlon bounds via slicing
+        # (sideffect of slicing rectangular area aligned with `xc, yc`,
+        # instead of actual lon/lat)
+        # self._region = (slice(row_min, row_max+1), slice(col_min, col_max+1))
+
+        # Instead, when this is set, masks based on actual lon/lat bounds.
+        self._region_geo_mask = lat_lon_mask
 
     def __getitem__(self, item):
         """Sets slice of region wanted for masking, and allows method chaining.
@@ -318,6 +403,7 @@ class Masks(Generator):
         """Resets the mask region and logs a message indicating that the whole mask will be returned."""
         logging.info("Mask region reset, whole mask will be returned")
         self._region = (slice(None, None), slice(None, None))
+        self._region_geo_mask = None
 
 
 def main():
