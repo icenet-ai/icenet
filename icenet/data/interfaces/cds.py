@@ -25,7 +25,6 @@ class ERA5Downloader(ClimateDownloader):
 
     :param identifier: how to identify this dataset
     :param cdi_map: override the default ERA5Downloader.CDI_MAP variable map
-    :param use_toolbox: whether to use CDS toolbox for remote aggregation
     :param show_progress: whether to show download progress
     """
 
@@ -46,7 +45,6 @@ class ERA5Downloader(ClimateDownloader):
                  *args,
                  identifier: str = "era5",
                  cdi_map: object = CDI_MAP,
-                 use_toolbox: bool = False,
                  show_progress: bool = False,
                  **kwargs):
         super().__init__(*args,
@@ -56,11 +54,7 @@ class ERA5Downloader(ClimateDownloader):
         self.client = cds.Client(progress=show_progress)
         self._cdi_map = cdi_map
 
-        self._use_toolbox = use_toolbox
         self.download_method = self._single_api_download
-
-        if use_toolbox:
-            self.download_method = self._single_toolbox_download
 
         if self._max_threads > 10:
             logging.info("Upping connection limit for max_threads > 10")
@@ -69,76 +63,6 @@ class ERA5Downloader(ClimateDownloader):
                 pool_maxsize=self._max_threads)
             self.client.session.mount("https://", adapter)
 
-    def _single_toolbox_download(self, var: object, level: object,
-                                 req_dates: object, download_path: object):
-        """Implements a single download from CDS Toolbox API
-
-        :param var:
-        :param level: the pressure level to download
-        :param req_dates: the request dates
-        :param download_path:
-        """
-
-        logging.debug("Processing {} dates".format(len(req_dates)))
-        var_prefix = var[0:-(len(str(level)))] if level else var
-
-        params_dict = {
-            "realm": "c3s",
-            "project": "app-c3s-daily-era5-statistics",
-            "version": "master",
-            "workflow_name": "application",
-            "kwargs": {
-                "dataset": "reanalysis-era5-single-levels",
-                "product_type": "reanalysis",
-                "variable": self._cdi_map[var_prefix],
-                "pressure_level": "-",
-                "statistic": "daily_mean",
-                "year": req_dates[0].year,
-                "month": sorted(list(set([r.month for r in req_dates]))),
-                "frequency": "1-hourly",
-                "time_zone": "UTC+00:00",
-                "grid": "0.25/0.25",
-                "area": {
-                    "lat": [
-                        min([self.hemisphere_loc[0], self.hemisphere_loc[2]]),
-                        max([self.hemisphere_loc[0], self.hemisphere_loc[2]])
-                    ],
-                    "lon": [
-                        min([self.hemisphere_loc[1], self.hemisphere_loc[3]]),
-                        max([self.hemisphere_loc[1], self.hemisphere_loc[3]])
-                    ],
-                },
-            },
-        }
-
-        if level:
-            params_dict["kwargs"]["dataset"] = \
-                "reanalysis-era5-pressure-levels"
-            params_dict["kwargs"]["pressure_level"] = level
-
-        logging.debug("params_dict: {}".format(pformat(params_dict)))
-        result = self.client.service("tool.toolbox.orchestrator.workflow",
-                                     params=params_dict)
-
-        try:
-            logging.info("Downloading data for {}...".format(var))
-            logging.debug("Result: {}".format(result))
-
-            location = result[0]['location']
-            res = requests.get(location, stream=True)
-
-            logging.info("Writing data to {}".format(download_path))
-
-            with open(download_path, 'wb') as fh:
-                for r in res.iter_content(chunk_size=1024):
-                    fh.write(r)
-
-            logging.info("Download completed: {}".format(download_path))
-
-        except Exception as e:
-            logging.exception("{} not deleted, look at the "
-                              "problem".format(download_path))
-            raise RuntimeError(e)
 
     def _single_api_download(self, var: str, level: object, req_dates: object,
                              download_path: object):
@@ -199,13 +123,12 @@ class ERA5Downloader(ClimateDownloader):
     def postprocess(self, var: str, download_path: object):
         """Processing of CDS downloaded files
 
-        If we've not used the toolbox to download the files, we have a lot of
-        hourly data to average out, which is taken care of here
+        We have a lot of hourly data to average out, which is taken
+        care of here.
 
         :param var:
         :param download_path:
         """
-        # if not self._use_toolbox:
         logging.info("Postprocessing CDS API data at {}".format(download_path))
 
         temp_path = "{}.bak{}".format(*os.path.splitext(download_path))
@@ -311,7 +234,7 @@ def get_era5_available_date_range(dataset: str="reanalysis-era5-single-levels"):
 
 
 def main():
-    args = download_args(choices=["cdsapi", "toolbox"],
+    args = download_args(choices=["cdsapi"],
                          workers=True,
                          extra_args=((("-n", "--do-not-download"),
                                       dict(dest="download",
@@ -335,7 +258,6 @@ def main():
         max_threads=args.workers,
         postprocess=args.postprocess,
         north=args.hemisphere == "north",
-        south=args.hemisphere == "south",
-        use_toolbox=args.choice == "toolbox")
+        south=args.hemisphere == "south")
     era5.download()
     era5.regrid()
