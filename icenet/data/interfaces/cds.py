@@ -153,6 +153,8 @@ class ERA5Downloader(ClimateDownloader):
         logging.debug("Processing {} dates".format(len(req_dates)))
         var_prefix = var[0:-(len(str(level)))] if level else var
 
+        # TODO: Do we need to download whole month by default here?
+        #       Change request to download month just up to dates required?
         retrieve_dict = {
             "product_type":
                 "reanalysis",
@@ -176,6 +178,12 @@ class ERA5Downloader(ClimateDownloader):
         if level:
             dataset = "reanalysis-era5-pressure-levels"
             retrieve_dict["pressure_level"] = level
+
+        _, date_end = get_era5_available_date_range(dataset)
+        # TODO: This updates to dates available for download, prevents
+        #       redundant downloads but, requires work to prevent
+        #       postprocess method from running if no downloaded file.
+        req_dates = [date for date in req_dates if date <= date_end]
 
         try:
             logging.info("Downloading data for {}...".format(var))
@@ -205,8 +213,27 @@ class ERA5Downloader(ClimateDownloader):
         os.rename(download_path, temp_path)
 
         ds = xr.open_dataset(temp_path)
-        nom = list(ds.data_vars)[0]
-        da = getattr(ds.rename({nom: var}), var)
+
+        # New CDSAPI file holds more data_vars than just variable.
+        # Omit them when figuring out default CDS variable name.
+        omit_vars = set(["number", "expvar"])
+        data_vars = set(ds.data_vars)
+        nom = list(data_vars.difference(omit_vars))[0]
+        da = getattr(ds.rename({"valid_time": "time", nom: var}), var)
+
+        # This data downloader handles different pressure_levels in independent
+        # files rather than storing them all in separate dimension of one array/file.
+        if "pressure_level" in da.dims:
+            da = da.squeeze(dim="pressure_level").drop_vars("pressure_level")
+        if "number" in da.coords:
+            da = da.drop_vars("number")
+
+        # Removing some coord attribute definition
+        if "coordinates" in da.attrs:
+            omit_attrs = ["number", "expver", "isobaricInhPa"]
+            attributes = da.attrs["coordinates"].replace("valid_time", "time").split()
+            attributes = [attr for attr in attributes if attr not in omit_attrs]
+            da.attrs["coordinates"] = " ".join(attributes)
 
         doy_counts = da.time.groupby("time.dayofyear").count()
 
@@ -225,12 +252,18 @@ class ERA5Downloader(ClimateDownloader):
             ])
             da = da.where(da.time < pd.Timestamp(strip_dates_before), drop=True)
 
+        # Bryn Note:
+        # expver = 1: ERA5
+        # expver = 5: ERA5T
+        # The latest 3 months of data is ERA5T and may be subject to changes.
+        # Data prior to this is from ERA5.
+        # The new CDSAPI returns combined data when `reanalysis` is requested.
         if 'expver' in da.coords:
-            logging.warning("expvers {} in coordinates, will process out but "
-                            "this needs further work: expver needs storing for "
-                            "later overwriting".format(da.expver))
-            # Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=173385064
-            da = da.sel(expver=1).combine_first(da.sel(expver=5))
+            logging.warning("expver in coordinates, new cdsapi returns ERA5 and "
+                            "ERA5T combined, this needs further work: expver needs "
+                            "storing for later overwriting")
+            ## Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=173385064
+            #da = da.sel(expver=1).combine_first(da.sel(expver=5))
 
         da = da.sortby("time").resample(time='1D').mean()
         da.to_netcdf(download_path)
@@ -255,6 +288,26 @@ class ERA5Downloader(ClimateDownloader):
             # Convert from geopotential to geopotential height
             logging.debug("ERA5 additional regrid: {}".format(var_name))
             cube_ease.data /= 9.80665
+
+def get_era5_available_date_range(dataset: str="reanalysis-era5-single-levels"):
+    """Returns the time range for which ERA5(T) data is available.
+
+    Args:
+        dataset: Dataset for which available time range should be returned.
+
+    Returns:
+        date_start: Earliest time data is available from.
+        date_end: Latest time data available.
+    """
+    location = f"https://cds.climate.copernicus.eu/api/catalogue/v1/collections/{dataset}"
+    res = requests.get(location)
+
+    temporal_interval = res.json()["extent"]["temporal"]["interval"][0]
+    time_start, time_end = temporal_interval
+
+    date_start = pd.Timestamp(pd.to_datetime(time_start).date())
+    date_end = pd.Timestamp(pd.to_datetime(time_end).date())
+    return date_start, date_end
 
 
 def main():
