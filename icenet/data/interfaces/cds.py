@@ -139,9 +139,17 @@ class ERA5Downloader(ClimateDownloader):
 
         # New CDSAPI file holds more data_vars than just variable.
         # Omit them when figuring out default CDS variable name.
-        omit_vars = set(["number", "expvar"])
+        omit_vars = set(["number", "expver"])
         data_vars = set(ds.data_vars)
-        nom = list(data_vars.difference(omit_vars))[0]
+        var_list = list(data_vars.difference(omit_vars))
+        if not var_list:
+            raise ValueError(f"No variables found in file")
+        elif len(var_list) > 1:
+            raise ValueError(f"""Multiple variables found in data file!
+                                 There should only be one variable.
+                                 {var_list}"""
+                            )
+        nom = var_list[0]
         da = getattr(ds.rename({"valid_time": "time", nom: var}), var)
 
         # This data downloader handles different pressure_levels in independent
