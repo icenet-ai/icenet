@@ -18,7 +18,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet.process.predict import get_refcube
 from icenet.utils import setup_logging
-from icenet.plotting.utils import get_plot_axes, get_custom_cmap
+from icenet.plotting.utils import get_plot_axes, set_plot_geoaxes, get_custom_cmap
 
 # TODO: This can be a plotting or analysis util function elsewhere
 def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
@@ -78,7 +78,7 @@ def xarray_to_video(
     north: bool = True,
     south: bool = False,
     extent: tuple = None,
-    method: str = "pixel",
+    region_definition: str = "pixel",
     coastlines: str = "default",
     gridlines: bool = False,
     target_crs: object = None,
@@ -181,12 +181,14 @@ def xarray_to_video(
                             north=north,
                             south=south,
                             target_crs=target_crs,
-                            transform_crs=transform_crs,
-                            coastlines=coastlines,
-                            gridlines=gridlines,
                             figsize=figsize,
                             dpi=dpi,
                             )
+        ax = set_plot_geoaxes(ax,
+                              coastlines=coastlines,
+                              gridlines=gridlines,
+                              transform_crs=transform_crs,
+                              )
     else:
         ax = ax_init
         fig = ax.get_figure()
@@ -197,7 +199,7 @@ def xarray_to_video(
     if ax_extra is not None:
         ax_extra(ax)
 
-    if extent and method == "geographic":
+    if extent and region_definition == "geographic":
         ax.set_extent(extent, crs=transform_crs)
 
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
@@ -225,18 +227,18 @@ def xarray_to_video(
     # correctly with pcolormesh.
     custom_cmap = get_custom_cmap(cmap)
 
-    image = data.plot.pcolormesh("xc",
-                                    "yc",
-                                    ax=ax,
-                                    transform=target_crs,
-                                    animated=True,
-                                    zorder=1,
-                                    add_colorbar=False,
-                                    cmap=custom_cmap,
-                                    vmin=n_min,
-                                    vmax=n_max,
-                                    **imshow_kwargs if imshow_kwargs is not None else {}
-                                    )
+    image = data.plot.pcolormesh("lon",
+                                 "lat",
+                                 ax=ax,
+                                 transform=transform_crs,
+                                 animated=True,
+                                 zorder=1,
+                                 add_colorbar=False,
+                                 cmap=custom_cmap,
+                                 vmin=n_min,
+                                 vmax=n_max,
+                                 **imshow_kwargs if imshow_kwargs is not None else {}
+                                 )
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
         date.year, date.month, date.day),
