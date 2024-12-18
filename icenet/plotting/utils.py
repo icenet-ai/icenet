@@ -446,7 +446,7 @@ def set_plot_geoaxes(ax,
 
     if coastlines:
         auto_scaler = AdaptiveScaler("110m", (("50m", 150), ("10m", 50)))
-        land = NaturalEarthFeature("physical", "land", scale=auto_scaler, facecolor="dimgrey", edgecolor="black")
+        land = NaturalEarthFeature("physical", "land", scale="10m")
         if extent:
             clipped_land = ShapelyFeature([clipping_polygon.intersection(geom)
                                            for geom in land.geometries()],
@@ -478,8 +478,6 @@ def get_geoextent_polygon(extent, crs=ccrs.PlateCarree(), n_points=100):
     Define the number of interpolation points for the curves
     """
     lon_min, lon_max, lat_min, lat_max = extent
-
-    n_points = 100
 
     # Create arrays for the curved sections
     lon_values_bottom = np.linspace(lon_min, lon_max, n_points)
