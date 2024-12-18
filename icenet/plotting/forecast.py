@@ -1816,7 +1816,7 @@ def plot_forecast():
                 # Highlights sub-region being plotted in a reference plot of the globe
                 stored_extent = ax.get_extent()
 
-                # Output a reference image showing cropped region
+                # Output a reference image showing bounds of clipped region
                 if i == 0:
                     box_lon, box_lat = geographic_box((bound_args["x1"], bound_args["x2"]), (bound_args["y1"], bound_args["y2"]), segments=10)
 

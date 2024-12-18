@@ -430,11 +430,6 @@ def set_plot_geoaxes(ax,
                   ):
     plt.tight_layout(pad=4.0)
 
-    # extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
-    # ax.set_extent(extents, crs=proj)
-
-    #set_plot_geoextent(ax, extent)
-
     # Set colour for areas outside of `process_subregion()` - i.e., no data here.
     ax.set_facecolor("dimgrey")
 
@@ -473,12 +468,6 @@ def set_plot_geoaxes(ax,
         # Prevent generating labels beneath the colourbar
         gl.top_labels = False
         gl.right_labels = False
-
-    # # Plot polygon overlaying custom boundary region
-    #clipped_boundary = ShapelyFeature([clipping_polygon], ccrs.PlateCarree(), facecolor="orange")
-    #ax.add_feature(clipped_boundary, zorder=100)
-    # # Clip axis to custom lat/lon boundary shape
-    #ax.set_boundary(path, transform=ccrs.PlateCarree())
 
     return ax
 
