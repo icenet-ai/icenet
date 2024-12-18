@@ -33,7 +33,7 @@ from icenet.plotting.utils import (calculate_extents, filter_ds_by_obs,
                                    get_seas_forecast_init_dates,
                                    geographic_box, show_img,
                                    get_plot_axes, set_plot_geoaxes, process_probes,
-                                   process_subregion, get_custom_cmap,
+                                   process_region, get_custom_cmap,
                                    get_crs)
 from icenet.plotting.video import xarray_to_video
 
@@ -600,13 +600,13 @@ def compute_metrics_leadtime_avg(metric: str,
             seas = None
 
         if region is not None:
-            seas, fc, obs, masks = process_subregion(region,
+            seas, fc, obs, masks = process_region(region,
                                         [seas, fc, obs, masks],
                                         pole,
                                         region_definition="pixel",
                                         )
         elif region_geographic is not None:
-            seas, fc, obs, masks = process_subregion(region_geographic,
+            seas, fc, obs, masks = process_region(region_geographic,
                                         [seas, fc, obs, masks],
                                         pole,
                                         src_da=obs,
@@ -1517,13 +1517,13 @@ def binary_accuracy():
         seas = None
 
     if args.region is not None:
-        seas, fc, obs, masks = process_subregion(args.region,
+        seas, fc, obs, masks = process_region(args.region,
                                     [seas, fc, obs, masks],
                                     pole,
                                     region_definition="pixel"
                                     )
     elif args.region_geographic is not None:
-        seas, fc, obs, masks = process_subregion(args.region_geographic,
+        seas, fc, obs, masks = process_region(args.region_geographic,
                                     [seas, fc, obs, masks],
                                     pole,
                                     src_da=obs,
@@ -1573,13 +1573,13 @@ def sie_error():
         seas = None
 
     if args.region is not None:
-        seas, fc, obs, masks = process_subregion(args.region,
+        seas, fc, obs, masks = process_region(args.region,
                                     [seas, fc, obs, masks],
                                     pole,
                                     region_definition="pixel"
                                     )
     elif args.region_geographic is not None:
-        seas, fc, obs, masks = process_subregion(args.region_geographic,
+        seas, fc, obs, masks = process_region(args.region_geographic,
                                     [seas, fc, obs, masks],
                                     pole,
                                     src_da=obs,
@@ -1718,7 +1718,7 @@ def plot_forecast():
     if not args.clip_region:
         region_args = None
 
-    fc = process_subregion(region_args,
+    fc = process_region(region_args,
                             [fc],
                             pole,
                             region_definition=region_definition,
@@ -1917,13 +1917,13 @@ def metric_plots():
         seas = None
 
     if args.region is not None:
-        seas, fc, obs, masks = process_subregion(args.region,
+        seas, fc, obs, masks = process_region(args.region,
                                     [seas, fc, obs, masks],
                                     pole,
                                     region_definition="pixel"
                                     )
     elif args.region_geographic is not None:
-        seas, fc, obs, masks = process_subregion(args.region_geographic,
+        seas, fc, obs, masks = process_region(args.region_geographic,
                                     [seas, fc, obs, masks],
                                     pole,
                                     src_da=obs,
@@ -2018,13 +2018,13 @@ def sic_error():
     fc = filter_ds_by_obs(fc, obs, args.forecast_date)
 
     if args.region is not None:
-        fc, obs, masks = process_subregion(args.region,
+        fc, obs, masks = process_region(args.region,
                                     [fc, obs, masks],
                                     pole,
                                     region_definition="pixel"
                                     )
     elif args.region_geographic is not None:
-        fc, obs, masks = process_subregion(args.region_geographic,
+        fc, obs, masks = process_region(args.region_geographic,
                                     [fc, obs, masks],
                                     pole,
                                     src_da=obs,

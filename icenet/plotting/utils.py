@@ -430,7 +430,7 @@ def set_plot_geoaxes(ax,
                   ):
     plt.tight_layout(pad=4.0)
 
-    # Set colour for areas outside of `process_subregion()` - i.e., no data here.
+    # Set colour for areas outside of `process_region()` - i.e., no data here.
     ax.set_facecolor("dimgrey")
 
     if extent:
@@ -719,7 +719,7 @@ def projection_to_geographic_coords(data, target_crs):
     return data
 
 
-def process_subregion(region: tuple=None,
+def process_region(region: tuple=None,
         data: tuple=None,
         pole: int=1,
         src_da: object=None,
