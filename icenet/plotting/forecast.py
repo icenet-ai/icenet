@@ -1786,7 +1786,7 @@ def plot_forecast():
     else:
         fig, ax = get_plot_axes(**bound_args,
                                 geoaxes=True,
-                                target_crs=target_crs
+                                target_crs=target_crs,
                                 )
         ax = set_plot_geoaxes(ax,
                               extent=extent,
@@ -1794,14 +1794,16 @@ def plot_forecast():
                               gridlines=args.gridlines,
                               transform_crs=data_crs_geo,
                               )
+        # Convert from km to m
+        fc = fc.assign_coords(xc=fc.xc.data * 1000, yc=fc.yc.data * 1000)
 
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
 
-            im = pred_da.plot.pcolormesh("lon",
-                                         "lat",
+            im = pred_da.plot.pcolormesh("xc",
+                                         "yc",
                                          ax=ax,
-                                         transform=data_crs_geo,
+                                         transform=data_crs_proj,
                                          vmin=0,
                                          vmax=vmax,
                                          add_colorbar=False,
