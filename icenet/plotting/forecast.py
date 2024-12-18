@@ -1715,12 +1715,14 @@ def plot_forecast():
                                     y2=args.region_geographic[3])
 
     # Clip the actual data to the requested region if necessary
-    if args.clip_region:
-        fc = process_subregion(region_args,
-                                [fc],
-                                pole,
-                                region_definition=region_definition,
-                            )[0]
+    if not args.clip_region:
+        region_args = None
+
+    fc = process_subregion(region_args,
+                            [fc],
+                            pole,
+                            region_definition=region_definition,
+                        )[0]
 
     vmax = 1.
 
