@@ -16,6 +16,7 @@ import rioxarray
 import xarray as xr
 
 from cartopy.feature import ShapelyFeature, NaturalEarthFeature
+from cartopy.feature import AdaptiveScaler
 from functools import cache
 from ibicus.debias import LinearScaling
 from matplotlib.path import Path
@@ -447,7 +448,7 @@ def set_plot_geoaxes(ax,
         land = NaturalEarthFeature("physical", "land", scale="10m", facecolor="dimgrey")
         clipped_land = ShapelyFeature([clipping_polygon.intersection(geom)
                                        for geom in land.geometries()],
-                                       ccrs.PlateCarree(), facecolor="dimgrey", edgecolor="black")
+                                       ccrs.PlateCarree(), facecolor="dimgrey")
 
         ax.add_feature(clipped_land, zorder=100)
 
@@ -457,7 +458,8 @@ def set_plot_geoaxes(ax,
         # Add OSMnx GeoDataFrame of coastlines
         #gdf = ox.features_from_place("Antarctica", tags={"natural": "coastline"})
         #gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5)
-        ax.coastlines(resolution="auto", zorder=100)
+        auto_scaler = AdaptiveScaler("110m", (("50m", 150), ("10m", 50)))
+        ax.coastlines(resolution=auto_scaler, zorder=100)
 
     if gridlines:
         gl = ax.gridlines(crs=transform_crs, draw_labels=True)
