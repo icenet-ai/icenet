@@ -1796,6 +1796,7 @@ def plot_forecast():
         # Convert from km to m
         fc = fc.assign_coords(xc=fc.xc.data * 1000, yc=fc.yc.data * 1000)
 
+        cbar = None
         for i, leadtime in enumerate(leadtimes):
             pred_da = fc.sel(leadtime=leadtime).isel(time=0)
 
@@ -1840,10 +1841,13 @@ def plot_forecast():
                 logging.debug("Forecast plot extent:", extent)
                 ax.set_extent(extent, crs=data_crs_geo)
 
-            divider = make_axes_locatable(ax)
-            # Pass axes_class to set correct colourbar height with cartopy
-            cax = divider.append_axes("right", size="5%", pad=0.05, axes_class=plt.Axes)
-            cbar = plt.colorbar(im, ax=ax, cax=cax)
+            if not cbar:
+                divider = make_axes_locatable(ax)
+                # Pass axes_class to set correct colourbar height with cartopy
+                cax = divider.append_axes("right", size="5%", pad=0.05, axes_class=plt.Axes)
+                cbar = plt.colorbar(im, ax=ax, cax=cax)
+                if colorbar_label:
+                    cbar.set_label(colorbar_label)
 
             plot_date = args.forecast_date + dt.timedelta(leadtime)
             ax.set_title("{:04d}/{:02d}/{:02d}".format(plot_date.year,
@@ -1851,8 +1855,6 @@ def plot_forecast():
                                                        plot_date.day),
                                                        fontsize="large",
                                                        )
-            if colorbar_label:
-                cbar.set_label(colorbar_label)
             plt.subplots_adjust(right=0.9)
             output_filename = os.path.join(
                 output_path, "{}.{}.{}{}".format(
