@@ -1638,12 +1638,13 @@ def plot_forecast():
     ap.add_argument("--crs",
                         default=None,
                         help="Coordinate Reference System to use for plotting")
-    ap.add_argument("--no-clip-region",
+    ap.add_argument("--clip-region",
                         action="store_true",
                         default=False,
                         help="Whether to clip the data to the region specified by lon/lat,"\
-                            " When enabled, this shows missing values when plotting along boundaries"\
-                            " due to lon/lat curvature. Default is False"
+                            " When enabled, this crops forecast plot to the bounds, can cause"\
+                            " empty pixels across image edges due to lon/lat curvature."\
+                            " Default is False."
                         )
     args = ap.parse_args()
 
@@ -1714,11 +1715,12 @@ def plot_forecast():
                                     y2=args.region_geographic[3])
 
     # Clip the actual data to the requested region if necessary
-    fc = process_subregion(region_args,
-                            [fc],
-                            pole,
-                            region_definition=region_definition,
-                        )[0]
+    if args.clip_region:
+        fc = process_subregion(region_args,
+                                [fc],
+                                pole,
+                                region_definition=region_definition,
+                            )[0]
 
     vmax = 1.
 
