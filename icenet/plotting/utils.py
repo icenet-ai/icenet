@@ -8,19 +8,22 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import dask.array as da
 import matplotlib as mpl
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rioxarray
 import xarray as xr
 
+from cartopy.feature import ShapelyFeature, NaturalEarthFeature
 from functools import cache
 from ibicus.debias import LinearScaling
+from matplotlib.path import Path
 from pyproj import CRS, Transformer
 from rasterio.enums import Resampling
+from shapely.geometry import Polygon
 
 from icenet.data.sic.mask import Masks
-
 
 def broadcast_forecast(start_date: object,
                        end_date: object,
@@ -420,6 +423,7 @@ def get_plot_axes(x1: int = 0,
 
 
 def set_plot_geoaxes(ax,
+                  extent: list,
                   coastlines: str = None,
                   gridlines: bool = False,
                   transform_crs: object = ccrs.PlateCarree(),
@@ -429,24 +433,98 @@ def set_plot_geoaxes(ax,
     # extents = pixel_to_projection(x1, x2, y1, y2, x_min_proj, x_max_proj, y_min_proj, y_max_proj, 432, 432)
     # ax.set_extent(extents, crs=proj)
 
+    #set_plot_geoextent(ax, extent)
+
     # Set colour for areas outside of `process_subregion()` - i.e., no data here.
-    ax.set_facecolor('dimgrey')
+    ax.set_facecolor("dimgrey")
+
+    lon_min, lon_max, lat_min, lat_max = extent
+    ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+    clipping_polygon = Polygon(get_geoextent_polygon(extent))
+    path = Path(np.array(clipping_polygon.exterior.coords))
 
     if coastlines:
-        ax.add_feature(cfeature.LAND, facecolor="dimgrey", zorder=1)
-        if isinstance(coastlines, str) and coastlines.casefold() == "gshhs":
-            # Higher resolution coastlines when a region is specified
-            ax.add_feature(cfeature.GSHHSFeature(scale="auto", levels=[1]), zorder=100)
-        elif isinstance(coastlines, bool) or coastlines.casefold() == "default":
-            ax.coastlines(resolution="50m", zorder=100)
+        land = NaturalEarthFeature("physical", "land", scale="10m", facecolor="dimgrey")
+        clipped_land = ShapelyFeature([clipping_polygon.intersection(geom)
+                                       for geom in land.geometries()],
+                                       ccrs.PlateCarree(), facecolor="dimgrey", edgecolor="black")
+
+        ax.add_feature(clipped_land, zorder=100)
+
+        # Draw coastlines explicitly within the clipping region
+        ax.add_geometries([clipping_polygon], ccrs.PlateCarree(), edgecolor="black", facecolor="none", linewidth=0.8, zorder=2)
+
+        # Add OSMnx GeoDataFrame of coastlines
+        #gdf = ox.features_from_place("Antarctica", tags={"natural": "coastline"})
+        #gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5)
+        ax.coastlines(resolution="auto", zorder=100)
 
     if gridlines:
         gl = ax.gridlines(crs=transform_crs, draw_labels=True)
+
         # Prevent generating labels beneath the colourbar
         gl.top_labels = False
         gl.right_labels = False
 
+    # # Plot polygon overlaying custom boundary region
+    #clipped_boundary = ShapelyFeature([clipping_polygon], ccrs.PlateCarree(), facecolor="orange")
+    #ax.add_feature(clipped_boundary, zorder=100)
+    # # Clip axis to custom lat/lon boundary shape
+    #ax.set_boundary(path, transform=ccrs.PlateCarree())
+
     return ax
+
+def get_geoextent_polygon(extent, crs=ccrs.PlateCarree(), n_points=100):
+    """Create a high-resolution polygon for the boundary.
+
+    Increase the number of points to approximate the curved edges
+    Define the number of interpolation points for the curves
+    """
+    lon_min, lon_max, lat_min, lat_max = extent
+
+    n_points = 100
+
+    # Create arrays for the curved sections
+    lon_values_bottom = np.linspace(lon_min, lon_max, n_points)
+    lat_values_left = np.linspace(lat_min, lat_max, n_points)
+
+    # Create a polygon by defining more points along the edges
+    polygon = []
+
+    # Bottom edge (lat_min)
+    for lon in lon_values_bottom:
+        polygon.append([lon, lat_min])
+
+    # Right edge (lon_max)
+    for lat in lat_values_left:
+        polygon.append([lon_max, lat])
+
+    # Top edge (lat_max)
+    for lon in lon_values_bottom[::-1]:
+        polygon.append([lon, lat_max])
+
+    # Left edge (lon_min)
+    for lat in lat_values_left[::-1]:
+        polygon.append([lon_min, lat])
+
+    return polygon
+
+def set_plot_geoextent(ax, extent, crs=ccrs.PlateCarree(), n_points=100):
+    """Create a high-resolution polygon for the boundary
+    """
+    ax.set_extent(extent, crs=crs)
+
+    # Create polygon and convert it to a matplotlib Path
+    polygon = Path(get_geoextent_polygon(extent), crs=crs, n_points=n_points)
+
+    # Show polygon patch in plot
+    patch = patches.PathPatch(polygon, facecolor='orange', lw=2, transform=ccrs.PlateCarree())
+    #ax.add_patch(patch)
+
+    # Sets custom boundary, buggy with small lat/lon bounds
+    # Coastlines, land, and gridlines spill outside of boundary
+    ax.set_boundary(polygon, transform=ccrs.PlateCarree())
+
 
 def show_img(ax,
              arr,

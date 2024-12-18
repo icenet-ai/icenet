@@ -18,7 +18,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet.process.predict import get_refcube
 from icenet.utils import setup_logging
-from icenet.plotting.utils import get_plot_axes, set_plot_geoaxes, get_custom_cmap
+from icenet.plotting.utils import get_plot_axes, set_plot_geoaxes, set_plot_geoextent, get_custom_cmap
 
 # TODO: This can be a plotting or analysis util function elsewhere
 def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
@@ -185,6 +185,7 @@ def xarray_to_video(
                             dpi=dpi,
                             )
         ax = set_plot_geoaxes(ax,
+                              extent=extent,
                               coastlines=coastlines,
                               gridlines=gridlines,
                               transform_crs=transform_crs,
@@ -199,8 +200,9 @@ def xarray_to_video(
     if ax_extra is not None:
         ax_extra(ax)
 
-    if extent and region_definition == "geographic":
-        ax.set_extent(extent, crs=transform_crs)
+    #if extent and region_definition == "geographic":
+    #    # ax.set_extent(extent, crs=transform_crs)
+    #    set_plot_geoextent(ax, extent)
 
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
 

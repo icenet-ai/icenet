@@ -1730,21 +1730,12 @@ def plot_forecast():
         if args.leadtimes is not None \
         else list(range(1, int(max(fc.leadtime.values)) + 1))
 
-    # Define which coastline data to use for plots.
-    # Set to use `GHSS` when specifying a sub-region, else, default `Natural Earth`
-    # coastlines.
-    coastlines = "default"
     if args.region is not None or args.region_geographic is not None:
         extent = (bound_args["x1"], bound_args["x2"], bound_args["y1"], bound_args["y2"])
-        # Note: Using GSHHS coastlines will slow png/mp4 output quite a bit!
-        # This is automatically activated when a sub region is specified with the
-        # '-r' or '-z' region flags.
-        coastlines = "gshhs"
     else:
         extent = None
 
-    if args.no_coastlines:
-        coastlines = None
+    coastlines = not args.no_coastlines
 
     custom_cmap = get_custom_cmap(cmap)
 
@@ -1794,6 +1785,7 @@ def plot_forecast():
                                 target_crs=target_crs
                                 )
         ax = set_plot_geoaxes(ax,
+                              extent=extent,
                               coastlines=coastlines,
                               gridlines=args.gridlines,
                               transform_crs=data_crs_geo,
@@ -1831,7 +1823,7 @@ def plot_forecast():
                             forecast_name,
                             (args.forecast_date + dt.timedelta(days=leadtime)).strftime("%Y%m%d"),
                             "" if not args.stddev else "stddev.", "jpg"))
-                    plt.savefig(output_filename)
+                    plt.savefig(output_filename, dpi=600)
 
                     for handle in region_plot:
                         handle.remove()
