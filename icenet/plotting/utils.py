@@ -424,7 +424,7 @@ def get_plot_axes(x1: int = 0,
 
 
 def set_plot_geoaxes(ax,
-                  extent: list,
+                  extent: list = None,
                   coastlines: str = None,
                   gridlines: bool = False,
                   transform_crs: object = ccrs.PlateCarree(),
@@ -439,21 +439,23 @@ def set_plot_geoaxes(ax,
     # Set colour for areas outside of `process_subregion()` - i.e., no data here.
     ax.set_facecolor("dimgrey")
 
-    lon_min, lon_max, lat_min, lat_max = extent
-    ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
-    clipping_polygon = Polygon(get_geoextent_polygon(extent))
-    path = Path(np.array(clipping_polygon.exterior.coords))
+    if extent:
+        lon_min, lon_max, lat_min, lat_max = extent
+        ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+        clipping_polygon = Polygon(get_geoextent_polygon(extent))
+        path = Path(np.array(clipping_polygon.exterior.coords))
 
     if coastlines:
         land = NaturalEarthFeature("physical", "land", scale="10m", facecolor="dimgrey")
-        clipped_land = ShapelyFeature([clipping_polygon.intersection(geom)
-                                       for geom in land.geometries()],
-                                       ccrs.PlateCarree(), facecolor="dimgrey")
-
-        ax.add_feature(clipped_land, zorder=100)
-
-        # Draw coastlines explicitly within the clipping region
-        ax.add_geometries([clipping_polygon], ccrs.PlateCarree(), edgecolor="black", facecolor="none", linewidth=0.8, zorder=2)
+        if extent:
+            clipped_land = ShapelyFeature([clipping_polygon.intersection(geom)
+                                           for geom in land.geometries()],
+                                           ccrs.PlateCarree(), facecolor="dimgrey")
+            ax.add_feature(clipped_land, zorder=100)
+            # Draw coastlines explicitly within the clipping region
+            ax.add_geometries([clipping_polygon], ccrs.PlateCarree(), edgecolor="black", facecolor="none", linewidth=0.8, zorder=2)
+        else:
+            ax.add_feature(land, zorder=100)
 
         # Add OSMnx GeoDataFrame of coastlines
         #gdf = ox.features_from_place("Antarctica", tags={"natural": "coastline"})
