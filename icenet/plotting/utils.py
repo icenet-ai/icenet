@@ -427,7 +427,6 @@ def set_plot_geoaxes(ax,
                   extent: list = None,
                   coastlines: str = None,
                   gridlines: bool = False,
-                  transform_crs: object = ccrs.PlateCarree(),
                   ):
     plt.tight_layout(pad=4.0)
 
@@ -441,30 +440,35 @@ def set_plot_geoaxes(ax,
 
     if extent:
         lon_min, lon_max, lat_min, lat_max = extent
+        # With some projections like Mercator, it doesn't like having exact boundary longitude
+        if lon_min == -180:
+            lon_min = -179.99
+        elif lon_max == 180:
+            lon_max = 179.99
         ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
         clipping_polygon = Polygon(get_geoextent_polygon(extent))
         path = Path(np.array(clipping_polygon.exterior.coords))
 
     if coastlines:
-        land = NaturalEarthFeature("physical", "land", scale="10m", facecolor="dimgrey")
+        auto_scaler = AdaptiveScaler("110m", (("50m", 150), ("10m", 50)))
+        land = NaturalEarthFeature("physical", "land", scale=auto_scaler, facecolor="dimgrey", edgecolor="black")
         if extent:
             clipped_land = ShapelyFeature([clipping_polygon.intersection(geom)
                                            for geom in land.geometries()],
                                            ccrs.PlateCarree(), facecolor="dimgrey")
             ax.add_feature(clipped_land, zorder=100)
             # Draw coastlines explicitly within the clipping region
-            ax.add_geometries([clipping_polygon], ccrs.PlateCarree(), edgecolor="black", facecolor="none", linewidth=0.8, zorder=2)
+            ax.add_geometries([clipping_polygon], ccrs.PlateCarree(), edgecolor="red", facecolor="none", linewidth=1, linestyle="dashed", zorder=100)
         else:
             ax.add_feature(land, zorder=100)
 
         # Add OSMnx GeoDataFrame of coastlines
         #gdf = ox.features_from_place("Antarctica", tags={"natural": "coastline"})
         #gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5)
-        auto_scaler = AdaptiveScaler("110m", (("50m", 150), ("10m", 50)))
         ax.coastlines(resolution=auto_scaler, zorder=100)
 
     if gridlines:
-        gl = ax.gridlines(crs=transform_crs, draw_labels=True)
+        gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True)
 
         # Prevent generating labels beneath the colourbar
         gl.top_labels = False

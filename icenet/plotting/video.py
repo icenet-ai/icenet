@@ -188,7 +188,6 @@ def xarray_to_video(
                               extent=extent,
                               coastlines=coastlines,
                               gridlines=gridlines,
-                              transform_crs=transform_crs,
                               )
     else:
         ax = ax_init

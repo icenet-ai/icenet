@@ -1792,7 +1792,6 @@ def plot_forecast():
                               extent=extent,
                               coastlines=coastlines,
                               gridlines=args.gridlines,
-                              transform_crs=data_crs_geo,
                               )
         # Convert from km to m
         fc = fc.assign_coords(xc=fc.xc.data * 1000, yc=fc.yc.data * 1000)
