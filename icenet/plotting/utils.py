@@ -446,7 +446,7 @@ def set_plot_geoaxes(ax,
 
     if coastlines:
         auto_scaler = AdaptiveScaler("110m", (("50m", 150), ("10m", 50)))
-        land = NaturalEarthFeature("physical", "land", scale="10m")
+        land = NaturalEarthFeature("physical", "land", scale="10m", facecolor="dimgrey")
         if extent:
             clipped_land = ShapelyFeature([clipping_polygon.intersection(geom)
                                            for geom in land.geometries()],
