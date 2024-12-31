@@ -1790,8 +1790,11 @@ def plot_forecast():
                                 )
         ax = set_plot_geoaxes(ax,
                               extent=extent,
+                              region_definition=region_definition,
                               coastlines=coastlines,
                               gridlines=args.gridlines,
+                              north=bound_args["north"],
+                              south=bound_args["south"],
                               )
         # Convert from km to m
         fc = fc.assign_coords(xc=fc.xc.data * 1000, yc=fc.yc.data * 1000)

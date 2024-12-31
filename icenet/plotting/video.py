@@ -185,9 +185,12 @@ def xarray_to_video(
                             dpi=dpi,
                             )
         ax = set_plot_geoaxes(ax,
+                              region_definition=region_definition,
                               extent=extent,
                               coastlines=coastlines,
                               gridlines=gridlines,
+                              north=north,
+                              south=south,
                               )
     else:
         ax = ax_init

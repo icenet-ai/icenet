@@ -424,43 +424,53 @@ def get_plot_axes(x1: int = 0,
 
 
 def set_plot_geoaxes(ax,
+                  region_definition: str = None,
                   extent: list = None,
                   coastlines: str = None,
                   gridlines: bool = False,
+                  north: bool = True,
+                  south: bool = False,
                   ):
     plt.tight_layout(pad=4.0)
 
     # Set colour for areas outside of `process_region()` - i.e., no data here.
     ax.set_facecolor("dimgrey")
 
+    pole = 1 if north else -1
+    proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
+
     if extent:
-        lon_min, lon_max, lat_min, lat_max = extent
-        # With some projections like Mercator, it doesn't like having exact boundary longitude
-        if lon_min == -180:
-            lon_min = -179.99
-        elif lon_max == 180:
-            lon_max = 179.99
-        ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
-        clipping_polygon = Polygon(get_geoextent_polygon(extent))
-        path = Path(np.array(clipping_polygon.exterior.coords))
+        if region_definition == "pixel":
+            extents = calculate_extents(*extent)
+            ax.set_extent(extents, crs=proj)
+        elif region_definition == "geographic":
+            lon_min, lon_max, lat_min, lat_max = extent
+            # With some projections like Mercator, it doesn't like having exact boundary longitude
+            if lon_min == -180:
+                lon_min = -179.99
+            elif lon_max == 180:
+                lon_max = 179.99
+            ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+            clipping_polygon = Polygon(get_geoextent_polygon(extent))
+            path = Path(np.array(clipping_polygon.exterior.coords))
 
     if coastlines:
         auto_scaler = AdaptiveScaler("110m", (("50m", 150), ("10m", 50)))
         land = NaturalEarthFeature("physical", "land", scale="10m", facecolor="dimgrey")
-        if extent:
+        if extent and region_definition == "geographic":
             clipped_land = ShapelyFeature([clipping_polygon.intersection(geom)
                                            for geom in land.geometries()],
                                            ccrs.PlateCarree(), facecolor="dimgrey")
-            ax.add_feature(clipped_land, zorder=100)
+            ax.add_feature(clipped_land)
             # Draw coastlines explicitly within the clipping region
-            ax.add_geometries([clipping_polygon], ccrs.PlateCarree(), edgecolor="red", facecolor="none", linewidth=1, linestyle="dashed", zorder=100)
+            ax.add_geometries([clipping_polygon], ccrs.PlateCarree(), edgecolor="red", facecolor="none", linewidth=0.75, linestyle="dashed", zorder=100)
         else:
-            ax.add_feature(land, zorder=100)
+            ax.add_feature(land)
 
         # Add OSMnx GeoDataFrame of coastlines
         #gdf = ox.features_from_place("Antarctica", tags={"natural": "coastline"})
         #gdf.plot(ax=ax, facecolor='none', edgecolor='black', linewidth=0.5)
-        ax.coastlines(resolution=auto_scaler, zorder=100)
+        ax.coastlines(resolution=auto_scaler)
 
     if gridlines:
         gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True)
