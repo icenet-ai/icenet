@@ -1,0 +1,12 @@
+name: icenet
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - eccodes
+  - ffmpeg
+  - netcdf4<1.6.1
+  - pip
+  - python=3.11
+  - pip:
+    - -e .
