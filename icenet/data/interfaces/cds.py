@@ -174,6 +174,15 @@ class ERA5Downloader(ClimateDownloader):
         # that's second
         # FIXME: This will cause issues for already processed latlon data
         if len(doy_counts[doy_counts < 24]) > 0:
+            # Edge case, where if first day of the month is the only day available, and
+            # partially so.
+            # e.g. 2025-01-01, with 00:00, 01:00 and 02:00 available, so, only 3 hours
+            # available, not 24 hours to create a daily average.
+            # This will only occur if trying to donwload on the 6th of a month due to 5 day
+            # lag in ERA5 data availability (available data = present day - 5).
+            if len(doy_counts) == 1:
+                # In this case, nothing to download/postprocess.
+                return
             strip_dates_before = min([
                 dt.datetime.strptime(
                     "{}-{}".format(d,
