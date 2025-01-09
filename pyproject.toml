@@ -104,7 +104,9 @@ dev = [
 ]
 docs = [
   "jinja2",
-  "Sphinx"
+  "Sphinx",
+  "pylint",
+  "sphinxcontrib-kroki",
 ]
 
 [project.urls]

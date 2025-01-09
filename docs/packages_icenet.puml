@@ -2,29 +2,15 @@
 set namespaceSeparator none
 package "icenet" as icenet #77AADD {
 }
+package "icenet.cli" as icenet.cli #77AADD {
+}
 package "icenet.data" as icenet.data #99DDFF {
-}
-package "icenet.data.cli" as icenet.data.cli #99DDFF {
-}
-package "icenet.data.dataset" as icenet.data.dataset #99DDFF {
 }
 package "icenet.data.datasets" as icenet.data.datasets #99DDFF {
 }
+package "icenet.data.datasets.splitting" as icenet.data.datasets.splitting #99DDFF {
+}
 package "icenet.data.datasets.utils" as icenet.data.datasets.utils #99DDFF {
-}
-package "icenet.data.interfaces" as icenet.data.interfaces #99DDFF {
-}
-package "icenet.data.interfaces.cds" as icenet.data.interfaces.cds #99DDFF {
-}
-package "icenet.data.interfaces.cmems" as icenet.data.interfaces.cmems #99DDFF {
-}
-package "icenet.data.interfaces.downloader" as icenet.data.interfaces.downloader #99DDFF {
-}
-package "icenet.data.interfaces.esgf" as icenet.data.interfaces.esgf #99DDFF {
-}
-package "icenet.data.interfaces.mars" as icenet.data.interfaces.mars #99DDFF {
-}
-package "icenet.data.interfaces.utils" as icenet.data.interfaces.utils #99DDFF {
 }
 package "icenet.data.loader" as icenet.data.loader #99DDFF {
 }
@@ -38,45 +24,51 @@ package "icenet.data.loaders.stdlib" as icenet.data.loaders.stdlib #99DDFF {
 }
 package "icenet.data.loaders.utils" as icenet.data.loaders.utils #99DDFF {
 }
-package "icenet.data.process" as icenet.data.process #99DDFF {
+package "icenet.data.masks" as icenet.data.masks #99DDFF {
+}
+package "icenet.data.masks.nsidc" as icenet.data.masks.nsidc #99DDFF {
+}
+package "icenet.data.masks.osisaf" as icenet.data.masks.osisaf #99DDFF {
+}
+package "icenet.data.meta" as icenet.data.meta #99DDFF {
+}
+package "icenet.data.network_dataset" as icenet.data.network_dataset #99DDFF {
 }
 package "icenet.data.processors" as icenet.data.processors #99DDFF {
 }
+package "icenet.data.processors.amsr" as icenet.data.processors.amsr #99DDFF {
+}
+package "icenet.data.processors.cds" as icenet.data.processors.cds #99DDFF {
+}
 package "icenet.data.processors.cmip" as icenet.data.processors.cmip #99DDFF {
 }
-package "icenet.data.processors.era5" as icenet.data.processors.era5 #99DDFF {
+package "icenet.data.processors.osisaf" as icenet.data.processors.osisaf #99DDFF {
 }
-package "icenet.data.processors.hres" as icenet.data.processors.hres #99DDFF {
+package "icenet.data.references" as icenet.data.references #99DDFF {
 }
-package "icenet.data.processors.meta" as icenet.data.processors.meta #99DDFF {
+package "icenet.data.references.osisaf" as icenet.data.references.osisaf #99DDFF {
 }
-package "icenet.data.processors.oras5" as icenet.data.processors.oras5 #99DDFF {
-}
-package "icenet.data.processors.osi" as icenet.data.processors.osi #99DDFF {
-}
-package "icenet.data.processors.utils" as icenet.data.processors.utils #99DDFF {
-}
-package "icenet.data.producers" as icenet.data.producers #99DDFF {
-}
-package "icenet.data.sic" as icenet.data.sic #99DDFF {
-}
-package "icenet.data.sic.mask" as icenet.data.sic.mask #99DDFF {
-}
-package "icenet.data.sic.osisaf" as icenet.data.sic.osisaf #99DDFF {
-}
-package "icenet.data.sic.utils" as icenet.data.sic.utils #99DDFF {
-}
-package "icenet.data.utils" as icenet.data.utils #99DDFF {
+package "icenet.exceptions" as icenet.exceptions #77AADD {
 }
 package "icenet.model" as icenet.model #44BB99 {
 }
 package "icenet.model.callbacks" as icenet.model.callbacks #44BB99 {
 }
+package "icenet.model.cli" as icenet.model.cli #44BB99 {
+}
+package "icenet.model.handlers" as icenet.model.handlers #44BB99 {
+}
+package "icenet.model.handlers.wandb" as icenet.model.handlers.wandb #44BB99 {
+}
 package "icenet.model.losses" as icenet.model.losses #44BB99 {
 }
 package "icenet.model.metrics" as icenet.model.metrics #44BB99 {
 }
-package "icenet.model.models" as icenet.model.models #44BB99 {
+package "icenet.model.networks" as icenet.model.networks #44BB99 {
+}
+package "icenet.model.networks.base" as icenet.model.networks.base #44BB99 {
+}
+package "icenet.model.networks.tensorflow" as icenet.model.networks.tensorflow #44BB99 {
 }
 package "icenet.model.predict" as icenet.model.predict #44BB99 {
 }
@@ -124,90 +116,37 @@ package "icenet.tests.test_mod" as icenet.tests.test_mod #EE8866 {
 }
 package "icenet.utils" as icenet.utils #77AADD {
 }
-icenet.data.cli --> icenet.utils
-icenet.data.dataset --> icenet.data.datasets.utils
-icenet.data.dataset --> icenet.data.loader
-icenet.data.dataset --> icenet.data.producers
-icenet.data.dataset --> icenet.utils
-icenet.data.interfaces.cds --> icenet.data.cli
-icenet.data.interfaces.cds --> icenet.data.interfaces.downloader
-icenet.data.interfaces.cmems --> icenet.data.cli
-icenet.data.interfaces.cmems --> icenet.data.interfaces.downloader
-icenet.data.interfaces.cmems --> icenet.utils
-icenet.data.interfaces.downloader --> icenet.data.interfaces.utils
-icenet.data.interfaces.downloader --> icenet.data.producers
-icenet.data.interfaces.downloader --> icenet.data.sic.mask
-icenet.data.interfaces.downloader --> icenet.data.sic.utils
-icenet.data.interfaces.downloader --> icenet.data.utils
-icenet.data.interfaces.downloader --> icenet.utils
-icenet.data.interfaces.esgf --> icenet.data.cli
-icenet.data.interfaces.esgf --> icenet.data.interfaces.downloader
-icenet.data.interfaces.esgf --> icenet.data.utils
-icenet.data.interfaces.mars --> icenet.data.cli
-icenet.data.interfaces.mars --> icenet.data.interfaces.downloader
-icenet.data.interfaces.mars --> icenet.data.interfaces.utils
-icenet.data.interfaces.utils --> icenet.utils
-icenet.data.loader --> icenet.data.cli
+icenet.data.datasets.splitting --> icenet.data.datasets.utils
 icenet.data.loader --> icenet.data.loaders
 icenet.data.loader --> icenet.utils
 icenet.data.loaders --> icenet.data.loaders.base
 icenet.data.loaders --> icenet.data.loaders.dask
-icenet.data.loaders.base --> icenet.data.process
-icenet.data.loaders.base --> icenet.data.producers
 icenet.data.loaders.dask --> icenet.data.loaders.base
 icenet.data.loaders.dask --> icenet.data.loaders.utils
-icenet.data.loaders.dask --> icenet.data.process
-icenet.data.loaders.dask --> icenet.data.sic.mask
+icenet.data.loaders.dask --> icenet.data.masks.osisaf
 icenet.data.loaders.stdlib --> icenet.data.loaders.base
-icenet.data.process --> icenet.data.producers
-icenet.data.process --> icenet.data.sic.mask
-icenet.data.process --> icenet.model.models
-icenet.data.processors.cmip --> icenet.data.cli
-icenet.data.processors.cmip --> icenet.data.process
-icenet.data.processors.cmip --> icenet.data.processors.utils
-icenet.data.processors.cmip --> icenet.data.sic.mask
-icenet.data.processors.era5 --> icenet.data.cli
-icenet.data.processors.era5 --> icenet.data.process
-icenet.data.processors.hres --> icenet.data.cli
-icenet.data.processors.hres --> icenet.data.process
-icenet.data.processors.meta --> icenet.data.cli
-icenet.data.processors.meta --> icenet.data.process
-icenet.data.processors.meta --> icenet.data.sic.mask
-icenet.data.processors.oras5 --> icenet.data.cli
-icenet.data.processors.oras5 --> icenet.data.process
-icenet.data.processors.osi --> icenet.data.cli
-icenet.data.processors.osi --> icenet.data.process
-icenet.data.processors.osi --> icenet.data.processors.utils
-icenet.data.processors.osi --> icenet.data.sic.mask
-icenet.data.processors.utils --> icenet.data.producers
-icenet.data.processors.utils --> icenet.utils
-icenet.data.producers --> icenet.utils
-icenet.data.sic.mask --> icenet.data.cli
-icenet.data.sic.mask --> icenet.data.producers
-icenet.data.sic.mask --> icenet.data.sic.utils
-icenet.data.sic.mask --> icenet.utils
-icenet.data.sic.osisaf --> icenet.data.cli
-icenet.data.sic.osisaf --> icenet.data.producers
-icenet.data.sic.osisaf --> icenet.data.sic.mask
-icenet.data.sic.osisaf --> icenet.data.sic.utils
-icenet.data.sic.osisaf --> icenet.utils
-icenet.model.predict --> icenet.data.dataset
+icenet.data.masks.nsidc --> icenet.utils
+icenet.data.meta --> icenet.data.masks.osisaf
+icenet.data.network_dataset --> icenet.data.datasets.splitting
+icenet.data.network_dataset --> icenet.data.loader
+icenet.data.network_dataset --> icenet.utils
+icenet.model.cli --> icenet.utils
+icenet.model.networks.tensorflow --> icenet.model.networks.base
+icenet.model.networks.tensorflow --> icenet.model.utils
 icenet.model.predict --> icenet.data.loader
-icenet.model.predict --> icenet.model.models
-icenet.model.predict --> icenet.utils
-icenet.model.train --> icenet.data.dataset
+icenet.model.predict --> icenet.data.network_dataset
+icenet.model.predict --> icenet.model.cli
+icenet.model.train --> icenet.data.network_dataset
+icenet.model.train --> icenet.model.cli
+icenet.model.train --> icenet.model.handlers.wandb
 icenet.model.train --> icenet.model.losses
 icenet.model.train --> icenet.model.metrics
-icenet.model.train --> icenet.model.models
-icenet.model.train --> icenet.model.utils
-icenet.model.train --> icenet.utils
-icenet.plotting.data --> icenet.data.cli
-icenet.plotting.data --> icenet.data.dataset
+icenet.model.train --> icenet.model.networks.tensorflow
 icenet.plotting.data --> icenet.data.datasets.utils
+icenet.plotting.data --> icenet.data.network_dataset
 icenet.plotting.data --> icenet.utils
 icenet.plotting.forecast --> icenet
-icenet.plotting.forecast --> icenet.data.cli
-icenet.plotting.forecast --> icenet.data.sic.mask
+icenet.plotting.forecast --> icenet.cli
 icenet.plotting.forecast --> icenet.plotting.utils
 icenet.plotting.forecast --> icenet.plotting.video
 icenet.plotting.video --> icenet.process.predict
@@ -220,9 +159,9 @@ icenet.process.forecasts --> icenet.utils
 icenet.process.local --> icenet.process.utils
 icenet.process.local --> icenet.utils
 icenet.process.predict --> icenet
-icenet.process.predict --> icenet.data.dataset
-icenet.process.predict --> icenet.data.sic.mask
+icenet.process.predict --> icenet.data.masks.osisaf
+icenet.process.predict --> icenet.data.network_dataset
 icenet.process.predict --> icenet.utils
-icenet.results.threshold --> icenet.data.cli
+icenet.results.threshold --> icenet.data
 icenet.results.threshold --> icenet.utils
 @enduml
