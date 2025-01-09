@@ -129,7 +129,8 @@ class MaskDatasetConfig(DatasetConfig):
                              source_ds: object = None,
                              source_files: list = None,
                              time_dim_values: list = None,
-                             var_filter_list: list = None):
+                             var_filter_list: list = None,
+                             **kwargs):
 
         for var_config in self.variables:
             files = getattr(self, "_generate_{}".format(var_config.name))()
