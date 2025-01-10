@@ -436,8 +436,6 @@ def generate_sample(forecast_date: object,
         y = da.ma.where(y_mask, 0., y)
 
     # Masked recomposition of output
-    agcm_masks = []
-
     for leadtime_idx in range(n_forecast_steps):
         forecast_step = forecast_date + relativedelta(**{relative_attr: leadtime_idx})
 
@@ -445,11 +443,14 @@ def generate_sample(forecast_date: object,
             sample_weight = da.zeros(shape, dtype)
         else:
             # Zero loss outside of 'active grid cells'
-            #sample_weight = masks["active_grid_cell"][forecast_day.month - 1]
-            sample_weight = masks["active_grid_cell"].sel(month=forecast_step.month).data
-            # TODO: dynamic inclusion of polarhole
+            # TODO: this is hacky, we need to assess / combine masks more consistently via that implementation
+            if "active_grid_cell" in masks:
+                sample_weight = masks["active_grid_cell"].sel(month=forecast_step.month).data
+                sample_weight[masks["land"].data] = 0.
+            else:
+                sample_weight = da.ones_like(masks["land"])
+            # TODO: dynamic inclusion of polarhole?
             sample_weight = sample_weight.astype(dtype)
-            sample_weight[masks["land"]] = 0.
 
             # We can pick up nans, which messes up training
             sample_weight[da.isnan(y[..., leadtime_idx, 0])] = 0
@@ -458,8 +459,6 @@ def generate_sample(forecast_date: object,
             #   scaled by 1 and Sept is scaled by 1.77
             if loss_weight_days:
                 sample_weight *= 33928. / sample_weight.sum()
-
-            agcm_masks.append(masks["active_grid_cell"].sel(month=forecast_step.month).data)
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
