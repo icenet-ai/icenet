@@ -81,7 +81,7 @@ class MaskDatasetConfig(DatasetConfig):
                 x=slice(-3.947e+06, 3.947e+06),
                 y=slice(4.347e+06, -3.947e+06))
             logging.info("Saving {}".format(land_mask_path))
-            np.save(land_mask_path, land_mask)
+            np.save(land_mask_path, land_mask.data[::-1])
         return land_mask_path
 
     def save_data_for_config(self,
