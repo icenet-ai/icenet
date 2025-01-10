@@ -4,6 +4,7 @@ import os
 import time
 
 from dateutil.relativedelta import relativedelta
+from pprint import pformat
 
 import dask
 import dask.array as da
@@ -270,6 +271,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
             if k not in self._meta_channels and not k.endswith("linear_trend")
         ], **ds_kwargs)
 
+        logging.debug("VAR: {}".format(pformat(var_ds)))
         var_ds = var_ds.transpose("yc", "xc", "time")
 
         trend_files = \
@@ -279,7 +281,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
 
         if len(trend_files) > 0:
             trend_ds = xr.open_mfdataset(trend_files, **ds_kwargs)
-
+            logging.debug("TREND: {}".format(pformat(trend_ds)))
             trend_ds = trend_ds.transpose("yc", "xc", "time")
 
         args = [
