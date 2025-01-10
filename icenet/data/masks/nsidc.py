@@ -76,7 +76,10 @@ class MaskDatasetConfig(DatasetConfig):
             ds = self._download_or_load()
             sm = getattr(ds, self._mask_variable)
             land_mask = xr.where(sm < 30, 0, 1)
-
+            # Boundary of our AMSR data
+            land_mask = land_mask.sel(
+                x=slice(-3.947e+06, 3.947e+06),
+                y=slice(4.347e+06, -3.947e+06))
             logging.info("Saving {}".format(land_mask_path))
             np.save(land_mask_path, land_mask)
         return land_mask_path
@@ -167,7 +170,7 @@ class Masks(Processor):
         self.save_processed_file("land", os.path.basename(self.land_filename), da, overwrite=False)
 
         land_map = np.ones(land_mask.shape, dtype=np.float32)
-        land_map[~land_mask] = -1.
+        land_map[~land_mask.astype(bool)] = -1.
         da = xr.DataArray(data=land_map,
                           dims=["yc", "xc"],
                           attrs=dict(description="IceNet land map metadata"))
