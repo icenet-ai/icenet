@@ -24,5 +24,6 @@ class ERA5PreProcessor(NormalisingChannelProcessor):
 
     def post_normalisation(self, var_name: str, da: object):
         logging.info("Renaming ERA5 spatial coordinates to match SIC")
-        da = da.rename(dict(x="xc", y="yc"))
+        if "x" in da.coords and "y" in da.coords:
+            da = da.rename(dict(x="xc", y="yc"))
         return da
