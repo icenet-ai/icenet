@@ -101,12 +101,14 @@ ENV/
 # mypy
 .mypy_cache/
 
+# VIM swap files
+*.swp
+
 # IDE settings
 .vscode/
 .idea/
 
 # IceNet specific
->>>>>>> docs_and_structure
 /build/
 /data/
 /dataloader_configs/

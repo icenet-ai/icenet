@@ -13,7 +13,7 @@ import iris.analysis
 from icenet.process.utils import date_arg
 from icenet.utils import setup_logging
 
-from icenet.plotting.utils import broadcast_forecast, get_forecast_ds
+from icenet.plotting.utils import broadcast_forecast, get_forecast_data
 
 
 def reproject_output(forecast_file: object, proj_file: object,
@@ -126,33 +126,33 @@ def create_geotiff_output():
             "{} should be a directory and not existent...".format(
                 args.output_path))
 
-    ds = get_forecast_ds(args.forecast_file,
-                         args.forecast_date,
-                         stddev=args.stddev)
-    ds = ds.isel(time=0).transpose(..., "yc", "xc")
+    da = get_forecast_data(args.forecast_file,
+                           args.forecast_date,
+                           stddev=args.stddev)
+    da = da.isel(time=0).transpose(..., "yc", "xc")
 
     # The projection information set when we create NetCDF output compliant
     # with CF standards still has units as meters, but the attributes on the
     # variables is 1000 meters. It's easier to reset this for the GeoTIFF output
     # else you'll get scale errors that are a pain to fix in downstream
-    x_meters = ds.xc * 1000
-    y_meters = ds.yc * 1000
-    x_attrs = ds.xc.attrs
-    y_attrs = ds.yc.attrs
+    x_meters = da.xc * 1000
+    y_meters = da.yc * 1000
+    x_attrs = da.xc.attrs
+    y_attrs = da.yc.attrs
 
-    ds = ds.assign_coords(xc=x_meters, yc=y_meters)
-    ds['xc'].attrs = x_attrs
-    ds['yc'].attrs = y_attrs
-    ds['xc'].attrs['units'] = cf_units.Unit('meters')
-    ds['yc'].attrs['units'] = cf_units.Unit('meters')
+    da = da.assign_coords(xc=x_meters, yc=y_meters)
+    da['xc'].attrs = x_attrs
+    da['yc'].attrs = y_attrs
+    da['xc'].attrs['units'] = cf_units.Unit('meters')
+    da['yc'].attrs['units'] = cf_units.Unit('meters')
 
-    if type(ds.rio.crs) != rasterio.crs.CRS:
+    if type(da.rio.crs) != rasterio.crs.CRS:
         raise RuntimeError("Did not extract CRS via the coordinates, ds.rio.crs"
                            " is not of type rasterio.crs.CRS")
 
     leadtimes = args.leadtimes \
         if args.leadtimes is not None \
-        else list(range(1, int(max(ds.leadtime.values)) + 1))
+        else list(range(1, int(max(da.leadtime.values)) + 1))
 
     forecast_name = "{}.{}".format(
         os.path.splitext(os.path.basename(args.forecast_file))[0],
@@ -162,7 +162,7 @@ def create_geotiff_output():
         args.forecast_file, args.forecast_date))
 
     for leadtime in leadtimes:
-        pred_da = ds.sel(leadtime=leadtime)
+        pred_da = da.sel(leadtime=leadtime)
 
         output_filename = os.path.join(
             args.output_path, "{}.{}.{}tiff".format(

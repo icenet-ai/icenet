@@ -5,7 +5,6 @@ import os
 import numpy as np
 
 from icenet.data.loaders import IceNetDataLoaderFactory
-from icenet.data.cli import add_date_args, process_date_args
 from icenet.utils import setup_logging
 """
 
@@ -25,13 +24,12 @@ def create_get_args() -> object:
     implementations = list(IceNetDataLoaderFactory().loader_map)
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("name", type=str)
-    ap.add_argument("hemisphere", choices=("north", "south"))
+    ap.add_argument("loader_configuration", type=str)
+    ap.add_argument("network_dataset_name", type=str)
 
     ap.add_argument("-c",
                     "--cfg-only",
-                    help="Do not generate data, "
-                    "only config",
+                    help="Do not generate data, only config",
                     default=False,
                     action="store_true",
                     dest="cfg")
@@ -47,15 +45,10 @@ def create_get_args() -> object:
                     type=float,
                     default=2.,
                     dest="futures")
-    ap.add_argument("-fn",
-                    "--forecast-name",
-                    dest="forecast_name",
+    ap.add_argument("-fl",
+                    "--forecast-length",
+                    dest="forecast_length",
                     default=None,
-                    type=str)
-    ap.add_argument("-fd",
-                    "--forecast-days",
-                    dest="forecast_days",
-                    default=93,
                     type=int)
 
     ap.add_argument("-i",
@@ -63,7 +56,7 @@ def create_get_args() -> object:
                     type=str,
                     choices=implementations,
                     default=implementations[0])
-    ap.add_argument("-l", "--lag", type=int, default=2)
+    ap.add_argument("-l", "--lag", type=int, default=None)
 
     ap.add_argument("-ob",
                     "--output-batch-size",
@@ -91,29 +84,23 @@ def create_get_args() -> object:
                     type=int,
                     default=2)
 
-    add_date_args(ap)
     args = ap.parse_args()
     return args
 
 
-def create():
+def create_network_dataset():
     """
 
     """
     args = create_get_args()
-    dates = process_date_args(args)
 
     dl = IceNetDataLoaderFactory().create_data_loader(
         args.implementation,
-        "loader.{}.json".format(args.name),
-        args.forecast_name if args.forecast_name else args.name,
-        args.lag,
-        dates_override=dates
-        if sum([len(v) for v in dates.values()]) > 0 else None,
+        args.loader_configuration,
+        args.network_dataset_name,
         dry=args.dry,
-        n_forecast_days=args.forecast_days,
-        north=args.hemisphere == "north",
-        south=args.hemisphere == "south",
+        lag_time=args.lag,
+        lead_time=args.forecast_length,
         output_batch_size=args.batch_size,
         pickup=args.pickup,
         generate_workers=args.workers,

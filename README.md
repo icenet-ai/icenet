@@ -26,9 +26,20 @@ this library.
 
 We're still working on clear dependency management using pip, Tensorflow is best through pip but obviously you need NVIDIA dependencies for GPU based training. If you're having trouble with system dependencies some advice about environment setup is given by the examples [under the pipeline repository][1].
 
-```
+Please note that icenet has an optional dependency on eccodes which requires a system library and a python wrapper. The system library can be installed via conda.
+
+By default, Tensorflow will be built for CPU only when icenet is installed via pip. So, optionally, Tensorflow can be installed with CUDA support (recommended).
+
+```bash
+conda install -c conda-forge eccodes
+
 pip install icenet
+
+# To install newer versions of tensorflow (tensorflow>=2.14) with CUDA deps directly via pip:
+pip install "tensorflow[and-cuda]<2.16"
 ```
+
+Please consult the [tensorflow docs](https://www.tensorflow.org/install/pip) for up-to-date info.
 
 ### Development installation
 

@@ -9,9 +9,10 @@ import tensorflow as tf
 
 from math import ceil
 
+from download_toolbox.cli import date_arg
+
 from icenet.data.datasets.utils import get_decoder
-from icenet.data.cli import date_arg
-from icenet.data.dataset import IceNetDataSet
+from icenet.data.network_dataset import IceNetDataSet
 from icenet.utils import setup_logging
 
 import matplotlib.pyplot as plt
@@ -42,7 +43,7 @@ def plot_tfrecord():
     args.configuration.close()
 
     decoder = get_decoder(tuple(config['shape']), config['num_channels'],
-                          config['n_forecast_days'])
+                          config['n_forecast_steps'])
 
     ds = ds.map(decoder).batch(1)
     it = ds.as_numpy_iterator()
@@ -71,7 +72,7 @@ def plot_tfrecord():
         plt.savefig(output_path)
         plt.close()
 
-    for i in range(config['n_forecast_days']):
+    for i in range(config['n_forecast_steps']):
         output_path = os.path.join(
             output_dir, "{}.y.{:03d}.png".format(config["identifier"], i + 1))
         y_out = y[0, ..., i, 0]
