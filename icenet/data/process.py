@@ -354,7 +354,7 @@ class IceNetPreProcessor(Processor):
             concat_dim="time",
             coords="minimal",
             compat="override",
-            drop_variables=("lat", "lon"),
+            drop_variables=("lat", "lon", "lambert_azimuthal_equal_area"),
             parallel=self._parallel)
 
         # For processing one file, we're going to assume a single non-lambert
