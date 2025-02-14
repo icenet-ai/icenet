@@ -62,11 +62,22 @@ def predict_forecast(
 
     logging.info("Loading model from {}...".format(network_path))
 
-    network = model_func((*ds.shape, dl.num_channels), [], [],
-                         legacy_rounding=legacy_rounding,
-                         n_filters_factor=n_filters_factor,
-                         n_forecast_days=ds.n_forecast_days)
-    network.load_weights(network_path)
+    kwargs = dict(
+        n_filters_factor=n_filters_factor,
+        n_forecast_days=ds.n_forecast_days,
+    )
+
+    try:
+        network = model_func((*ds.shape, dl.num_channels), [], [],
+                             legacy_rounding=legacy_rounding, **kwargs)
+        network.load_weights(network_path)
+    except ValueError:
+        logging.warning("Failed to load training model, attempting "
+                        "legacy (icenet<=v0.26) model rounding")
+        network = model_func((*ds.shape, dl.num_channels), [], [],
+                             legacy_rounding=True, **kwargs)
+        network.load_weights(network_path)
+        logging.info("Model loaded successfully using legacy model rounding")
 
     if not test_set:
         logging.info("Generating forecast inputs from processed/ files")
