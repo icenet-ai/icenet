@@ -5,7 +5,7 @@ cfgrib
 copernicusmarine
 dask
 distributed
-eccodes
+eccodes>2.37.0
 ecmwf-api-client
 h5py>2.10
 ibicus
