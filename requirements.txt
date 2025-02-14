@@ -2,6 +2,7 @@ azure-storage-blob
 cartopy
 cdsapi
 cfgrib
+copernicusmarine
 dask
 distributed
 eccodes
