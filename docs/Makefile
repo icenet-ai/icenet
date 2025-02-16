@@ -14,9 +14,7 @@ help:
 
 .PHONY: help html Makefile
 
-# When running "make html": Run pyreverse to generate UML diagram if outputting html docs.
 html:
-	pyreverse --output puml --output-directory ./ --project icenet ../icenet --colorized
 	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 # Catch-all target: route all unknown targets to Sphinx using the new
