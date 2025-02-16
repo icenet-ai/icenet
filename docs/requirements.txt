@@ -3,3 +3,4 @@ myst_parser
 pylint
 Sphinx
 sphinx-book-theme
+sphinxcontrib-kroki

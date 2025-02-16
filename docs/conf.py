@@ -34,6 +34,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
     'myst_parser',
+    'sphinxcontrib.kroki',
     ]
 
 # Standardising on
