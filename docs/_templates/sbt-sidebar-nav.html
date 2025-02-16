@@ -1,0 +1,111 @@
+<nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        {% if theme_home_page_in_toc == True %}
+        {#- This mimics the pydata theme list style so we can append an extra item at the top #}
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1{% if pagename == root_doc %} current active{% endif %}">
+                <a class="reference internal" href="{{ pathto(root_doc) }}">
+                    {{ root_title }}
+                </a>
+            </li>
+        </ul>
+        {% endif -%}
+
+        {# Ref: https://github.com/pydata/pydata-sphinx-theme/blob/ebf7f704879a1cdc6016d6111062103353ac7677/src/pydata_sphinx_theme/__init__.py#L302 #}
+        {{- generate_toctree_html(
+            startdepth=0,
+            kind="sidebar",
+            maxdepth=theme_max_navbar_depth|int,
+            collapse=theme_collapse_navbar|tobool,
+            includehidden=True,
+            titles_only=True,
+            show_nav_level=theme_show_navbar_depth|int) }}
+
+        <!-- Omit if using normal `sphinx-build` without multi-version output -->
+        {%- if current_version %}
+        <div class="versions-container" role="note" aria-label="versions">
+            <!-- Hidden Checkbox to trigger this element on click -->
+            <input type="checkbox" id="version-toggle" class="version-toggle" hidden />
+
+            <!-- Label to trigger the above checkbox toggle -->
+            <label for="version-toggle" class="rst-current-version">
+                <span class="fa fa-book" style="margin-right: 0.5em;"> </span>
+                <span> Other Versions</span>
+                <span class="version-name" style="margin-right: 0.5em;">{{ current_version.name }}</span>
+                <span class="fa fa-caret-down"></span>
+            </label>
+
+            <!-- The version info content to toggle -->
+            <div class="rst-other-versions">
+                {%- if versions.tags %}
+                <dl>
+                <dt>Releases</dt>
+                {%- for item in versions.tags %}
+                <dd><a href="{{ item.url }}">{{ item.name }}</a></dd>
+                {%- endfor %}
+                </dl>
+                {%- endif %}
+                {%- if versions.branches %}
+                <dl>
+                <dt>In Development</dt>
+                {%- for item in versions.branches %}
+                <dd><a href="{{ item.url }}">{{ item.name }}</a></dd>
+                {%- endfor %}
+                </dl>
+                {%- endif %}
+            </div>
+        </div>
+    {%- endif %}
+    </div>
+</nav>
+
+<style>
+    /* Align versioning container to the bottom of the sidebar */
+    .versions-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgb(50, 50, 50);
+        max-height: 250px;
+    }
+
+    /* Flex layout for the label to align items */
+    .rst-current-version {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        padding: 10px;
+        background: inherit;
+    }
+
+    /* Initially hide the content */
+    .rst-other-versions {
+        display: none;
+        padding: 10px;
+        transition: max-height 0.3s ease-out;
+        background: inherit;
+    }
+
+    /* When the checkbox is checked, shift label up and show version options */
+    #version-toggle:checked + .rst-current-version {
+        margin-bottom: 1em;
+    }
+
+    /* When the checkbox is checked, show the version options */
+    .version-toggle:checked + .rst-current-version + .rst-other-versions {
+        display: block;
+    }
+
+    /* Remove blue color and underline from <a> inside <dd> */
+    .rst-other-versions dd a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .version-name {
+        margin-left: auto;
+        color: rgb(39, 174, 96);
+    }
+</style>

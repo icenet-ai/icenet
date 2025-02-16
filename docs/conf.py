@@ -35,6 +35,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'myst_parser',
     'sphinxcontrib.kroki',
+    'sphinx_multiversion',
     ]
 
 # Standardising on
@@ -165,3 +166,18 @@ texinfo_documents = [
      'One line description of project.',
      'Miscellaneous'),
 ]
+
+# -- Sphinx Multiversion -----------------------------------------------
+
+# Whitelist pattern for tags (set to None to ignore all tags)
+# smv_tag_whitelist = r'^.*$'
+# smv_tag_whitelist = r'^v(?!.*dev).*'
+smv_tag_whitelist = r'^v(?!.*dev)(?!.*a\d$).*'
+# smv_tag_whitelist = None
+
+# Whitelist pattern for branches (set to None to ignore all branches)
+# smv_branch_whitelist = r'^.*$'
+smv_branch_whitelist = r'^v0\.\d+\.\d+(_dev)?+\d?$'
+
+# Whitelist pattern for remotes (set to None to use local branches only)
+smv_remote_whitelist = None
