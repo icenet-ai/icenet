@@ -1136,8 +1136,11 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
     """
 
     diff = fc_da - obs_da
-    fig, maps = plt.subplots(nrows=1, ncols=3, figsize=(16, 6), layout="tight")
+    fig, maps = plt.subplots(nrows=1, ncols=3, figsize=(16, 6))
     fig.set_dpi(150)
+    # Call tight layout once instead of in subplots - else can keep
+    # changing layout each frame
+    fig.tight_layout(pad=2)
 
     leadtime = 0
     fc_plot = fc_da.isel(time=leadtime).to_numpy()
@@ -1177,17 +1180,28 @@ def sic_error_video(fc_da: object, obs_da: object, land_mask: object,
     p1 = maps[1].get_position().get_points().flatten()
     p2 = maps[2].get_position().get_points().flatten()
 
-    ax_cbar = fig.add_axes([p0[0] - 0.05, 0.04, p1[2] - p0[0], 0.02])
-    plt.colorbar(im1, orientation='horizontal', cax=ax_cbar)
+    divider1 = make_axes_locatable(maps[0])
+    ax_cbar1 = divider1.append_axes("bottom", size="5%", pad=0.1)
+    cbar1 = fig.colorbar(im1, orientation='horizontal', cax=ax_cbar1)
+    cbar1.set_label("Sea-ice concentration fraction")
 
-    ax_cbar1 = fig.add_axes([p2[0] + 0.05, 0.04, p2[2] - p2[0], 0.02])
-    plt.colorbar(im3, orientation='horizontal', cax=ax_cbar1)
+    divider2 = make_axes_locatable(maps[1])
+    ax_cbar2 = divider2.append_axes("bottom", size="5%", pad=0.1)
+    cbar2 = fig.colorbar(im2, orientation='horizontal', cax=ax_cbar2)
+    cbar2.set_label("Sea-ice concentration fraction")
+
+    divider3 = make_axes_locatable(maps[2])
+    ax_cbar3 = divider3.append_axes("bottom", size="5%", pad=0.1)
+    cbar3 = fig.colorbar(im3, orientation='horizontal', cax=ax_cbar3)
+    cbar3.set_label("Difference")
 
     for m_ax in maps[0:3]:
         m_ax.tick_params(
             labelbottom=False,
             labelleft=False,
         )
+        m_ax.set_xticks([])
+        m_ax.set_yticks([])
         m_ax.contourf(land_mask,
                       levels=[.5, 1],
                       colors=[mpl.cm.gray(180)],
