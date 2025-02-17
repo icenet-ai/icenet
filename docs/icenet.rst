@@ -17,6 +17,14 @@ Subpackages
 Submodules
 ----------
 
+icenet.exceptions module
+------------------------
+
+.. automodule:: icenet.exceptions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 icenet.utils module
 -------------------
 
