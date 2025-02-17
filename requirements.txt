@@ -9,6 +9,7 @@ eccodes>2.37.0
 ecmwf-api-client
 h5py>2.10
 ibicus
+imageio-ffmpeg
 matplotlib
 motuclient
 netcdf4<1.6.1
