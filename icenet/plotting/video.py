@@ -8,7 +8,6 @@ from concurrent.futures import as_completed, ProcessPoolExecutor
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-import imageio_ffmpeg as ffmpeg
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -277,9 +276,6 @@ def xarray_to_video(
         logging.info("Not saving plot, will return animation")
     else:
         logging.info("Saving plot to {}".format(video_path))
-        # Set Matplotlib's ffmpeg executable path to the one from imageio_ffmpeg
-        ffmpeg_path = ffmpeg.get_ffmpeg_exe()
-        plt.rcParams['animation.ffmpeg_path'] = ffmpeg_path
         animation.save(video_path, fps=fps, extra_args=['-vcodec', 'libx264'])
     return animation
 

@@ -37,7 +37,6 @@ from icenet.plotting.utils import (calculate_extents, filter_ds_by_obs,
                                    get_crs)
 from icenet.plotting.video import xarray_to_video
 
-
 def parse_location_or_region(argument: str):
     separator = ','
     # Allow ValueError to propagate if not given sequence of integers

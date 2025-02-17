@@ -7,6 +7,7 @@ import re
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import dask.array as da
+import imageio_ffmpeg as ffmpeg
 import matplotlib as mpl
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
@@ -845,3 +846,8 @@ def get_custom_cmap(cmap):
     custom_cmap.set_bad("dimgrey", alpha=0)
     custom_cmap.set_under("dimgrey")
     return custom_cmap
+
+def set_ffmpeg_path():
+    """Set Matplotlib's ffmpeg exe path to the one from imageio_ffmpeg"""
+    ffmpeg_path = ffmpeg.get_ffmpeg_exe()
+    plt.rcParams['animation.ffmpeg_path'] = ffmpeg_path
