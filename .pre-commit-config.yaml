@@ -1,4 +1,4 @@
-exclude: (LICENSE|README.md|setup.py)
+exclude: (LICENSE|README.md|setup.py|notebooks/)
 repos:
   # General pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks

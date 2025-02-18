@@ -188,7 +188,7 @@ def check_pytorch_import(logger: Logger) -> bool:
         import torch
         pytorch_available = True
     except ModuleNotFoundError:
-        logger.warning("PyTorch not found - not required if not using PyTorch")
+        pass
     except ImportError:
         logger.warning("PyTorch import failed - not required if not using PyTorch")
     return pytorch_available

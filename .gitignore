@@ -125,3 +125,6 @@ icesync.sh
 /dataset_config.*.json
 /loader.*.json
 *.nc
+
+green
+notebook-pipeline

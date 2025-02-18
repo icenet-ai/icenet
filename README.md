@@ -84,9 +84,7 @@ If all looks good, run:
 
 ## Credits
 
-<a href="https://github.com/icenet-ai/icenet/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=icenet-ai/icenet" />
-</a>
+[![](https://contrib.rocks/image?repo=icenet-ai/icenet)](https://github.com/icenet-ai/icenet/graphs/contributors)
 
 ## License
 

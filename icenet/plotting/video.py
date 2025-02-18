@@ -231,18 +231,31 @@ def xarray_to_video(
     # correctly with pcolormesh.
     custom_cmap = get_custom_cmap(cmap)
 
-    image = data.plot.pcolormesh("lon",
-                                 "lat",
-                                 ax=ax,
-                                 transform=transform_crs,
-                                 animated=True,
-                                 zorder=1,
-                                 add_colorbar=False,
-                                 cmap=custom_cmap,
-                                 vmin=n_min,
-                                 vmax=n_max,
-                                 **imshow_kwargs if imshow_kwargs is not None else {}
-                                 )
+    if "lon" in data.coords and "lat" in data.coords:
+        image = data.plot.pcolormesh("lon",
+                                    "lat",
+                                    ax=ax,
+                                    transform=transform_crs,
+                                    animated=True,
+                                    zorder=1,
+                                    add_colorbar=False,
+                                    cmap=custom_cmap,
+                                    vmin=n_min,
+                                    vmax=n_max,
+                                    **imshow_kwargs if imshow_kwargs is not None else {}
+                                    )
+    else:
+        image = data.plot.pcolormesh("xc",
+                                    "yc",
+                                    ax=ax,
+                                    animated=True,
+                                    zorder=1,
+                                    add_colorbar=False,
+                                    cmap=custom_cmap,
+                                    vmin=n_min,
+                                    vmax=n_max,
+                                    **imshow_kwargs if imshow_kwargs is not None else {}
+                                    )
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
         date.year, date.month, date.day),
@@ -341,6 +354,8 @@ def video_process(files: object, numpy: object, output_dir: object,
     :param fps:
     :return:
     """
+    north = True if '/north/' in files[0] else False
+    south = not north
     path_comps = os.path.dirname(files[0]).split(os.sep)
     os.makedirs(output_dir, exist_ok=True)
     output_name = os.path.join(output_dir,
@@ -350,7 +365,8 @@ def video_process(files: object, numpy: object, output_dir: object,
         logging.debug("Supplied: {} files for processing".format(len(files)))
         da = get_dataarray_from_files(files, numpy)
         logging.info("Saving to {}".format(output_name))
-        xarray_to_video(da, fps, video_path=output_name)
+        xarray_to_video(da, fps, video_path=output_name, north=north,
+            south=south, mask=None, coastlines=None)
     else:
         logging.warning("Not overwriting existing: {}".format(output_name))
         return None
