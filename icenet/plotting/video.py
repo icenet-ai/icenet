@@ -6,7 +6,8 @@ import re
 
 from concurrent.futures import as_completed, ProcessPoolExecutor
 
-import imageio_ffmpeg as ffmpeg
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -17,7 +18,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from icenet.process.predict import get_refcube
 from icenet.utils import setup_logging
-
+from icenet.plotting.utils import get_plot_axes, set_plot_geoaxes, set_plot_geoextent, get_custom_cmap
 
 # TODO: This can be a plotting or analysis util function elsewhere
 def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
@@ -73,14 +74,23 @@ def xarray_to_video(
     da: object,
     fps: int,
     video_path: object = None,
+    reproject: bool = False,
+    north: bool = True,
+    south: bool = False,
+    extent: tuple = None,
+    region_definition: str = "pixel",
+    coastlines: str = "default",
+    gridlines: bool = False,
+    target_crs: object = None,
+    transform_crs: object = None,
     mask: object = None,
     mask_type: str = 'contour',
     clim: object = None,
     crop: object = None,
     data_type: str = 'abs',
     video_dates: object = None,
-    cmap: object = "viridis",
-    figsize: int = 12,
+    cmap: object = plt.get_cmap("viridis"),
+    figsize: tuple = (10, 8),
     dpi: int = 150,
     imshow_kwargs: dict = None,
     ax_init: object = None,
@@ -113,10 +123,21 @@ def xarray_to_video(
     :param ax_init: pre-initialised axes object for display
     :param ax_extra: Extra method called with axes for additional plotting
     """
+    assert north ^ south, "Only one hemisphere must be selected"
+    pole = 1 if north else -1
+
+    target_crs = ccrs.LambertAzimuthalEqualArea(central_latitude=pole*90, central_longitude=0) if target_crs is None else target_crs
+    transform_crs = ccrs.PlateCarree() if transform_crs is None else transform_crs
+
+    # Hack since cartopy needs transparency for nan regions to wraparound
+    # correctly with pcolormesh, set nan areas as under range.
+    if reproject:
+        da = da.where(~np.isnan(da), -9999, drop=False)
 
     def update(date):
         logging.debug("Plotting {}".format(date.strftime("%D")))
-        image.set_data(da.sel(time=date))
+        data = da.sel(time=date)
+        image.set_array(data)
 
         image_title.set_text("{:04d}/{:02d}/{:02d}".format(
             date.year, date.month, date.day))
@@ -155,17 +176,25 @@ def xarray_to_video(
     logging.info("Initialising plot")
 
     if ax_init is None:
-        fig, ax = plt.subplots(figsize=(figsize, figsize))
-        fig.set_dpi(dpi)
+        fig, ax = get_plot_axes(
+                            geoaxes=True,
+                            north=north,
+                            south=south,
+                            target_crs=target_crs,
+                            figsize=figsize,
+                            dpi=dpi,
+                            )
+        ax = set_plot_geoaxes(ax,
+                              region_definition=region_definition,
+                              extent=extent,
+                              coastlines=coastlines,
+                              gridlines=gridlines,
+                              north=north,
+                              south=south,
+                              )
     else:
         ax = ax_init
         fig = ax.get_figure()
-
-    if mask is not None:
-        if mask_type == 'contour':
-            ax.contour(mask, levels=[.5, 1], colors='k', zorder=3)
-        elif mask_type == 'contourf':
-            ax.contourf(mask, levels=[.5, 1], colors='k', zorder=3)
 
     ax.axes.xaxis.set_visible(False)
     ax.axes.yaxis.set_visible(False)
@@ -173,33 +202,73 @@ def xarray_to_video(
     if ax_extra is not None:
         ax_extra(ax)
 
+    #if extent and region_definition == "geographic":
+    #    # ax.set_extent(extent, crs=transform_crs)
+    #    set_plot_geoextent(ax, extent)
+
     date = pd.Timestamp(da.time.values[0]).to_pydatetime()
-    image = ax.imshow(da.sel(time=date),
-                      cmap=cmap,
-                      clim=(n_min, n_max),
-                      animated=True,
-                      zorder=1,
-                      **imshow_kwargs if imshow_kwargs is not None else {})
+
+    data = da.sel(time=date)
+
+    if mask is not None:
+        if mask_type == 'contour':
+            image = ax.contour(data.xc.data, data.yc.data, mask,
+                                levels=[.5, 1],
+                                colors='k',
+                                transform=target_crs,
+                                zorder=3,
+                                )
+        elif mask_type == 'contourf':
+            image = ax.contourf(data.xc.data, data.yc.data, mask,
+                                levels=[.5, 1],
+                                colors='k',
+                                transform=target_crs,
+                                zorder=3,
+                                )
+
+    # TODO: Tidy up, and cover all argument options
+    # Hack since cartopy needs transparency for nan regions to wraparound
+    # correctly with pcolormesh.
+    custom_cmap = get_custom_cmap(cmap)
+
+    image = data.plot.pcolormesh("lon",
+                                 "lat",
+                                 ax=ax,
+                                 transform=transform_crs,
+                                 animated=True,
+                                 zorder=1,
+                                 add_colorbar=False,
+                                 cmap=custom_cmap,
+                                 vmin=n_min,
+                                 vmax=n_max,
+                                 **imshow_kwargs if imshow_kwargs is not None else {}
+                                 )
 
     image_title = ax.set_title("{:04d}/{:02d}/{:02d}".format(
         date.year, date.month, date.day),
-                               fontsize="medium",
+                               fontsize="large",
                                zorder=2)
 
     try:
         divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05, zorder=2)
-        cbar = plt.colorbar(image, cax)
+        cax = divider.append_axes("right", size="5%", pad=0.05, zorder=2, axes_class=plt.Axes)
+        cbar = plt.colorbar(image, ax=ax, cax=cax)
         if colorbar_label:
             cbar.set_label(colorbar_label)
-            fig.subplots_adjust(right=0.85)
+        plt.subplots_adjust(right=0.9)
     except KeyError as ex:
         logging.warning("Could not configure locatable colorbar: {}".format(ex))
 
     logging.info("Animating")
 
     # Investigated blitting, but it causes a few problems with masks/titles.
-    animation = FuncAnimation(fig, update, video_dates, interval=1000 / fps)
+    animation = FuncAnimation(fig,
+                            func=update,
+                            frames=video_dates,
+                            interval=1000 / fps,
+                            repeat=False,
+                            blit=True,
+                            )
 
     plt.close()
 
@@ -207,9 +276,6 @@ def xarray_to_video(
         logging.info("Not saving plot, will return animation")
     else:
         logging.info("Saving plot to {}".format(video_path))
-        # Set Matplotlib's ffmpeg executable path to the one from imageio_ffmpeg
-        ffmpeg_path = ffmpeg.get_ffmpeg_exe()
-        plt.rcParams['animation.ffmpeg_path'] = ffmpeg_path
         animation.save(video_path, fps=fps, extra_args=['-vcodec', 'libx264'])
     return animation
 

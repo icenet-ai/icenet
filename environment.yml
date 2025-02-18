@@ -1,0 +1,9 @@
+name: icenet
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - pip
+  - python=3.11
+  - pip:
+    - -e .
