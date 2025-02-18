@@ -19,6 +19,7 @@ this library.
 * [Implementation](#implementation)
 * [Pipeline](#pipeline)
 * [Contributing to IceNet](#contributing-to-icenet)
+* [Deployment](#deployment-to-pypi)
 * [Credits](#credits)
 * [License](#license)
 
@@ -63,6 +64,23 @@ repository][2] for examples of how to use this library.
 ## Contributing to IceNet
 
 Please refer to [the contribution guidelines for more information.](CONTRIBUTING.rst)
+
+## Deployment to PyPi
+
+To deploy a new release to PyPI, set up your credentials in `~/.pypirc` with your personal access token.
+
+* Increment the version in `icenet/__init__.py` and commit change to the branch.
+* `git tag vX.Y.Z`
+* `git push upstream --tags`
+
+To test deployment by deploying to test PyPI, run:
+* `make dist` to build sdist and wheel files.
+* `twine check dist/*` to check that the files are valid and can be uploaded to PyPI.
+* `twine upload --repository testpypi dist/*` to deploy to test PyPI.
+
+If all looks good, run:
+
+* `make release` to deploy to PyPI.
 
 ## Credits
 
