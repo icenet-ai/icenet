@@ -1839,6 +1839,7 @@ def plot_forecast():
 
                     region_plot = ax.plot(box_lon, box_lat, transform=data_crs_geo, color="red", zorder=999)
                     ax.set_global()
+                    ax.set_title("Selected region reference")
 
                     output_filename = os.path.join(
                         output_path, "{}.{}_reference.{}{}".format(
