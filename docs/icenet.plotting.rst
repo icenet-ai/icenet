@@ -4,14 +4,6 @@ icenet.plotting package
 Submodules
 ----------
 
-icenet.plotting.plot\_set module
---------------------------------
-
-.. automodule:: icenet.plotting.plot_set
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 icenet.plotting.utils module
 ----------------------------
 
