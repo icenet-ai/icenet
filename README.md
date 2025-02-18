@@ -66,9 +66,7 @@ Please refer to [the contribution guidelines for more information.](CONTRIBUTING
 
 ## Credits
 
-<a href="https://github.com/icenet-ai/icenet/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=icenet-ai/icenet" />
-</a>
+[![](https://contrib.rocks/image?repo=icenet-ai/icenet)](https://github.com/icenet-ai/icenet/graphs/contributors)
 
 ## License
 
