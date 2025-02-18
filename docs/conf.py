@@ -34,8 +34,10 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    'myst_parser',
-    'sphinxcontrib.kroki',
+    'myst_nb',
+    # 'myst_parser',
+    # 'sphinxcontrib.kroki',
+    'sphinx_design',
     'sphinx_multiversion',
     ]
 
@@ -204,3 +206,8 @@ def get_latest_git_tag():
 
 # Set smv_latest_version dynamically to the latest tag
 smv_latest_version = get_latest_git_tag() or 'main'
+
+# -- myst_nb -----------------------------------------------------------
+
+nb_execution_mode = 'off'
+myst_enable_extensions = ["colon_fence", "html_image", "linkify", "dollarmath", "tasklist"]
