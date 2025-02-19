@@ -1,9 +1,10 @@
 import logging
 import subprocess as sp
 
+from dataclasses import dataclass, field
 from enum import Flag, auto
 from functools import wraps
-
+from logging import Logger
 
 class Hemisphere(Flag):
     """Representation of hemispheres & both with bitwise operations.
@@ -94,8 +95,53 @@ def run_command(command: str, dry: bool = False) -> object:
     return ret
 
 
+@dataclass
+class LogFormat:
+    """
+    Creates a logging formatter for use across IceNet.
+    """
+
+    str_format: str = "[%(asctime)-17s :%(levelname)-8s] - %(message)s"
+    date_format: str = "%d-%m-%y %T"
+    formatter: logging.Formatter = field(init=False)
+
+    def __post_init__(self):
+        self.formatter = logging.Formatter(self.str_format, datefmt=self.date_format)
+
+
+def setup_module_logging(module_name: str, level: int=None):
+    """
+    Configure logger based on input name
+
+    Args:
+        module_name: Name for the logger
+        level: Logging level, can be int, or constants
+               from logging module (e.g. logging.INFO)
+
+    Returns:
+        A configured Logger instance
+    """
+    root_logger = logging.getLogger()
+
+    logger = logging.getLogger(module_name)
+    # Prevent duplication across custom and root loggers
+    logger.propagate = False
+
+    # Format custom logger
+    formatter = LogFormat().formatter
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    if level is None:
+        logger.setLevel(root_logger.level)
+    else:
+        logger.setLevel(level)
+    return logger
+
+
 def setup_logging(func,
-                  log_format="[%(asctime)-17s :%(levelname)-8s] - %(message)s"):
+                  log_format=LogFormat().str_format):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -108,7 +154,7 @@ def setup_logging(func,
         logging.basicConfig(
             level=level,
             format=log_format,
-            datefmt="%d-%m-%y %T",
+            datefmt=LogFormat().date_format,
         )
 
         # TODO: better way of handling these on a case by case basis
@@ -121,3 +167,28 @@ def setup_logging(func,
         return parsed_args
 
     return wrapper
+
+
+def check_pytorch_import(logger: Logger) -> bool:
+    """
+    Check for availability of pytorch module
+
+    Args:
+        logger: A Logger instance
+
+    Returns:
+        pytorch_available: Whether `torch` was successfully imported
+
+    Example:
+        >>> logger = setup_module_logging(__name__) #doctest: +SKIP
+        >>> pytorch_available = check_pytorch_import(logger) #doctest: +SKIP
+    """
+    pytorch_available = False
+    try:
+        import torch
+        pytorch_available = True
+    except ModuleNotFoundError:
+        pass
+    except ImportError:
+        logger.warning("PyTorch import failed - not required if not using PyTorch")
+    return pytorch_available

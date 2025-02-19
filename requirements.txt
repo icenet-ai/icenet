@@ -2,16 +2,18 @@ azure-storage-blob
 cartopy
 cdsapi
 cfgrib
+copernicusmarine
 dask
 distributed
-eccodes
+eccodes>=2.37.0, <2.39.0
 ecmwf-api-client
 h5py>2.10
 ibicus
+imageio-ffmpeg
 matplotlib
 motuclient
 netcdf4<1.6.1
-pandas<2
+pandas
 plotly
 pip
 pydap
@@ -23,4 +25,4 @@ tensorboard
 tensorflow<2.16
 tensorflow-probability
 wheel
-xarray[io]<2023.2.0
+xarray[io]
