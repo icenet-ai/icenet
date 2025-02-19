@@ -112,7 +112,8 @@ Before you submit a pull request, check that it meets these guidelines:
 Tips
 ----
 
-* Work with the latest version of the code to prevent code conflicts
+* Work with the latest version of the code to prevent code conflicts::
+
     $ git fetch
     $ git status
 

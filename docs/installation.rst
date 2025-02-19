@@ -4,6 +4,8 @@
 Installation
 ============
 
+For more detailed guidance on setting up with conda/mamba (in case you do not have netCDF4 or other system 
+dependencies, follow the installation section in the first tutorial guide)
 
 Stable release
 --------------
@@ -45,7 +47,6 @@ Once you have a copy of the source, you can install it with:
 .. code-block:: console
 
     $ python setup.py install
-
 
 .. _Github repo: https://github.com/icenet-ai/icenet
 .. _tarball: https://github.com/icenet-ai/icenet/tarball/master
