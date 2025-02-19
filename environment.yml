@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
+  - ffmpeg
   - netcdf4<1.6.1
   - pip
   - python=3.11
