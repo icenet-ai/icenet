@@ -77,12 +77,14 @@ class MaskDatasetConfig(DatasetConfig):
             sm = getattr(ds, self._mask_variable)
             land_mask = xr.where(sm < 30, 0, 1)
             # Boundary of our AMSR data
-            land_mask = land_mask.sel(
-                x=slice(-3.847e+06, 3.747e+06),
-                y=slice(5.847e+06, -5.347e+06))
-            # TODO: something was wrong with these bounds
-            # x = slice(-3.947e+06, 3.947e+06),
-            # y = slice(4.347e+06, -3.947e+06))
+            if self.location.north:
+                land_mask = land_mask.sel(
+                    x=slice(-3.847e+06, 3.747e+06),
+                    y=slice(5.847e+06, -5.347e+06))
+            elif self.location.south:
+                land_mask = land_mask.sel(
+                    x=slice(-3.947e+06, 3.947e+06),
+                    y=slice(4.347e+06, -3.947e+06))
             logging.info("Saving {}".format(land_mask_path))
             np.save(land_mask_path, land_mask.data[::-1])
         return land_mask_path
