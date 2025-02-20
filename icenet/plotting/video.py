@@ -308,12 +308,13 @@ def cli_args():
                       type=str,
                       default="plot")
     args.add_argument("-p", "--path", default="data", type=str)
+    args.add_argument("-r", "--freq", default="month", choices=["day", "month"], type=str)
     args.add_argument("-w", "--workers", default=8, type=int)
 
     args.add_argument("-v", "--verbose", action="store_true", default=False)
 
-    args.add_argument("data", type=lambda s: s.split(","))
-    args.add_argument("hemisphere",
+    args.add_argument("name", type=lambda s: s.split(","))
+    args.add_argument("location",
                       default=[],
                       choices=["north", "south"],
                       nargs="?")
@@ -330,19 +331,19 @@ def data_cli():
     """
     args = cli_args()
 
-    hemis = [args.hemisphere] if len(args.hemisphere) else ["north", "south"]
+    locations = [args.location] if len(args.location) else ["north", "south"]
     logging.info("Looking into {}".format(args.path))
 
-    path_children = [hemis, args.vars]
+    path_children = [[args.freq], locations, args.vars]
     video_batches = recurse_data_folders(
         args.path,
-        args.data,
+        args.name,
         path_children,
         filetype="nc" if not args.numpy else "npy")
     logging.debug("Batches: {}".format(video_batches))
 
     video_batches = [
-        v_el for h_list in video_batches for v_list in h_list for v_el in v_list
+        f_el for h_list in video_batches for v_list in h_list for v_list in v_list for f_el in v_list
     ]
 
     if len(args.years) > 0:
@@ -363,8 +364,11 @@ def data_cli():
 
         for batch in video_batches:
             futures.append(
-                executor.submit(video_process, batch, args.numpy,
-                                args.output_dir, args.fps))
+                executor.submit(video_process,
+                                batch,
+                                args.numpy,
+                                args.output_dir,
+                                args.fps))
 
         for future in as_completed(futures):
             try:
@@ -374,3 +378,4 @@ def data_cli():
                     logging.info("Produced {}".format(res))
             except Exception as e:
                 logging.error(e)
+                raise e
