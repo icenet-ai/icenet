@@ -78,8 +78,11 @@ class MaskDatasetConfig(DatasetConfig):
             land_mask = xr.where(sm < 30, 0, 1)
             # Boundary of our AMSR data
             land_mask = land_mask.sel(
-                x=slice(-3.947e+06, 3.947e+06),
-                y=slice(4.347e+06, -3.947e+06))
+                x=slice(-3.847e+06, 3.747e+06),
+                y=slice(5.847e+06, -5.347e+06))
+            # TODO: something was wrong with these bounds
+            # x = slice(-3.947e+06, 3.947e+06),
+            # y = slice(4.347e+06, -3.947e+06))
             logging.info("Saving {}".format(land_mask_path))
             np.save(land_mask_path, land_mask.data[::-1])
         return land_mask_path
@@ -136,6 +139,7 @@ class Masks(Processor):
             location=dataset_config.location,
         )
         mask_ds.save_data_for_config()
+        self._dataset_config = mask_ds.config_path
         self._hemi_str = "north" if dataset_config.location.north else "south"
 
         super().__init__(mask_ds,
@@ -153,14 +157,13 @@ class Masks(Processor):
         return {
             "implementation": "{}:{}".format(self.__module__, self.__class__.__name__),
             "absolute_vars": self.abs_vars,
-            # "dataset_config": self._dataset_config,
+            "dataset_config": self._dataset_config,
             "path": self.path,
             "processed_files": self._processed_files,
             "source_files": self._source_files,
         }
 
-    def process(self,
-                config_path: os.PathLike = None):
+    def process(self):
         # Land mask preparation
         land_mask = np.load(self._source_files["land"])
 
@@ -184,7 +187,7 @@ class Masks(Processor):
                                  convert=False,
                                  overwrite=False)
 
-        self.save_config(config_path=config_path)
+        self.save_config()
 
     def land(self, *args, **kwargs):
         """

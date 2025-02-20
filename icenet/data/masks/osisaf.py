@@ -150,14 +150,14 @@ class MaskDatasetConfig(DatasetConfig):
             #"_year",
         ])
 
-    @property
-    def config(self):
-        if self._config is None:
-            logging.debug("Creating dataset configuration with {}".format(self.location.name))
-            self._config = Configuration(config_type=self.config_type,
-                                         directory=self.root_path,
-                                         identifier=self.location.name)
-        return self._config
+    #@property
+    #def config(self):
+    #    if self._config is None:
+    #        logging.debug("Creating dataset configuration with {}".format(self.location.name))
+    #        self._config = Configuration(config_type=self.config_type,
+    #                                     directory=self.root_path,
+    #                                     identifier=self.location.name)
+    #    return self._config
 
 
 class Masks(Processor):
@@ -199,8 +199,7 @@ class Masks(Processor):
             "source_files": self._source_files,
         }
 
-    def process(self,
-                config_path: os.PathLike = None):
+    def process(self):
         # Active grid cell mask preparation
         mask_files = self._source_files["active_grid_cell"]
 
@@ -251,7 +250,7 @@ class Masks(Processor):
                                  da,
                                  overwrite=False)
 
-        self.save_config(config_path=config_path)
+        self.save_config()
 
     def active_grid_cell(self, date=None, *args, **kwargs):
         """
