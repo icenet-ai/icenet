@@ -14,7 +14,7 @@ from preprocess_toolbox.processor import Processor
 class MaskDatasetConfig(DatasetConfig):
     def __init__(self,
                  downloaded_files: list = None,
-                 identifier: str = "masks",
+                 identifier: str = "masks.osisaf",
                  **kwargs):
         super().__init__(identifier=identifier,
                          levels=[None, None, None],
@@ -181,7 +181,7 @@ class Masks(Processor):
         super().__init__(mask_ds,
                          absolute_vars=["active_grid_cell", "land", "land_map", "polarhole"],
                          dtype=np.dtype(bool),
-                         identifier="masks.{}".format(self._hemi_str),
+                         identifier="masks.osisaf.{}".format(self._hemi_str),
                          **kwargs)
 
         self._source_files = mask_ds.var_files.copy()
@@ -199,7 +199,8 @@ class Masks(Processor):
             "source_files": self._source_files,
         }
 
-    def process(self):
+    def process(self,
+                config_path: os.PathLike = None):
         # Active grid cell mask preparation
         mask_files = self._source_files["active_grid_cell"]
 
@@ -250,7 +251,7 @@ class Masks(Processor):
                                  da,
                                  overwrite=False)
 
-        self.save_config()
+        self.save_config(config_path=config_path)
 
     def active_grid_cell(self, date=None, *args, **kwargs):
         """

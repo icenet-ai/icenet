@@ -28,7 +28,7 @@ xr.where(sm < 30, 0, 1)
 class MaskDatasetConfig(DatasetConfig):
     def __init__(self,
                  downloaded_files: list = None,
-                 identifier: str = "masks",
+                 identifier: str = "masks.nsidc",
                  mask_variable: str = None,
                  resolution: float = 6.25,
                  **kwargs):
@@ -127,6 +127,7 @@ class Masks(Processor):
                  # TODO: we need to review, consuming for recreation is a bit narly no!?
                  #  Should these even be in the configuration file? ? ?
                  absolute_vars: list = None,
+                 config_path: os.PathLike = None,
                  identifier: str = None,
                  **kwargs):
         mask_ds = MaskDatasetConfig(
@@ -135,13 +136,12 @@ class Masks(Processor):
             location=dataset_config.location,
         )
         mask_ds.save_data_for_config()
-        self._dataset_config = mask_ds.save_config()
         self._hemi_str = "north" if dataset_config.location.north else "south"
 
         super().__init__(mask_ds,
                          absolute_vars=["land", "land_map"],
                          dtype=np.dtype(bool),
-                         identifier="masks.{}".format(self._hemi_str),
+                         identifier="masks.nsidc.{}".format(self._hemi_str),
                          **kwargs)
 
         self._source_files = mask_ds.var_files.copy()
@@ -153,13 +153,14 @@ class Masks(Processor):
         return {
             "implementation": "{}:{}".format(self.__module__, self.__class__.__name__),
             "absolute_vars": self.abs_vars,
-            "dataset_config": self._dataset_config,
+            # "dataset_config": self._dataset_config,
             "path": self.path,
             "processed_files": self._processed_files,
             "source_files": self._source_files,
         }
 
-    def process(self):
+    def process(self,
+                config_path: os.PathLike = None):
         # Land mask preparation
         land_mask = np.load(self._source_files["land"])
 
@@ -167,16 +168,23 @@ class Masks(Processor):
                           dims=["yc", "xc"],
                           attrs=dict(description="IceNet land mask metadata"))
 
-        self.save_processed_file("land", os.path.basename(self.land_filename), da, overwrite=False)
+        self.save_processed_file("land",
+                                 os.path.basename(self.land_filename),
+                                 da,
+                                 overwrite=False)
 
         land_map = np.ones(land_mask.shape, dtype=np.float32)
         land_map[~land_mask.astype(bool)] = -1.
         da = xr.DataArray(data=land_map,
                           dims=["yc", "xc"],
                           attrs=dict(description="IceNet land map metadata"))
-        self.save_processed_file("land_map", os.path.basename(self.land_map_filename), da, convert=False, overwrite=False)
+        self.save_processed_file("land_map",
+                                 os.path.basename(self.land_map_filename),
+                                 da,
+                                 convert=False,
+                                 overwrite=False)
 
-        self.save_config()
+        self.save_config(config_path=config_path)
 
     def land(self, *args, **kwargs):
         """
