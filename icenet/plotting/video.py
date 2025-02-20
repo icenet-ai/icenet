@@ -306,7 +306,7 @@ def cli_args():
                       "--output-dir",
                       dest="output_dir",
                       type=str,
-                      default="plot")
+                      default="plots")
     args.add_argument("-p", "--path", default="data", type=str)
     args.add_argument("-r", "--freq", default="month", choices=["day", "month"], type=str)
     args.add_argument("-w", "--workers", default=8, type=int)
