@@ -38,7 +38,8 @@ dependencies = [
   "seaborn",
   "setuptools",
   "tensorboard",
-  "tensorflow",
+  # TODO: model construction issues causing this pinning to 2.15 - GH#324
+  "tensorflow<2.16",
   "tensorflow-probability",
   "wheel",
   "xarray[io]"
