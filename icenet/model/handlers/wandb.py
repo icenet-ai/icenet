@@ -11,7 +11,7 @@ except ModuleNotFoundError:
 
 def init_wandb(cli_args):
     if wandb_available:
-        if cli_args.horovod:
+        if hasattr(cli_args, "horovod") and cli_args.horovod:
             try:
                 import horovod.tensorflow.keras as hvd
             except ModuleNotFoundError:
