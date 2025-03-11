@@ -166,7 +166,7 @@ def create_cf_output():
 
         lists_of_fcast_dates = [[
             pd.Timestamp(
-                date + relativedelta({"{}s".format(ground_truth_ds_config.frequency.attribute): int(lead_idx)}))
+                date + relativedelta(**{"{}s".format(ground_truth_ds_config.frequency.attribute): int(lead_idx)}))
             for lead_idx in np.arange(1, arr.shape[3] + 1, 1)
         ] for date in dates]
 
