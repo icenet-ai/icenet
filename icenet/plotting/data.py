@@ -160,9 +160,10 @@ def plot_sample_cli():
 
 def plot_channel_data(data: object,
                       var_names: list,
-                      output_path: str,
+                      output_path: str = None,
                       cols: int = 4,
-                      square_size: int = 4):
+                      square_size: int = 4,
+                      get_fig: bool = False):
     """
 
     :param data:
@@ -170,6 +171,7 @@ def plot_channel_data(data: object,
     :param output_path:
     :param cols:
     :param square_size:
+    :param get_fig:
     """
     num_rows = int(len(var_names) / cols) + \
         ceil(len(var_names) / cols - int(len(var_names) / cols))
@@ -189,5 +191,8 @@ def plot_channel_data(data: object,
         cax1 = divider.append_axes('right', size='3%', pad=square_size / 25)
         fig.colorbar(im1, cax=cax1, orientation='vertical')
 
-    plt.savefig(output_path)
-    plt.close()
+    if not get_fig:
+        plt.savefig(output_path)
+        plt.close()
+    else:
+        return fig
