@@ -153,7 +153,10 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         """
         # TODO: for each set, validate every variable has an appropriate file
         #  in the configuration arrays, otherwise drop the forecast date
-        splits = ("train", "val", "test")
+
+        splits = set([s
+                      for identity in self._config["sources"].keys()
+                      for s in self._config["sources"][identity]["splits"].keys()])
 
         if dates_override and type(dates_override) is dict:
             for split in splits:
