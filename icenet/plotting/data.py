@@ -192,6 +192,7 @@ def plot_channel_data(data: object,
         fig.colorbar(im1, cax=cax1, orientation='vertical')
 
     if not get_fig:
+        logging.info("Saving to {}".format(output_path))
         plt.savefig(output_path)
         plt.close()
     else:
