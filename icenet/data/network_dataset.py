@@ -187,6 +187,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                  configuration_paths: object,
                  *args,
                  batch_size: int = 4,
+                 identifier: str = None,
                  path: str = os.path.join(".", "network_datasets"),
                  shuffling: bool = False,
                  **kwargs):
@@ -195,8 +196,14 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             if type(configuration_paths) != list else configuration_paths
         self._load_configurations(configuration_paths)
 
-        identifier = ".".join(
-            [loader.identifier for loader in self._config["loaders"]])
+        if identifier is None:
+            logging.warning("No identifier supplied, but merged datasets end up with potentially"
+                            " conflicting identifiers if you don't specify them. Be warned!")
+            # Might look mental, but shorten/dedupes some common naming components which is not a bad thing
+            identifier = ".".join(["-".join(set(el))
+                                   for el in zip(*[loader.identifier.split(".")
+                                                   for loader in self._config["loaders"]])])
+            logging.info("Generated merged identifier: {}".format(identifier))
 
         super().__init__(*args,
                          identifier=identifier,

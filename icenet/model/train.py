@@ -90,8 +90,10 @@ def get_datasets(args):
                                 batch_size=args.batch_size,
                                 shuffling=args.shuffle_train)
     else:
+        identifier = args.dataset_identifier
         dataset = MergedIceNetDataSet(dataset_filenames,
                                       batch_size=args.batch_size,
+                                      identifier=identifier,
                                       shuffling=args.shuffle_train)
     return dataset
 

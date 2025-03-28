@@ -33,6 +33,11 @@ class TrainingArgParser(argparse.ArgumentParser):
                           "--checkpoint-monitor",
                           default="val_rmse",
                           type=str)
+        self.add_argument("-di",
+                          "--dataset-identifier",
+                          help="For multi dataset runs, used this as the dataset identifier",
+                          type=str,
+                          default=None)
         self.add_argument("-ds",
                           "--additional-dataset",
                           dest="additional",
