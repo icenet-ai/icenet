@@ -335,6 +335,8 @@ def generate_and_write(path: str,
     #import sys
     #sys.exit(0)
 
+    # TODO: use to_dask_dataframe to stop the relentless moaning? Need to investigate
+    #   the submission issue for run_specs in dask: https://github.com/dask/dask/issues/9888
     var_ds = xr.open_mfdataset([
         v for k, v in var_files.items()
         if k not in meta_channels and not k.endswith("linear_trend")

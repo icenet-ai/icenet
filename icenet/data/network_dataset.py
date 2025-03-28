@@ -81,6 +81,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
                          base_path=path,
                          **kwargs)
 
+        # TODO: code smell - loading config twice because not using DataCollection
         self._config = dict()
         self._load_configuration(configuration_path)
         self._batch_size = batch_size
@@ -93,12 +94,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         self._shape = tuple(self._config["shape"])
         self._shuffling = shuffling
 
-        if "loader_path" in self._config:
-            logging.warning("Configuration uses old \"loader_path\" attribute, "
-                            "this should change to \"dataset_path\"")
-            path_attr = "loader_path"
-        else:
-            path_attr = "dataset_path"
+        path_attr = "dataset_path"
 
         # Check JSON config has attribute for path to tfrecord datasets, and
         #   that the path exists.
@@ -204,11 +200,13 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
         super().__init__(*args,
                          identifier=identifier,
-                         north=bool(self._config["north"]),
-                         path=path,
-                         south=bool(self._config["south"]),
+                         base_path=path,
+                         dummy=True,
                          **kwargs)
 
+        # TODO: code smell - loading config twice because not using DataCollection
+        self._config = dict()
+        self._load_configurations(configuration_paths)
         self._base_path = path
         self._batch_size = batch_size
         self._dtype = getattr(np, self._config["dtype"])
@@ -243,7 +241,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                 logging.info("Loading configuration {}".format(path))
 
                 with open(path, "r") as fh:
-                    obj = json.load(fh)
+                    obj = orjson.loads(fh.read())
                     self._merge_configurations(path, obj)
             else:
                 raise OSError("{} not found".format(path))
@@ -258,7 +256,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             "dask",
             other["loader_config"],
             other["identifier"],
-            other["var_lag"],
+            lag_time=other["lag_time"],
             dataset_config_path=os.path.dirname(path),
             loss_weight_days=other["loss_weight_days"],
             north=other["north"],
@@ -267,13 +265,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             var_lag_override=other["var_lag_override"])
 
         self._config["loaders"].append(loader)
-
-        if "loader_path" in other:
-            logging.warning("Configuration uses old \"loader_path\" attribute, "
-                            "this should change to \"dataset_path\"")
-            self._config["loader_paths"].append(other["loader_path"])
-        else:
-            self._config["loader_paths"].append(other["dataset_path"])
+        self._config["loader_paths"].append(other["dataset_path"])
 
         if "counts" not in self._config:
             self._config["counts"] = other["counts"].copy()
@@ -292,8 +284,14 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             if attr not in self._config:
                 self._config[attr] = other[attr]
             else:
-                assert self._config[attr] == other[attr], \
-                    "{} is not the same across configurations".format(attr)
+                if type(self._config[attr]) != list:
+                    if not (self._config[attr] == other[attr]):
+                        raise RuntimeError("{} is not the same across configurations".format(attr))
+                else:
+                    this_el = ",".join(sorted([str(_) for _ in self._config[attr]]))
+                    other_el = ",".join(sorted([str(_) for _ in other[attr]]))
+                    if not (this_el == other_el):
+                        raise RuntimeError("{} is not the same across configurations:\n{} vs {}".format(attr, this_el, other_el))
 
         self._config["north"] = True if loader.north else self._config["north"]
         self._config["south"] = True if loader.south else self._config["south"]
