@@ -216,7 +216,8 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                                         self.get_sample_files(),
                                         dates,
                                         args,
-                                        dry=self._dry)
+                                        dry=self._dry,
+                                        pure=True)
                     futures.append(fut)
 
                     # Use this to limit the future list, to avoid crashing the
@@ -324,19 +325,14 @@ def generate_and_write(path: str,
     ds_kwargs = dict(
         chunks=dict(time=1, yc=shape[0], xc=shape[1]),
         drop_variables=["month", "plev", "realization"],
-        parallel=True,
+        parallel=True
     )
-
-    #print([
-    #    v for k, v in var_files.items()
-    #    if k not in meta_channels and not k.endswith("linear_trend")
-    #])
-    #print(ds_kwargs)
-    #import sys
-    #sys.exit(0)
 
     # TODO: use to_dask_dataframe to stop the relentless moaning? Need to investigate
     #   the submission issue for run_specs in dask: https://github.com/dask/dask/issues/9888
+    #   Suspect the datasets should be distributed from outside the compute graph
+    #   Whichever way, it doesn't like the size of data moving about or lots of run_spec conflicts
+    #   but none of these actually seem to be producing errors
     var_ds = xr.open_mfdataset([
         v for k, v in var_files.items()
         if k not in meta_channels and not k.endswith("linear_trend")
@@ -360,15 +356,14 @@ def generate_and_write(path: str,
                 x, y, sample_weights = generate_sample(date, var_ds, var_files,
                                                        trend_ds, *args)
                 if not dry:
-                    x[da.isnan(x)] = 0.
-
                     x, y, sample_weights = dask.compute(x,
                                                         y,
                                                         sample_weights,
                                                         optimize_graph=True)
                     write_tfrecord(writer, x, y, sample_weights)
                 count += 1
-            except IceNetDataWarning:
+            except IceNetDataWarning as e:
+                logging.error("Data cannot be included in the outputs: {} - {}".format(date, e))
                 continue
 
             end = time.time()
@@ -430,11 +425,10 @@ def generate_sample(forecast_date: object,
     if not prediction:
         try:
             sample_output = var_ds.siconca_abs.isel(time=forecast_idxs)
-        except KeyError as sic_ex:
-            logging.exception(
-                "Issue selecting data for non-prediction sample, "
-                "please review siconca ground-truth: dates {}".format(forecast_idxs))
-            raise RuntimeError(sic_ex)
+        except (KeyError, IndexError):
+            raise IceNetDataWarning(
+                "Issue with y-data for non-prediction sample {}, "
+                "please review siconca ground-truth: dates {}".format(forecast_date, forecast_idxs))
         y[:, :, :, 0] = sample_output
         y_mask = da.stack([masks["land"].data for _ in range(0, n_forecast_steps)], axis=-1)
         y_mask = da.stack([y_mask], axis=-1)
@@ -494,12 +488,18 @@ def generate_sample(forecast_date: object,
                 data = getattr(channel_ds, var_name).isel(time=idx)
                 if var_name.startswith("siconca"):
                     data = da.ma.where(masks["land"], 0., data)
+
+                # TODO: this is probably going to slow things up, but will make datasets more resilient
+                if da.nansum(data) == 0:
+                    raise IceNetDataWarning("We have a channel {} with no data at time index {}/{} for forecast date {}".
+                                            format(var_name, idx, max(channel_idxs), forecast_date))
                 channel_data.append(data)
 
                 # logging.info("NANs: {} = {} in {}-{}".format(forecast_date, int(da.isnan(data).sum()), var_name, idx))
-            except KeyError as e:
-                logging.warning("KeyError detected on channel construction for {} - {}: {}".format(var_name, idx, e))
-                channel_data.append(da.zeros(shape))
+            except (KeyError, IndexError) as e:
+                raise IceNetDataWarning("Key or Index error detected on channel construction for {} - {}: {}".
+                                        format(var_name, forecast_date, e))
+                # channel_data.append(da.zeros(shape))
 
         x[:, :, v1:v2] = da.from_array(channel_data).transpose([1, 2, 0])
         v1 += num_channels
@@ -521,13 +521,13 @@ def generate_sample(forecast_date: object,
         v1 += channels[var_name]
 
     # TODO: we have unwarranted nans which need fixing, probably from broken spatial infilling
-    nan_mask_x, nan_mask_y, nan_mask_sw = da.isnan(x), da.isnan(y), da.isnan(sample_weights)
-    if nan_mask_x.sum() + nan_mask_y.sum() + nan_mask_sw.sum() > 0:
-        logging.warning("NANs: {} in input, {} in output, {} in weights".format(
-            int(nan_mask_x.sum()), int(nan_mask_y.sum()), int(nan_mask_sw.sum())
+    nan_mask_x = da.isnan(x)# , nan_mask_y, nan_mask_sw = da.isnan(x), da.isnan(y), da.isnan(sample_weights)
+    if nan_mask_x.sum():# + nan_mask_y.sum() + nan_mask_sw.sum() > 0:
+        logging.warning("NANs: zeroing {} in input".format(#, {} in output, {} in weights".format(
+            int(nan_mask_x.sum())# , int(nan_mask_y.sum()), int(nan_mask_sw.sum())
         ))
         x[nan_mask_x] = 0
-        sample_weights[nan_mask_sw] = 0
-        y[nan_mask_y] = 0
+        # sample_weights[nan_mask_sw] = 0
+        # y[nan_mask_y] = 0
 
     return x, y, sample_weights
