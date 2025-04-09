@@ -3,6 +3,7 @@ import os
 
 import numpy as np
 import xarray as xr
+from scipy.ndimage import rotate
 
 from icenet.utils import run_command
 
@@ -78,15 +79,17 @@ class MaskDatasetConfig(DatasetConfig):
             land_mask = xr.where(sm < 30, 0, 1)
             # Boundary of our AMSR data
             if self.location.north:
+                land_mask.data = rotate(land_mask.data, angle=45, reshape=False)
                 land_mask = land_mask.sel(
-                    x=slice(-3.847e+06, 3.747e+06),
+                    x=slice(-3846875.0, 3746875.0),
                     y=slice(5.847e+06, -5.347e+06))
+                np.save(land_mask_path, land_mask.data[::-1])
             elif self.location.south:
                 land_mask = land_mask.sel(
                     x=slice(-3.947e+06, 3.947e+06),
                     y=slice(4.347e+06, -3.947e+06))
-            logging.info("Saving {}".format(land_mask_path))
-            np.save(land_mask_path, land_mask.data[::-1])
+                np.save(land_mask_path, land_mask.data[::-1])
+            logging.info("Saved {}".format(land_mask_path))
         return land_mask_path
 
     def save_data_for_config(self,
