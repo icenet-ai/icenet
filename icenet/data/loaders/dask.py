@@ -264,7 +264,9 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         """
 
         ds_kwargs = dict(
-            chunks=dict(time=1, yc=self._shape[0], xc=self._shape[1]),
+            chunks=dict(time=1,
+                        yc=self._shape[0], xc=self._shape[1],
+                        y=self._shape[0], x=self._shape[1]),
             drop_variables=["month", "plev", "level", "realization"],
             parallel=parallel,
         )
@@ -276,7 +278,9 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         ], **ds_kwargs)
 
         logging.debug("VAR: {}".format(pformat(var_ds)))
-        var_ds = var_ds.transpose("yc", "xc", "time")
+        x_name = "xc" if "x" not in var_ds.coords else "x"
+        y_name = "yc" if "y" not in var_ds.coords else "y"
+        var_ds = var_ds.transpose(y_name, x_name, "time")
 
         trend_files = \
             [v for k, v in var_files.items()
@@ -286,7 +290,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         if len(trend_files) > 0:
             trend_ds = xr.open_mfdataset(trend_files, **ds_kwargs)
             logging.debug("TREND: {}".format(pformat(trend_ds)))
-            trend_ds = trend_ds.transpose("yc", "xc", "time")
+            trend_ds = trend_ds.transpose(y_name, x_name, "time")
 
         args = [
             self._channels, self._dtype, self._loss_weight_days,
@@ -323,7 +327,9 @@ def generate_and_write(path: str,
      prediction) = args
 
     ds_kwargs = dict(
-        chunks=dict(time=1, yc=shape[0], xc=shape[1]),
+        chunks=dict(time=1,
+                    yc=shape[0], xc=shape[1],
+                    y=shape[0], x=shape[1]),
         drop_variables=["month", "plev", "realization"],
         parallel=True
     )
@@ -337,7 +343,9 @@ def generate_and_write(path: str,
         v for k, v in var_files.items()
         if k not in meta_channels and not k.endswith("linear_trend")
     ], **ds_kwargs)
-    var_ds = var_ds.transpose("yc", "xc", "time")
+    x_name = "xc" if "x" not in var_ds.coords else "x"
+    y_name = "yc" if "y" not in var_ds.coords else "y"
+    var_ds = var_ds.transpose(y_name, x_name, "time")
 
     trend_files = [
         v for k, v in var_files.items() if k.endswith("linear_trend")
@@ -346,7 +354,7 @@ def generate_and_write(path: str,
 
     if len(trend_files):
         trend_ds = xr.open_mfdataset(trend_files, **ds_kwargs)
-        trend_ds = trend_ds.transpose("yc", "xc", "time")
+        trend_ds = trend_ds.transpose(y_name, x_name, "time")
 
     with tf.io.TFRecordWriter(path) as writer:
         for date in dates:
@@ -441,13 +449,15 @@ def generate_sample(forecast_date: object,
         if any([forecast_step == missing_date for missing_date in missing_dates]):
             sample_weight = da.zeros(shape, dtype)
         else:
+            # TODO: this is hacky - across the entire sample generation process we need to render all masks down
             # Zero loss outside of 'active grid cells'
-            # TODO: this is hacky, we need to assess / combine masks more consistently via that implementation
             if "active_grid_cell" in masks:
                 sample_weight = masks["active_grid_cell"].sel(month=forecast_step.month).data
                 sample_weight[masks["land"].data] = 0.
             else:
-                sample_weight = da.ones_like(masks["land"])
+                # sample_weight = da.ones(shape, dtype)
+                sample_weight = da.where(masks["land"] == 1, 0., 1.)
+
             # TODO: dynamic inclusion of polarhole?
             sample_weight = sample_weight.astype(dtype)
 
@@ -456,8 +466,9 @@ def generate_sample(forecast_date: object,
 
             # Scale the loss for each month s.t. March is
             #   scaled by 1 and Sept is scaled by 1.77
-            if loss_weight_days:
-                sample_weight *= 33928. / sample_weight.sum()
+            # TODO: this isn't generally applicable (e.g. daily / amsr) so have removed it temporarily
+            # if loss_weight_days:
+            #     sample_weight *= 33928. / sample_weight.sum()
 
         sample_weights[:, :, leadtime_idx, 0] = sample_weight
 
@@ -486,8 +497,11 @@ def generate_sample(forecast_date: object,
         for idx in channel_idxs:
             try:
                 data = getattr(channel_ds, var_name).isel(time=idx)
-                if var_name.startswith("siconca"):
-                    data = da.ma.where(masks["land"], 0., data)
+
+                # TODO: validate, but this should not be required if the weights are good
+                #  except the situation where there're nans in trends, perhaps?
+                # if var_name.startswith("siconca"):
+                #     data = da.ma.where(masks["land"], 0., data)
 
                 # TODO: this is probably going to slow things up, but will make datasets more resilient
                 if da.nansum(data) == 0:
