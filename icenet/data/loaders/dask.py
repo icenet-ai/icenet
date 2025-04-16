@@ -265,8 +265,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
 
         ds_kwargs = dict(
             chunks=dict(time=1,
-                        yc=self._shape[0], xc=self._shape[1],
-                        y=self._shape[0], x=self._shape[1]),
+                        yc=self._shape[0], xc=self._shape[1]),
             drop_variables=["month", "plev", "level", "realization"],
             parallel=parallel,
         )
@@ -278,8 +277,8 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         ], **ds_kwargs)
 
         logging.debug("VAR: {}".format(pformat(var_ds)))
-        x_name = "xc" if "x" not in var_ds.coords else "x"
-        y_name = "yc" if "y" not in var_ds.coords else "y"
+        x_name = "xc"
+        y_name = "yc"
         var_ds = var_ds.transpose(y_name, x_name, "time")
 
         trend_files = \
@@ -327,9 +326,7 @@ def generate_and_write(path: str,
      prediction) = args
 
     ds_kwargs = dict(
-        chunks=dict(time=1,
-                    yc=shape[0], xc=shape[1],
-                    y=shape[0], x=shape[1]),
+        chunks=dict(time=1, yc=shape[0], xc=shape[1]),
         drop_variables=["month", "plev", "realization"],
         parallel=True
     )
@@ -343,8 +340,8 @@ def generate_and_write(path: str,
         v for k, v in var_files.items()
         if k not in meta_channels and not k.endswith("linear_trend")
     ], **ds_kwargs)
-    x_name = "xc" if "x" not in var_ds.coords else "x"
-    y_name = "yc" if "y" not in var_ds.coords else "y"
+    x_name = "xc"
+    y_name = "yc"
     var_ds = var_ds.transpose(y_name, x_name, "time")
 
     trend_files = [
