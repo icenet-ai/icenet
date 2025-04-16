@@ -19,7 +19,8 @@ class SICPreProcessor(NormalisingChannelProcessor):
                                "with siconca only")
         else:
             # If the OSISAF data has been regridded, we might end up with renamed coords
-            da = da.rename(dict(x="xc", y="yc"))
+            if "x" in da.dims and "y" in da.dims:
+                da = da.rename(dict(x="xc", y="yc"))
 
             if "units" in da.xc.attrs and da.xc.attrs["units"] == "km":
                 da.xc.attrs["units"] = "metres"
