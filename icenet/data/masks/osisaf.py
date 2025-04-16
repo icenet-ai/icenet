@@ -1,14 +1,20 @@
+import argparse
 import datetime as dt
+import glob
 import logging
 import os
 
+import iris
 import numpy as np
 import pandas as pd
 import xarray as xr
 
+from download_toolbox.cli import BaseArgParser
 from download_toolbox.interface import Configuration, DatasetConfig
 from download_toolbox.utils import run_command
 from preprocess_toolbox.processor import Processor
+
+from icenet.data.processors.osisaf import amsr_coordinate_regrid
 
 
 class MaskDatasetConfig(DatasetConfig):
@@ -140,15 +146,20 @@ class MaskDatasetConfig(DatasetConfig):
                    config_funcs: dict = None,
                    strip_keys: list = None):
         return super().get_config(strip_keys=[
-            #"_filename_template_osi450",
-            #"_hemi_str",
             "_identifier",
             "_levels",
             "_path_components",
-            #"_retrieve_cmd_template_osi450",
             "_var_names",
-            #"_year",
         ])
+
+    @property
+    def config(self):
+        if self._config is None:
+            logging.debug("Creating dataset configuration with {}".format(self.location.name))
+            self._config = Configuration(config_type=self.config_type,
+                                         directory=self.root_path,
+                                         identifier=self.location.name)
+        return self._config
 
 
 class Masks(Processor):
@@ -166,7 +177,7 @@ class Masks(Processor):
             location=dataset_config.location,
         )
         mask_ds.save_data_for_config()
-        self._dataset_config = mask_ds.config_path
+        self._dataset_config = mask_ds.save_config()
         self._hemi_str = "north" if dataset_config.location.north else "south"
 
         super().__init__(mask_ds,
@@ -382,3 +393,25 @@ class Masks(Processor):
     def polarhole_filename(self):
         return os.path.join(self.path, "polarhole.{}.nc".format(self._hemi_str))
 
+
+def regrid_mask_file_cli():
+    args = BaseArgParser().add_extra_args([
+        (["ref"], dict(help="Reference gridfile")),
+        (["path"], dict(help="Path of NC files to regrid")),
+        (["sic_ref"], dict(help="Path of OSISAF file for coordinatess"))
+    ]).parse_args()
+
+    ref_cube = iris.load_cube(args.ref)
+    #amsr_coordinate_regrid
+    for nc_file in glob.glob(os.path.join(args.path, "*.nc")):
+        logging.info(f"Processing {nc_file}")
+        mask = xr.open_dataarray(nc_file)
+        cube = mask.to_iris()
+        mask.close()
+        cube = amsr_coordinate_regrid(ref_cube, cube, args.sic_ref)
+        cube = cube.regrid(ref_cube, iris.analysis.Linear())
+        new_mask = xr.DataArray.from_iris(cube)
+        new_mask = xr.where(new_mask > 1, 1., new_mask)
+        new_mask = xr.where(new_mask < 0, 0., new_mask)
+        logging.info(f"Saving {nc_file}")
+        new_mask.to_netcdf(nc_file)
