@@ -450,7 +450,7 @@ def generate_sample(forecast_date: object,
             # Zero loss outside of 'active grid cells'
             if "active_grid_cell" in masks:
                 sample_weight = masks["active_grid_cell"].sel(month=forecast_step.month).data
-                sample_weight[masks["land"].data] = 0.
+                sample_weight[masks["land"].astype("bool")] = 0.
             else:
                 # sample_weight = da.ones(shape, dtype)
                 sample_weight = da.where(masks["land"] == 1, 0., 1.)
