@@ -150,15 +150,6 @@ class MaskDatasetConfig(DatasetConfig):
             #"_year",
         ])
 
-    #@property
-    #def config(self):
-    #    if self._config is None:
-    #        logging.debug("Creating dataset configuration with {}".format(self.location.name))
-    #        self._config = Configuration(config_type=self.config_type,
-    #                                     directory=self.root_path,
-    #                                     identifier=self.location.name)
-    #    return self._config
-
 
 class Masks(Processor):
     def __init__(self,
@@ -175,7 +166,7 @@ class Masks(Processor):
             location=dataset_config.location,
         )
         mask_ds.save_data_for_config()
-        self._dataset_config = mask_ds.save_config()
+        self._dataset_config = mask_ds.config_path
         self._hemi_str = "north" if dataset_config.location.north else "south"
 
         super().__init__(mask_ds,
