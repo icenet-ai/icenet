@@ -488,7 +488,7 @@ def generate_sample(forecast_date: object,
         # If we're not a trend, we're a lag channel looking back historically from the initialisation date
         else:
             channel_ds = var_ds
-            channel_idxs = [forecast_base_idx - n for n in range(0, num_channels)]
+            channel_idxs = [forecast_base_idx - n for n in range(1, num_channels + 1)]
 
         channel_data = []
         for idx in channel_idxs:
@@ -502,8 +502,8 @@ def generate_sample(forecast_date: object,
 
                 # TODO: this is probably going to slow things up, but will make datasets more resilient
                 if da.nansum(data) == 0:
-                    raise IceNetDataWarning("We have a channel {} with no data at time index {}/{} for forecast date {}".
-                                            format(var_name, idx, max(channel_idxs), forecast_date))
+                    raise IceNetDataWarning("We have {} with blank data at time {} for forecast date {}".
+                                            format(var_name, channel_ds.time.values[idx], forecast_date))
                 channel_data.append(data)
 
                 # logging.info("NANs: {} = {} in {}-{}".format(forecast_date, int(da.isnan(data).sum()), var_name, idx))
@@ -532,13 +532,22 @@ def generate_sample(forecast_date: object,
         v1 += channels[var_name]
 
     # TODO: we have unwarranted nans which need fixing, probably from broken spatial infilling
-    nan_mask_x = da.isnan(x)# , nan_mask_y, nan_mask_sw = da.isnan(x), da.isnan(y), da.isnan(sample_weights)
-    if nan_mask_x.sum():# + nan_mask_y.sum() + nan_mask_sw.sum() > 0:
-        logging.warning("NANs: zeroing {} in input".format(#, {} in output, {} in weights".format(
-            int(nan_mask_x.sum())# , int(nan_mask_y.sum()), int(nan_mask_sw.sum())
+    #nan_mask_x = da.isnan(x)# , nan_mask_y, nan_mask_sw = da.isnan(x), da.isnan(y), da.isnan(sample_weights)
+    #if nan_mask_x.sum():# + nan_mask_y.sum() + nan_mask_sw.sum() > 0:
+    #    logging.warning("NANs {}: zeroing {} in input".format(#, {} in output, {} in weights".format(
+    #        forecast_date.strftime("%F"), int(nan_mask_x.sum())# , int(nan_mask_y.sum()), int(nan_mask_sw.sum())
+    #    ))
+    #    x[nan_mask_x] = 0
+    #
+    #
+
+    nan_mask_x, nan_mask_y, nan_mask_sw = da.isnan(x), da.isnan(y), da.isnan(sample_weights)
+    if nan_mask_x.sum() + nan_mask_y.sum() + nan_mask_sw.sum() > 0:
+        logging.warning("NANs {}: zeroing {} in input, {} in output, {} in weights".format(
+            forecast_date.strftime("%F"), int(nan_mask_x.sum()), int(nan_mask_y.sum()), int(nan_mask_sw.sum())
         ))
         x[nan_mask_x] = 0
-        # sample_weights[nan_mask_sw] = 0
-        # y[nan_mask_y] = 0
+        sample_weights[nan_mask_sw] = 0
+        y[nan_mask_y] = 0
 
     return x, y, sample_weights
