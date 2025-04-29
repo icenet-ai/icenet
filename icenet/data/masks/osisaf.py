@@ -34,7 +34,7 @@ class MaskDatasetConfig(DatasetConfig):
         self._downloaded_files = [] if downloaded_files is None else downloaded_files
         self._year = 2000
         self._retrieve_cmd_template_osi450 = \
-            "wget -O {} ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/{}"
+            "curl -o {} ftp://osisaf.met.no/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/{}"
         self._filename_template_osi450 = \
             'ice_conc_{}_ease2-250_cdr-v2p0_{:04d}{:02d}021200.nc'
         self._hemi_str = "nh" if self.location.north else "sh"

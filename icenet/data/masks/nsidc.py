@@ -55,7 +55,7 @@ class MaskDatasetConfig(DatasetConfig):
             self._mask_variable = "sea_ice_region_RH_surface_mask" if self.location.south else "sea_ice_region_surface_mask"
         self._downloaded_files = [] if downloaded_files is None else downloaded_files
 
-        self._retrieve_cmd = "wget -O {} ftp://sidads.colorado.edu/pub/DATASETS/nsidc0780_seaice_masks_v1/netcdf/{}"
+        self._retrieve_cmd = "curl -o {} ftp://sidads.colorado.edu/pub/DATASETS/nsidc0780_seaice_masks_v1/netcdf/{}"
 
     def _download_or_load(self):
         dest_filename = os.path.join(self.path, self._mask_filename)
