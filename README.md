@@ -43,7 +43,7 @@ Please consult the [tensorflow docs](https://www.tensorflow.org/install/pip) for
 
 ### Development installation
 
-Please refer to [the contribution guidelines for more information.](CONTRIBUTING.rst)
+Please refer to [the contribution guidelines for more information.](CONTRIBUTING.md)
 
 ## Implementation
 
@@ -62,7 +62,7 @@ repository][2] for examples of how to use this library.
 
 ## Contributing to IceNet
 
-Please refer to [the contribution guidelines for more information.](CONTRIBUTING.rst)
+Please refer to [the contribution guidelines for more information.](CONTRIBUTING.md)
 
 ## Credits
 

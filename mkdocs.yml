@@ -2,7 +2,7 @@ site_name: IceNet
 nav:
   - Overview: index.md
   - User Guide:
-    - Technical Overview & Definitions: user/overview.md
+    - IceNet Overview: user/overview.md
   - Developer Guide:
     - Contribution:
       - Contributing: developer/contribution/contributing.md
