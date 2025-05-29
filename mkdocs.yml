@@ -1,0 +1,76 @@
+site_name: IceNet
+nav:
+  - Overview: index.md
+  - User Guide:
+    - Technical Overview & Definitions: user/overview.md
+  - Developer Guide:
+    - Contribution:
+      - Contributing: developer/contribution/contributing.md
+      - Software Guide: developer/contribution/software.md
+      - Documentation Guide: developer/contribution/documentation.md
+      - Code of Conduct: developer/contribution/code_of_conduct.md
+    - Library Layout: developer/layout.md
+  - Change Log: change_log.md
+  - Acknowledgements: acknowledgements.md
+  - LICENSE: license.md
+repo_url: https://github.com/icenet-ai/icenet
+repo_name: icenet
+edit_uri: edit/main/docs/
+theme:
+  name: material
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  logo: https://cdn.web.bas.ac.uk/bas-style-kit/0.7.3/img/logos-symbols/bas-roundel-inverse-transparent-64.png
+  favicon: images/favicon.ico
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    # Enables copying of code blocks
+    - content.code.copy
+    # Enables "edit this page" to contribute to docs
+    - content.action.edit
+plugins:
+  - search
+  # Enables automatically generating authors from git repo, see acknowledgements.md
+  - git-authors
+  # Automatically generates API section from docstrings
+  - mkdocs-autoapi:
+      autoapi_add_nav_entry: API
+      autoapi_ignore:
+        - setup.py
+  - autorefs:
+      resolve_closest: true
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - .
+          options:
+            show_submodules: true
+            docstring_style: google
+            heading_level: 3
+markdown_extensions:
+  - admonition
+  # Enables code block highlighting
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.blocks.caption
+  - pymdownx.tabbed:
+      alternate_style: true
+copyright: Copyright &copy; 2025 British Antarctic Survey / Alan Turing Institute
