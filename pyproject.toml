@@ -27,6 +27,7 @@ dependencies = [
   "matplotlib",
   "motuclient",
   "netcdf4",
+  "numpy",
   "orjson",
   "pandas<2",
   "plotly",
@@ -92,6 +93,7 @@ version = {attr = "icenet.__version__"}
 readme = {file = ["README.md"]}
 
 [project.optional-dependencies]
+complete = ["icenet[dev,docs,lint,tests]"]
 dev = [
   "watchdog",
   "flake8",
@@ -105,6 +107,18 @@ dev = [
   "pre-commit",
 ]
 docs = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "mkdocs-autoapi",
+    "mkdocs-git-authors-plugin",
+]
+lint = [
+    "flake8"
+]
+tests = [
+    "pytest",
+    "pytest-cov"
 ]
 
 [tool.setuptools.packages.find]
