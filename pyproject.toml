@@ -105,10 +105,6 @@ dev = [
   "pre-commit",
 ]
 docs = [
-  "jinja2",
-  "Sphinx",
-  "pylint",
-  "sphinxcontrib-kroki",
 ]
 
 [tool.setuptools.packages.find]
