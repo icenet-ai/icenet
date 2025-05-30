@@ -3,6 +3,7 @@ nav:
   - Overview: index.md
   - User Guide:
     - IceNet Overview: user/overview.md
+    - Workflow: user/workflow.md
   - Developer Guide:
     - Contribution:
       - Contributing: developer/contribution/contributing.md

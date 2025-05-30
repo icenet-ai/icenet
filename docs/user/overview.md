@@ -5,7 +5,7 @@ data flows from source (data retrieved) through to training and prediction workf
 
 ![Pipeline Diagram](../images/pipeline.png)
 /// caption
-**Figure 1:** IceNet processing pipeline
+**Figure 1:** IceNet processing pipeline, further explained on the [user workflow](workflow.md) page. 
 ///
 
 As a user, the use of this library is in stitching together the workflow for processing
