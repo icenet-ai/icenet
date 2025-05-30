@@ -22,7 +22,8 @@ class MaskDatasetConfig(DatasetConfig):
                  downloaded_files: list = None,
                  identifier: str = "masks.osisaf",
                  **kwargs):
-        super().__init__(identifier=identifier,
+        super().__init__(config_type="data.osisaf_mask",
+                         identifier=identifier,
                          levels=[None, None, None],
                          path_components=[],
                          var_names=["land", "active_grid_cell", "polarhole"],
@@ -176,7 +177,7 @@ class Masks(Processor):
             frequency=dataset_config.frequency,
             location=dataset_config.location,
         )
-        mask_ds.save_data_for_config()
+        ds_config = mask_ds.save_data_for_config()
         self._dataset_config = mask_ds.save_config()
         self._hemi_str = "north" if dataset_config.location.north else "south"
 

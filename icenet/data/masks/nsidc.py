@@ -33,7 +33,8 @@ class MaskDatasetConfig(DatasetConfig):
                  mask_variable: str = None,
                  resolution: float = 6.25,
                  **kwargs):
-        super().__init__(identifier=identifier,
+        super().__init__(config_type="data.amsr_mask.{}".format(resolution),
+                         identifier=identifier,
                          levels=[None],
                          path_components=[],
                          var_names=["land"],
