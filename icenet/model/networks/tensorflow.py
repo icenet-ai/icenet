@@ -105,6 +105,8 @@ class TensorflowNetwork(BaseNetwork):
     def get_default_callbacks(self):
         callbacks_list = list()
 
+        callbacks_list.append(tf.keras.callbacks.TerminateOnNaN())
+
         if self._checkpoint_monitor is not None:
             logging.info("Adding ModelCheckpoint callback")
             checkpoint_filestr = str(
