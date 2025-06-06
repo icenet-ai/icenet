@@ -125,6 +125,8 @@ def horovod_main():
                                  args.lr_decay_end,
                              ),
                              pre_load_path=args.preload,
+                             saving_all=args.save_all,
+                             saving_best=args.save_checkpoint,
                              seed=args.seed,
                              verbose=args.verbose)
     network.add_callback(
@@ -150,6 +152,8 @@ def tensorflow_main():
                                     args.lr_decay_end,
                                 ),
                                 pre_load_path=args.preload,
+                                saving_all=args.save_all,
+                                saving_best=args.save_checkpoint,
                                 seed=args.seed,
                                 strategy=args.strategy,
                                 verbose=args.verbose)

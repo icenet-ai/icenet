@@ -31,7 +31,7 @@ class TrainingArgParser(argparse.ArgumentParser):
                           type=str)
         self.add_argument("-cm",
                           "--checkpoint-monitor",
-                          default="val_rmse",
+                          default="val_loss",
                           type=str)
         self.add_argument("-di",
                           "--dataset-identifier",
@@ -47,6 +47,14 @@ class TrainingArgParser(argparse.ArgumentParser):
         self.add_argument("--early-stopping", type=int, default=50)
         self.add_argument("-p", "--preload", type=str)
         self.add_argument("-r", "--ratio", default=1.0, type=float)
+        self.add_argument("-sa", "--save-all",
+                          default=False,
+                          action="store_true",
+                          help="Save the model on every epoch, good for auto restarting on HPC wall time expiry")
+        self.add_argument("-sc", "--save-checkpoint",
+                          default=False,
+                          action="store_true",
+                          help="Save the model progressively on the best epochs")
         self.add_argument("--shuffle-train",
                           default=False,
                           action="store_true",

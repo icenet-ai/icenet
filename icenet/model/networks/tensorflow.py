@@ -25,6 +25,8 @@ class TensorflowNetwork(BaseNetwork):
                  early_stopping_patience: int = 0,
                  lr_decay: tuple = (1.0, 0, 0),
                  pre_load_path: str = None,
+                 saving_all: bool = False,
+                 saving_best: bool = False,
                  strategy: str = None,
                  tensorboard_logdir: str = None,
                  verbose: bool = False,
@@ -33,6 +35,8 @@ class TensorflowNetwork(BaseNetwork):
         self._checkpoint_monitor = checkpoint_monitor
         self._early_stopping_patience = early_stopping_patience
         self._lr_decay = lr_decay
+        self._saving_all = saving_all
+        self._saving_best = saving_best
         self._tensorboard_logdir = tensorboard_logdir
 
         super().__init__(*args, **kwargs)
@@ -104,16 +108,25 @@ class TensorflowNetwork(BaseNetwork):
 
     def get_default_callbacks(self):
         callbacks_list = list()
-
         callbacks_list.append(tf.keras.callbacks.TerminateOnNaN())
 
-        if self._checkpoint_monitor is not None:
-            logging.info("Adding ModelCheckpoint callback")
-            checkpoint_filestr = str(
-                os.path.join(self.network_folder,
-                             "checkpoint.{}.network_{}.{}.{}.keras".format(self.run_name, self.dataset.identifier, self.seed, "{epoch:03d}")))
+        if self._saving_all:
+            logging.info("Using ModelCheckpoint callback to save every iteration")
             callbacks_list.append(
-                ModelCheckpoint(filepath=checkpoint_filestr,
+                ModelCheckpoint(filepath=str(
+                    os.path.join(self.network_folder,
+                                 "latest.{}.network_{}.{}.keras".format(
+                                     self.run_name, self.dataset.identifier, self.seed))),
+                                verbose=1,
+                                save_freq='epoch'))
+
+        if self._saving_best:
+            logging.info("Adding ModelCheckpoint callback")
+            callbacks_list.append(
+                ModelCheckpoint(filepath=str(
+                    os.path.join(self.network_folder,
+                                 "checkpoint.{}.network_{}.{}.{}.keras".format(self.run_name, self.dataset.identifier,
+                                                                               self.seed, "{epoch:03d}"))),
                                 monitor=self._checkpoint_monitor,
                                 verbose=1,
                                 mode=self._checkpoint_mode,
