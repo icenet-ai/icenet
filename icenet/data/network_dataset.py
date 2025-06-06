@@ -253,7 +253,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             else:
                 raise OSError("{} not found".format(path))
 
-    def _merge_configurations(self, path: str, other: object):
+    def _merge_configurations(self, path: str, other: dict):
         """
 
         :param path:
@@ -280,7 +280,9 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             for dataset, count in other["counts"].items():
                 logging.info("Merging {} samples from {}".format(
                     count, dataset))
-                self._config["counts"][dataset] += count
+
+                if dataset in self._config["counts"]:
+                    self._config["counts"][dataset] += count
 
         general_attrs = [
             "channels", "dtype", "lead_time", "num_channels",
@@ -298,7 +300,8 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
                     this_el = ",".join(sorted([str(_) for _ in self._config[attr]]))
                     other_el = ",".join(sorted([str(_) for _ in other[attr]]))
                     if not (this_el == other_el):
-                        raise RuntimeError("{} is not the same across configurations:\n{} vs {}".format(attr, this_el, other_el))
+                        raise RuntimeError("{} is not the same across configurations:\n{}\n{}".
+                                           format(attr, this_el, other_el))
 
         self._config["north"] = True if loader.north else self._config["north"]
         self._config["south"] = True if loader.south else self._config["south"]
