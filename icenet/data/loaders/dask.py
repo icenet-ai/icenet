@@ -420,9 +420,7 @@ def generate_sample(forecast_date: object,
     # Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_steps)
     forecast_base_idx = list(var_ds.time.values).index(pd.Timestamp(forecast_date))
-    forecast_idxs = [
-        forecast_base_idx + n for n in range(0, n_forecast_steps)
-    ]
+    forecast_idxs = [forecast_base_idx + n for n in range(0, n_forecast_steps)]
 
     y = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
