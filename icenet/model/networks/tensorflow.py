@@ -119,14 +119,14 @@ class TensorflowNetwork(BaseNetwork):
                                 mode=self._checkpoint_mode,
                                 save_best_only=True))
 
-            if self._early_stopping_patience > 0:
-                logging.info("Adding EarlyStopping callback")
-                callbacks_list.append(
-                    EarlyStopping(monitor=self._checkpoint_monitor,
-                                  mode=self._checkpoint_mode,
-                                  verbose=1,
-                                  patience=self._early_stopping_patience,
-                                  baseline=None))
+        if self._early_stopping_patience > 0:
+            logging.info("Adding EarlyStopping callback")
+            callbacks_list.append(
+                EarlyStopping(monitor=self._checkpoint_monitor,
+                              mode=self._checkpoint_mode,
+                              verbose=1,
+                              patience=self._early_stopping_patience,
+                              baseline=None))
 
         if self._lr_decay[0] != 1.0:
             logging.info("ADding LearningRateScheduler callback")
