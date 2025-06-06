@@ -34,7 +34,7 @@ def evaluate_model(model_path: object,
     _, val_ds, test_ds = dataset.get_split_datasets(ratio=dataset_ratio)
     eval_data = val_ds
 
-    if dataset.counts["test"] > 0:
+    if "test" in dataset.counts and dataset.counts["test"] > 0:
         eval_data = test_ds
         logging.info("Using test set for validation")
     else:

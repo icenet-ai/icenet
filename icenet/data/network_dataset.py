@@ -283,6 +283,8 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
                 if dataset in self._config["counts"]:
                     self._config["counts"][dataset] += count
+                else:
+                    self._config["counts"][dataset] = count
 
         general_attrs = [
             "channels", "dtype", "lead_time", "num_channels",
