@@ -409,10 +409,15 @@ def regrid_mask_file_cli():
         mask = xr.open_dataarray(nc_file)
         cube = mask.to_iris()
         mask.close()
-        cube = amsr_coordinate_regrid(ref_cube, cube, args.sic_ref)
-        cube = cube.regrid(ref_cube, iris.analysis.Linear())
-        new_mask = xr.DataArray.from_iris(cube)
-        new_mask = xr.where(new_mask > 1, 1., new_mask)
-        new_mask = xr.where(new_mask < 0, 0., new_mask)
-        logging.info(f"Saving {nc_file}")
-        new_mask.to_netcdf(nc_file)
+
+        x_dim, y_dim = cube.shape[-2:]
+        if x_dim == 432 and y_dim == 432:
+            cube = amsr_coordinate_regrid(ref_cube, cube, args.sic_ref)
+            cube = cube.regrid(ref_cube, iris.analysis.Linear())
+            new_mask = xr.DataArray.from_iris(cube)
+            new_mask = xr.where(new_mask > 1, 1., new_mask)
+            new_mask = xr.where(new_mask < 0, 0., new_mask)
+            logging.info(f"Saving {nc_file}")
+            new_mask.to_netcdf(nc_file)
+        else:
+            logging.info("Skipping {} due to already non-OSISAF dimension size! Already regridded!?".format(nc_file))
