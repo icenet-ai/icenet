@@ -10,6 +10,7 @@ import dask
 import dask.array as da
 
 from dask.distributed import Client, LocalCluster
+from dask.delayed import delayed
 
 import numpy as np
 import pandas as pd
@@ -18,7 +19,6 @@ import xarray as xr
 
 from icenet.data.loaders.base import IceNetBaseDataLoader, DATE_FORMAT
 from icenet.data.loaders.utils import IceNetDataWarning, write_tfrecord
-from icenet.data.masks.osisaf import Masks
 
 """
 Dask implementations for icenet data loading
@@ -136,7 +136,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                  **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._masks = {var_name: xr.open_dataarray(mask_cfg["processed_files"][var_name][0])
+        self._masks = {var_name: mask_cfg["processed_files"][var_name][0]
                        for var_name, mask_cfg in self._config["masks"].items()}
 
         self._futures = futures_per_worker
@@ -211,7 +211,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                         self._channels, self._dtype, self._loss_weight_days,
                         self._meta_channels, self._missing_dates,
                         self._lead_time, self.num_channels, self._shape,
-                        self._trend_steps, self._frequency_attr, masks, False
+                        self._trend_steps, self._frequency_attr, self._masks, False
                     ]
 
                     fut = client.submit(generate_and_write,
@@ -220,7 +220,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                                         dates,
                                         args,
                                         dry=self._dry,
-                                        pure=True)
+                                        pure=False)
                     futures.append(fut)
 
                     # Use this to limit the future list, to avoid crashing the
@@ -271,6 +271,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                         yc=self._shape[0], xc=self._shape[1]),
             drop_variables=["month", "plev", "level", "realization"],
             parallel=parallel,
+            engine="h5netcdf",
         )
         var_files = self.get_sample_files()
 
@@ -322,8 +323,6 @@ def generate_and_write(path: str,
     count = 0
     times = []
 
-    # TODO: refactor, this is very smelly - with new data throughput args
-    #  will always be the same
     (channels, dtype, loss_weight_days, meta_channels, missing_dates,
      n_forecast_days, num_channels, shape, trend_steps, frequency_attr, masks,
      prediction) = args
@@ -331,7 +330,8 @@ def generate_and_write(path: str,
     ds_kwargs = dict(
         chunks=dict(time=1, yc=shape[0], xc=shape[1]),
         drop_variables=["month", "plev", "realization"],
-        parallel=True
+        parallel=True,
+        engine="h5netcdf"
     )
 
     # TODO: use to_dask_dataframe to stop the relentless moaning? Need to investigate
@@ -428,6 +428,8 @@ def generate_sample(forecast_date: object,
     y = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
 
+    land_mask = xr.open_dataarray(masks["land"])
+
     if not prediction:
         try:
             sample_output = var_ds.siconca_abs.isel(time=forecast_idxs)
@@ -436,7 +438,7 @@ def generate_sample(forecast_date: object,
                 "Issue with y-data for non-prediction sample {}, "
                 "please review siconca ground-truth: dates {}".format(forecast_date, forecast_idxs))
         y[:, :, :, 0] = sample_output
-        y_mask = da.stack([masks["land"].data for _ in range(0, n_forecast_steps)], axis=-1)
+        y_mask = da.stack([land_mask.data for _ in range(0, n_forecast_steps)], axis=-1)
         y_mask = da.stack([y_mask], axis=-1)
         y = da.ma.where(y_mask, 0., y)
 
@@ -450,11 +452,12 @@ def generate_sample(forecast_date: object,
             # TODO: this is hacky - across the entire sample generation process we need to render all masks down
             # Zero loss outside of 'active grid cells'
             if "active_grid_cell" in masks:
-                sample_weight = masks["active_grid_cell"].sel(month=forecast_step.month).data
-                sample_weight[masks["land"].astype("bool")] = 0.
+                sample_weight = xr.open_dataarray(masks["active_grid_cell"]).sel(month=forecast_step.month).data
+                sample_weight[land_mask.astype("bool")] = 0.
             else:
                 # sample_weight = da.ones(shape, dtype)
-                sample_weight = da.where(masks["land"] == 1, 0., 1.)
+                sample_weight = da.where(land_mask.isnull(), 0., 1.)
+                sample_weight = da.where(land_mask == 1, 0., 1.)
 
             # TODO: dynamic inclusion of polarhole?
             sample_weight = sample_weight.astype(dtype)
@@ -482,10 +485,12 @@ def generate_sample(forecast_date: object,
 
         if var_name.endswith("linear_trend"):
             channel_ds = trend_ds
+            # The linear trend indexing is not the same as the normal data channels, so rediscover the base idx
+            lt_base_idx = list(channel_ds.time.values).index(pd.Timestamp(forecast_date))
             if type(trend_steps) is list:
-                channel_idxs = [forecast_base_idx + n for n in trend_steps]
+                channel_idxs = [lt_base_idx + n for n in trend_steps]
             else:
-                channel_idxs = [forecast_base_idx + n for n in range(0, num_channels)]
+                channel_idxs = [lt_base_idx + n for n in range(0, num_channels)]
         # If we're not a trend, we're a lag channel looking back historically from the initialisation date
         else:
             channel_ds = var_ds
@@ -510,7 +515,7 @@ def generate_sample(forecast_date: object,
                 # logging.info("NANs: {} = {} in {}-{}".format(forecast_date, int(da.isnan(data).sum()), var_name, idx))
             except (KeyError, IndexError) as e:
                 raise IceNetDataWarning("Key or Index error detected on channel construction for {} - {}: {}".
-                                        format(var_name, forecast_date, e))
+                                        format(forecast_date, var_name, e))
                 # channel_data.append(da.zeros(shape))
 
         x[:, :, v1:v2] = da.from_array(channel_data).transpose([1, 2, 0])
