@@ -143,7 +143,7 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
 
     def client_generate(self,
                         client: object,
-                        dates_override: object = None,
+                        dates_override: dict = None,
                         pickup: bool = False):
         """
 
@@ -181,17 +181,20 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
             batch_number = 0
             futures = []
 
-            forecast_dates = set([
+            # Bit grim, but we need to take the intersection of sources for a complete date retrieval
+            # as data might be different across sources
+            sources = list(self._config["sources"].keys())
+            convert_dates = lambda source: set([
                 dt.datetime.strptime(s, DATE_FORMAT).date()
-                for identity in self._config["sources"].keys()
-                for s in self._config["sources"][identity]["splits"][dataset]
-            ])
+                for s in self._config["sources"][source]["splits"][dataset]])
+            forecast_dates = convert_dates(sources[0])
+            for add_source in sources[1:]:
+                forecast_dates = forecast_dates.intersection(convert_dates(add_source))
 
             if dates_override:
                 logging.info("{} available {} dates".format(
                     len(forecast_dates), dataset))
-                forecast_dates = forecast_dates.intersection(
-                    dates_override[dataset])
+                forecast_dates = forecast_dates.intersection(dates_override[dataset])
             forecast_dates = sorted(list(forecast_dates))
 
             output_dir = self.get_data_var_folder(dataset)
