@@ -109,6 +109,11 @@ docs = [
   "sphinxcontrib-kroki",
 ]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["icenet*"]
+exclude = ["icenet.tests*"]
+
 [project.urls]
 "Homepage" = "https://icenet.ai/"
 "Source" = "https://github.com/icenet-ai/icenet"
