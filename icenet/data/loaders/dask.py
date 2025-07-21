@@ -422,8 +422,13 @@ def generate_sample(forecast_date: object,
 
     # Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_steps)
-    forecast_base_idx = list(var_ds.time.values).index(pd.Timestamp(forecast_date))
-    forecast_idxs = [forecast_base_idx + n for n in range(0, n_forecast_steps)]
+
+    # forecast_base_idx for a prediction does not contain forecast date without multiple
+    # dates being forecast, so handle accordingly
+    if pd.Timestamp(forecast_date) in var_ds.time.values:
+        forecast_base_idx = list(var_ds.time.values).index(pd.Timestamp(forecast_date))
+    else:
+        forecast_base_idx = len(list(var_ds.time.values))
 
     y = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
@@ -431,6 +436,8 @@ def generate_sample(forecast_date: object,
     land_mask = xr.open_dataarray(masks["land"])
 
     if not prediction:
+        forecast_idxs = [forecast_base_idx + n for n in range(0, n_forecast_steps)]
+
         try:
             sample_output = var_ds.siconca_abs.isel(time=forecast_idxs)
         except (KeyError, IndexError):
