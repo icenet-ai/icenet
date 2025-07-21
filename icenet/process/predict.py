@@ -20,27 +20,10 @@ from icenet.utils import setup_logging
 from icenet.data.masks.osisaf import Masks
 
 from download_toolbox.interface import get_dataset_config_implementation
+from preprocess_toolbox.interface import get_processor_from_source
 
 
-def get_ref_ds(ds: IceNetDataSet) -> xr.Dataset:
-    # TODO: this is a bit nasty, but it works well - STORE the originally downloaded mask files in config
-    dl = ds.get_data_loader()
-    ref_file_str = "north" if dl.north else "south"
-    ref_file = "ref.osisaf.{}.nc".format(ref_file_str)
-    return xr.open_dataset(ref_file)
-
-
-def get_ref_cube(ds: IceNetDataSet) -> iris.cube.Cube:
-    # TODO: this is a bit nasty, but it works well - STORE the originally downloaded mask files in config
-    dl = ds.get_data_loader()
-    ref_file_str = "nh" if dl.north else "sh"
-    masks_path = os.path.dirname(list(dl.config["masks"]["land"]["source_files"].values())[0])
-    ref_file = "{}/ice_conc_{}_ease2-250_cdr-v2p0_200001021200.nc".format(masks_path, ref_file_str)
-    ref_cube = iris.load_cube(ref_file, 'sea_ice_area_fraction')
-    return ref_cube
-
-
-def get_prediction_data(root: object, name: object, date: object) -> tuple:
+def get_prediction_data(name: object, date: object) -> tuple:
     """
 
     :param root:
@@ -50,7 +33,8 @@ def get_prediction_data(root: object, name: object, date: object) -> tuple:
     """
     logging.info("Post-processing {}".format(date))
 
-    glob_str = os.path.join(root, "results", "predict", name, "*",
+    # TODO: naughty naughty, hard coded
+    glob_str = os.path.join("results", "predict", name, "*",
                             date.strftime("%Y_%m_%d.npy"))
 
     np_files = glob.glob(glob_str)
@@ -137,7 +121,7 @@ def create_cf_output():
     hemi_str = "north" if dl.north else "south"
 
     arr, ens_members = zip(
-        *[get_prediction_data(args.root, args.name, date) for date in dates])
+        *[get_prediction_data(args.name, date) for date in dates])
     ens_members = list(ens_members)
     arr = np.array(arr)
 
@@ -163,11 +147,12 @@ def create_cf_output():
     extra_attrs = dict()
 
     if not args.plain:
-        print(dl)
-        import sys
-        sys.exit(0)
-        ground_truth_ds_filename = "data/osisaf/dataset_config.month.hemi.{}.json".format(hemi_str)
-        ground_truth_ds_config = get_dataset_config_implementation(ground_truth_ds_filename)
+        ref_sic = xr.open_dataset(glob.glob("ref.*.{}.nc".format(hemi_str))[0])
+        sic_var = "z" if "z" in ref_sic.data_vars else "ice_conc"
+        ref_cube = getattr(ref_sic, sic_var).to_iris()
+        ground_truth_id, ground_truth_cfg = list(dl.config["sources"].items())[0]
+        processor = get_processor_from_source(ground_truth_id, ground_truth_cfg)
+        ground_truth_ds_config = get_dataset_config_implementation(processor.dataset_config)
 
         lists_of_fcast_dates = [[
             pd.Timestamp(
@@ -175,26 +160,25 @@ def create_cf_output():
             for lead_idx in np.arange(1, arr.shape[3] + 1, 1)
         ] for date in dates]
 
-        ref_sic = get_ref_ds(ds)
-        ref_cube = get_ref_cube(ds)
-
         # Assigning to parameters for dataarray
-        data_vars['Lambert_Azimuthal_Grid'] = ref_sic.Lambert_Azimuthal_Grid
+        if "Lambert_Azimuthal_Grid" in ref_sic:
+            data_vars['Lambert_Azimuthal_Grid'] = ref_sic.Lambert_Azimuthal_Grid
         coords['xc'] = ref_cube.coord("projection_x_coordinate").points
         coords['yc'] = ref_cube.coord("projection_y_coordinate").points
-        coords['lat'] = (("yc", "xc"), ref_cube.coord("latitude").points)
-        coords['lon'] = (("yc", "xc"), ref_cube.coord("longitude").points)
+        if "latitude" in ref_cube.coords():
+            coords['lat'] = (("yc", "xc"), ref_cube.coord("latitude").points)
+            coords['lon'] = (("yc", "xc"), ref_cube.coord("longitude").points)
         coords['forecast_date'] = (("time", "leadtime"), lists_of_fcast_dates)
 
         # Issue#18: Overcoming OSI-SAF EPSG ref issue
         extra_attrs = dict(
-            geospatial_lat_min=ref_cube.attributes["geospatial_lat_min"],
-            geospatial_lat_max=ref_cube.attributes["geospatial_lat_max"],
-            geospatial_lon_min=ref_cube.attributes["geospatial_lon_min"],
-            geospatial_lon_max=ref_cube.attributes["geospatial_lon_max"],
-            icenet_ground_truth_ds=ground_truth_ds_filename,
-            icenet_mask_implementation="icenet.data.masks.osisaf:Masks",
-            spatial_resolution=ref_cube.attributes["spatial_resolution"],
+            # geospatial_lat_min=ref_cube.attributes["geospatial_lat_min"],
+            # geospatial_lat_max=ref_cube.attributes["geospatial_lat_max"],
+            # geospatial_lon_min=ref_cube.attributes["geospatial_lon_min"],
+            # geospatial_lon_max=ref_cube.attributes["geospatial_lon_max"],
+            # icenet_ground_truth_ds=ground_truth_ds_filename,
+            # icenet_mask_implementation="icenet.data.masks.osisaf:Masks",
+            # spatial_resolution=ref_cube.attributes["spatial_resolution"],
             # Use ISO 8601:2004 duration format, preferably the extended format
             # as recommended in the Attribute Content Guidance section.
             time_coverage_start=min(
@@ -205,43 +189,43 @@ def create_cf_output():
                      for item in row])).isoformat(),
         )
 
-        ##
-        # Masks
-        #
-        if args.mask:
-            # TODO: daily will need to use appropriate reference, so don't leave like this
-            mask_gen = Masks(ground_truth_ds_config)
+    ##
+    # Masks
+    #
+    if args.mask:
+        masks = {var_name: mask_cfg["processed_files"][var_name][0]
+                 for var_name, mask_cfg in dl.config["masks"].items()}
 
-            if args.agcm:
-                logging.info("Applying active grid cell masks")
+        if args.agcm:
+            logging.info("Applying active grid cell masks")
+            raise NotImplementedError("AGCM is not implemented for this output at the moment")
+            #for idx, forecast_date in enumerate(dates):
+                # xr.open_dataarray(masks["active_grid_cell"]).sel(month=forecast_step.month).data
+            #    for lead_idx in np.arange(0, arr.shape[3], 1):
+            #        lead_dt = forecast_date + dt.timedelta(days=int(lead_idx) + 1)
+            #        logging.debug(
+            #            "Active grid cell mask start {} forecast date {}".
+            #            format(forecast_date, lead_dt))
 
-                for idx, forecast_date in enumerate(dates):
-                    for lead_idx in np.arange(0, arr.shape[3], 1):
-                        lead_dt = forecast_date + dt.timedelta(days=int(lead_idx) +
-                                                               1)
-                        logging.debug(
-                            "Active grid cell mask start {} forecast date {}".
-                            format(forecast_date, lead_dt))
+            #        grid_cell_mask = mask_gen.active_grid_cell(lead_dt)
+            #        sic_mean[idx, grid_cell_mask, lead_idx] = 0
+            #        sic_stddev[idx, grid_cell_mask, lead_idx] = 0
 
-                        grid_cell_mask = mask_gen.active_grid_cell(lead_dt)
-                        sic_mean[idx, grid_cell_mask, lead_idx] = 0
-                        sic_stddev[idx, grid_cell_mask, lead_idx] = 0
+        if args.land:
+            logging.info("Land masking the forecast output")
+            land_mask = xr.open_dataarray(masks["land"]).data
+            mask = land_mask[np.newaxis, ..., np.newaxis]
+            mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
+            mask = np.repeat(mask, sic_mean.shape[0], axis=0)
 
-            if args.land:
-                logging.info("Land masking the forecast output")
-                land_mask = mask_gen.land()
-                mask = land_mask[np.newaxis, ..., np.newaxis]
-                mask = np.repeat(mask, sic_mean.shape[-1], axis=-1)
-                mask = np.repeat(mask, sic_mean.shape[0], axis=0)
-
-                if args.nan:
-                    logging.info("Applying nans to land mask")
-                    sic_mean[mask] = np.nan
-                    sic_stddev[mask] = np.nan
-                else:
-                    logging.info("Applying zeros to land mask")
-                    sic_mean[mask] = 0
-                    sic_stddev[mask] = 0
+            if args.nan:
+                logging.info("Applying nans to land mask")
+                sic_mean[mask] = np.nan
+                sic_stddev[mask] = np.nan
+            else:
+                logging.info("Applying zeros to land mask")
+                sic_mean[mask] = 0
+                sic_stddev[mask] = 0
 
     xarr = xr.Dataset(
         data_vars=data_vars,
@@ -304,24 +288,24 @@ def create_cf_output():
     #
     if not args.plain:
         xarr.time.attrs = dict(
-            long_name=ref_cube.coord("time").long_name,
-            standard_name=ref_cube.coord("time").standard_name,
+            # long_name=ref_cube.coord("time").long_name,
+            # standard_name=ref_cube.coord("time").standard_name,
             axis="T",
             # TODO: https://github.com/SciTools/cf-units for units methods
             # units=Unit('seconds since 1978-01-01 00:00:00', calendar='gregorian')
             # bounds=array([[31622400., 31708800.]])
         )
         xarr.yc.attrs = dict(
-            long_name=ref_cube.coord("projection_y_coordinate").long_name,
-            standard_name=ref_cube.coord("projection_y_coordinate").standard_name,
-            units=ref_cube.coord("projection_y_coordinate").units.name,
+            # long_name=ref_cube.coord("projection_y_coordinate").long_name,
+            # standard_name=ref_cube.coord("projection_y_coordinate").standard_name,
+            # units=ref_cube.coord("projection_y_coordinate").units.name,
             axis="Y",
             # TODO: iris.coord_systems.LambertAzimuthalEqualArea
         )
         xarr.xc.attrs = dict(
-            long_name=ref_cube.coord("projection_x_coordinate").long_name,
-            standard_name=ref_cube.coord("projection_x_coordinate").standard_name,
-            units=ref_cube.coord("projection_x_coordinate").units.name,
+            # long_name=ref_cube.coord("projection_x_coordinate").long_name,
+            # standard_name=ref_cube.coord("projection_x_coordinate").standard_name,
+            # units=ref_cube.coord("projection_x_coordinate").units.name,
             axis="X",
         )
         xarr.leadtime.attrs = dict(
@@ -331,16 +315,16 @@ def create_cf_output():
             # units="1",
         )
 
-        xarr.lat.attrs = dict(
-            long_name=ref_cube.coord("latitude").long_name,
-            standard_name=ref_cube.coord("latitude").standard_name,
-            units=ref_cube.coord("latitude").units.name,
-        )
-        xarr.lon.attrs = dict(
-            long_name=ref_cube.coord("longitude").long_name,
-            standard_name=ref_cube.coord("longitude").standard_name,
-            units=ref_cube.coord("longitude").units.name,
-        )
+        # xarr.lat.attrs = dict(
+            # long_name=ref_cube.coord("latitude").long_name,
+            # standard_name=ref_cube.coord("latitude").standard_name,
+            # units=ref_cube.coord("latitude").units.name,
+        # )
+        # xarr.lon.attrs = dict(
+            # long_name=ref_cube.coord("longitude").long_name,
+            # standard_name=ref_cube.coord("longitude").standard_name,
+            # units=ref_cube.coord("longitude").units.name,
+        # )
 
         xarr.sic_mean.attrs = dict(
             long_name="mean sea ice area fraction across ensemble runs of icenet "
