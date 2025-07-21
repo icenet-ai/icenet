@@ -121,6 +121,10 @@ def get_args():
 
 def create_cf_output():
     args = get_args()
+    orig_dir = os.getcwd()
+
+    logging.debug("Changing to dir: {}".format(args.root))
+    os.chdir(args.root)
 
     dates = [
         dt.date(*[int(v) for v in s.split("-")])
@@ -128,9 +132,7 @@ def create_cf_output():
     ]
     args.datefile.close()
 
-    dataset_config = \
-        os.path.join(args.root, "dataset_config.{}.json".format(args.dataset))
-    ds = IceNetDataSet(dataset_config)
+    ds = IceNetDataSet(args.dataset)
     dl = ds.get_data_loader()
     hemi_str = "north" if dl.north else "south"
 
@@ -161,6 +163,9 @@ def create_cf_output():
     extra_attrs = dict()
 
     if not args.plain:
+        print(dl)
+        import sys
+        sys.exit(0)
         ground_truth_ds_filename = "data/osisaf/dataset_config.month.hemi.{}.json".format(hemi_str)
         ground_truth_ds_config = get_dataset_config_implementation(ground_truth_ds_filename)
 
@@ -369,3 +374,6 @@ def create_cf_output():
     output_path = os.path.join(args.output_dir, "{}.nc".format(args.name))
     logging.info("Saving to {}".format(output_path))
     xarr.to_netcdf(output_path)
+
+    logging.debug("Changing back to original dir: {}".format(orig_dir))
+    os.chdir(orig_dir)
