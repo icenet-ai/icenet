@@ -13,26 +13,10 @@ from download_toolbox.cli import date_arg
 
 from icenet.data.datasets.utils import get_decoder
 from icenet.data.network_dataset import IceNetDataSet
-from icenet.utils import setup_logging
+from icenet.plotting.cli import get_sample_get_args, tfrecord_args
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-
-@setup_logging
-def tfrecord_args():
-    """
-
-    :return:
-    """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("file")
-    ap.add_argument("configuration", type=argparse.FileType("r"))
-    ap.add_argument("-i", "--index", default=1, type=int)
-    ap.add_argument("-l", "--levels", default=100, type=int)
-    ap.add_argument("-o", "--output", default="plot")
-
-    return ap.parse_args()
 
 
 def plot_tfrecord():
@@ -86,35 +70,6 @@ def plot_tfrecord():
             ax.contourf(y_out, levels=args.levels)
             plt.savefig(output_path)
             plt.close()
-
-
-@setup_logging
-def get_sample_get_args():
-    """
-
-    :return:
-    """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("dataset", type=str)
-    ap.add_argument("date", type=date_arg)
-    ap.add_argument("output_path", type=str, default="test.png")
-
-    ap.add_argument("-c",
-                    "--cols",
-                    type=int,
-                    default=8,
-                    help="Plotting data over this number of columns")
-
-    data_type = ap.add_mutually_exclusive_group(required=False)
-    data_type.add_argument("--outputs", action="store_true", default=False)
-    data_type.add_argument("--weights", action="store_true", default=False)
-
-    ap.add_argument("-p", "--prediction", action="store_true", default=False)
-    ap.add_argument("-s", "--size", type=int, default=4)
-    ap.add_argument("-v", "--verbose", action="store_true", default=False)
-
-    args = ap.parse_args()
-    return args
 
 
 def plot_sample_cli():

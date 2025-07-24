@@ -21,6 +21,8 @@ import xarray as xr
 
 from download_toolbox.dataset import DatasetConfig
 from download_toolbox.interface import get_dataset_config_implementation
+from icenet.process.metrics import compute_binary_accuracy, compute_sea_ice_extent_error, compute_metrics, \
+    compute_metrics_leadtime_avg
 from preprocess_toolbox.utils import get_implementation
 
 from icenet import __version__ as icenet_version
@@ -31,77 +33,9 @@ from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_obs_data,
                                    get_plot_axes, process_probes,
                                    process_regions)
 from icenet.plotting.video import xarray_to_video
+from icenet.plotting.cli import ForecastPlotArgParser, parse_metrics_arg
 
 cm = mpl.colormaps
-
-
-def parse_location_or_region(argument: str):
-    separator = ','
-    # Allow ValueError to propagate if not given sequence of integers
-    return tuple(int(s) for s in argument.split(separator))
-
-
-def location_arg(argument: str):
-    try:
-        x, y = parse_location_or_region(argument)
-        return x, y
-    except ValueError:
-        argparse.ArgumentTypeError(
-            "Expected a location (pair of integers separated by a comma)")
-
-
-def region_arg(argument: str):
-    """type handler for region arguments with argparse
-
-    :param argument:
-
-    :return:
-    """
-    try:
-        x1, y1, x2, y2 = parse_location_or_region(argument)
-
-        if x2 < x1 or y2 < y1:
-            raise RuntimeError(f"Region is not valid x1 {x1}:x2 {x2}, y1 {y1}:y2 {y2}")
-        return x1, y1, x2, y2
-    except TypeError:
-        raise argparse.ArgumentTypeError(
-            "Region argument must be list of four integers")
-
-
-def compute_binary_accuracy(masks: object,
-                            fc_da: object,
-                            obs_da: object,
-                            threshold: float) -> object:
-    """
-    Compute the binary class accuracy of a forecast,
-    where we consider a binary class prediction of ice with SIC > 15%.
-    In particular, we compute the mean percentage of correct
-    classifications over the active grid cell area.
-
-    :param masks: an icenet Masks object
-    :param fc_da: the forecasts given as an xarray.DataArray object
-                  with time, xc, yc coordinates
-    :param obs_da: the "ground truth" given as an xarray.DataArray object
-                   with time, xc, yc coordinates
-    :param threshold: the SIC threshold of interest (in percentage as a fraction),
-                      i.e. threshold is between 0 and 1
-
-    :return: binary accuracy for forecast as xarray.DataArray object
-    """
-    threshold = 0.15 if threshold is None else threshold
-    if (threshold < 0) or (threshold > 1):
-        raise ValueError("threshold must be a float between 0 and 1")
-
-    agcm = masks.get_active_cell_da(obs_da)
-
-    binary_obs_da = obs_da > threshold
-    binary_fc_da = fc_da > threshold
-
-    # compute binary accuracy metric
-    binary_fc_da = (binary_fc_da == binary_obs_da).astype(np.float16).weighted(~agcm)
-    binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
-
-    return binacc_fc
 
 
 def plot_binary_accuracy(masks: object,
@@ -165,51 +99,6 @@ def plot_binary_accuracy(masks: object,
     plt.savefig(output_path)
 
     return binacc_fc, binacc_cmp
-
-
-def compute_sea_ice_extent_error(masks: object,
-                                 fc_da: object,
-                                 obs_da: object,
-                                 grid_area_size: int,
-                                 threshold: float) -> object:
-    """
-    Compute sea ice extent (SIE) error of a forecast, where SIE error is
-    defined as the total area covered by grid cells with SIC > (threshold*100)%.
-
-    :param masks: an icenet Masks object
-    :param fc_da: the forecasts given as an xarray.DataArray object
-                  with time, xc, yc coordinates
-    :param obs_da: the "ground truth" given as an xarray.DataArray object
-                   with time, xc, yc coordinates
-    :param grid_area_size: the length of the sides of the grid (in km),
-                           by default set to 25 (so area of grid is 25*25)
-    :param threshold: the SIC threshold of interest (in percentage as a fraction),
-                      i.e. threshold is between 0 and 1
-
-    :return: SIE error for forecast as xarray.DataArray object
-    """
-    grid_area_size = 25 if grid_area_size is None else grid_area_size
-    threshold = 0.15 if threshold is None else threshold
-    if (threshold < 0) or (threshold > 1):
-        raise ValueError("threshold must be a float between 0 and 1")
-
-    # obtain mask
-    agcm = masks.get_active_cell_da(obs_da)
-
-    # binary for observed (i.e. truth)
-    binary_obs_da = obs_da > threshold
-    binary_obs_weighted_da = binary_obs_da.astype(int).weighted(~agcm)
-
-    # binary for forecast
-    binary_fc_da = fc_da > threshold
-    binary_fc_weighted_da = binary_fc_da.astype(int).weighted(~agcm)
-
-    # sie error
-    forecast_sie_error = (binary_fc_weighted_da.sum(['xc', 'yc']) -
-                          binary_obs_weighted_da.sum(['xc', 'yc'])) * (
-                              grid_area_size**2)
-
-    return forecast_sie_error
 
 
 def plot_sea_ice_extent_error(masks: object,
@@ -277,63 +166,6 @@ def plot_sea_ice_extent_error(masks: object,
     plt.savefig(output_path)
 
     return forecast_sie_error, cmp_sie_error
-
-
-def compute_metrics(metrics: object,
-                    masks: object,
-                    fc_da: object,
-                    obs_da: object) -> object:
-    """
-    Computes metrics based on SIC error which are passed in as a list of strings.
-    Returns a dictionary where the keys are the metrics,
-    and the values are the computed metrics.
-
-    :param metrics: a list of strings
-    :param masks: an icenet Masks object
-    :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
-    :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
-
-    :return: dictionary with keys as metric names and values as
-             xarray.DataArray's storing the computed metrics for each forecast
-    """
-    # check requested metrics have been implemented
-    implemented_metrics = ["mae", "mse", "rmse"]
-    for metric in metrics:
-        if metric not in implemented_metrics:
-            raise NotImplementedError(
-                f"{metric} metric has not been implemented. "
-                f"Please only choose out of {implemented_metrics}.")
-
-    # obtain mask
-    agcm = masks.get_active_cell_da(obs_da)
-
-    metric_dict = {}
-    # compute raw error
-    err_da = (fc_da - obs_da) * 100
-    if "mae" in metrics:
-        # compute absolute SIC errors
-        abs_err_da = da.fabs(err_da)
-        abs_weighted_da = abs_err_da.weighted(~agcm)
-    if "mse" in metrics or "rmse" in metrics:
-        # compute squared SIC errors
-        square_err_da = err_da**2
-        square_weighted_da = square_err_da.weighted(~agcm)
-
-    for metric in metrics:
-        if metric == "mae":
-            metric_dict[metric] = abs_weighted_da.mean(dim=['yc', 'xc'])
-        elif metric == "mse":
-            if "mse" not in metric_dict.keys():
-                # might've already been computed if RMSE came first
-                metric_dict["mse"] = square_weighted_da.mean(dim=['yc', 'xc'])
-        elif metric == "rmse":
-            if "mse" not in metric_dict.keys():
-                # check if MSE already been computed
-                metric_dict["mse"] = square_weighted_da.mean(dim=['yc', 'xc'])
-            metric_dict[metric] = da.sqrt(metric_dict["mse"])
-
-    # only return metrics requested (might've computed MSE when computing RMSE)
-    return {k: metric_dict[k] for k in metrics}
 
 
 def plot_metrics(metrics: object,
@@ -428,292 +260,6 @@ def plot_metrics(metrics: object,
         plt.savefig(output_path)
 
     return fc_metric_dict, cmp_metric_dict
-
-
-def compute_metric_as_dataframe(metric: object,
-                                masks: object,
-                                init_date: object,
-                                fc_da: object,
-                                obs_da: object,
-                                obs_ds_config: object,
-                                **kwargs) -> pd.DataFrame:
-    """
-    Computes a metric for each leadtime in a forecast and stores the
-    results in a pandas dataframe with columns 'date' (which is the
-    initialisation date passed in), 'leadtime' and the metric name(s).
-
-    :param metric: string, or list of strings, specifying which metric(s) to compute
-    :param masks: an icenet Masks object
-    :param init_date: forecast initialisation date which gets
-                      added to pandas dataframe (as string, or datetime object)
-    :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
-    :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
-    :param obs_ds_config:
-    :param kwargs: any keyword arguments that are required for the computation
-                   of the metric, e.g. 'threshold' for SIE error and binary accuracy
-                   metrics, or 'grid_area_size' for SIE error metric
-
-    :return: computed metric in a pandas dataframe with columns 'date',
-             'leadtime' and 'met' for each metric, met, in metric
-    """
-    if isinstance(metric, str):
-        metric = [metric]
-    metric_dict = {}
-    for met in metric:
-        if met in ["mae", "mse", "rmse"]:
-            metric_dict[met] = compute_metrics(metrics=[met],
-                                               masks=masks,
-                                               fc_da=fc_da,
-                                               obs_da=obs_da)[met].values
-        elif met == "binacc":
-            if "threshold" not in kwargs.keys():
-                raise KeyError(
-                    "if met = 'binacc', must pass in argument for threshold")
-            metric_dict[met] = compute_binary_accuracy(
-                masks=masks,
-                fc_da=fc_da,
-                obs_da=obs_da,
-                threshold=kwargs["threshold"]).values
-        elif met == "sie":
-            if "grid_area_size" not in kwargs.keys():
-                raise KeyError(
-                    "if met = 'sie', must pass in argument for grid_area_size")
-            if "threshold" not in kwargs.keys():
-                raise KeyError(
-                    "if met = 'sie', must pass in argument for threshold")
-            metric_dict[met] = compute_sea_ice_extent_error(
-                masks=masks,
-                fc_da=fc_da,
-                obs_da=obs_da,
-                grid_area_size=kwargs["grid_area_size"],
-                threshold=kwargs["threshold"]).values
-        else:
-            raise NotImplementedError(f"{met} is not implemented")
-
-    # create dataframe from metric_dict
-    metric_df = pd.DataFrame(metric_dict)
-
-    init_date = pd.to_datetime(init_date)
-    # compute day of year after first converting year to a non-leap year
-    # avoids issue where 2016-03-31 is different to 2015-03-31
-    if init_date.strftime("%m-%d") == "02-29":
-        # if date is 29th Feb on a leap year, use dayofyear 59
-        # (corresponds to 28th Feb in non-leap years)
-        dayofyear = 59
-    else:
-        dayofyear = init_date.replace(year=2001).dayofyear
-    month = init_date.month
-    # get target dates
-    leadtime = list(range(1, len(metric_df.index) + 1, 1))
-    leadtime_attr = "{}s".format(obs_ds_config.frequency.attribute)
-    target_date = pd.Series([init_date + relativedelta(**{leadtime_attr: d}) for d in leadtime])
-
-    # obtain day of year using same method above to avoid any leap-year issues
-    target_dayofyear = pd.Series([
-        59 if d.strftime("%m-%d") == "02-29" else d.replace(
-            year=2001).dayofyear for d in target_date
-    ])
-    target_month = target_date.dt.month
-    return pd.concat([
-        pd.DataFrame({
-            "date": init_date,
-            "dayofyear": dayofyear,
-            "month": month,
-            "target_date": target_date,
-            "target_dayofyear": target_dayofyear,
-            "target_month": target_month,
-            "leadtime": leadtime
-        }), metric_df
-    ], axis=1)
-
-
-def compute_metrics_leadtime_avg(metric: str,
-                                 forecast_file: str,
-                                 ds_config: DatasetConfig,
-                                 ecmwf: bool,
-                                 data_path: str,
-                                 bias_correct: bool = False,
-                                 region: tuple = None,
-                                 **kwargs) -> object:
-    """
-    Given forecast file, for each initialisation date in the xarrray.DataArray
-    we compute the metric for each leadtime and store the results
-    in a pandas dataframe with columns 'date' (specifying the initialisation date),
-    'leadtime' and the metric name. This pandas dataframe can then be used
-    to average over leadtime to obtain leadtime averaged metrics.
-
-    # TODO: ensure able to calculate metrics across different temporal domains
-
-    :param metric: string specifying which metric to compute
-    :param forecast_file: string specifying a path to a .nc file
-    :param ds_config: ground truth dataset config appropriate to the forecast file
-    :param ecmwf: bool to indicate whether or not to compare
-                  with ECMWF SEAS forecast. If True, will only average
-                  over forecasts where the initialisation dates between IceNet
-                  and SEAS are the same
-    :param data_path: string specifying where to save the metrics dataframe.
-                      If None, dataframe is not saved
-    :param bias_correct: bool to indicate whether or not to
-                         perform a bias correction on SEAS forecast,
-                         by default False. Ignored if ecmwf=False
-    :param region: region to zoom in to
-    :param kwargs: any keyword arguments that are required for the computation
-                   of the metric, e.g. 'threshold' for SIE error and binary accuracy
-                   metrics, or 'grid_area_size' for SIE error metric
-
-    :return: pandas dataframe with columns 'date', 'leadtime' and the metric name.
-    """
-    # open forecast file
-    fc_ds = xr.open_dataset(forecast_file)
-    masks = get_implementation(fc_ds.attrs["icenet_mask_implementation"])(ds_config)
-
-    if ecmwf:
-        # find out what dates cross over with the SEAS5 predictions
-        (fc_start_date, fc_end_date) = (fc_ds.time.values.min(),
-                                        fc_ds.time.values.max())
-        dates = get_seas_forecast_init_dates(fc_ds.attrs["hemisphere_string"])
-        dates = dates[(dates > fc_start_date) & (dates <= fc_end_date)]
-        times = [x for x in fc_ds.time.values if x in dates]
-        fc_ds = fc_ds.sel(time=times)
-
-    logging.info(f"Computing {metric} for {len(fc_ds.time.values)} forecasts")
-    # obtain metric for each leadtime at each initialised date in the forecast file
-
-    fc_metrics_list = []
-    if ecmwf:
-        seas_metrics_list = []
-    for time in fc_ds.time.values:
-        # obtain forecast
-        fc = fc_ds.sel(time=slice(time, time))["sic_mean"]
-        obs = ds_config.get_dataset(var_names=["siconca"]).siconca
-        obs = obs.sel(time=slice(
-            pd.to_datetime(time),
-            pd.to_datetime(time) + relativedelta(**{
-                "{}s".format(ds_config.frequency.attribute): int(fc.leadtime.max())})
-        ))
-        fc = filter_ds_by_obs(fc, obs, time, ds_config.frequency)
-
-        if ecmwf:
-            # obtain SEAS forecast
-            seas = get_seas_forecast_da(obs_ds_config=ds_config,
-                                        date=pd.to_datetime(time),
-                                        bias_correct=bias_correct)
-            # remove the initialisation date from dataarray
-            seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
-            seas = seas.isel(time=slice(1, None))
-        else:
-            seas = None
-
-        if region is not None:
-            seas, fc, obs, masks = process_regions(region,
-                                                   [seas, fc, obs, masks])
-
-        # compute metrics
-        fc_metrics_list.append(
-            compute_metric_as_dataframe(metric=metric,
-                                        masks=masks,
-                                        init_date=time,
-                                        fc_da=fc,
-                                        obs_da=obs,
-                                        obs_ds_config=ds_config,
-                                        **kwargs))
-        if seas is not None:
-            seas_metrics_list.append(
-                compute_metric_as_dataframe(metric=metric,
-                                            masks=masks,
-                                            init_date=time,
-                                            fc_da=seas,
-                                            obs_da=obs,
-                                            obs_ds_config=ds_config,
-                                            **kwargs))
-
-    # groupby the leadtime and compute the mean average of the metric
-    fc_metric_df = pd.concat(fc_metrics_list)
-    fc_metric_df["forecast_name"] = "IceNet"
-    if ecmwf:
-        seas_metric_df = pd.concat(seas_metrics_list)
-        seas_metric_df["forecast_name"] = "SEAS"
-        fc_metric_df = pd.concat([fc_metric_df, seas_metric_df])
-
-    if data_path is not None:
-        logging.info(f"Saving the metric dataframe in {data_path}")
-        try:
-            fc_metric_df.to_csv(data_path)
-        except OSError:
-            # don't break if not successful, still return dataframe
-            logging.info(
-                "Save not successful! Make sure the data_path directory exists"
-            )
-
-    return fc_metric_df.reset_index(drop=True)
-
-
-def _parse_day_of_year(dayofyear: int,
-                       leapyear: bool = False) -> int:
-    """
-    Private function which takes in a day of year (integer or float) and returns
-    the integer day of year. Useful for ensuring consistency over leap years,
-    as dates after March could have different day of years due to leap years.
-    For example, 01/03/00 is 60th day in 2000 but 01/03/01 is the 59th day in 2001.
-
-    :param dayofyear: integer as int or float type
-    :param leapyear: bool to indicate if we want to convert a leapyear dayofyear to
-                     non-leapyear
-
-    :return: int dayofyear
-    """
-    if leapyear:
-        return (pd.Timestamp("2000-01-01") +
-                timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
-    else:
-        return (pd.Timestamp("2001-01-01") +
-                timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
-
-
-def _heatmap_ylabels(metrics_df: pd.DataFrame,
-                     average_over: str,
-                     groupby_col: str) -> object:
-    """
-    Private function to return the labels for the y-axis in heatmap plots.
-
-    :param metrics_df: pandas dataframe with columns 'date', 'leadtime' and the metric name
-    :param average_over: string to specify how to average the metrics.
-                         If average_over="all", averages over all possible
-                         forecasts and produces line plot.
-                         If average_over="month" or "day", averages
-                         over the month or day respectively and produces
-                         heat map plot.
-    :param groupby_col: string to specify how we are grouping the data.
-                        If average_over="all", this is typically "dayofyear"
-                        or "target_dayofyear".
-                        If average_over="month" or "day", this is typically
-                        "month" or "target_month".
-
-    :return: list of labels for the y-axis
-    """
-    if average_over == "day":
-        # only add labels to the start, end dates
-        # and any days that represent the start of months
-        days_of_interest = np.array([
-            metrics_df[groupby_col].min(), 1, 32, 60, 91, 121, 152, 182, 213,
-            244, 274, 305, 335, metrics_df[groupby_col].max()
-        ])
-        labels = [
-            _parse_day_of_year(day) if day in days_of_interest else ""
-            for day in sorted(metrics_df[groupby_col].unique())
-        ]
-    else:
-        # find out what months have been plotted and add their names
-        month_names = np.array([
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept",
-            "Oct", "Nov", "Dec"
-        ])
-        labels = [
-            month_names[month - 1]
-            for month in sorted(metrics_df[groupby_col].unique())
-        ]
-
-    return labels
 
 
 def standard_deviation_heatmap(metric: str,
@@ -1383,105 +929,13 @@ def sic_error_local_plots(fc_da: object,
     return figs
 
 
-class ForecastPlotArgParser(argparse.ArgumentParser):
-    """An ArgumentParser specialised to support forecast plot arguments
-
-    Additional argument enabled by allow_ecmwf() etc.
-
-    The 'allow_*' methods return self to permit method chaining.
-
-    :param forecast_date: allows this positional argument to be disabled
-    """
-
-    def __init__(self, *args, forecast_date: bool = True, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.add_argument("obs_dataset_config", type=str)
-        self.add_argument("forecast_file", type=str)
-        if forecast_date:
-            self.add_argument("forecast_date", type=date_arg)
-
-        self.add_argument("-o", "--output-path", type=str, default=None)
-        self.add_argument("-v",
-                          "--verbose",
-                          action="store_true",
-                          default=False)
-        self.add_argument("-r",
-                          "--region",
-                          default=None,
-                          type=region_arg,
-                          help="Region specified x1, y1, x2, y2")
-
-    def allow_ecmwf(self):
-        self.add_argument("-b",
-                          "--bias-correct",
-                          help="Bias correct SEAS forecast array",
-                          action="store_true",
-                          default=False)
-        self.add_argument("-e", "--ecmwf", action="store_true", default=False)
-        return self
-
-    def allow_threshold(self):
-        self.add_argument("-t",
-                          "--threshold",
-                          help="The SIC threshold of interest",
-                          type=float,
-                          default=0.15)
-        return self
-
-    def allow_sie(self):
-        self.add_argument(
-            "-ga",
-            "--grid-area",
-            help="The length of the sides of the grid used (in km)",
-            type=int,
-            default=25)
-        return self
-
-    def allow_metrics(self):
-        self.add_argument("-m",
-                          "--metrics",
-                          help="Which metrics to compute and plot",
-                          type=str,
-                          default="mae,mse,rmse")
-        self.add_argument(
-            "-s",
-            "--separate",
-            help="Whether or not to produce separate plots for each metric",
-            action="store_true",
-            default=False)
-        return self
-
-    def allow_probes(self):
-        self.add_argument(
-            "-p",
-            "--probe",
-            action="append",
-            dest="probes",
-            type=location_arg,
-            metavar="LOCATION",
-            help="Sample at LOCATION",
-        )
-        return self
-
-    def parse_args(self, *args, **kwargs):
-        args = super().parse_args(*args, **kwargs)
-
-        logging.basicConfig(
-            level=logging.DEBUG if args.verbose else logging.INFO,
-            force=True,
-        )
-        logging.getLogger("matplotlib").setLevel(logging.WARNING)
-
-        return args
-
-
 ##
-# CLI endpoints
+# icenet.plotting.forecast CLI endpoints
 #
-
-
-def binary_accuracy():
+# TODO: there is a lot of embedded logic in the CLI entrypoints (sometimes full implementations
+#  hence why they're not in icenet.plotting.cli)
+#
+def binary_accuracy_cli():
     """
     Produces plot of the binary classification accuracy of forecasts.
     """
@@ -1516,7 +970,7 @@ def binary_accuracy():
                          threshold=args.threshold)
 
 
-def sie_error():
+def sie_error_cli():
     """
     Produces plot of the sea ice extent (SIE) error of forecasts.
     """
@@ -1552,7 +1006,7 @@ def sie_error():
                               threshold=args.threshold)
 
 
-def plot_forecast():
+def forecast_cli():
     """CLI entry point for icenet_plot_forecast
 
     :return:
@@ -1699,20 +1153,7 @@ def plot_forecast():
             plt.clf()
 
 
-def parse_metrics_arg(argument: str) -> object:
-    """
-    Splits a string into a list by separating on commas.
-    Will remove any whitespace and removes duplicates.
-    Used to parsing metrics argument in metric_plots.
-
-    :param argument: string
-
-    :return: list of metrics to compute
-    """
-    return list(set([s.replace(" ", "") for s in argument.split(",")]))
-
-
-def metric_plots():
+def metric_cli():
     """
     Produces plot of requested metrics for forecasts.
     """
@@ -1751,7 +1192,7 @@ def metric_plots():
                  separate=args.separate)
 
 
-def leadtime_avg_plots():
+def leadtime_avg_cli():
     """
     Produces plot of leadtime averaged metrics for forecasts.
     """
@@ -1807,7 +1248,7 @@ def leadtime_avg_plots():
                               grid_area_size=args.grid_area)
 
 
-def sic_error():
+def sic_error_cli():
     """
     Produces video visualisation of SIC of forecast and ground truth.
     """
@@ -1829,7 +1270,7 @@ def sic_error():
                     output_path=args.output_path)
 
 
-def sic_error_local():
+def sic_error_local_cli():
     """
     Entry point for the icenet_plot_sic_error_local command
     """
@@ -1845,3 +1286,73 @@ def sic_error_local():
 
     sic_error_local_plots(fc, obs, args.output_path, as_command=True)
 
+
+##
+#   Utility functions
+#
+def _parse_day_of_year(dayofyear: int,
+                       leapyear: bool = False) -> int:
+    """
+    Private function which takes in a day of year (integer or float) and returns
+    the integer day of year. Useful for ensuring consistency over leap years,
+    as dates after March could have different day of years due to leap years.
+    For example, 01/03/00 is 60th day in 2000 but 01/03/01 is the 59th day in 2001.
+
+    :param dayofyear: integer as int or float type
+    :param leapyear: bool to indicate if we want to convert a leapyear dayofyear to
+                     non-leapyear
+
+    :return: int dayofyear
+    """
+    if leapyear:
+        return (pd.Timestamp("2000-01-01") +
+                timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
+    else:
+        return (pd.Timestamp("2001-01-01") +
+                timedelta(days=int(dayofyear) - 1)).strftime("%m-%d")
+
+
+def _heatmap_ylabels(metrics_df: pd.DataFrame,
+                     average_over: str,
+                     groupby_col: str) -> object:
+    """
+    Private function to return the labels for the y-axis in heatmap plots.
+
+    :param metrics_df: pandas dataframe with columns 'date', 'leadtime' and the metric name
+    :param average_over: string to specify how to average the metrics.
+                         If average_over="all", averages over all possible
+                         forecasts and produces line plot.
+                         If average_over="month" or "day", averages
+                         over the month or day respectively and produces
+                         heat map plot.
+    :param groupby_col: string to specify how we are grouping the data.
+                        If average_over="all", this is typically "dayofyear"
+                        or "target_dayofyear".
+                        If average_over="month" or "day", this is typically
+                        "month" or "target_month".
+
+    :return: list of labels for the y-axis
+    """
+    if average_over == "day":
+        # only add labels to the start, end dates
+        # and any days that represent the start of months
+        days_of_interest = np.array([
+            metrics_df[groupby_col].min(), 1, 32, 60, 91, 121, 152, 182, 213,
+            244, 274, 305, 335, metrics_df[groupby_col].max()
+        ])
+        labels = [
+            _parse_day_of_year(day) if day in days_of_interest else ""
+            for day in sorted(metrics_df[groupby_col].unique())
+        ]
+    else:
+        # find out what months have been plotted and add their names
+        month_names = np.array([
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept",
+            "Oct", "Nov", "Dec"
+        ])
+        labels = [
+            month_names[month - 1]
+            for month in sorted(metrics_df[groupby_col].unique())
+        ]
+
+    return labels
