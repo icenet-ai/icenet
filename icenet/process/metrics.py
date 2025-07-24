@@ -1,7 +1,7 @@
 import pandas as pd
 
 from download_toolbox.dataset import DatasetConfig
-from icenet.plotting.utils import get_seas_forecast_init_dates, filter_ds_by_obs, get_seas_forecast_da, process_regions
+from icenet.plotting.utils import get_seas_forecast_init_dates, filter_forecast_da_by_obs, get_seas_forecast_da, process_regions
 
 
 def compute_binary_accuracy(masks: object,
@@ -303,7 +303,7 @@ def compute_metrics_leadtime_avg(metric: str,
             pd.to_datetime(time) + relativedelta(**{
                 "{}s".format(ds_config.frequency.attribute): int(fc.leadtime.max())})
         ))
-        fc = filter_ds_by_obs(fc, obs, time, ds_config.frequency)
+        fc = filter_forecast_da_by_obs(fc, obs, ds_config.frequency)
 
         if ecmwf:
             # obtain SEAS forecast

@@ -15,13 +15,14 @@ from ibicus.debias import LinearScaling
 
 from download_toolbox.dataset import DatasetConfig
 from download_toolbox.interface import get_dataset_config_implementation, Frequency, get_implementation
+from preprocess_toolbox.processor import Processor
 
 
 def broadcast_forecast(start_date: object,
                        end_date: object,
-                       datafiles: object = None,
-                       dataset: object = None,
-                       target: object = None,
+                       datafiles: list | None = None,
+                       dataset: xr.Dataset | None = None,
+                       target: os.PathLike | str = None,
                        frequency: Frequency = Frequency.DAY) -> object:
     """
 
@@ -235,7 +236,7 @@ def get_forecast_data(forecast_file: os.PathLike,
     logging.info("Opening forecast {} for date {}".format(forecast_file, forecast_date))
     forecast_date = pd.to_datetime(forecast_date)
     forecast_ds = xr.open_dataset(forecast_file, decode_coords="all")
-    forecast_ds = forecast_ds.sel(time=slice(forecast_date, forecast_date))
+    forecast_ds = forecast_ds.sel(time=forecast_date)
 
     return forecast_ds.sic_mean if not stddev else forecast_ds.sic_stddev
 
@@ -243,7 +244,7 @@ def get_forecast_data(forecast_file: os.PathLike,
 def get_forecast_obs_data(forecast_file: os.PathLike,
                           obs_ds_config: DatasetConfig,
                           forecast_date: str,
-                          stddev: bool = False) -> object:
+                          stddev: bool = False) -> tuple[xr.DataArray, xr.DataArray, Processor]:
     """
 
     :param forecast_file: a path to a .nc file
@@ -255,39 +256,50 @@ def get_forecast_obs_data(forecast_file: os.PathLike,
     forecast_da = get_forecast_data(forecast_file, forecast_date, stddev)
     ds_config = get_dataset_config_implementation(obs_ds_config)
     obs_ds = ds_config.get_dataset(var_names=["siconca"])
+
+    # Forecast date is initialisation date, leadtime == 1, so we need to offset indexes
+    # For monthly calculations taking deltas won't work correctly
     obs_ds = obs_ds.sel(time=slice(
-        pd.to_datetime(forecast_date),
-        pd.to_datetime(forecast_date) + relativedelta(**{
-            "{}s".format(ds_config.frequency.attribute): int(forecast_da.leadtime.max())})
+        forecast_da.forecast_date.min(),
+        forecast_da.forecast_date.max()
     ))
-    #masks = get_implementation(xr.open_dataset(forecast_file).attrs["icenet_mask_implementation"])(ds_config)
-    forecast_da = filter_ds_by_obs(forecast_da, obs_ds, forecast_date, ds_config.frequency)
-    obs_ds['siconca'] /= 100
-    return forecast_da, obs_ds.siconca, None
+
+    masks = get_implementation(xr.open_dataset(forecast_file).attrs["icenet_mask_implementation"])(ds_config)
+    forecast_da = filter_forecast_da_by_obs(forecast_da, obs_ds, ds_config.frequency)
+
+    # TODO: Naive manner by which to detect AMSR data - can we generalise / make clearer
+    if "x" in obs_ds.coords:
+        obs_da = obs_ds.rename(dict(x="xc", y="yc", time="leadtime")).siconca
+    else:
+        # OSISAF clause
+        obs_da = obs_ds.rename(dict(time="leadtime")).siconca
+        obs_da.coords['xc'] = obs_da.coords['xc'] * 1e3
+        obs_da.coords['yc'] = obs_da.coords['yc'] * 1e3
+    obs_da.coords['leadtime'] = forecast_da.coords['leadtime']
+    obs_da /= 100.
+
+    return forecast_da.load(), obs_da, masks
 
 
-def filter_ds_by_obs(ds: object,
-                     obs_da: object,
-                     forecast_date: str,
-                     frequency: Frequency = Frequency.DAY) -> object:
+def filter_forecast_da_by_obs(da: xr.DataArray,
+                              obs_da: object,
+                              frequency: Frequency = Frequency.DAY) -> object:
     """
 
-    :param ds:
+    :param da:
     :param obs_da:
     :param forecast_date: initialisation date of the forecast
     :param frequency: frequency of the observational dataset
     :return:
     """
-    forecast_date = pd.to_datetime(forecast_date)
-    delta_attribute = "{}s".format(frequency.attribute)
-    (start_date, end_date) = (forecast_date + relativedelta(**{delta_attribute: int(ds.leadtime.min())}),
-                              forecast_date + relativedelta(**{delta_attribute: int(ds.leadtime.max())}))
+    if len(obs_da.time) < len(da.leadtime):
+        (start_date, end_date) = (obs_da.time.to_series()[0],
+                                  obs_da.time.to_series()[-1])
 
-    if len(obs_da.time) < len(ds.leadtime):
         if len(obs_da.time) < 1:
             raise RuntimeError("No observational data available between {} "
-                               "and {}".format(start_date.strftime("%D"),
-                                               end_date.strftime("%D")))
+                               "and {}".format(start_date.strftime(frequency.date_format),
+                                               end_date.strftime(frequency.date_format)))
 
         logging.warning("Observational data not available for full range of "
                         "forecast lead times: obs {}-{} vs fc {}-{}".format(
@@ -296,14 +308,11 @@ def filter_ds_by_obs(ds: object,
                             start_date.strftime(frequency.date_format),
                             end_date.strftime(frequency.date_format)))
 
-        (start_date, end_date) = (obs_da.time.to_series()[0],
-                                  obs_da.time.to_series()[-1])
+        # We subset to get a nicely compatible dataset for plotting
+        return da.sel(time=slice(start_date, end_date))
 
-    # We broadcast to get a nicely compatible dataset for plotting
-    return broadcast_forecast(start_date=start_date,
-                              end_date=end_date,
-                              dataset=ds,
-                              frequency=frequency)
+    # Otherwise we're assuming all obs data is covering the da provided
+    return da
 
 
 def calculate_extents(x1: int, x2: int, y1: int, y2: int):

@@ -176,8 +176,8 @@ def create_cf_output():
             # geospatial_lat_max=ref_cube.attributes["geospatial_lat_max"],
             # geospatial_lon_min=ref_cube.attributes["geospatial_lon_min"],
             # geospatial_lon_max=ref_cube.attributes["geospatial_lon_max"],
-            # icenet_ground_truth_ds=ground_truth_ds_filename,
-            # icenet_mask_implementation="icenet.data.masks.osisaf:Masks",
+            icenet_ground_truth_ds=ground_truth_cfg["dataset_config"],
+            icenet_mask_implementation=[list(dl.config["masks"].values())[0]["implementation"]],
             # spatial_resolution=ref_cube.attributes["spatial_resolution"],
             # Use ISO 8601:2004 duration format, preferably the extended format
             # as recommended in the Attribute Content Guidance section.

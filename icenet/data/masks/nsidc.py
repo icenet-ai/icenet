@@ -195,6 +195,19 @@ class Masks(Processor):
 
         self.save_config()
 
+    def active_grid_cell(self, date=None, *args, **kwargs):
+        """
+
+        Args:
+            date:
+            *args:
+            **kwargs:
+
+        Returns:
+
+        """
+        return da.data[self._region]
+
     def land(self, *args, **kwargs):
         """
 
@@ -207,6 +220,30 @@ class Masks(Processor):
         """
         da = xr.open_dataarray(self.land_filename)
         return da.data[self._region]
+
+    def get_active_cell_da(self, src_da: object) -> object:
+        """Generate an xarray.DataArray object containing the active cell masks
+         for each timestamp in a given source DataArray.
+
+        Args:
+            src_da: Source xarray.DataArray object containing time, xc, yc
+                coordinates.
+
+        Returns:
+            An xarray.DataArray containing active cell masks for each time
+                in source DataArray.
+        """
+        return xr.DataArray(
+            [
+                np.ones(src_da.shape[-2:], dtype=np.float32)[self._region]
+                for _ in src_da.time.values
+            ],
+            dims=('time', 'yc', 'xc'),
+            coords={
+                'time': src_da.time.values,
+                'yc': src_da.yc.values,
+                'xc': src_da.xc.values,
+            })
 
     def get_blank_mask(self) -> object:
         """Returns an empty mask.

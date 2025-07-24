@@ -25,7 +25,7 @@ from icenet.process.metrics import compute_binary_accuracy, compute_sea_ice_exte
     compute_metrics_leadtime_avg
 
 from icenet import __version__ as icenet_version
-from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_obs_data,
+from icenet.plotting.utils import (get_forecast_obs_data,
                                    get_seas_forecast_da, get_forecast_data,
                                    get_seas_forecast_init_dates, show_img,
                                    get_plot_axes, process_probes,
@@ -684,10 +684,10 @@ def sic_error_video(fc_da: object,
     fig, maps = plt.subplots(nrows=1, ncols=3, figsize=(16, 6), layout="tight")
     fig.set_dpi(150)
 
-    leadtime = 0
-    fc_plot = fc_da.isel(time=leadtime).to_numpy()
-    obs_plot = obs_da.isel(time=leadtime).to_numpy()
-    diff_plot = diff.isel(time=leadtime).to_numpy()
+    leadtime = 1
+    fc_plot = fc_da.isel(leadtime=leadtime).to_numpy()
+    obs_plot = obs_da.isel(leadtime=leadtime).to_numpy()
+    diff_plot = diff.isel(leadtime=leadtime).to_numpy()
 
     upper_bound = np.max(
         [np.abs(np.nanmin(diff_plot)),
@@ -710,11 +710,11 @@ def sic_error_video(fc_da: object,
 
     tic = maps[0].set_title(
         "IceNet "
-        f"{pd.to_datetime(fc_da.isel(time=leadtime).time.values).strftime(obs_ds_config.frequency.plot_format)}"
+        f"{pd.to_datetime(fc_da.isel(leadtime=leadtime).time.values).strftime(obs_ds_config.frequency.plot_format)}"
     )
     tio = maps[1].set_title(
         "OSISAF Obs "
-        f"{pd.to_datetime(obs_da.isel(time=leadtime).time.values).strftime(obs_ds_config.frequency.plot_format)}"
+        f"{pd.to_datetime(obs_da.isel(leadtime=leadtime).time.values).strftime(obs_ds_config.frequency.plot_format)}"
     )
     maps[2].set_title("Diff")
 
@@ -739,19 +739,19 @@ def sic_error_video(fc_da: object,
                       zorder=3)
 
     # TODO: tied to daily forecasting date representations
-    def update(date):
+    def update(lt_idx):
+        date = "{} + {} {}s".format(
+            pd.to_datetime(fc_da.time.values).strftime(obs_ds_config.frequency.plot_format),
+            lt_idx,
+            obs_ds_config.frequency.name.lower())
         logging.debug(f"Plotting {date}")
 
-        fc_plot = fc_da.isel(time=date).to_numpy()
-        obs_plot = obs_da.isel(time=date).to_numpy()
-        diff_plot = diff.isel(time=date).to_numpy()
+        fc_plot = fc_da.isel(leadtime=lt_idx).to_numpy()
+        obs_plot = obs_da.isel(leadtime=lt_idx).to_numpy()
+        diff_plot = diff.isel(leadtime=lt_idx).to_numpy()
 
-        tic.set_text("IceNet {}".format(
-            pd.to_datetime(
-                fc_da.isel(time=date).time.values).strftime(obs_ds_config.frequency.plot_format)))
-        tio.set_text("OSISAF Obs {}".format(
-            pd.to_datetime(
-                obs_da.isel(time=date).time.values).strftime(obs_ds_config.frequency.plot_format)))
+        tic.set_text("IceNet {}".format(date))
+        tio.set_text("Observation {}".format(date))
 
         im1.set_data(fc_plot)
         im2.set_data(obs_plot)
@@ -761,7 +761,7 @@ def sic_error_video(fc_da: object,
 
     animation = FuncAnimation(fig,
                               update,
-                              range(0, len(fc_da.time)),
+                              range(0, len(fc_da.leadtime)),
                               interval=100)
 
     plt.close()
