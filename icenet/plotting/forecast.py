@@ -25,7 +25,6 @@ from icenet.process.metrics import compute_binary_accuracy, compute_sea_ice_exte
     compute_metrics_leadtime_avg
 
 from icenet import __version__ as icenet_version
-from icenet.cli import date_arg
 from icenet.plotting.utils import (filter_ds_by_obs, get_forecast_obs_data,
                                    get_seas_forecast_da, get_forecast_data,
                                    get_seas_forecast_init_dates, show_img,

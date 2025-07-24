@@ -14,7 +14,6 @@ import xarray as xr
 from matplotlib.animation import FuncAnimation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from icenet.process.predict import get_ref_cube
 from icenet.utils import setup_logging
 
 
@@ -49,13 +48,7 @@ def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
             dates.append(
                 pd.to_datetime(dt.date(*[int(s) for s in date_match.groups()])))
 
-        # FIXME: naive implementations abound
         path_comps = os.path.dirname(files[0]).split(os.sep)
-
-        import sys
-        print(files, path_comps)
-        sys.exit(0)
-        ref_cube = get_ref_cube()
         var_name = path_comps[-2]
 
         da = xr.DataArray(
@@ -63,8 +56,9 @@ def get_dataarray_from_files(files: object, numpy: bool = False) -> object:
             dims=("time", "yc", "xc"),
             coords=dict(
                 time=[pd.Timestamp(d) for d in dates],
-                xc=ref_cube.coord("projection_x_coordinate").points,
-                yc=ref_cube.coord("projection_y_coordinate").points,
+                # TODO: no ref_cube implementation available at present
+                #xc=ref_cube.coord("projection_x_coordinate").points,
+                #yc=ref_cube.coord("projection_y_coordinate").points,
             ),
             name=var_name,
         )
