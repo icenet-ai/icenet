@@ -260,10 +260,10 @@ def get_forecast_obs_data(forecast_file: os.PathLike,
         pd.to_datetime(forecast_date) + relativedelta(**{
             "{}s".format(ds_config.frequency.attribute): int(forecast_da.leadtime.max())})
     ))
-    masks = get_implementation(xr.open_dataset(forecast_file).attrs["icenet_mask_implementation"])(ds_config)
+    #masks = get_implementation(xr.open_dataset(forecast_file).attrs["icenet_mask_implementation"])(ds_config)
     forecast_da = filter_ds_by_obs(forecast_da, obs_ds, forecast_date, ds_config.frequency)
     obs_ds['siconca'] /= 100
-    return forecast_da, obs_ds.siconca, masks
+    return forecast_da, obs_ds.siconca, None
 
 
 def filter_ds_by_obs(ds: object,

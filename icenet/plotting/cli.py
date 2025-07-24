@@ -1,4 +1,5 @@
 import argparse
+import logging
 
 from icenet.cli import date_arg
 from icenet.utils import setup_logging
