@@ -208,11 +208,11 @@ def plot_metrics(metrics: object,
         for metric in metrics:
             fig, ax = plt.subplots(figsize=(12, 6))
             ax.set_title(f"{metric.upper()} comparison")
-            ax.plot(fc_metric_dict[metric].time,
+            ax.plot(fc_metric_dict[metric].forecast_date.values,
                     fc_metric_dict[metric].values,
                     label="IceNet")
             if cmp_metric_dict is not None:
-                ax.plot(cmp_metric_dict[metric].time,
+                ax.plot(cmp_metric_dict[metric].forecast_date.values,
                         cmp_metric_dict[metric].values,
                         label="SEAS")
 
@@ -231,11 +231,11 @@ def plot_metrics(metrics: object,
         fig, ax = plt.subplots(figsize=(12, 6))
         ax.set_title("Metric comparison")
         for metric in metrics:
-            ax.plot(fc_metric_dict[metric].time,
+            ax.plot(fc_metric_dict[metric].leadtime,
                     fc_metric_dict[metric].values,
                     label=f"IceNet {metric.upper()}")
             if cmp_metric_dict is not None:
-                ax.plot(cmp_metric_dict[metric].time,
+                ax.plot(cmp_metric_dict[metric].leadtime,
                         cmp_metric_dict[metric].values,
                         label=f"SEAS {metric.upper()}",
                         linestyle="dotted")

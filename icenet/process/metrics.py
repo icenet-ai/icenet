@@ -120,7 +120,8 @@ def compute_metrics(metrics: object,
                 f"Please only choose out of {implemented_metrics}.")
 
     # obtain mask
-    agcm = masks.get_active_cell_da(obs_da)
+    agcm = masks.get_active_cell_da(obs_da).fillna(True).rename({"time": "leadtime"})
+    agcm.coords['leadtime'] = fc_da.leadtime
 
     metric_dict = {}
     # compute raw error
@@ -128,11 +129,11 @@ def compute_metrics(metrics: object,
     if "mae" in metrics:
         # compute absolute SIC errors
         abs_err_da = da.fabs(err_da)
-        abs_weighted_da = abs_err_da.weighted(~agcm)
+        abs_weighted_da = abs_err_da.weighted(agcm)
     if "mse" in metrics or "rmse" in metrics:
         # compute squared SIC errors
         square_err_da = err_da**2
-        square_weighted_da = square_err_da.weighted(~agcm)
+        square_weighted_da = square_err_da.weighted(agcm)
 
     for metric in metrics:
         if metric == "mae":
