@@ -91,7 +91,7 @@ def plot_binary_accuracy(masks: object,
     ax.set_xlabel("Date")
     ax.legend(loc='lower right')
 
-    output_path = os.path.join("plot", "binacc.png") \
+    output_path = os.path.join("plots", "binacc.png") \
         if not output_path else output_path
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
@@ -154,7 +154,7 @@ def plot_sea_ice_extent_error(masks: object,
     ax.set_xlabel("Date")
     ax.legend(loc='lower right')
 
-    output_path = os.path.join("plot", "sie_error.png") \
+    output_path = os.path.join("plots", "sie_error.png") \
         if not output_path else output_path
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
@@ -222,7 +222,7 @@ def plot_metrics(metrics: object,
             ax.xaxis.set_minor_locator(mdates.DayLocator())
             ax.legend(loc='lower right')
 
-            outpath = os.path.join("plot", f"{metric}.png") \
+            outpath = os.path.join("plots", f"{metric}.png") \
                 if not output_path else os.path.join(output_path, f"{metric}.png")
             logging.info(f"Saving to {outpath}")
             plt.savefig(outpath)
@@ -248,7 +248,7 @@ def plot_metrics(metrics: object,
         ax.set_xlabel("Date")
         ax.legend(loc='lower right')
 
-        output_path = os.path.join("plot", "metrics.png") \
+        output_path = os.path.join("plots", "metrics.png") \
             if not output_path else output_path
         logging.info(f"Saving to {output_path}")
         plt.savefig(output_path)
@@ -360,7 +360,7 @@ def standard_deviation_heatmap(metric: str,
     # save plot
     targ = "target" if target_date_avg and average_over != "all" else "init"
     filename = f"leadtime_averaged_{targ}_{average_over}_{metric}_{model_name}_std.png"
-    output_path = os.path.join("plot", filename) \
+    output_path = os.path.join("plots", filename) \
         if not output_path else output_path
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
@@ -603,7 +603,7 @@ def plot_metrics_leadtime_avg(metric: str,
     targ = "target" if target_date_avg and average_over != "all" else "init"
     filename = f"leadtime_averaged_{targ}_{average_over}_{metric}" + \
         ("_comp" if seas_metric_df is not None else "") + ".png"
-    output_path = os.path.join("plot", filename) \
+    output_path = os.path.join("plots", filename) \
         if not output_path else output_path
     logging.info(f"Saving to {output_path}")
     plt.savefig(output_path)
@@ -757,7 +757,7 @@ def sic_error_video(fc_da: object,
 
     plt.close()
 
-    output_path = os.path.join("plot", "sic_error.mp4") \
+    output_path = os.path.join("plots", "sic_error.mp4") \
         if not output_path else output_path
     logging.info(f"Saving to {output_path}")
     animation.save(output_path, fps=2) # TODO: needs to be optional, extra_args=['-vcodec', 'libx264'])

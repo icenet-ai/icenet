@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 import pandas as pd
+import dask.array as da
 import xarray as xr
 
 from download_toolbox.dataset import DatasetConfig
