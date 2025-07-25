@@ -139,10 +139,10 @@ def get_seas_forecast_da(
     seas_file = os.path.join(
         ds_config.path.replace(ds_config.identifier, "seas"),
         "siconca",
-        "{}.nc".format(date.replace(day=1).strftime("%Y%m%d")))
+        "{}.nc".format(date.replace(day=1).strftime(ds_config.frequency.date_format)))
 
     if os.path.exists(seas_file):
-        seas_da = xr.open_dataset(seas_file).siconc
+        seas_da = xr.open_dataset(seas_file).siconca
     else:
         logging.warning("No SEAS data available at {}".format(seas_file))
         return None
@@ -158,7 +158,7 @@ def get_seas_forecast_da(
         seas_hist_files = dict(
             sorted({
                 os.path.abspath(el):
-                    dt.datetime.strptime(os.path.basename(el)[0:8], "%Y%m%d")
+                    dt.datetime.strptime(os.path.basename(el)[0:8], obs_ds_config.frequency.date_format)
                 for el in glob.glob(
                     os.path.join(ds_config.path.replace(ds_config.identifier, "seas"),
                                  "siconca", "*.nc"))
@@ -187,7 +187,7 @@ def get_seas_forecast_da(
                 return ds
 
         hist_da = xr.open_mfdataset(seas_hist_files,
-                                    preprocess=strip_overlapping_time).siconc
+                                    preprocess=strip_overlapping_time).siconca
         debiaser = LinearScaling(delta_type="additive",
                                  variable="siconc",
                                  reasonable_physical_range=[0., 1.])

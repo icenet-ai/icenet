@@ -104,7 +104,6 @@ def plot_sea_ice_extent_error(masks: object,
                               cmp_da: object,
                               obs_da: object,
                               output_path: object,
-                              grid_area_size: int = 25,
                               threshold: float = 0.15) -> object:
     """
     Compute and plot sea ice extent (SIE) error of a forecast, where SIE error is
@@ -119,8 +118,6 @@ def plot_sea_ice_extent_error(masks: object,
     :param obs_da: the "ground truth" given as an xarray.DataArray object
                    with time, xc, yc coordinates
     :param output_path: string specifying the path to store the plot
-    :param grid_area_size: the length of the sides of the grid (in km),
-                           by default set to 25 (so area of grid is 25*25)
     :param threshold: the SIC threshold of interest (in percentage as a fraction),
                       i.e. threshold is between 0 and 1
 
@@ -130,20 +127,19 @@ def plot_sea_ice_extent_error(masks: object,
         masks=masks,
         fc_da=fc_da,
         obs_da=obs_da,
-        grid_area_size=grid_area_size,
         threshold=threshold)
 
     fig, ax = plt.subplots(figsize=(12, 6))
+    grid_area_size = float(abs(fc_da.xc[1] - fc_da.xc[0])) / 1000.
     ax.set_title(f"SIE error comparison ({grid_area_size} km grid resolution) "
                  f"(threshold SIC = {threshold*100}%)")
-    ax.plot(forecast_sie_error.time, forecast_sie_error.values, label="IceNet")
+    ax.plot(forecast_sie_error.forecast_date.values, forecast_sie_error.values, label="IceNet")
 
     if cmp_da is not None:
         cmp_sie_error = compute_sea_ice_extent_error(
             masks=masks,
             fc_da=cmp_da,
             obs_da=obs_da,
-            grid_area_size=grid_area_size,
             threshold=threshold)
         ax.plot(cmp_sie_error.time, cmp_sie_error.values, label="SEAS")
     else:
@@ -296,6 +292,7 @@ def standard_deviation_heatmap(metric: str,
     """
     logging.info(f"Creating standard deviation over leadtime plot for "
                  f"{metric} metric for {model_name} forecasts")
+
     if average_over == "day":
         groupby_col = "dayofyear"
     else:
@@ -420,6 +417,7 @@ def plot_metrics_leadtime_avg(metric: str,
     :return: pandas dataframe with columns 'date', 'leadtime' and the metric name
     """
     implemented_metrics = ["binacc", "sie", "mae", "mse", "rmse"]
+
     if metric not in implemented_metrics:
         raise NotImplementedError(
             f"{metric} metric has not been implemented. "
@@ -430,14 +428,10 @@ def plot_metrics_leadtime_avg(metric: str,
             kwargs["threshold"] = 0.15
     elif metric == "sie":
         # add default kwargs
-        if "grid_area_size" not in kwargs.keys():
-            kwargs["grid_area_size"] = 25
         if "threshold" not in kwargs.keys():
             kwargs["threshold"] = 0.15
     elif metric in ["mae", "mse", "rmse"]:
-        # remove grid_area_size and threshold kwargs if passed
-        if "grid_area_size" in kwargs.keys():
-            del kwargs["grid_area_size"]
+        # remove threshold kwargs if passed
         if "threshold" in kwargs.keys():
             del kwargs["threshold"]
 
@@ -598,8 +592,8 @@ def plot_metrics_leadtime_avg(metric: str,
     elif metric == "binacc":
         title = f"Binary accuracy comparison (threshold SIC = {kwargs['threshold'] * 100}%)"
     elif metric == "sie":
-        title = f"SIE error comparison ({kwargs['grid_area_size']} km grid resolution, " +\
-            f"threshold SIC = {kwargs['threshold'] * 100}%)"
+        # TODO: would be nice to have grid size here
+        title = f"SIE error comparison, threshold SIC = {kwargs['threshold'] * 100}%)"
     ax.set_title(title + time_coverage)
 
     # x-axis
@@ -972,7 +966,7 @@ def sie_error_cli():
     """
     Produces plot of the sea ice extent (SIE) error of forecasts.
     """
-    ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold().allow_sie())
+    ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold())
     args = ap.parse_args()
 
     fc, obs, masks = get_forecast_obs_data(args.forecast_file,
@@ -1000,7 +994,6 @@ def sie_error_cli():
                               cmp_da=seas,
                               obs_da=obs,
                               output_path=args.output_path,
-                              grid_area_size=args.grid_area,
                               threshold=args.threshold)
 
 
@@ -1195,7 +1188,7 @@ def leadtime_avg_cli():
     Produces plot of leadtime averaged metrics for forecasts.
     """
     ap = (ForecastPlotArgParser(
-        forecast_date=False).allow_ecmwf().allow_threshold().allow_sie())
+        forecast_date=False).allow_ecmwf().allow_threshold())
     ap.add_argument("-m",
                     "--metric",
                     help="Which metric to compute and plot",
@@ -1242,8 +1235,7 @@ def leadtime_avg_cli():
                               target_date_avg=args.target_date_average,
                               bias_correct=args.bias_correct,
                               region=args.region,
-                              threshold=args.threshold,
-                              grid_area_size=args.grid_area)
+                              threshold=args.threshold)
 
 
 def sic_error_cli():

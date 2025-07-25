@@ -96,15 +96,6 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           default=0.15)
         return self
 
-    def allow_sie(self):
-        self.add_argument(
-            "-ga",
-            "--grid-area",
-            help="The length of the sides of the grid used (in km)",
-            type=int,
-            default=25)
-        return self
-
     def allow_metrics(self):
         self.add_argument("-m",
                           "--metrics",

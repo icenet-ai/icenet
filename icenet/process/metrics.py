@@ -37,13 +37,13 @@ def compute_binary_accuracy(masks: object,
     if (threshold < 0) or (threshold > 1):
         raise ValueError("threshold must be a float between 0 and 1")
 
-    agcm = masks.get_active_cell_da(obs_da).rename({"time": "leadtime"})
+    agcm = masks.get_active_cell_da(obs_da).rename({"time": "leadtime"}).fillna(0)
     agcm.coords['leadtime'] = obs_da.leadtime
     binary_obs_da = obs_da > threshold
     binary_fc_da = fc_da > threshold
 
     # compute binary accuracy metric
-    binary_fc_da = (binary_fc_da == binary_obs_da).astype(np.float16).weighted(agcm.fillna(0))
+    binary_fc_da = (binary_fc_da == binary_obs_da).astype(np.float16).weighted(agcm)
     binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc'], skipna=True) * 100)
     return binacc_fc
 
@@ -51,7 +51,6 @@ def compute_binary_accuracy(masks: object,
 def compute_sea_ice_extent_error(masks: object,
                                  fc_da: object,
                                  obs_da: object,
-                                 grid_area_size: int,
                                  threshold: float) -> object:
     """
     Compute sea ice extent (SIE) error of a forecast, where SIE error is
@@ -62,28 +61,27 @@ def compute_sea_ice_extent_error(masks: object,
                   with time, xc, yc coordinates
     :param obs_da: the "ground truth" given as an xarray.DataArray object
                    with time, xc, yc coordinates
-    :param grid_area_size: the length of the sides of the grid (in km),
-                           by default set to 25 (so area of grid is 25*25)
     :param threshold: the SIC threshold of interest (in percentage as a fraction),
                       i.e. threshold is between 0 and 1
 
     :return: SIE error for forecast as xarray.DataArray object
     """
-    grid_area_size = 25 if grid_area_size is None else grid_area_size
+    grid_area_size = float(abs(fc_da.xc[1] - fc_da.xc[0])) / 1000.
     threshold = 0.15 if threshold is None else threshold
     if (threshold < 0) or (threshold > 1):
         raise ValueError("threshold must be a float between 0 and 1")
 
     # obtain mask
-    agcm = masks.get_active_cell_da(obs_da)
+    agcm = masks.get_active_cell_da(obs_da).rename({"time": "leadtime"}).fillna(0)
+    agcm.coords['leadtime'] = obs_da.leadtime
 
     # binary for observed (i.e. truth)
     binary_obs_da = obs_da > threshold
-    binary_obs_weighted_da = binary_obs_da.astype(int).weighted(~agcm)
+    binary_obs_weighted_da = binary_obs_da.astype(int).weighted(agcm)
 
     # binary for forecast
     binary_fc_da = fc_da > threshold
-    binary_fc_weighted_da = binary_fc_da.astype(int).weighted(~agcm)
+    binary_fc_weighted_da = binary_fc_da.astype(int).weighted(agcm)
 
     # sie error
     forecast_sie_error = (binary_fc_weighted_da.sum(['xc', 'yc']) -
@@ -171,7 +169,7 @@ def compute_metric_as_dataframe(metric: object,
     :param obs_ds_config:
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
-                   metrics, or 'grid_area_size' for SIE error metric
+                   metrics
 
     :return: computed metric in a pandas dataframe with columns 'date',
              'leadtime' and 'met' for each metric, met, in metric
@@ -195,9 +193,6 @@ def compute_metric_as_dataframe(metric: object,
                 obs_da=obs_da,
                 threshold=kwargs["threshold"]).values
         elif met == "sie":
-            if "grid_area_size" not in kwargs.keys():
-                raise KeyError(
-                    "if met = 'sie', must pass in argument for grid_area_size")
             if "threshold" not in kwargs.keys():
                 raise KeyError(
                     "if met = 'sie', must pass in argument for threshold")
@@ -205,7 +200,6 @@ def compute_metric_as_dataframe(metric: object,
                 masks=masks,
                 fc_da=fc_da,
                 obs_da=obs_da,
-                grid_area_size=kwargs["grid_area_size"],
                 threshold=kwargs["threshold"]).values
         else:
             raise NotImplementedError(f"{met} is not implemented")
@@ -279,7 +273,7 @@ def compute_metrics_leadtime_avg(metric: str,
     :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
-                   metrics, or 'grid_area_size' for SIE error metric
+                   metrics
 
     :return: pandas dataframe with columns 'date', 'leadtime' and the metric name.
     """
