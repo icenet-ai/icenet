@@ -66,7 +66,8 @@ def compute_sea_ice_extent_error(masks: object,
 
     :return: SIE error for forecast as xarray.DataArray object
     """
-    grid_area_size = float(abs(fc_da.xc[1] - fc_da.xc[0])) / 1000.
+    grid_area_size = float(abs(fc_da.xc[1] - fc_da.xc[0]))
+    logging.debug(f"Calculated grid size as {grid_area_size}")
     threshold = 0.15 if threshold is None else threshold
     if (threshold < 0) or (threshold > 1):
         raise ValueError("threshold must be a float between 0 and 1")
@@ -87,6 +88,7 @@ def compute_sea_ice_extent_error(masks: object,
     forecast_sie_error = (binary_fc_weighted_da.sum(['xc', 'yc']) -
                           binary_obs_weighted_da.sum(['xc', 'yc'])) * (
                               grid_area_size**2)
+    logging.debug(f"Calculated {forecast_sie_error}")
 
     return forecast_sie_error
 
@@ -244,7 +246,7 @@ def compute_metric_as_dataframe(metric: object,
 def compute_metrics_leadtime_avg(metric: str,
                                  forecast_file: str,
                                  ds_config: DatasetConfig,
-                                 ecmwf: bool,
+                                 compare_against: DatasetConfig,
                                  data_path: str,
                                  bias_correct: bool = False,
                                  region: tuple = None,
@@ -261,15 +263,12 @@ def compute_metrics_leadtime_avg(metric: str,
     :param metric: string specifying which metric to compute
     :param forecast_file: string specifying a path to a .nc file
     :param ds_config: ground truth dataset config appropriate to the forecast file
-    :param ecmwf: bool to indicate whether or not to compare
-                  with ECMWF SEAS forecast. If True, will only average
-                  over forecasts where the initialisation dates between IceNet
-                  and SEAS are the same
+    :param compare_against:
     :param data_path: string specifying where to save the metrics dataframe.
                       If None, dataframe is not saved
     :param bias_correct: bool to indicate whether or not to
                          perform a bias correction on SEAS forecast,
-                         by default False. Ignored if ecmwf=False
+                         by default False.
     :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
@@ -281,10 +280,10 @@ def compute_metrics_leadtime_avg(metric: str,
     fc_ds = xr.open_dataset(forecast_file)
     masks = get_implementation(fc_ds.attrs["icenet_mask_implementation"])(ds_config)
 
-    if ecmwf:
+    if compare_against:
         # find out what dates cross over with the SEAS5 predictions
-        (fc_start_date, fc_end_date) = (fc_ds.time.values.min(),
-                                        fc_ds.time.values.max())
+        (fc_start_date, fc_end_date) = (fc_ds.forecast_date.values.min(),
+                                        fc_ds.forecast_date.values.max())
         dates = get_seas_forecast_init_dates(fc_ds.attrs["hemisphere_string"])
         dates = dates[(dates > fc_start_date) & (dates <= fc_end_date)]
         times = [x for x in fc_ds.time.values if x in dates]
@@ -294,8 +293,7 @@ def compute_metrics_leadtime_avg(metric: str,
     # obtain metric for each leadtime at each initialised date in the forecast file
 
     fc_metrics_list = []
-    if ecmwf:
-        seas_metrics_list = []
+    seas_metrics_list = []
     for time in fc_ds.time.values:
         # obtain forecast
         fc = fc_ds.sel(time=slice(time, time))["sic_mean"]
@@ -307,9 +305,9 @@ def compute_metrics_leadtime_avg(metric: str,
         ))
         fc = filter_forecast_da_by_obs(fc, obs, ds_config.frequency)
 
-        if ecmwf:
+        if compare_against:
             # obtain SEAS forecast
-            seas = get_seas_forecast_da(obs_ds_config=ds_config,
+            seas = get_seas_forecast_da(seas_ds_config=compare_against,
                                         date=pd.to_datetime(time),
                                         bias_correct=bias_correct)
             # remove the initialisation date from dataarray
@@ -344,7 +342,7 @@ def compute_metrics_leadtime_avg(metric: str,
     # groupby the leadtime and compute the mean average of the metric
     fc_metric_df = pd.concat(fc_metrics_list)
     fc_metric_df["forecast_name"] = "IceNet"
-    if ecmwf:
+    if compare_against:
         seas_metric_df = pd.concat(seas_metrics_list)
         seas_metric_df["forecast_name"] = "SEAS"
         fc_metric_df = pd.concat([fc_metric_df, seas_metric_df])
@@ -355,8 +353,6 @@ def compute_metrics_leadtime_avg(metric: str,
             fc_metric_df.to_csv(data_path)
         except OSError:
             # don't break if not successful, still return dataframe
-            logging.info(
-                "Save not successful! Make sure the data_path directory exists"
-            )
+            logging.warning("Save not successful! Make sure the data_path directory exists")
 
     return fc_metric_df.reset_index(drop=True)

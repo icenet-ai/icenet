@@ -79,13 +79,16 @@ class ForecastPlotArgParser(argparse.ArgumentParser):
                           type=region_arg,
                           help="Region specified x1, y1, x2, y2")
 
-    def allow_ecmwf(self):
+    def allow_comparison(self):
         self.add_argument("-b",
                           "--bias-correct",
-                          help="Bias correct SEAS forecast array",
+                          help="Bias correct comparison forecast array",
                           action="store_true",
                           default=False)
-        self.add_argument("-e", "--ecmwf", action="store_true", default=False)
+        self.add_argument("-c", "--cmp-dataset-config",
+                          help="Dataset to compare against, usually from a model",
+                          type=str,
+                          default=None)
         return self
 
     def allow_threshold(self):

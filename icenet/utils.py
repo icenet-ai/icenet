@@ -131,6 +131,7 @@ def setup_logging(func,
         logging.getLogger("cdsapi").setLevel(logging.WARNING)
         logging.getLogger("matplotlib").setLevel(logging.WARNING)
         logging.getLogger("matplotlib.pyplot").setLevel(logging.WARNING)
+        logging.getLogger("PIL").setLevel(logging.WARNING)
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("tensorflow").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)

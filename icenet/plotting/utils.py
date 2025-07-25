@@ -116,7 +116,7 @@ def get_seas_forecast_init_dates(
 
 
 def get_seas_forecast_da(
-        obs_ds_config: DatasetConfig,
+        seas_ds_config: DatasetConfig,
         date: str,
         bias_correct: bool = True,
 ) -> tuple:
@@ -128,18 +128,12 @@ def get_seas_forecast_da(
       * yc                            (yc) float64 5.388e+06 ... -5.388e+06
       * xc                            (xc) float64 -5.388e+06 ... 5.388e+06
 
-    TODO: we need to be supplying the download toolbox SEAS configuration for this dataset
-
-    :param obs_ds_config: dataset config for the ground truth dataset
+    :param seas_ds_config: dataset config for the comparison dataset
     :param date:
     :param bias_correct:
     """
 
-    ds_config = get_dataset_config_implementation(obs_ds_config)
-    seas_file = os.path.join(
-        ds_config.path.replace(ds_config.identifier, "seas"),
-        "siconca",
-        "{}.nc".format(date.replace(day=1).strftime(ds_config.frequency.date_format)))
+    seas_file = seas_ds_config.var_filepath(seas_ds_config.var_config('siconca'), [date,])
 
     if os.path.exists(seas_file):
         seas_da = xr.open_dataset(seas_file).siconca
@@ -148,6 +142,7 @@ def get_seas_forecast_da(
         return None
 
     if bias_correct:
+        raise NotImplementedError("BIAS correction not currently refactored")
         # Let's have some maximum, though it's quite high
         (start_date, end_date) = (date - dt.timedelta(days=10 * 365),
                                   date + dt.timedelta(days=10 * 365))
@@ -155,6 +150,7 @@ def get_seas_forecast_da(
         obs_da = obs_ds.sel(time=slice(
             pd.to_datetime(start_date),
             pd.to_datetime(end_date))).siconca
+        # TODO: this is no longer valid, use ds_config
         seas_hist_files = dict(
             sorted({
                 os.path.abspath(el):
@@ -214,12 +210,8 @@ def get_seas_forecast_da(
                         "date {}, make sure you account for this!".format(
                             date_location, date))
 
-    seas_da = seas_da.sel(time=slice(date, None))
-    logging.debug("SEAS data range: {} - {}, {} dates".format(
-        pd.to_datetime(min(seas_da.time.values)).strftime("%Y-%m-%d"),
-        pd.to_datetime(max(seas_da.time.values)).strftime("%Y-%m-%d"),
-        len(seas_da.time)))
 
+    seas_da = seas_da.sel(time=pd.Timestamp(date))
     return seas_da
 
 

@@ -130,7 +130,7 @@ def plot_sea_ice_extent_error(masks: object,
         threshold=threshold)
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    grid_area_size = float(abs(fc_da.xc[1] - fc_da.xc[0])) / 1000.
+    grid_area_size = float(abs(fc_da.xc[1] - fc_da.xc[0]))
     ax.set_title(f"SIE error comparison ({grid_area_size} km grid resolution) "
                  f"(threshold SIC = {threshold*100}%)")
     ax.plot(forecast_sie_error.forecast_date.values, forecast_sie_error.values, label="IceNet")
@@ -141,7 +141,7 @@ def plot_sea_ice_extent_error(masks: object,
             fc_da=cmp_da,
             obs_da=obs_da,
             threshold=threshold)
-        ax.plot(cmp_sie_error.time, cmp_sie_error.values, label="SEAS")
+        ax.plot(forecast_sie_error.forecast_date.values, cmp_sie_error.values, label="SEAS")
     else:
         cmp_sie_error = None
 
@@ -371,9 +371,9 @@ def standard_deviation_heatmap(metric: str,
 def plot_metrics_leadtime_avg(metric: str,
                               forecast_file: str,
                               ds_config: DatasetConfig,
-                              ecmwf: bool,
                               output_path: str,
                               average_over: str,
+                              compare_against: DatasetConfig | None = None,
                               plot_std: bool = False,
                               std_mult: float = 1.0,
                               data_path: str = None,
@@ -388,10 +388,7 @@ def plot_metrics_leadtime_avg(metric: str,
     :param metric: string specifying which metric to compute
     :param forecast_file: a path to a .nc file
     :param ds_config: dataset config appropriate for the forecast file
-    :param ecmwf: bool to indicate whether or not to compare
-                  with ECMWF SEAS forecast. If True, will only average
-                  over forecasts where the initialisation dates between IceNet
-                  and SEAS are the same
+    :param compare_against:
     :param output_path: string specifying the path to store the plot
     :param average_over: string to specify how to average the metrics.
                          If average_over="all", averages over all possible
@@ -407,8 +404,8 @@ def plot_metrics_leadtime_avg(metric: str,
                       not possible, it will compute the metrics dataframe
                       and try to save the dataframe
     :param bias_correct: bool to indicate whether or not to
-                         perform a bias correction on SEAS forecast,
-                         by default False. Ignored if ecmwf=False
+                         perform a bias correction on comparison forecast,
+                         by default False.
     :param region: region to zoom in to
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
@@ -455,7 +452,7 @@ def plot_metrics_leadtime_avg(metric: str,
         metric_df = compute_metrics_leadtime_avg(metric=metric,
                                                  forecast_file=forecast_file,
                                                  ds_config=ds_config,
-                                                 ecmwf=ecmwf,
+                                                 compare_against=compare_against,
                                                  data_path=data_path,
                                                  bias_correct=bias_correct,
                                                  region=region,
@@ -463,8 +460,8 @@ def plot_metrics_leadtime_avg(metric: str,
 
     fc_metric_df = metric_df[metric_df["forecast_name"] == "IceNet"]
     seas_metric_df = metric_df[metric_df["forecast_name"] == "SEAS"]
-    seas_metric_df = seas_metric_df if (len(seas_metric_df)
-                                        != 0) and ecmwf else None
+    seas_metric_df = seas_metric_df \
+        if (len(seas_metric_df) != 0) and compare_against else None
 
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -931,18 +928,18 @@ def binary_accuracy_cli():
     """
     Produces plot of the binary classification accuracy of forecasts.
     """
-    ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold())
+    ap = (ForecastPlotArgParser().allow_comparison().allow_threshold())
     args = ap.parse_args()
 
     fc, obs, masks = get_forecast_obs_data(args.forecast_file,
                                            args.obs_dataset_config,
                                            args.forecast_date)
 
-    if args.ecmwf:
+    if args.cmp_dataset_config:
         seas = get_seas_forecast_da(
-            obs_ds_config=args.obs_dataset_config,
+            seas_ds_config=args.cmp_dataset_config,
             date=args.forecast_date,
-            bias_correct=args.bias_correct) if args.ecmwf else None
+            bias_correct=args.bias_correct) if args.cmp_dataset_config else None
 
         if seas is not None:
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
@@ -966,22 +963,26 @@ def sie_error_cli():
     """
     Produces plot of the sea ice extent (SIE) error of forecasts.
     """
-    ap = (ForecastPlotArgParser().allow_ecmwf().allow_threshold())
+    ap = (ForecastPlotArgParser().allow_comparison().allow_threshold())
     args = ap.parse_args()
 
     fc, obs, masks = get_forecast_obs_data(args.forecast_file,
                                            args.obs_dataset_config,
                                            args.forecast_date)
 
-    if args.ecmwf:
+    if args.cmp_dataset_config:
+        seas_ds_config = get_dataset_config_implementation(args.cmp_dataset_config)
+        # TODO: we need to detect and provide implementation specifics in these calls - not just SEAS
         seas = get_seas_forecast_da(
-            obs_ds_config=args.obs_dataset_config,
+            seas_ds_config=seas_ds_config,
             date=args.forecast_date,
-            bias_correct=args.bias_correct) if args.ecmwf else None
+            bias_correct=args.bias_correct) if args.cmp_dataset_config else None
 
         if seas is not None:
-            seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
-            seas = seas.isel(time=slice(1, None))
+            # Regridding references determine the coordinates, so this might not be xc-yc
+            if 'x' in seas.coords:
+                seas = seas.rename(dict(x="xc", y="yc"))
+            seas.coords['leadtime'] = fc['leadtime']
     else:
         seas = None
 
@@ -1148,7 +1149,7 @@ def metric_cli():
     """
     Produces plot of requested metrics for forecasts.
     """
-    ap = (ForecastPlotArgParser().allow_ecmwf().allow_metrics())
+    ap = (ForecastPlotArgParser().allow_comparison().allow_metrics())
     args = ap.parse_args()
 
     fc, obs, masks = get_forecast_obs_data(args.forecast_file,
@@ -1157,12 +1158,12 @@ def metric_cli():
 
     metrics = parse_metrics_arg(args.metrics)
 
-    if args.ecmwf:
+    if args.cmp_dataset_config:
         seas = get_seas_forecast_da(
-            args.obs_dataset_config,
-            args.forecast_date,
+            seas_ds_config=args.cmp_dataset_config,
+            date=args.forecast_date,
             bias_correct=args.bias_correct) \
-            if args.ecmwf else None
+            if args.cmp_dataset_config else None
 
         if seas is not None:
             seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
@@ -1188,7 +1189,7 @@ def leadtime_avg_cli():
     Produces plot of leadtime averaged metrics for forecasts.
     """
     ap = (ForecastPlotArgParser(
-        forecast_date=False).allow_ecmwf().allow_threshold())
+        forecast_date=False).allow_comparison().allow_threshold())
     ap.add_argument("-m",
                     "--metric",
                     help="Which metric to compute and plot",
@@ -1226,7 +1227,7 @@ def leadtime_avg_cli():
     plot_metrics_leadtime_avg(metric=args.metric,
                               forecast_file=args.forecast_file,
                               ds_config=ds_config,
-                              ecmwf=args.ecmwf,
+                              compare_against=args.cmp_dataset_config,
                               output_path=args.output_path,
                               average_over=args.average_over,
                               plot_std=args.std,
