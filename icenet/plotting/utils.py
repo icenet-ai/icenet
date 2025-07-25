@@ -116,7 +116,7 @@ def get_seas_forecast_init_dates(
 
 
 def get_seas_forecast_da(
-        seas_ds_config: DatasetConfig,
+        seas_config_path: os.PathLike,
         date: str,
         bias_correct: bool = True,
 ) -> tuple:
@@ -128,11 +128,11 @@ def get_seas_forecast_da(
       * yc                            (yc) float64 5.388e+06 ... -5.388e+06
       * xc                            (xc) float64 -5.388e+06 ... 5.388e+06
 
-    :param seas_ds_config: dataset config for the comparison dataset
+    :param seas_config_path: dataset config path for the comparison dataset
     :param date:
     :param bias_correct:
     """
-
+    seas_ds_config = get_dataset_config_implementation(seas_config_path)
     seas_file = seas_ds_config.var_filepath(seas_ds_config.var_config('siconca'), [date,])
 
     if os.path.exists(seas_file):
@@ -210,8 +210,11 @@ def get_seas_forecast_da(
                         "date {}, make sure you account for this!".format(
                             date_location, date))
 
-
     seas_da = seas_da.sel(time=pd.Timestamp(date))
+    # Regridding references determine the coordinates, so this might not be xc-yc
+    if 'x' in seas_da.coords:
+        seas_da = seas_da.rename(dict(x="xc", y="yc"))
+    seas_da.coords['leadtime'] = range(1, len(seas_da.leadtime) + 1)
     return seas_da
 
 

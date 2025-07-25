@@ -937,13 +937,9 @@ def binary_accuracy_cli():
 
     if args.cmp_dataset_config:
         seas = get_seas_forecast_da(
-            seas_ds_config=args.cmp_dataset_config,
+            seas_config_path=args.cmp_dataset_config,
             date=args.forecast_date,
             bias_correct=args.bias_correct) if args.cmp_dataset_config else None
-
-        if seas is not None:
-            seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
-            seas = seas.isel(time=slice(1, None))
     else:
         seas = None
 
@@ -971,18 +967,11 @@ def sie_error_cli():
                                            args.forecast_date)
 
     if args.cmp_dataset_config:
-        seas_ds_config = get_dataset_config_implementation(args.cmp_dataset_config)
         # TODO: we need to detect and provide implementation specifics in these calls - not just SEAS
         seas = get_seas_forecast_da(
-            seas_ds_config=seas_ds_config,
+            seas_config_path=args.cmp_dataset_config,
             date=args.forecast_date,
             bias_correct=args.bias_correct) if args.cmp_dataset_config else None
-
-        if seas is not None:
-            # Regridding references determine the coordinates, so this might not be xc-yc
-            if 'x' in seas.coords:
-                seas = seas.rename(dict(x="xc", y="yc"))
-            seas.coords['leadtime'] = fc['leadtime']
     else:
         seas = None
 
@@ -1160,14 +1149,10 @@ def metric_cli():
 
     if args.cmp_dataset_config:
         seas = get_seas_forecast_da(
-            seas_ds_config=args.cmp_dataset_config,
+            seas_config_path=args.cmp_dataset_config,
             date=args.forecast_date,
             bias_correct=args.bias_correct) \
             if args.cmp_dataset_config else None
-
-        if seas is not None:
-            seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
-            seas = seas.isel(time=slice(1, None))
     else:
         seas = None
 
