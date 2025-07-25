@@ -1,15 +1,20 @@
 import logging
+import os
 
 import numpy as np
 import pandas as pd
 import dask.array as da
 import xarray as xr
 
+from dateutil.relativedelta import relativedelta
+
 from download_toolbox.dataset import DatasetConfig
+from download_toolbox.interface import get_dataset_config_implementation, Frequency, get_implementation
 from icenet.plotting.utils import (get_seas_forecast_init_dates,
                                    filter_forecast_da_by_obs,
                                    get_seas_forecast_da,
-                                   process_regions)
+                                   process_regions,
+                                   get_forecast_obs_data)
 
 
 def compute_binary_accuracy(masks: object,
@@ -119,8 +124,7 @@ def compute_metrics(metrics: object,
                 f"{metric} metric has not been implemented. "
                 f"Please only choose out of {implemented_metrics}.")
 
-    # obtain mask
-    agcm = masks.get_active_cell_da(obs_da).fillna(True).rename({"time": "leadtime"})
+    agcm = masks.get_active_cell_da(obs_da).rename({"time": "leadtime"}).fillna(0)
     agcm.coords['leadtime'] = fc_da.leadtime
 
     metric_dict = {}
@@ -157,7 +161,7 @@ def compute_metric_as_dataframe(metric: object,
                                 init_date: object,
                                 fc_da: object,
                                 obs_da: object,
-                                obs_ds_config: object,
+                                obs_config_path: object,
                                 **kwargs) -> pd.DataFrame:
     """
     Computes a metric for each leadtime in a forecast and stores the
@@ -170,7 +174,7 @@ def compute_metric_as_dataframe(metric: object,
                       added to pandas dataframe (as string, or datetime object)
     :param fc_da: an xarray.DataArray object with time, xc, yc coordinates
     :param obs_da: an xarray.DataArray object with time, xc, yc coordinates
-    :param obs_ds_config:
+    :param obs_config_path:
     :param kwargs: any keyword arguments that are required for the computation
                    of the metric, e.g. 'threshold' for SIE error and binary accuracy
                    metrics
@@ -178,6 +182,7 @@ def compute_metric_as_dataframe(metric: object,
     :return: computed metric in a pandas dataframe with columns 'date',
              'leadtime' and 'met' for each metric, met, in metric
     """
+    obs_ds_config = get_dataset_config_implementation(obs_config_path)
     if isinstance(metric, str):
         metric = [metric]
     metric_dict = {}
@@ -247,8 +252,8 @@ def compute_metric_as_dataframe(metric: object,
 
 def compute_metrics_leadtime_avg(metric: str,
                                  forecast_file: str,
-                                 ds_config: DatasetConfig,
-                                 compare_against: DatasetConfig,
+                                 ds_config_path: os.PathLike,
+                                 compare_against: os.PathLike,
                                  data_path: str,
                                  bias_correct: bool = False,
                                  region: tuple = None,
@@ -264,7 +269,7 @@ def compute_metrics_leadtime_avg(metric: str,
 
     :param metric: string specifying which metric to compute
     :param forecast_file: string specifying a path to a .nc file
-    :param ds_config: ground truth dataset config appropriate to the forecast file
+    :param ds_config_path: ground truth dataset config appropriate to the forecast file
     :param compare_against:
     :param data_path: string specifying where to save the metrics dataframe.
                       If None, dataframe is not saved
@@ -280,9 +285,8 @@ def compute_metrics_leadtime_avg(metric: str,
     """
     # open forecast file
     fc_ds = xr.open_dataset(forecast_file)
-    masks = get_implementation(fc_ds.attrs["icenet_mask_implementation"])(ds_config)
 
-    if compare_against:
+    if False:
         # find out what dates cross over with the SEAS5 predictions
         (fc_start_date, fc_end_date) = (fc_ds.forecast_date.values.min(),
                                         fc_ds.forecast_date.values.max())
@@ -296,25 +300,14 @@ def compute_metrics_leadtime_avg(metric: str,
 
     fc_metrics_list = []
     seas_metrics_list = []
-    for time in fc_ds.time.values:
-        # obtain forecast
-        fc = fc_ds.sel(time=slice(time, time))["sic_mean"]
-        obs = ds_config.get_dataset(var_names=["siconca"]).siconca
-        obs = obs.sel(time=slice(
-            pd.to_datetime(time),
-            pd.to_datetime(time) + relativedelta(**{
-                "{}s".format(ds_config.frequency.attribute): int(fc.leadtime.max())})
-        ))
-        fc = filter_forecast_da_by_obs(fc, obs, ds_config.frequency)
+    for date in fc_ds.time.values:
+        fc, obs, masks = get_forecast_obs_data(forecast_file, ds_config_path, date)
 
         if compare_against:
             # obtain SEAS forecast
-            seas = get_seas_forecast_da(seas_ds_config=compare_against,
-                                        date=pd.to_datetime(time),
+            seas = get_seas_forecast_da(seas_config_path=compare_against,
+                                        date=pd.to_datetime(date),
                                         bias_correct=bias_correct)
-            # remove the initialisation date from dataarray
-            seas = seas.assign_coords(dict(xc=seas.xc / 1e3, yc=seas.yc / 1e3))
-            seas = seas.isel(time=slice(1, None))
         else:
             seas = None
 
@@ -326,19 +319,19 @@ def compute_metrics_leadtime_avg(metric: str,
         fc_metrics_list.append(
             compute_metric_as_dataframe(metric=metric,
                                         masks=masks,
-                                        init_date=time,
+                                        init_date=date,
                                         fc_da=fc,
                                         obs_da=obs,
-                                        obs_ds_config=ds_config,
+                                        obs_config_path=ds_config_path,
                                         **kwargs))
         if seas is not None:
             seas_metrics_list.append(
                 compute_metric_as_dataframe(metric=metric,
                                             masks=masks,
-                                            init_date=time,
+                                            init_date=date,
                                             fc_da=seas,
                                             obs_da=obs,
-                                            obs_ds_config=ds_config,
+                                            obs_config_path=ds_config_path,
                                             **kwargs))
 
     # groupby the leadtime and compute the mean average of the metric

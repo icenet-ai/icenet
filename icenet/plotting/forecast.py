@@ -370,7 +370,7 @@ def standard_deviation_heatmap(metric: str,
 
 def plot_metrics_leadtime_avg(metric: str,
                               forecast_file: str,
-                              ds_config: DatasetConfig,
+                              ds_config_path: os.PathLike,
                               output_path: str,
                               average_over: str,
                               compare_against: DatasetConfig | None = None,
@@ -451,7 +451,7 @@ def plot_metrics_leadtime_avg(metric: str,
         # will save dataframe in data_path if data_path is not None
         metric_df = compute_metrics_leadtime_avg(metric=metric,
                                                  forecast_file=forecast_file,
-                                                 ds_config=ds_config,
+                                                 ds_config_path=ds_config_path,
                                                  compare_against=compare_against,
                                                  data_path=data_path,
                                                  bias_correct=bias_correct,
@@ -463,6 +463,7 @@ def plot_metrics_leadtime_avg(metric: str,
     seas_metric_df = seas_metric_df \
         if (len(seas_metric_df) != 0) and compare_against else None
 
+    ds_config = get_dataset_config_implementation(ds_config_path)
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
     (start_date, end_date) = (fc_metric_df["date"].min().strftime(ds_config.frequency.plot_format),
@@ -480,7 +481,7 @@ def plot_metrics_leadtime_avg(metric: str,
         # averaging metric over leadtime for all forecasts
         fc_avg_metric = fc_metric_df.groupby("leadtime").mean(metric).\
             sort_values("leadtime", ascending=True)[metric]
-        n_forecast_days = fc_avg_metric.index.max()
+        n_forecast_steps = fc_avg_metric.index.max()
 
         # plot leadtime averaged metrics
         ax.plot(fc_avg_metric.index,
@@ -534,7 +535,7 @@ def plot_metrics_leadtime_avg(metric: str,
         fc_avg_metric = fc_metric_df.groupby([groupby_col, "leadtime"]).mean(metric).\
             reset_index().pivot(index=groupby_col, columns="leadtime", values=metric).\
             sort_values(groupby_col, ascending=True)
-        n_forecast_days = fc_avg_metric.shape[1]
+        n_forecast_steps = fc_avg_metric.shape[1]
 
         if seas_metric_df is not None:
             # compute the difference in leadtime average to SEAS forecast
@@ -564,7 +565,7 @@ def plot_metrics_leadtime_avg(metric: str,
 
         # string to add in plot title
         time_coverage = "\nAveraged over a minimum of " + \
-            f"{round((fc_metric_df[groupby_col].value_counts()/n_forecast_days).min())} " + \
+            f"{round((fc_metric_df[groupby_col].value_counts()/n_forecast_steps).min())} " + \
             f"forecasts between {start_date} - {end_date}"
 
         # y-axis
@@ -594,10 +595,10 @@ def plot_metrics_leadtime_avg(metric: str,
     ax.set_title(title + time_coverage)
 
     # x-axis
-    ax.set_xticks(np.arange(30, n_forecast_days, 30))
-    ax.set_xticklabels(np.arange(30, n_forecast_days, 30))
+    ax.set_xticks(np.arange(30, n_forecast_steps, 30))
+    ax.set_xticklabels(np.arange(30, n_forecast_steps, 30))
     plt.xticks(rotation=0)
-    ax.set_xlabel("Lead time (days)")
+    ax.set_xlabel(f"Lead time ({ds_config.frequency.name.lower()}s)")
 
     # save plot
     targ = "target" if target_date_avg and average_over != "all" else "init"
@@ -1207,11 +1208,9 @@ def leadtime_avg_cli():
         default=False)
     args = ap.parse_args()
 
-    ds_config = get_dataset_config_implementation(args.obs_dataset_config)
-
     plot_metrics_leadtime_avg(metric=args.metric,
                               forecast_file=args.forecast_file,
-                              ds_config=ds_config,
+                              ds_config_path=args.obs_dataset_config,
                               compare_against=args.cmp_dataset_config,
                               output_path=args.output_path,
                               average_over=args.average_over,

@@ -96,23 +96,17 @@ def broadcast_forecast(start_date: object,
     return target_ds
 
 
-def get_seas_forecast_init_dates(
-    hemisphere: str,
-    source_path: object = os.path.join(".", "data", "mars.seas")
-) -> object:
+def get_seas_forecast_init_dates(seas_config_path: os.PathLike) -> list:
     """
-    Obtains list of dates for which we have SEAS forecasts we have.
+    Obtains list of dates for which we have SEAS forecasts
 
-    :param hemisphere: string, typically either 'north' or 'south'
-    :param source_path: path where north and south SEAS forecasts are stored
+    :param seas_config_path: path to a configuration
 
     :return: list of dates
     """
-    # list the files in the path where SEAS forecasts are stored
-    filenames = os.listdir(os.path.join(source_path, hemisphere, "siconca"))
-    # obtain the dates from files with YYYYMMDD.nc format
-    return pd.to_datetime(
-        [x.split('.')[0] for x in filenames if re.search(r'^\d{8}\.nc$', x)])
+
+    seas_ds_config = get_dataset_config_implementation(seas_config_path)
+    return seas_ds_config.existing_dates
 
 
 def get_seas_forecast_da(
@@ -237,7 +231,7 @@ def get_forecast_data(forecast_file: os.PathLike,
 
 
 def get_forecast_obs_data(forecast_file: os.PathLike,
-                          obs_ds_config: DatasetConfig,
+                          obs_ds_config: os.PathLike,
                           forecast_date: str,
                           stddev: bool = False) -> tuple[xr.DataArray, xr.DataArray, Processor]:
     """Method to retrieve forecast and equivalent observational data
