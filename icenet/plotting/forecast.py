@@ -50,12 +50,12 @@ def plot_binary_accuracy(masks: object,
 
     :param masks: an icenet Masks object
     :param fc_da: the forecasts given as an xarray.DataArray object
-                  with time, xc, yc coordinates
+                  with leadtime, xc, yc coordinates
     :param cmp_da: a comparison forecast / sea ice data given as an
-                   xarray.DataArray object with time, xc, yc coordinates.
+                   xarray.DataArray object with leadtime, xc, yc coordinates.
                    If None, will ignore plotting a comparison forecast
     :param obs_da: the "ground truth" given as an xarray.DataArray object
-                   with time, xc, yc coordinates
+                   with leadtime, xc, yc coordinates
     :param output_path: string specifying the path to store the plot
     :param threshold: the SIC threshold of interest (in percentage as a fraction),
                       i.e. threshold is between 0 and 1
@@ -71,14 +71,14 @@ def plot_binary_accuracy(masks: object,
     ax.set_title(
         f"Binary accuracy comparison (threshold SIC = {threshold*100}%)")
 
-    ax.plot(binacc_fc.time, binacc_fc.values, label="IceNet")
+    ax.plot(fc_da.forecast_date.values, binacc_fc.values, label="IceNet Leadtime")
 
     if cmp_da is not None:
         binacc_cmp = compute_binary_accuracy(masks=masks,
                                              fc_da=cmp_da,
                                              obs_da=obs_da,
                                              threshold=threshold)
-        ax.plot(binacc_cmp.time, binacc_cmp.values, label="SEAS")
+        ax.plot(fc_da.forecast_date.values, binacc_cmp.values, label="SEAS")
     else:
         binacc_cmp = None
 

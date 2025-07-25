@@ -1,7 +1,14 @@
+import logging
+
+import numpy as np
 import pandas as pd
+import xarray as xr
 
 from download_toolbox.dataset import DatasetConfig
-from icenet.plotting.utils import get_seas_forecast_init_dates, filter_forecast_da_by_obs, get_seas_forecast_da, process_regions
+from icenet.plotting.utils import (get_seas_forecast_init_dates,
+                                   filter_forecast_da_by_obs,
+                                   get_seas_forecast_da,
+                                   process_regions)
 
 
 def compute_binary_accuracy(masks: object,
@@ -14,29 +21,30 @@ def compute_binary_accuracy(masks: object,
     In particular, we compute the mean percentage of correct
     classifications over the active grid cell area.
 
-    :param masks: an icenet Masks object
-    :param fc_da: the forecasts given as an xarray.DataArray object
+    Params:
+        masks: an icenet Masks object
+        fc_da: the forecasts given as an xarray.DataArray object
                   with time, xc, yc coordinates
-    :param obs_da: the "ground truth" given as an xarray.DataArray object
+        obs_da: the "ground truth" given as an xarray.DataArray object
                    with time, xc, yc coordinates
-    :param threshold: the SIC threshold of interest (in percentage as a fraction),
+        threshold: the SIC threshold of interest (in percentage as a fraction),
                       i.e. threshold is between 0 and 1
 
-    :return: binary accuracy for forecast as xarray.DataArray object
+    Returns:
+        binary accuracy for forecast as xarray.DataArray object
     """
     threshold = 0.15 if threshold is None else threshold
     if (threshold < 0) or (threshold > 1):
         raise ValueError("threshold must be a float between 0 and 1")
 
-    agcm = masks.get_active_cell_da(obs_da)
-
+    agcm = masks.get_active_cell_da(obs_da).rename({"time": "leadtime"})
+    agcm.coords['leadtime'] = obs_da.leadtime
     binary_obs_da = obs_da > threshold
     binary_fc_da = fc_da > threshold
 
     # compute binary accuracy metric
-    binary_fc_da = (binary_fc_da == binary_obs_da).astype(np.float16).weighted(~agcm)
-    binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc']) * 100)
-
+    binary_fc_da = (binary_fc_da == binary_obs_da).astype(np.float16).weighted(agcm.fillna(0))
+    binacc_fc = (binary_fc_da.mean(dim=['yc', 'xc'], skipna=True) * 100)
     return binacc_fc
 
 

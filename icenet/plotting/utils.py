@@ -245,13 +245,18 @@ def get_forecast_obs_data(forecast_file: os.PathLike,
                           obs_ds_config: DatasetConfig,
                           forecast_date: str,
                           stddev: bool = False) -> tuple[xr.DataArray, xr.DataArray, Processor]:
-    """
+    """Method to retrieve forecast and equivalent observational data
 
-    :param forecast_file: a path to a .nc file
-    :param obs_ds_config:
-    :param forecast_date: initialisation date of the forecast
-    :param stddev: initialisation date of the forecast
-    :returns fc_da, obs_da, masks:
+    Args:
+        forecast_file: a path to a .nc file
+        obs_ds_config:
+        forecast_date: initialisation date of the forecast
+        stddev:
+    Returns:
+        tuple(forecast data,
+              observational data,
+              masks processor instance)
+
     """
     forecast_da = get_forecast_data(forecast_file, forecast_date, stddev)
     ds_config = get_dataset_config_implementation(obs_ds_config)
@@ -268,17 +273,22 @@ def get_forecast_obs_data(forecast_file: os.PathLike,
     forecast_da = filter_forecast_da_by_obs(forecast_da, obs_ds, ds_config.frequency)
 
     # TODO: Naive manner by which to detect AMSR data - can we generalise / make clearer
+    #  and also, we should consider using the icenet.data.processor functionality
+    #  for converging the data, as this is duplicated functionality
     if "x" in obs_ds.coords:
+        # AMSR clause
         obs_da = obs_ds.rename(dict(x="xc", y="yc", time="leadtime")).siconca
     else:
         # OSISAF clause
         obs_da = obs_ds.rename(dict(time="leadtime")).siconca
         obs_da.coords['xc'] = obs_da.coords['xc'] * 1e3
         obs_da.coords['yc'] = obs_da.coords['yc'] * 1e3
+
+    # All data returned is mapped as a single forecast
     obs_da.coords['leadtime'] = forecast_da.coords['leadtime']
     obs_da /= 100.
 
-    return forecast_da.load(), obs_da, masks
+    return forecast_da.load(), obs_da.load(), masks
 
 
 def filter_forecast_da_by_obs(da: xr.DataArray,
