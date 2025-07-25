@@ -233,28 +233,34 @@ class Masks(Processor):
             An xarray.DataArray containing active cell masks for each time
                 in source DataArray.
         """
+        time_arr = src_da.time
+        if type(src_da.time.values) is np.datetime64 and "forecast_date" in src_da.coords:
+            time_arr = src_da.forecast_date
+
         return xr.DataArray(
             [
-                np.ones(src_da.shape[-2:], dtype=np.float32)[self._region]
-                for _ in src_da.time.values
+                np.ones(src_da.shape[-2:], dtype=bool)[self._region]
+                for _ in time_arr
             ],
             dims=('time', 'yc', 'xc'),
             coords={
-                'time': src_da.time.values,
+                'time': time_arr.values,
                 'yc': src_da.yc.values,
                 'xc': src_da.xc.values,
             })
 
-    def get_blank_mask(self) -> object:
+    def get_blank_mask(self, value=False) -> object:
         """Returns an empty mask.
 
+        Params:
+            value: the value to fill up with
         Returns:
             A numpy array of flags set to false for pre-defined `self._region`
                 of shape `self._shape` (the `data_shape` instance initialisation
                 value).
         """
         shape = self.land().shape
-        return np.full(shape, False)[self._region]
+        return np.full(shape, value)[self._region]
 
     def __getitem__(self, item):
         """Sets slice of region wanted for masking, and allows method chaining.

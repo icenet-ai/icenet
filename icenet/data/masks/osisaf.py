@@ -330,14 +330,18 @@ class Masks(Processor):
             An xarray.DataArray containing active cell masks for each time
                 in source DataArray.
         """
+        time_arr = src_da.time
+        if type(src_da.time.values) is np.datetime64 and "forecast_date" in src_da.coords:
+            time_arr = src_da.forecast_date
+
         return xr.DataArray(
             [
                 self.active_grid_cell(pd.to_datetime(date).month)
-                for date in src_da.time.values
+                for date in time_arr.values
             ],
             dims=('time', 'yc', 'xc'),
             coords={
-                'time': src_da.time.values,
+                'time': time_arr.values,
                 'yc': src_da.yc.values,
                 'xc': src_da.xc.values,
             })
