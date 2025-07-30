@@ -106,7 +106,7 @@ def get_seas_forecast_init_dates(seas_config_path: os.PathLike) -> list:
     :return: list of dates
     """
 
-    seas_ds_config = get_dataset_config_implementation(seas_config_path)
+    seas_ds_config = get_dataset_config_implementation(seas_config_path, dummy=True)
     return seas_ds_config.existing_dates
 
 
@@ -127,7 +127,7 @@ def get_seas_forecast_da(
     :param date:
     :param bias_correct:
     """
-    seas_ds_config = get_dataset_config_implementation(seas_config_path)
+    seas_ds_config = get_dataset_config_implementation(seas_config_path, dummy=True)
     seas_file = seas_ds_config.var_filepath(seas_ds_config.var_config('siconca'), [date,])
 
     if os.path.exists(seas_file):
@@ -249,7 +249,7 @@ def get_forecast_obs_data(forecast_file: os.PathLike,
 
     """
     forecast_da = get_forecast_data(forecast_file, forecast_date, stddev)
-    ds_config = get_dataset_config_implementation(obs_ds_config)
+    ds_config = get_dataset_config_implementation(obs_ds_config, dummy=True)
     obs_ds = ds_config.get_dataset(var_names=["siconca"])
 
     # Forecast date is initialisation date, leadtime == 1, so we need to offset indexes

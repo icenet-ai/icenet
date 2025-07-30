@@ -463,7 +463,7 @@ def plot_metrics_leadtime_avg(metric: str,
     seas_metric_df = seas_metric_df \
         if (len(seas_metric_df) != 0) and compare_against else None
 
-    ds_config = get_dataset_config_implementation(ds_config_path)
+    ds_config = get_dataset_config_implementation(ds_config_path, dummy=True)
     logging.info(f"Creating leadtime averaged plot for {metric} metric")
     fig, ax = plt.subplots(figsize=(12, 6))
     (start_date, end_date) = (fc_metric_df["date"].min().strftime(ds_config.frequency.plot_format),
@@ -1224,7 +1224,7 @@ def sic_error_cli():
     fc, obs, masks = get_forecast_obs_data(args.forecast_file,
                                            args.obs_dataset_config,
                                            args.forecast_date)
-    ds_config = get_dataset_config_implementation(args.obs_dataset_config)
+    ds_config = get_dataset_config_implementation(args.obs_dataset_config, dummy=True)
 
     if args.region:
         fc, obs, masks = process_regions(args.region, [fc, obs, masks])
