@@ -27,7 +27,7 @@ def plot_tfrecord():
     args.configuration.close()
 
     decoder = get_decoder(tuple(config['shape']), config['num_channels'],
-                          config['n_forecast_steps'])
+                          config['lead_time'])
 
     ds = ds.map(decoder).batch(1)
     it = ds.as_numpy_iterator()
@@ -40,10 +40,9 @@ def plot_tfrecord():
     logging.debug("y {}".format(y.shape))
     logging.debug("sample_weights {}".format(sample_weights.shape))
 
-    output_dir = os.path.join(args.output, "plot_set")
+    output_dir = os.path.join(args.output_dir, "tfrecord")
     os.makedirs(output_dir, exist_ok=True)
-    subprocess.run("rm -v {}/{}.*.png".format(output_dir, config["identifier"]),
-                   shell=True)
+    subprocess.run("rm -v {}/{}.*.png".format(output_dir, config["identifier"]), shell=True)
 
     for i, channel in enumerate(config['channels']):
         output_path = os.path.join(

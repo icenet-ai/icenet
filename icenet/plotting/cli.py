@@ -40,12 +40,23 @@ def tfrecord_args():
 
     :return:
     """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("file")
-    ap.add_argument("configuration", type=argparse.FileType("r"))
-    ap.add_argument("-i", "--index", default=1, type=int)
-    ap.add_argument("-l", "--levels", default=100, type=int)
-    ap.add_argument("-o", "--output", default="plot")
+    ap = argparse.ArgumentParser(description="A utility that allows you to see specific "
+                                             "tfrecords data through filled contour plots for each"
+                                             "channel")
+    ap.add_argument("file",
+                    help="A tfrecord file to export plots from",)
+    ap.add_argument("configuration",
+                    help="The dataset_config JSON to load",
+                    type=argparse.FileType("r"))
+    ap.add_argument("-i", "--index",
+                    help="Which record in the tfrecord file do you want to see",
+                    default=1, type=int)
+    ap.add_argument("-l", "--levels",
+                    help="How many levels in the contour plot you want",
+                    default=100, type=int)
+    ap.add_argument("-o", "--output-dir",
+                    help="The output directory you want to export to",
+                    default="plots")
 
     return ap.parse_args()
 
