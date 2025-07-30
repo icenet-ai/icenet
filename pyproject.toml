@@ -63,7 +63,7 @@ classifiers = [
 icenet_dataset_check = "icenet.data.network_dataset:check_dataset"
 icenet_dataset_create = "icenet.data.loader:create_network_dataset"
 icenet_generate_ref_osisaf = "icenet.data.references.osisaf:generate"
-icenet_plot_record = "icenet.plotting.data:plot_tfrecord"
+icenet_plot_tfrecord = "icenet.plotting.data:plot_tfrecord"
 icenet_plot_input = "icenet.plotting.data:plot_sample_cli"
 
 icenet_plot_forecast = "icenet.plotting.forecast:forecast_cli"
