@@ -1,6 +1,7 @@
 import datetime as dt
 import glob
 import logging
+import operator
 import os
 import re
 
@@ -314,37 +315,49 @@ def filter_forecast_da_by_obs(da: xr.DataArray,
     return da
 
 
-def calculate_extents(x1: int, x2: int, y1: int, y2: int):
+def calculate_extents(da: xr.DataArray,
+                      x1: int | None = None,
+                      x2: int | None = None,
+                      y1: int | None = None,
+                      y2: int | None = None):
     """
 
+    :param da:
     :param x1:
     :param x2:
     :param y1:
     :param y2:
     :return:
     """
-    data_extent_base = 5387500
+
+    x1 = x1 if x1 is not None else 0
+    x2 = x2 if x2 is not None else len(da.xc)
+    y1 = y1 if y1 is not None else 0
+    y2 = y2 if y2 is not None else len(da.yc)
+    xc_sz = da.xc[1] - da.xc[0]
+    yc_sz = da.yc[1] - da.yc[0]
 
     extents = [
-        -data_extent_base + (x1 * 25000),
-        data_extent_base - ((432 - x2) * 25000),
-        -data_extent_base + (y1 * 25000),
-        data_extent_base - ((432 - y2) * 25000),
+        da.xc[0] + (x1 * xc_sz),
+        da.xc[-1] - ((len(da.xc) - x2) * xc_sz),
+        da.yc[-1] - ((len(da.yc) - y2) * yc_sz),
+        da.yc[0] + (y1 * yc_sz),
     ]
-
     logging.debug("Data extents: {}".format(extents))
     return extents
 
 
-def get_plot_axes(x1: int = 0,
-                  x2: int = 432,
-                  y1: int = 0,
-                  y2: int = 432,
+def get_plot_axes(da: xr.DataArray,
+                  x1: int | None = None,
+                  x2: int | None = None,
+                  y1: int | None = None,
+                  y2: int | None = None,
                   do_coastlines: bool = True,
                   north: bool = True,
                   south: bool = False):
     """
 
+    :param da:
     :param x1:
     :param x2:
     :param y1:
@@ -363,7 +376,7 @@ def get_plot_axes(x1: int = 0,
         pole = 1 if north else -1
         proj = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
         ax = fig.add_subplot(1, 1, 1, projection=proj)
-        extents = calculate_extents(x1, x2, y1, y2)
+        extents = calculate_extents(da, x1, x2, y1, y2)
         ax.set_extent(extents, crs=proj)
     else:
         ax = fig.add_subplot(1, 1, 1)
@@ -372,11 +385,11 @@ def get_plot_axes(x1: int = 0,
 
 
 def show_img(ax,
-             arr,
-             x1: int = 0,
-             x2: int = 432,
-             y1: int = 0,
-             y2: int = 432,
+             da,
+             x1: int | None = None,
+             x2: int | None = None,
+             y1: int | None = None,
+             y2: int | None = None,
              cmap: object = None,
              do_coastlines: bool = True,
              vmin: float = 0.,
@@ -386,7 +399,7 @@ def show_img(ax,
     """
 
     :param ax:
-    :param arr:
+    :param da:
     :param x1:
     :param x2:
     :param y1:
@@ -405,8 +418,8 @@ def show_img(ax,
     if do_coastlines:
         pole = 1 if north else -1
         data_crs = ccrs.LambertAzimuthalEqualArea(0, pole * 90)
-        extents = calculate_extents(x1, x2, y1, y2)
-        im = ax.imshow(arr,
+        extents = calculate_extents(da, x1, x2, y1, y2)
+        im = ax.imshow(da,
                        vmin=vmin,
                        vmax=vmax,
                        cmap=cmap,

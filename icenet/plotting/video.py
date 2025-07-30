@@ -83,6 +83,7 @@ def xarray_to_video(
     ax_init: object = None,
     ax_extra: callable = None,
     date_format: str = None,
+    time_attr: str = "time",
 ) -> object:
     """
     Generate video of an xarray.DataArray. Optionally input a list of
@@ -110,11 +111,12 @@ def xarray_to_video(
     :param ax_init: pre-initialised axes object for display
     :param ax_extra: Extra method called with axes for additional plotting
     :param date_format: Optional format for outputting dates
+    :param time_attr: Time attribute in the data array
     """
 
     def update(date):
         logging.debug("Plotting {}".format(date.strftime("%D")))
-        image.set_data(da.sel(time=date))
+        image.set_data(da.sel({time_attr: date}))
 
         image_title.set_text(
             date.strftime(date_format) if date_format is not None else
@@ -138,9 +140,7 @@ def xarray_to_video(
                 n_max = -n_min
 
     if video_dates is None:
-        video_dates = [
-            pd.Timestamp(date).to_pydatetime() for date in da.time.values
-        ]
+        video_dates = [pd.to_datetime(d) for d in getattr(da, time_attr).values]
 
     if crop is not None:
         a = crop[0][0]
@@ -172,8 +172,8 @@ def xarray_to_video(
     if ax_extra is not None:
         ax_extra(ax)
 
-    date = pd.Timestamp(da.time.values[0]).to_pydatetime()
-    image = ax.imshow(da.sel(time=date),
+    date = pd.Timestamp(getattr(da, time_attr).values[0]).to_pydatetime()
+    image = ax.imshow(da.sel({time_attr: date}),
                       cmap=cmap,
                       clim=(n_min, n_max),
                       animated=True,

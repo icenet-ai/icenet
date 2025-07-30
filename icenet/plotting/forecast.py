@@ -1026,7 +1026,7 @@ def forecast_cli():
     args = ap.parse_args()
 
     fc = get_forecast_data(args.forecast_file, args.forecast_date, stddev=args.stddev)
-    ds_config = get_dataset_config_implementation(args.obs_dataset_config)
+    ds_config = get_dataset_config_implementation(args.obs_dataset_config, dummy=True)
     fc = fc.transpose(..., "yc", "xc")
 
     output_path = "." if args.output_path is None else args.output_path
@@ -1065,19 +1065,7 @@ def forecast_cli():
     leadtime_attr = "{}s".format(ds_config.frequency.attribute)
 
     if args.format == "mp4":
-        pred_da = fc.isel(time=0).sel(leadtime=leadtimes)
-
-        if "forecast_date" not in pred_da:
-            forecast_dates = [
-                pd.Timestamp(args.forecast_date) + relativedelta(**{leadtime_attr: lt})
-                for lt in args.leadtimes
-            ]
-            pred_da = pred_da.assign_coords(forecast_date=("leadtime",
-                                                           forecast_dates))
-
-        pred_da = pred_da.drop("time").drop("leadtime").\
-            rename(leadtime="time", forecast_date="time").set_index(time="time")
-
+        pred_da = fc.sel(leadtime=leadtimes)
         anim_args = dict(figsize=5)
         if not args.no_coastlines:
             logging.warning("Coastlines will not work with the current "
@@ -1089,17 +1077,19 @@ def forecast_cli():
                                 args.forecast_date.strftime(ds_config.frequency.date_format),
                                 "" if not args.stddev else "stddev.",
                                 args.format))
-        xarray_to_video(pred_da,
+
+        xarray_to_video(pred_da.swap_dims({"leadtime": "forecast_date"}),
                         fps=1,
                         cmap=cmap,
                         imshow_kwargs=dict(vmin=0., vmax=vmax)
                         if not args.stddev else None,
                         video_path=output_filename,
                         date_format=ds_config.frequency.plot_format,
+                        time_attr="forecast_date",
                         **anim_args)
     else:
         for leadtime in leadtimes:
-            pred_da = fc.sel(leadtime=leadtime).isel(time=0)
+            pred_da = fc.sel(leadtime=leadtime)
             bound_args = dict(north=ds_config.location.north,
                               south=ds_config.location.south)
 
@@ -1109,7 +1099,8 @@ def forecast_cli():
                                   y1=args.region[1],
                                   y2=args.region[3])
 
-            ax = get_plot_axes(**bound_args,
+            ax = get_plot_axes(pred_da,
+                               **bound_args,
                                do_coastlines=not args.no_coastlines)
 
             bound_args.update(cmap=cmap)
