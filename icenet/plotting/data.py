@@ -55,7 +55,7 @@ def plot_tfrecord():
         plt.savefig(output_path)
         plt.close()
 
-    for i in range(config['n_forecast_steps']):
+    for i in range(config['lead_time']):
         output_path = os.path.join(
             output_dir, "{}.y.{:03d}.png".format(config["identifier"], i + 1))
         y_out = y[0, ..., i, 0]
