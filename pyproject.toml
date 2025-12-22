@@ -40,7 +40,7 @@ dependencies = [
   "setuptools",
   "tensorboard",
   # TODO: model construction issues causing this pinning to 2.15 - GH#324
-  "tensorflow<2.16",
+  "tensorflow[and-cuda]==2.15.1",
   "tensorflow-probability",
   "wheel",
   "xarray[io]"
