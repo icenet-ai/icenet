@@ -420,7 +420,7 @@ class SICDownloader(Downloader):
         osi430a_start = dt.date(2021, 1, 1)
         # OSI-430-a (SSMIS) was suspended on 17/10/2025 due to the end of SSMIS data.
         # OSI-438 (AMSR2) replaces it from this date onwards.
-        osi438_start = dt.date(2025, 10, 17)
+        osi438_start = dt.date(2025, 10, 1)
 
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
 
