@@ -359,6 +359,7 @@ class SICDownloader(Downloader):
                  delete_tempfiles: bool = True,
                  download: bool = True,
                  dtype: object = np.float32,
+                 masks_path: str = "",
                  parallel_opens: bool = True,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
@@ -371,7 +372,11 @@ class SICDownloader(Downloader):
         self._parallel_opens = parallel_opens
         self._invalid_dates = invalid_sic_days[self.hemisphere] + \
             list(additional_invalid_dates)
-        self._masks = Masks(north=self.north, south=self.south)
+        self._masks = (
+            Masks(north=self.north, south=self.south, path=masks_path)
+            if masks_path
+            else Masks(north=self.north, south=self.south)
+        )
 
         self._ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
         self._ftp_osi430b = "/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/"
