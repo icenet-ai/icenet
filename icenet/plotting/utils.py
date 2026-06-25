@@ -265,11 +265,11 @@ def filter_ds_by_obs(ds: object, obs_da: object, forecast_date: str) -> object:
 
         logging.warning("Observational data not available for full range of "
                         "forecast lead times: {}-{} vs {}-{}".format(
-                            obs_da.time.to_series()[0].strftime("%D"),
-                            obs_da.time.to_series()[-1].strftime("%D"),
+                            obs_da.time.to_series().iloc[0].strftime("%D"),
+                            obs_da.time.to_series().iloc[-1].strftime("%D"),
                             start_date.strftime("%D"), end_date.strftime("%D")))
-        (start_date, end_date) = (obs_da.time.to_series()[0],
-                                  obs_da.time.to_series()[-1])
+        (start_date, end_date) = (obs_da.time.to_series().iloc[0],
+                                  obs_da.time.to_series().iloc[-1])
 
     # We broadcast to get a nicely compatible dataset for plotting
     return broadcast_forecast(start_date=start_date,
