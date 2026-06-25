@@ -710,10 +710,19 @@ class SICDownloader(Downloader):
             missing_dates_path = os.path.join(self.get_data_var_folder("siconca"),
                                               "missing_days.csv")
 
+            existing_dates = set()
+            if os.path.exists(missing_dates_path):
+                with open(missing_dates_path, "r") as fh:
+                    for line in fh:
+                        existing_dates.add(line.strip())
+
             with open(missing_dates_path, "a") as fh:
                 for date in missing_dates:
                     # FIXME: slightly unusual format for Ymd dates
-                    fh.write(date.strftime("%Y,%m,%d\n"))
+                    date_str = date.strftime("%Y,%m,%d")
+                    if date_str not in existing_dates:
+                        fh.write(date_str + "\n")
+                        existing_dates.add(date_str)
 
             logging.debug("Interpolating {} missing dates".format(
                 len(missing_dates)))
