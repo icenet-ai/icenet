@@ -94,6 +94,18 @@ def create_network_dataset():
     """
     args = create_get_args()
 
+    # Read var_lag_override from loader configuration JSON
+    import orjson
+    with open(args.loader_configuration, 'r') as fh:
+        loader_config = orjson.loads(fh.read())
+    var_lag_override = loader_config.get('var_lag_override', None)
+
+    # Read var_lag_override from loader configuration JSON
+    import orjson
+    with open(args.loader_configuration, 'r') as fh:
+        loader_config = orjson.loads(fh.read())
+    var_lag_override = loader_config.get('var_lag_override', None)
+
     dl = IceNetDataLoaderFactory().create_data_loader(
         args.implementation,
         args.loader_configuration,
@@ -105,7 +117,8 @@ def create_network_dataset():
         pickup=args.pickup,
         generate_workers=args.workers,
         dask_port=args.dask_port,
-        futures_per_worker=args.futures)
+        futures_per_worker=args.futures,
+        var_lag_override=var_lag_override)
 
     if args.cfg:
         dl.write_dataset_config_only()

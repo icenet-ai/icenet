@@ -422,6 +422,19 @@ def generate_sample(forecast_date: object,
 
     # Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_steps)
+    # For non-prediction samples, the target window should start after the
+    # current forecast date so the model is not trained to predict its own
+    # initialization point.
+    if not prediction:
+        forecast_steps = [
+            forecast_date + relativedelta(**{relative_attr: n + 1})
+            for n in range(n_forecast_steps)
+        ]
+    else:
+        forecast_steps = [
+            forecast_date + relativedelta(**{relative_attr: n})
+            for n in range(n_forecast_steps)
+        ]
 
     # forecast_base_idx for a prediction does not contain forecast date without multiple
     # dates being forecast, so handle accordingly
@@ -450,8 +463,7 @@ def generate_sample(forecast_date: object,
         y = da.ma.where(y_mask, 0., y)
 
     # Masked recomposition of output
-    for leadtime_idx in range(n_forecast_steps):
-        forecast_step = forecast_date + relativedelta(**{relative_attr: leadtime_idx})
+    for leadtime_idx, forecast_step in enumerate(forecast_steps):
 
         if any([forecast_step == missing_date for missing_date in missing_dates]):
             sample_weight = da.zeros(shape, dtype)
@@ -501,7 +513,9 @@ def generate_sample(forecast_date: object,
         # If we're not a trend, we're a lag channel looking back historically from the initialisation date
         else:
             channel_ds = var_ds
-            channel_idxs = [forecast_base_idx - n for n in range(1, num_channels + 1)]
+            # Keep the current-time point as the most recent lag input instead of
+            # skipping straight to the previous step.
+            channel_idxs = [forecast_base_idx - n for n in range(num_channels)]
 
         channel_data = []
         for idx in channel_idxs:
