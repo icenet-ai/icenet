@@ -396,9 +396,19 @@ def generate_sample(forecast_date: object,
 
     # Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_days)
-    forecast_dts = [
-        forecast_date + dt.timedelta(days=n) for n in range(n_forecast_days)
-    ]
+    # For leadtime 1, the target window should start at the next time step,
+    # not the current one; this keeps the model from predicting the initial
+    # date as its own target.
+    if not prediction:
+        forecast_dts = [
+            forecast_date + dt.timedelta(days=n + 1)
+            for n in range(n_forecast_days)
+        ]
+    else:
+        forecast_dts = [
+            forecast_date + dt.timedelta(days=n)
+            for n in range(n_forecast_days)
+        ]
 
     y = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_days, 1), dtype=dtype)
@@ -415,8 +425,7 @@ def generate_sample(forecast_date: object,
         y[:, :, :, 0] = sample_output
 
     # Masked recomposition of output
-    for leadtime_idx in range(n_forecast_days):
-        forecast_day = forecast_date + dt.timedelta(days=leadtime_idx)
+    for leadtime_idx, forecast_day in enumerate(forecast_dts):
 
         if any([forecast_day == missing_date for missing_date in missing_dates]):
             sample_weight = da.zeros(shape, dtype)
@@ -459,8 +468,11 @@ def generate_sample(forecast_date: object,
                 ]
         else:
             channel_ds = var_ds
+            # Keep the current-time point as the most recent lag input instead of
+            # skipping straight to the previous step. This preserves the correct
+            # temporal ordering for lagged inputs.
             channel_dates = [
-                pd.Timestamp(forecast_date - dt.timedelta(days=n+1))
+                pd.Timestamp(forecast_date - dt.timedelta(days=n))
                 for n in range(num_channels)
             ]
 
