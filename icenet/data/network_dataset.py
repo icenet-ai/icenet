@@ -93,6 +93,8 @@ class IceNetDataSet(SplittingMixin, DataCollection):
         self._num_channels = self._config["num_channels"]
         self._shape = tuple(self._config["shape"])
         self._shuffling = shuffling
+        # Absent before the target became configurable; the loader re-infers it.
+        self._target = self._config.get("target")
 
         path_attr = "dataset_path"
 
@@ -153,6 +155,7 @@ class IceNetDataSet(SplittingMixin, DataCollection):
             dataset_config_path=os.path.dirname(self._configuration_path),
             loss_weight_days=self._config["loss_weight_days"],
             output_batch_size=self._config["output_batch_size"],
+            target=self.target,
             var_lag_override=self._config["var_lag_override"],
         )
         return loader
@@ -172,6 +175,14 @@ class IceNetDataSet(SplittingMixin, DataCollection):
     def counts(self) -> dict:
         """A dict with number of elements in train, val, test in the config file."""
         return self._config["counts"]
+
+    @property
+    def target(self) -> object:
+        """The forecast target recorded in the dataset config file, if any."""
+        if self._target is None:
+            return None
+
+        return dict(self._target)
 
 
 class MergedIceNetDataSet(SplittingMixin, DataCollection):
@@ -259,6 +270,10 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
         :param path:
         :param other:
         """
+        # Configurations predating the configurable target have no key to
+        # compare against.
+        other = {**other, "target": other.get("target")}
+
         loader = IceNetDataLoaderFactory().create_data_loader(
             "dask",
             other["loader_config"],
@@ -269,6 +284,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
             north=other["north"],
             output_batch_size=other["output_batch_size"],
             south=other["south"],
+            target=other["target"],
             var_lag_override=other["var_lag_override"])
 
         self._config["loaders"].append(loader)
@@ -288,7 +304,7 @@ class MergedIceNetDataSet(SplittingMixin, DataCollection):
 
         general_attrs = [
             "channels", "dtype", "lead_time", "num_channels",
-            "output_batch_size", "shape"
+            "output_batch_size", "shape", "target"
         ]
 
         for attr in general_attrs:
