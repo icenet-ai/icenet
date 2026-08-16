@@ -17,6 +17,102 @@ from preprocess_toolbox.interface import get_processor_from_source
 
 DATE_FORMAT = "%Y-%m-%d"
 
+# Defaults for configurations written before the target became configurable.
+DEFAULT_TARGET_VARIABLE = "siconca_abs"
+DEFAULT_TARGET_MASK = "land"
+DEFAULT_TARGET_WEIGHT_MASK = "active_grid_cell"
+
+
+def _resolve_target_config(configuration: dict,
+                           override: object = None) -> dict:
+    """Determine the forecast target for a loader configuration.
+
+    Resolved independently of the predictor channels, so that a target need not
+    also be an input and can be selected from its own dataset by date.
+
+    :param configuration: the loaded loader configuration
+    :param override: an explicit target, taking precedence over the
+        configuration's own target block
+    :return: a target with source, variable, mask and weight_mask keys, the
+        latter two possibly None
+    """
+    sources = configuration.get("sources", {})
+    masks = configuration.get("masks", {})
+    raw_target = override if override is not None \
+        else configuration.get("target")
+
+    if raw_target is None:
+        # Fall back to the historically hardcoded variable, but only where one
+        # source provides it: guessing would silently change the ground truth.
+        candidates = [
+            source_name for source_name, source_cfg in sources.items()
+            if DEFAULT_TARGET_VARIABLE in source_cfg.get("processed_files", {})
+        ]
+
+        if len(candidates) != 1:
+            raise RuntimeError(
+                "Could not infer the legacy target. Expected exactly one "
+                "source containing {!r}, found: {}".format(
+                    DEFAULT_TARGET_VARIABLE, candidates))
+
+        # Sea ice masking is only implied for the inferred sea ice target. An
+        # explicit target states its own masks, as land and active grid cells
+        # mean nothing over, say, a temperature field.
+        raw_target = {
+            "source": candidates[0],
+            "variable": DEFAULT_TARGET_VARIABLE,
+            "mask": DEFAULT_TARGET_MASK,
+            "weight_mask": DEFAULT_TARGET_WEIGHT_MASK,
+        }
+
+        for field_name in ("mask", "weight_mask"):
+            if raw_target[field_name] not in masks:
+                raw_target[field_name] = None
+
+    if not isinstance(raw_target, dict):
+        raise TypeError("target must be a JSON object")
+
+    missing_fields = {"source", "variable"} - set(raw_target.keys())
+
+    if missing_fields:
+        raise ValueError("target is missing required fields: {}".format(
+            ", ".join(sorted(missing_fields))))
+
+    target = dict(raw_target)
+    source_name = target["source"]
+    variable_name = target["variable"]
+
+    if not isinstance(source_name, str) or not source_name:
+        raise ValueError("target.source must be a non-empty string")
+
+    if not isinstance(variable_name, str) or not variable_name:
+        raise ValueError("target.variable must be a non-empty string")
+
+    if source_name not in sources:
+        raise ValueError(
+            "Unknown target source {!r}; available sources: {}".format(
+                source_name, ", ".join(sorted(sources.keys()))))
+
+    processed_files = sources[source_name].get("processed_files", {})
+    target_files = processed_files.get(variable_name)
+
+    if not isinstance(target_files, list) or not target_files:
+        raise ValueError("Target variable {!r} is not available in "
+                         "sources[{!r}].processed_files".format(
+                             variable_name, source_name))
+
+    target.setdefault("mask", None)
+    target.setdefault("weight_mask", None)
+
+    for field_name in ("mask", "weight_mask"):
+        mask_name = target[field_name]
+
+        if mask_name is not None and mask_name not in masks:
+            raise ValueError("target.{} references unknown mask {!r}".format(
+                field_name, mask_name))
+
+    return target
+
 
 class IceNetBaseDataLoader(DataCollection):
     """
@@ -30,6 +126,7 @@ class IceNetBaseDataLoader(DataCollection):
     :param n_forecast_days:
     :param output_batch_size:
     :param path:
+    :param target:
     :param var_lag_override:
     """
 
@@ -47,6 +144,7 @@ class IceNetBaseDataLoader(DataCollection):
                  output_batch_size: int = 32,
                  path: str = os.path.join(".", "network_datasets"),
                  pickup: bool = False,
+                 target: object = None,
                  var_lag_override: object = None,
                  **kwargs):
         super().__init__(*args, identifier=identifier, base_path=path, **kwargs)
@@ -69,14 +167,39 @@ class IceNetBaseDataLoader(DataCollection):
 
         self._load_configuration(loader_configuration)
 
-        # TODO: we assume that ground truth is the first dataset in the ordering
-        ground_truth_id, ground_truth_cfg = list(self._config["sources"].items())[0]
-        processor = get_processor_from_source(ground_truth_id, ground_truth_cfg)
+        # The target defines the output grid and the leadtime frequency, so
+        # derive them from it rather than from whichever source is ordered
+        # first.
+        self._target = _resolve_target_config(self._config, override=target)
+
+        target_source = self._target["source"]
+        target_variable = self._target["variable"]
+        target_source_cfg = self._config["sources"][target_source]
+
+        self._target_files = tuple(
+            target_source_cfg["processed_files"][target_variable])
+
+        processor = get_processor_from_source(target_source, target_source_cfg)
         ds_config = get_dataset_config_implementation(processor.dataset_config)
-        # TODO: this is smelly, it suggests there is missing logic between Processor and
-        #  NormalisingChannelProcessor to handle suffixes
-        ref_ds = processor.get_dataset(["{}_abs".format(el) for el in processor.abs_vars])
-        ref_da = getattr(ref_ds.isel(time=0), list(ref_ds.data_vars)[0])
+        ref_ds = processor.get_dataset([target_variable])
+
+        if target_variable not in ref_ds.data_vars:
+            raise RuntimeError(
+                "Target variable {!r} was not present in the opened target "
+                "dataset; available variables: {}".format(
+                    target_variable, ", ".join(sorted(ref_ds.data_vars))))
+
+        target_da = ref_ds[target_variable]
+
+        required_dims = {"time", "yc", "xc"}
+        missing_dims = required_dims - set(target_da.dims)
+
+        if missing_dims:
+            raise RuntimeError(
+                "Target variable {!r} is missing required dimensions: "
+                "{}".format(target_variable, ", ".join(sorted(missing_dims))))
+
+        ref_da = target_da.transpose("yc", "xc", "time").isel(time=0)
 
         # Things that come from preprocessing by default
         self._dtype = ref_da.dtype
@@ -328,6 +451,7 @@ class IceNetBaseDataLoader(DataCollection):
             # FIXME: this naming is inconsistent, sort it out!!! ;)
             "shape": list(self._shape),
             "south": self.south,
+            "target": self.target,
 
             # For recreating this dataloader
             # "dataset_config_path = ".",
@@ -378,6 +502,16 @@ class IceNetBaseDataLoader(DataCollection):
     @property
     def south(self):
         return self._south
+
+    @property
+    def target(self) -> dict:
+        """The resolved forecast target for this loader."""
+        return dict(self._target)
+
+    @property
+    def target_files(self) -> list:
+        """The processed files backing the forecast target."""
+        return list(self._target_files)
 
     @property
     def workers(self):

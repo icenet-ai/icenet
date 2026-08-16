@@ -74,4 +74,46 @@ CMIP node unreliability
 
 ### Sample generation
 
+#### Forecast target
+
+A loader configuration may select one processed variable as its forecast target:
+
+```json
+{
+  "target": {
+    "source": "osisaf",
+    "variable": "siconca_abs",
+    "mask": "land",
+    "weight_mask": "active_grid_cell"
+  }
+}
+```
+
+`source` must identify an entry in `sources`, and `variable` a processed
+variable in that source's `processed_files` mapping.
+
+The target is opened from its own files, separately from the predictor
+channels, and each step is selected by timestamp. It therefore does not need to
+be an input channel, its files need not cover the lag history, and its time axis
+need not line up with the predictors'.
+
+The target window follows the diagram in [Initialisation, lag and
+lead](#initialisation-lag-and-lead): it opens on `forecast_init_date`, while the
+lag channels close on `forecast_init_date - 1`. The two windows never overlap,
+so the target cannot be handed back to the network as one of its own inputs.
+A target step with no data is dropped from the dataset rather than being filled
+from a neighbouring date.
+
+`mask` names an optional static mask of cells that are never valid for this
+target, and `weight_mask` an optional sample weighting field, which may carry a
+`month` dimension to vary by target step. Either may be `null`, which is the
+default for an explicitly configured target: `land` and `active_grid_cell`
+carry sea ice meaning and are not applied to, say, a temperature field unless
+asked for. Configurations with no `target` block keep the legacy `siconca_abs`
+target, along with both legacy masks, where it can be inferred unambiguously.
+
+The current TensorFlow network uses a sigmoid output and a binary accuracy
+metric, so targets used by that training pipeline must be preprocessed to the
+range [0, 1]. Only one forecast target is supported per network dataset.
+
 #### Sample weights

@@ -211,12 +211,14 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
                         self._channels, self._dtype, self._loss_weight_days,
                         self._meta_channels, self._missing_dates,
                         self._lead_time, self.num_channels, self._shape,
-                        self._trend_steps, self._frequency_attr, self._masks, False
+                        self._trend_steps, self._frequency_attr, self._masks,
+                        self.target, False
                     ]
 
                     fut = client.submit(generate_and_write,
                                         tf_path.format(batch_number),
                                         self.get_sample_files(),
+                                        self.target_files,
                                         dates,
                                         args,
                                         dry=self._dry,
@@ -295,19 +297,30 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
             logging.debug("TREND: {}".format(pformat(trend_ds)))
             trend_ds = trend_ds.transpose(y_name, x_name, "time")
 
+        # Opened from its own files so the target is selected by date, not by
+        # an index into the predictor axis. Prediction has no ground truth.
+        target_ds = None
+
+        if not prediction:
+            target_ds = xr.open_mfdataset(self.target_files, **ds_kwargs)
+            logging.debug("TARGET: {}".format(pformat(target_ds)))
+            target_ds = target_ds.transpose(y_name, x_name, "time")
+
         args = [
             self._channels, self._dtype, self._loss_weight_days,
             self._meta_channels, self._missing_dates, self._lead_time,
             self.num_channels, self._shape, self._trend_steps, self._frequency_attr,
-            self._masks, prediction
+            self._masks, self.target, prediction
         ]
 
-        x, y, sw = generate_sample(date, var_ds, var_files, trend_ds, *args)
+        x, y, sw = generate_sample(date, var_ds, var_files, trend_ds, target_ds,
+                                   *args)
         return x.compute(), y.compute(), sw.compute()
 
 
 def generate_and_write(path: str,
                        var_files: object,
+                       target_files: object,
                        dates: object,
                        args: tuple,
                        dry: bool = False):
@@ -315,6 +328,7 @@ def generate_and_write(path: str,
 
     :param path:
     :param var_files:
+    :param target_files:
     :param dates:
     :param args:
     :param dry:
@@ -325,7 +339,7 @@ def generate_and_write(path: str,
 
     (channels, dtype, loss_weight_days, meta_channels, missing_dates,
      n_forecast_days, num_channels, shape, trend_steps, frequency_attr, masks,
-     prediction) = args
+     target, prediction) = args
 
     ds_kwargs = dict(
         chunks=dict(time=1, yc=shape[0], xc=shape[1]),
@@ -356,13 +370,22 @@ def generate_and_write(path: str,
         trend_ds = xr.open_mfdataset(trend_files, **ds_kwargs)
         trend_ds = trend_ds.transpose(y_name, x_name, "time")
 
+    # Opened once per worker; the target need not be a predictor, nor share a
+    # time axis with one.
+    target_ds = None
+
+    if not prediction:
+        target_ds = xr.open_mfdataset(target_files, **ds_kwargs)
+        target_ds = target_ds.transpose(y_name, x_name, "time")
+
     with tf.io.TFRecordWriter(path) as writer:
         for date in dates:
             start = time.time()
 
             try:
                 x, y, sample_weights = generate_sample(date, var_ds, var_files,
-                                                       trend_ds, *args)
+                                                       trend_ds, target_ds,
+                                                       *args)
                 if not dry:
                     x, y, sample_weights = dask.compute(x,
                                                         y,
@@ -385,6 +408,7 @@ def generate_sample(forecast_date: object,
                     var_ds: object,
                     var_files: object,
                     trend_ds: object,
+                    target_ds: object,
                     channels: object,
                     dtype: object,
                     loss_weight_days: bool,
@@ -396,6 +420,7 @@ def generate_sample(forecast_date: object,
                     trend_steps: object,
                     frequency_attr: str,
                     masks: object,
+                    target: dict,
                     prediction: bool = False):
     """
 
@@ -404,6 +429,7 @@ def generate_sample(forecast_date: object,
     :param var_ds:
     :param var_files:
     :param trend_ds:
+    :param target_ds:
     :param channels:
     :param dtype:
     :param loss_weight_days:
@@ -415,6 +441,7 @@ def generate_sample(forecast_date: object,
     :param trend_steps:
     :param frequency_attr:
     :param masks:
+    :param target:
     :param prediction:
     :return:
     """
@@ -422,19 +449,14 @@ def generate_sample(forecast_date: object,
 
     # Prepare data sample
     # To become array of shape (*raw_data_shape, n_forecast_steps)
-    # For non-prediction samples, the target window should start after the
-    # current forecast date so the model is not trained to predict its own
-    # initialization point.
-    if not prediction:
-        forecast_steps = [
-            forecast_date + relativedelta(**{relative_attr: n + 1})
-            for n in range(n_forecast_steps)
-        ]
-    else:
-        forecast_steps = [
-            forecast_date + relativedelta(**{relative_attr: n})
-            for n in range(n_forecast_steps)
-        ]
+    #
+    # forecast_date is the first step being forecast, so the target window
+    # opens on it and the lags close strictly before it. Prediction shares this
+    # so that the two cannot drift apart.
+    forecast_steps = [
+        forecast_date + relativedelta(**{relative_attr: n})
+        for n in range(n_forecast_steps)
+    ]
 
     # forecast_base_idx for a prediction does not contain forecast date without multiple
     # dates being forecast, so handle accordingly
@@ -446,21 +468,60 @@ def generate_sample(forecast_date: object,
     y = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
     sample_weights = da.zeros((*shape, n_forecast_steps, 1), dtype=dtype)
 
-    land_mask = xr.open_dataarray(masks["land"])
+    # Cells never valid for this target, e.g. land for sea ice. Full-domain
+    # targets have none.
+    invalid_mask = None
+    target_mask_name = target.get("mask")
+
+    if target_mask_name is not None:
+        mask_da = xr.open_dataarray(masks[target_mask_name])
+
+        # A misconfigured mask is not a data problem, so raise past the
+        # per-sample handler rather than quietly dropping every sample.
+        if mask_da.shape != tuple(shape):
+            raise RuntimeError(
+                "Target mask {!r} has shape {}, expected {}".format(
+                    target_mask_name, mask_da.shape, tuple(shape)))
+
+        # NaN and non-zero both mean invalid, covering both mask conventions.
+        invalid_mask = da.asarray(mask_da.data).astype(bool)
 
     if not prediction:
-        forecast_idxs = [forecast_base_idx + n for n in range(0, n_forecast_steps)]
+        if target_ds is None:
+            raise RuntimeError(
+                "Target dataset was not supplied for a training sample")
+
+        target_dates = [pd.Timestamp(step) for step in forecast_steps]
 
         try:
-            sample_output = var_ds.siconca_abs.isel(time=forecast_idxs)
-        except (KeyError, IndexError):
+            sample_output = target_ds[target["variable"]].sel(
+                time=target_dates).transpose("yc", "xc", "time")
+        except (KeyError, IndexError, ValueError) as exc:
             raise IceNetDataWarning(
-                "Issue with y-data for non-prediction sample {}, "
-                "please review siconca ground-truth: dates {}".format(forecast_date, forecast_idxs))
-        y[:, :, :, 0] = sample_output
-        y_mask = da.stack([land_mask.data for _ in range(0, n_forecast_steps)], axis=-1)
-        y_mask = da.stack([y_mask], axis=-1)
-        y = da.ma.where(y_mask, 0., y)
+                "Unable to construct target {!r} for forecast date {} and "
+                "target dates {}: {}".format(target["variable"], forecast_date,
+                                             target_dates, exc)) from exc
+
+        expected_shape = (*shape, n_forecast_steps)
+
+        if sample_output.shape != expected_shape:
+            raise IceNetDataWarning("Target {!r} has shape {}, expected "
+                                    "{}".format(target["variable"],
+                                                sample_output.shape,
+                                                expected_shape))
+
+        y[:, :, :, 0] = sample_output.data
+
+        if invalid_mask is not None:
+            y = da.where(invalid_mask[..., None, None], 0., y).astype(dtype)
+
+    # Optional per-step weighting, e.g. active grid cells. Opened once, as it
+    # is otherwise reopened for every leadtime.
+    weight_mask_name = target.get("weight_mask")
+    weight_da = None
+
+    if weight_mask_name is not None:
+        weight_da = xr.open_dataarray(masks[weight_mask_name])
 
     # Masked recomposition of output
     for leadtime_idx, forecast_step in enumerate(forecast_steps):
@@ -468,21 +529,32 @@ def generate_sample(forecast_date: object,
         if any([forecast_step == missing_date for missing_date in missing_dates]):
             sample_weight = da.zeros(shape, dtype)
         else:
-            # TODO: this is hacky - across the entire sample generation process we need to render all masks down
-            # Zero loss outside of 'active grid cells'
-            if "active_grid_cell" in masks:
-                sample_weight = xr.open_dataarray(masks["active_grid_cell"]).sel(month=forecast_step.month).data
-                sample_weight[land_mask.astype("bool")] = 0.
+            if weight_da is None:
+                sample_weight = da.ones(shape, dtype=dtype)
             else:
-                # sample_weight = da.ones(shape, dtype)
-                sample_weight = da.where(land_mask.isnull(), 0., 1.)
-                sample_weight = da.where(land_mask == 1, 0., 1.)
+                step_weight = weight_da
+
+                if "month" in step_weight.dims:
+                    step_weight = step_weight.sel(month=forecast_step.month)
+
+                if step_weight.shape != tuple(shape):
+                    raise RuntimeError(
+                        "Target weight mask {!r} has shape {}, expected "
+                        "{}".format(weight_mask_name, step_weight.shape,
+                                    tuple(shape)))
+
+                sample_weight = da.asarray(step_weight.data)
+
+            if invalid_mask is not None:
+                sample_weight = da.where(invalid_mask, 0., sample_weight)
 
             # TODO: dynamic inclusion of polarhole?
-            sample_weight = sample_weight.astype(dtype)
+            sample_weight = da.where(da.isnan(sample_weight), 0.,
+                                     sample_weight).astype(dtype)
 
             # We can pick up nans, which messes up training
-            sample_weight[da.isnan(y[..., leadtime_idx, 0])] = 0
+            sample_weight = da.where(da.isnan(y[..., leadtime_idx, 0]), 0.,
+                                     sample_weight)
 
             # Scale the loss for each month s.t. March is
             #   scaled by 1 and Sept is scaled by 1.77
@@ -513,9 +585,7 @@ def generate_sample(forecast_date: object,
         # If we're not a trend, we're a lag channel looking back historically from the initialisation date
         else:
             channel_ds = var_ds
-            # Keep the current-time point as the most recent lag input instead of
-            # skipping straight to the previous step.
-            channel_idxs = [forecast_base_idx - n for n in range(num_channels)]
+            channel_idxs = [forecast_base_idx - n for n in range(1, num_channels + 1)]
 
         channel_data = []
         for idx in channel_idxs:
