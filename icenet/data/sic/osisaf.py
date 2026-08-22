@@ -341,7 +341,18 @@ class SICDownloader(Downloader):
             met.no/reprocessed/ice/conc_v2p0_nh_agg.html
         - OSI-430-b (2016-present): https://thredds.met.no/thredds/dodsC/osisaf/
             met.no/reprocessed/ice/conc_crb_nh_agg.html
-        - OSI-430-a (2022-present): https://osi-saf.eumetsat.int/products/osi-430-as
+        - OSI-430-a (2021-2025-10-17, decommissioned): https://osi-saf.eumetsat.int/products/osi-430-a
+            OSI-430-a (the pure SSMIS interim climate data record) was suspended by
+            EUMETSAT/met.no on 2025-10-17 because gaps in the SSMIS input data were
+            degrading temporal consistency -- confirmed empirically: the FTP directory
+            for this product has zero files for every month from 2025-10 onward.
+        - OSI-438 (2021-present, replacement for OSI-430-a): https://osi-saf.eumetsat.int/products/osi-438
+            EUMETSAT's stated recommendation is to switch to this AMSR2-based product,
+            which has "the same projection, spatio-temporal resolution and timeliness"
+            as OSI-430-a. Confirmed via direct FTP listing that OSI-438 has full
+            backfilled coverage for the same 2021-present range OSI-430-a used to cover,
+            so it can be a straight replacement rather than needing its own date split.
+            See https://github.com/icenet-ai/icenet/issues/354.
 
     :param additional_invalid_dates:
     :param chunk_size:
@@ -375,7 +386,10 @@ class SICDownloader(Downloader):
 
         self._ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
         self._ftp_osi430b = "/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/"
-        self._ftp_osi430a = "/reprocessed/ice/conc-cont-reproc/v3p0/{:04d}/{:02d}/"
+        # OSI-430-a was decommissioned by EUMETSAT/met.no on 2025-10-17; OSI-438 is
+        # its stated direct replacement and has the same 2021-present coverage.
+        # See the class docstring and https://github.com/icenet-ai/icenet/issues/354.
+        self._ftp_osi438 = "/reprocessed/ice/conc-cont-reproc-amsr/v3p0/{:04d}/{:02d}/"
 
         self._mask_dict = {
             month: self._masks.get_active_cell_mask(month)
@@ -396,6 +410,39 @@ class SICDownloader(Downloader):
                     for date in csv.reader(fh)
                 ]
 
+    @staticmethod
+    def _resolve_ftp_path(date: dt.date,
+                          ftp_osi450: str,
+                          ftp_osi430b: str,
+                          ftp_osi438: str,
+                          osi430b_start: dt.date,
+                          osi438_start: dt.date) -> str:
+        """Select and format the correct FTP directory template for a given date.
+
+        Extracted as a pure, static method (no instance state) specifically so this
+        date-routing logic can be unit tested without needing a full `SICDownloader`
+        instance (which requires real mask data on disk) or a live FTP connection.
+
+        Args:
+            date: The observation date being resolved.
+            ftp_osi450: Unformatted FTP path template for the OSI-450 product
+                (1979-2015).
+            ftp_osi430b: Unformatted FTP path template for the OSI-430-b product
+                (2016 up to `osi438_start`).
+            ftp_osi438: Unformatted FTP path template for the OSI-438 product
+                (`osi438_start`-present; the 2025-10-17 replacement for the
+                decommissioned OSI-430-a).
+            osi430b_start: First date the OSI-430-b product applies from.
+            osi438_start: First date the OSI-438 product applies from.
+
+        Returns:
+            The path template formatted with `date`'s year and month.
+        """
+        template = (ftp_osi450 if date < osi430b_start else
+                   ftp_osi430b if date < osi438_start else
+                   ftp_osi438)
+        return template.format(date.year, date.month)
+
     def download(self):
         """
 
@@ -411,7 +458,7 @@ class SICDownloader(Downloader):
 
         cache = {}
         osi430b_start = dt.date(2016, 1, 1)
-        osi430a_start = dt.date(2021, 1, 1)
+        osi438_start = dt.date(2021, 1, 1)
 
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
 
@@ -491,11 +538,14 @@ class SICDownloader(Downloader):
                     ftp = FTP('osisaf.met.no')
                     ftp.login()
 
-                chdir_path = self._ftp_osi450 \
-                    if el < osi430b_start else self._ftp_osi430b \
-                    if el < osi430a_start else self._ftp_osi430a
-
-                chdir_path = chdir_path.format(el.year, el.month)
+                chdir_path = self._resolve_ftp_path(
+                    el,
+                    self._ftp_osi450,
+                    self._ftp_osi430b,
+                    self._ftp_osi438,
+                    osi430b_start,
+                    osi438_start,
+                )
 
                 try:
                     ftp.cwd(chdir_path)

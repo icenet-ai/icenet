@@ -638,10 +638,11 @@ def reproject_projected_coords(data: object,
 
     Examples:
 
-    >>> reprojected_data = reproject_projected_coords(arr, # doctest: +SKIP
-    >>>             target_crs=target_crs,
-    >>>             pole=pole,
-    >>>             )
+    >>> reprojected_data = reproject_projected_coords(  # doctest: +SKIP
+    ...     arr,
+    ...     target_crs=target_crs,
+    ...     pole=pole,
+    ... )
     """
     # Eastings/Northings projection
     data_crs_proj = ccrs.LambertAzimuthalEqualArea(0, pole*90)
