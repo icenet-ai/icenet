@@ -1,10 +1,27 @@
 import logging
 import subprocess as sp
+import sys
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from enum import Flag, auto
 from functools import wraps
 from logging import Logger
+
+
+def read_text_arg(parser, filename):
+    """Read a CLI text input after parsing, closing files but not stdin.
+
+    Keep the platform-default encoding used by open(..., "r"). Report I/O
+    failures through the originating argument parser.
+    """
+    try:
+        context = nullcontext(sys.stdin) if filename == "-" else open(filename, "r")
+        with context as stream:
+            return stream.read()
+    except OSError as exc:
+        parser.error("can't read {!r}: {}".format(filename, exc))
+
 
 class Hemisphere(Flag):
     """Representation of hemispheres & both with bitwise operations.

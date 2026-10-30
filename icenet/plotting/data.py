@@ -12,7 +12,7 @@ from math import ceil
 from icenet.data.datasets.utils import get_decoder
 from icenet.data.cli import date_arg
 from icenet.data.dataset import IceNetDataSet
-from icenet.utils import setup_logging
+from icenet.utils import read_text_arg, setup_logging
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -26,20 +26,21 @@ def tfrecord_args():
     """
     ap = argparse.ArgumentParser()
     ap.add_argument("file")
-    ap.add_argument("configuration", type=argparse.FileType("r"))
+    ap.add_argument("configuration", help="JSON configuration, or '-' for standard input")
     ap.add_argument("-i", "--index", default=1, type=int)
     ap.add_argument("-l", "--levels", default=100, type=int)
     ap.add_argument("-o", "--output", default="plot")
 
-    return ap.parse_args()
+    args = ap.parse_args()
+    args.configuration_content = read_text_arg(ap, args.configuration)
+    return args
 
 
 def plot_tfrecord():
     args = tfrecord_args()
 
+    config = json.loads(args.configuration_content)
     ds = tf.data.TFRecordDataset([args.file])
-    config = json.load(args.configuration)
-    args.configuration.close()
 
     decoder = get_decoder(tuple(config['shape']), config['num_channels'],
                           config['n_forecast_days'])
