@@ -65,22 +65,13 @@ repository][2] for examples of how to use this library.
 
 Please refer to [the contribution guidelines for more information.](CONTRIBUTING.rst)
 
-## Deployment to PyPi
+ ## Deployment to PyPi
 
-To deploy a new release to PyPI, set up your credentials in `~/.pypirc` with your personal access token.
+ New versions are published to PyPI automatically by the `.github/workflows/pypi.yml` GitHub Action when they are merged into `main`. To release:
 
-* Increment the version in `icenet/__init__.py` and commit change to the branch.
-* `git tag vX.Y.Z`
-* `git push upstream --tags`
-
-To test deployment by deploying to test PyPI, run:
-* `make dist` to build sdist and wheel files.
-* `twine check dist/*` to check that the files are valid and can be uploaded to PyPI.
-* `twine upload --repository testpypi dist/*` to deploy to test PyPI.
-
-If all looks good, run:
-
-* `make release` to deploy to PyPI.
+ * Increment the version in `icenet/__init__.py` on the dev branch.
+ * Merge the dev branch into `main`. The action builds the package and uploads it to TestPyPI and PyPI (versions that already exist are skipped).
+ * Tag the release on `main`, e.g. `v0.2.10`.
 
 ## Credits
 

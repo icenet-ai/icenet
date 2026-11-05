@@ -146,6 +146,8 @@ def get_args():
     ap.add_argument("-o", "--output-dir", default=".")
     ap.add_argument("-r", "--root", type=str, default=".")
 
+    ap.add_argument("-c", "--compress", action="store_true", default=False,
+                    help="Compress the output netCDF using zlib")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     return ap.parse_args()
@@ -371,4 +373,10 @@ def create_cf_output():
     # TODO: split into daily files
     output_path = os.path.join(args.output_dir, "{}.nc".format(args.name))
     logging.info("Saving to {}".format(output_path))
-    xarr.to_netcdf(output_path)
+
+    if args.compress:
+        comp = dict(zlib=True, complevel=4)
+        encoding = {var: comp for var in xarr.data_vars}
+        xarr.to_netcdf(output_path, encoding=encoding)
+    else:
+        xarr.to_netcdf(output_path)
