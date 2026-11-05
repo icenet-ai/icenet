@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
  ### Added
  - Option to set the path to the masks in `SICDownloader`.
  - `--compress` option for prediction netCDF outputs (zlib level 4).
+ - Automatic publishing to PyPI via GitHub Actions when a new version is merged into main (#37).
 
  ### Changed
  - Switched SIC downloads from the decommissioned OSI-SAF OSI-430-a product to OSI-438 (AMSR2) for dates from October 2025 (#354).
