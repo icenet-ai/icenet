@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from icenet import __email__ as icenet_email
 from icenet import __version__ as icenet_version
 from icenet.data.dataset import IceNetDataSet
 from icenet.data.sic.mask import Masks
@@ -242,7 +243,7 @@ def create_cf_output():
         attrs=dict(
             Conventions="CF-1.6 ACDD-1.3",
             comments="",
-            creator_email="jambyr@bas.ac.uk",
+            creator_email=icenet_email,
             creator_institution="British Antarctic Survey",
             creator_name="James Byrne",
             creator_url="www.bas.ac.uk",
