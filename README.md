@@ -67,11 +67,11 @@ Please refer to [the contribution guidelines for more information.](CONTRIBUTING
 
  ## Deployment to PyPi
 
- New versions are published to PyPI automatically by the `.github/workflows/pypi.yml` GitHub Action when they are merged into `main`. To release:
+New versions are published to PyPI by the `.github/workflows/pypi.yml` GitHub Action when a version tag is created. To release:
 
- * Increment the version in `icenet/__init__.py` on the dev branch.
- * Merge the dev branch into `main`. The action builds the package and uploads it to TestPyPI and PyPI (versions that already exist are skipped).
- * Tag the release on `main`, e.g. `v0.2.10`.
+* Increment the version in `icenet/__init__.py` on the dev branch.
+* Merge the dev branch into `main`.
+* Create a GitHub release on `main` with a new tag matching the version, e.g. `v0.2.10`. Creating the tag starts the action, which builds the package and uploads it to PyPI.
 
 ## Credits
 
