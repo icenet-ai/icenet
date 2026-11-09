@@ -330,18 +330,23 @@ class DaskWrapper:
 
 
 class SICDownloader(Downloader):
-    """Downloads OSI-SAF SIC data from 1979-present using OpenDAP.
+    """Downloads OSI-SAF SIC data from 1979-present using FTP.
 
-    The dataset comprises OSI-450 (1979-2015) and OSI-430-b (2016-ownards)
+    The dataset comprises OSI-450 (1979-2015), OSI-430-b (2016-2020),
+    OSI-430-a (2021 to September 2025) and OSI-438 (October 2025 onwards).
+    OSI-438 (AMSR2) replaces OSI-430-a (SSMIS), which was suspended in
+    October 2025 when SSMIS data ended.
     Monthly averages are-computed on the server-side.
     This script can take about an hour to run.
 
     The query URLs were obtained from the following sites:
-        - OSI-450 (1979-2016): https://thredds.met.no/thredds/dodsC/osisaf/
+        - OSI-450 (1979-2015): https://thredds.met.no/thredds/dodsC/osisaf/
             met.no/reprocessed/ice/conc_v2p0_nh_agg.html
-        - OSI-430-b (2016-present): https://thredds.met.no/thredds/dodsC/osisaf/
+        - OSI-430-b (2016-2020): https://thredds.met.no/thredds/dodsC/osisaf/
             met.no/reprocessed/ice/conc_crb_nh_agg.html
-        - OSI-430-a (2022-present): https://osi-saf.eumetsat.int/products/osi-430-as
+        - OSI-430-a (2021 to September 2025): https://osi-saf.eumetsat.int/products/osi-430-as
+        - OSI-438 (October 2025 onwards): ftp://osisaf.met.no/reprocessed/ice/
+            conc-cont-reproc-amsr/v3p0/
 
     :param additional_invalid_dates:
     :param chunk_size:
@@ -349,6 +354,8 @@ class SICDownloader(Downloader):
     :param delete_tempfiles:
     :param download:
     :param dtype:
+    :param masks_path: Path to the masks directory. If empty, the default
+        masks location is used.
     """
 
     def __init__(self,
