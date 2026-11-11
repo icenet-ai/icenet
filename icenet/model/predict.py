@@ -12,7 +12,7 @@ import icenet.model.models as models
 
 from icenet.data.loader import save_sample
 from icenet.data.dataset import IceNetDataSet
-from icenet.utils import setup_logging
+from icenet.utils import read_text_arg, setup_logging
 """
 
 """
@@ -178,7 +178,7 @@ def get_args():
     ap.add_argument("network_name")
     ap.add_argument("output_name")
     ap.add_argument("seed", type=int, default=42)
-    ap.add_argument("datefile", type=argparse.FileType("r"))
+    ap.add_argument("datefile", help="Dates file, or '-' for standard input")
 
     ap.add_argument("-i",
                     "--train-identifier",
@@ -193,7 +193,9 @@ def get_args():
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
     ap.add_argument("-s", "--save_args", action="store_true", default=False)
 
-    return ap.parse_args()
+    args = ap.parse_args()
+    args.date_content = read_text_arg(ap, args.datefile)
+    return args
 
 
 def main():
@@ -202,11 +204,9 @@ def main():
     dataset_config = \
         os.path.join(".", "dataset_config.{}.json".format(args.dataset))
 
-    date_content = args.datefile.read()
     dates = [
-        dt.date(*[int(v) for v in s.split("-")]) for s in date_content.split()
+        dt.date(*[int(v) for v in s.split("-")]) for s in args.date_content.split()
     ]
-    args.datefile.close()
 
     output_folder = os.path.join(".", "results", "predict", args.output_name,
                                  "{}.{}".format(args.network_name, args.seed))

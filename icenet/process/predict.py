@@ -14,7 +14,7 @@ from icenet import __email__ as icenet_email
 from icenet import __version__ as icenet_version
 from icenet.data.dataset import IceNetDataSet
 from icenet.data.sic.mask import Masks
-from icenet.utils import run_command, setup_logging
+from icenet.utils import read_text_arg, run_command, setup_logging
 
 
 def get_refsic(north: bool = True, south: bool = False) -> object:
@@ -125,7 +125,7 @@ def get_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("name")
     ap.add_argument("dataset")
-    ap.add_argument("datefile", type=argparse.FileType("r"))
+    ap.add_argument("datefile", help="Dates file, or '-' for standard input")
 
     ap.add_argument("-m", "--mask", default=False, action="store_true")
 
@@ -151,7 +151,9 @@ def get_args():
                     help="Compress the output netCDF using zlib")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
-    return ap.parse_args()
+    args = ap.parse_args()
+    args.date_content = read_text_arg(ap, args.datefile)
+    return args
 
 
 def create_cf_output():
@@ -169,9 +171,8 @@ def create_cf_output():
 
     dates = [
         dt.date(*[int(v) for v in s.split("-")])
-        for s in args.datefile.read().split()
+        for s in args.date_content.split()
     ]
-    args.datefile.close()
 
     arr, ens_members = zip(
         *[get_prediction_data(args.root, args.name, date) for date in dates])
