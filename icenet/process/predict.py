@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from icenet import __email__ as icenet_email
 from icenet import __version__ as icenet_version
 from icenet.data.dataset import IceNetDataSet
 from icenet.data.sic.mask import Masks
@@ -146,6 +147,8 @@ def get_args():
     ap.add_argument("-o", "--output-dir", default=".")
     ap.add_argument("-r", "--root", type=str, default=".")
 
+    ap.add_argument("-c", "--compress", action="store_true", default=False,
+                    help="Compress the output netCDF using zlib")
     ap.add_argument("-v", "--verbose", action="store_true", default=False)
 
     return ap.parse_args()
@@ -240,7 +243,7 @@ def create_cf_output():
         attrs=dict(
             Conventions="CF-1.6 ACDD-1.3",
             comments="",
-            creator_email="jambyr@bas.ac.uk",
+            creator_email=icenet_email,
             creator_institution="British Antarctic Survey",
             creator_name="James Byrne",
             creator_url="www.bas.ac.uk",
@@ -371,4 +374,10 @@ def create_cf_output():
     # TODO: split into daily files
     output_path = os.path.join(args.output_dir, "{}.nc".format(args.name))
     logging.info("Saving to {}".format(output_path))
-    xarr.to_netcdf(output_path)
+
+    if args.compress:
+        comp = dict(zlib=True, complevel=4)
+        encoding = {var: comp for var in xarr.data_vars}
+        xarr.to_netcdf(output_path, encoding=encoding)
+    else:
+        xarr.to_netcdf(output_path)

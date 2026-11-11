@@ -285,7 +285,11 @@ class DaskMultiWorkerLoader(DaskBaseDataLoader):
         ]
 
         x, y, sw = generate_sample(date, var_ds, var_files, trend_ds, *args)
-        return x.compute(), y.compute(), sw.compute()
+        x_out = x.compute()
+        # Replace NaNs with 0 to match training behaviour — without this,
+        # NaN inputs propagate through the U-Net and produce all-NaN predictions
+        x_out[np.isnan(x_out)] = 0.
+        return x_out, y.compute(), sw.compute()
 
 
 def generate_and_write(path: str,

@@ -330,18 +330,23 @@ class DaskWrapper:
 
 
 class SICDownloader(Downloader):
-    """Downloads OSI-SAF SIC data from 1979-present using OpenDAP.
+    """Downloads OSI-SAF SIC data from 1979-present using FTP.
 
-    The dataset comprises OSI-450 (1979-2015) and OSI-430-b (2016-ownards)
+    The dataset comprises OSI-450 (1979-2015), OSI-430-b (2016-2020),
+    OSI-430-a (2021 to September 2025) and OSI-438 (October 2025 onwards).
+    OSI-438 (AMSR2) replaces OSI-430-a (SSMIS), which was suspended in
+    October 2025 when SSMIS data ended.
     Monthly averages are-computed on the server-side.
     This script can take about an hour to run.
 
     The query URLs were obtained from the following sites:
-        - OSI-450 (1979-2016): https://thredds.met.no/thredds/dodsC/osisaf/
+        - OSI-450 (1979-2015): https://thredds.met.no/thredds/dodsC/osisaf/
             met.no/reprocessed/ice/conc_v2p0_nh_agg.html
-        - OSI-430-b (2016-present): https://thredds.met.no/thredds/dodsC/osisaf/
+        - OSI-430-b (2016-2020): https://thredds.met.no/thredds/dodsC/osisaf/
             met.no/reprocessed/ice/conc_crb_nh_agg.html
-        - OSI-430-a (2022-present): https://osi-saf.eumetsat.int/products/osi-430-as
+        - OSI-430-a (2021 to September 2025): https://osi-saf.eumetsat.int/products/osi-430-as
+        - OSI-438 (October 2025 onwards): ftp://osisaf.met.no/reprocessed/ice/
+            conc-cont-reproc-amsr/v3p0/
 
     :param additional_invalid_dates:
     :param chunk_size:
@@ -349,6 +354,8 @@ class SICDownloader(Downloader):
     :param delete_tempfiles:
     :param download:
     :param dtype:
+    :param masks_path: Path to the masks directory. If empty, the default
+        masks location is used.
     """
 
     def __init__(self,
@@ -359,6 +366,7 @@ class SICDownloader(Downloader):
                  delete_tempfiles: bool = True,
                  download: bool = True,
                  dtype: object = np.float32,
+                 masks_path: str = "",
                  parallel_opens: bool = True,
                  **kwargs):
         super().__init__(*args, identifier="osisaf", **kwargs)
@@ -371,11 +379,16 @@ class SICDownloader(Downloader):
         self._parallel_opens = parallel_opens
         self._invalid_dates = invalid_sic_days[self.hemisphere] + \
             list(additional_invalid_dates)
-        self._masks = Masks(north=self.north, south=self.south)
+        self._masks = (
+            Masks(north=self.north, south=self.south, path=masks_path)
+            if masks_path
+            else Masks(north=self.north, south=self.south)
+        )
 
         self._ftp_osi450 = "/reprocessed/ice/conc/v2p0/{:04d}/{:02d}/"
         self._ftp_osi430b = "/reprocessed/ice/conc-cont-reproc/v2p0/{:04d}/{:02d}/"
         self._ftp_osi430a = "/reprocessed/ice/conc-cont-reproc/v3p0/{:04d}/{:02d}/"
+        self._ftp_osi438 = "/reprocessed/ice/conc-cont-reproc-amsr/v3p0/{:04d}/{:02d}/"
 
         self._mask_dict = {
             month: self._masks.get_active_cell_mask(month)
@@ -412,6 +425,9 @@ class SICDownloader(Downloader):
         cache = {}
         osi430b_start = dt.date(2016, 1, 1)
         osi430a_start = dt.date(2021, 1, 1)
+        # OSI-430-a (SSMIS) was suspended on 17/10/2025 due to the end of SSMIS data.
+        # OSI-438 (AMSR2) replaces it from this date onwards.
+        osi438_start = dt.date(2025, 10, 1)
 
         dt_arr = list(reversed(sorted(copy.copy(self._dates))))
 
@@ -493,7 +509,8 @@ class SICDownloader(Downloader):
 
                 chdir_path = self._ftp_osi450 \
                     if el < osi430b_start else self._ftp_osi430b \
-                    if el < osi430a_start else self._ftp_osi430a
+                    if el < osi430a_start else self._ftp_osi430a \
+                    if el < osi438_start else self._ftp_osi438
 
                 chdir_path = chdir_path.format(el.year, el.month)
 
@@ -700,10 +717,19 @@ class SICDownloader(Downloader):
             missing_dates_path = os.path.join(self.get_data_var_folder("siconca"),
                                               "missing_days.csv")
 
+            existing_dates = set()
+            if os.path.exists(missing_dates_path):
+                with open(missing_dates_path, "r") as fh:
+                    for line in fh:
+                        existing_dates.add(line.strip())
+
             with open(missing_dates_path, "a") as fh:
                 for date in missing_dates:
                     # FIXME: slightly unusual format for Ymd dates
-                    fh.write(date.strftime("%Y,%m,%d\n"))
+                    date_str = date.strftime("%Y,%m,%d")
+                    if date_str not in existing_dates:
+                        fh.write(date_str + "\n")
+                        existing_dates.add(date_str)
 
             logging.debug("Interpolating {} missing dates".format(
                 len(missing_dates)))

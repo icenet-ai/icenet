@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+ ## [v0.2.10] - 2026-11-05
+
+ ### Added
+ - Option to set the path to the masks in `SICDownloader`.
+ - `--compress` option for prediction netCDF outputs (zlib level 4).
+ - Publishing to PyPI via GitHub Actions when a version tag is created (#37).
+
+ ### Changed
+ - Switched SIC downloads from the decommissioned OSI-SAF OSI-430-a product to OSI-438 (AMSR2) for dates from October 2025 (#354).
+ - Updated contact email to digitalinnovation@bas.ac.uk.
+
+ ### Fixed
+ - NaN values propagating through predictions.
+ - Duplicate entries being added to `missing_days.csv`.
+ - Pandas Series index deprecation warning in plotting utils.
+
 ## [v0.2.9] - 2025-02-19
 
 ### Added
