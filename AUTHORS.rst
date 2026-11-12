@@ -2,13 +2,20 @@
 Credits
 =======
 
+Maintainers
+-----------
+
+* Sophie Grunau (@SophieGrunau)
+* Ben Evans (@lupinthief)
+Contact: digitalinnovation@bas.ac.uk
+
 Development Leads
 -----------------
 
-* James Byrne <jambyr@bas.ac.uk> (@jimcircadian)
-* Bryn Noel Ubald <bryald@bas.ac.uk> (@bnubald)
-* Tom Andersson <tomand@bas.ac.uk> (@tom-andersson)
-* Scott Hosking <shosking@turing.ac.uk> (@scotthosking)
+* James Byrne (@jimcircadian)
+* Bryn Noel Ubald <bryn.ubald@ecmwf.int> (@bnubald)
+* Tom Andersson (@tom-andersson)
+* Scott Hosking (@scotthosking)
 
 Contributors
 ------------
