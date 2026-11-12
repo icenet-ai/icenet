@@ -6,6 +6,7 @@ Maintainers
 -----------
 
 * Sophie Grunau (@SophieGrunau)
+* Ben Evans(@lupinthief)
 Contact: digitalinnovation@bas.ac.uk
 
 Development Leads
