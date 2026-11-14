@@ -50,13 +50,7 @@ def init_wandb(cli_args):
             group=cli_args.run_name,
         )
 
-        # Log training metrics to wandb each epoch
-        return run, wandb.keras.WandbCallback(
-            monitor=cli_args.checkpoint_monitor,
-            mode=cli_args.checkpoint_mode,
-            save_model=False,
-            save_graph=False,
-        )
+        return run, wandb.integration.keras.WandbMetricsLogger()
 
     logging.warning("WandB is not available, we will never use it")
     return None, None
